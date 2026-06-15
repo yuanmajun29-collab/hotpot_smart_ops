@@ -1,0 +1,74 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>日报 · 冯校长火锅 · 智能运营</title>
+  <link rel="stylesheet" href="assets/theme.css" />
+</head>
+<body>
+  <div class="app-shell">
+    <aside class="sidebar">
+      <div class="sidebar-brand"><h1>冯校长火锅</h1><p>智能运营 · MVP</p></div>
+      <a class="nav-item" href="home.html">首页概览</a>
+      <a class="nav-item" href="tables.html">前厅 · 桌态</a>
+      <a class="nav-item" href="kitchen.html">后厨 · IoT</a>
+      <a class="nav-item" href="sop.html">SOP 执行</a>
+      <a class="nav-item" href="cost.html">来料 · 成本</a>
+      <a class="nav-item" href="alerts.html">告警中心</a>
+      <a class="nav-item active" data-nav="report" href="report.html">运营日报</a>
+      <a class="nav-item" href="pda/receiving.html">收货 PDA</a>
+    </aside>
+    <div class="main-wrap">
+      <header class="topbar">
+        <div class="topbar-left"><h2 id="store-name">—</h2><div class="topbar-meta">LLM 运营日报 · F-R01~R02</div></div>
+        <div class="topbar-right">
+          <button class="btn btn-sm" onclick="generate()">生成日报</button>
+          <input class="hub-input" id="hub-url" type="text" />
+          <span class="chip" id="user-name">—</span>
+          <button class="btn btn-sm btn-ghost" id="btn-logout">退出</button>
+        </div>
+      </header>
+      <main class="content">
+        <div class="grid grid-2">
+          <div class="card">
+            <h3>历史日报（演示）</h3>
+            <ul class="list-plain" id="history">
+              <li><a href="#" onclick="generate();return false">今日 · 刚刚</a></li>
+              <li style="color:var(--muted)">昨日 · Phase 2 接入</li>
+              <li style="color:var(--muted)">6/10 · Phase 2 接入</li>
+            </ul>
+          </div>
+          <div class="card">
+            <h3>推送预览（企微卡片）</h3>
+            <div style="background:#0d1117;border:1px solid var(--border);border-radius:8px;padding:14px;font-size:0.85rem">
+              <b>【运营日报】蜀大侠·春熙店</b><br>
+              翻台待清 3 桌 · SOP 92% · 来料偏差 2.1%<br>
+              <span style="color:var(--info)">👉 点击查看完整日报</span>
+            </div>
+          </div>
+        </div>
+        <div class="card" style="margin-top:20px">
+          <h3>LLM 运营日报</h3>
+          <div class="report-box" id="report">点击「生成日报」或等待自动加载...</div>
+        </div>
+      </main>
+    </div>
+  </div>
+  <script src="assets/core.js"></script>
+  <script>
+    HotpotApp.initShell("report");
+    async function generate() {
+      const el = document.getElementById("report");
+      el.textContent = "生成中...";
+      try {
+        const summary = await HotpotApp.fetchSummary();
+        el.textContent = HotpotApp.buildReport(summary);
+      } catch (e) {
+        el.textContent = "生成失败: " + e.message;
+      }
+    }
+    generate();
+  </script>
+</body>
+</html>

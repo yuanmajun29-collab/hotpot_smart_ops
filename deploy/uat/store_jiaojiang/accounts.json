@@ -1,0 +1,9 @@
+{
+  "store_id": "store_jiaojiang",
+  "accounts": [
+    { "username": "zhangdian", "role": "店长", "display_name": "陈店长" },
+    { "username": "lingban", "role": "前厅领班", "display_name": "赵领班" },
+    { "username": "chushi", "role": "厨师长", "display_name": "刘厨师长" }
+  ],
+  "demo_password": "demo"
+}

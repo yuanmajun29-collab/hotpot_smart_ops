@@ -1,0 +1,397 @@
+{
+  "store_id": "store_yuhuan",
+  "analyzed_at": "2026-06-12T03:16:31+00:00",
+  "batch_count": 5,
+  "total_po_amount": 3477.5,
+  "total_actual_amount": 3464.45,
+  "total_variance_amount": -13.05,
+  "variance_rate_pct": -0.38,
+  "reject_count": 1,
+  "items": [
+    {
+      "batch_id": "RCV-20260612-001",
+      "sku": "毛肚",
+      "supplier": "冯校长供应链",
+      "po_amount": 1360.0,
+      "actual_amount": 1305.6,
+      "variance_amount": -54.4,
+      "variance_pct": -4.0,
+      "yield_rate": 0.232,
+      "quality_grade": "A",
+      "action": "accept",
+      "alerts": [
+        {
+          "type": "cost_weight_short",
+          "severity": "warn",
+          "message": "毛肚 来料短重 4.0%（PO 20.0kg → 实收 19.2kg）",
+          "details": {
+            "short_pct": 4.0,
+            "po_qty": 20.0,
+            "actual_qty": 19.2
+          }
+        },
+        {
+          "type": "cost_yield_low",
+          "severity": "warn",
+          "message": "毛肚 出成率 23.2% 低于标准 92%",
+          "details": {
+            "yield_rate": 0.232,
+            "standard_yield": 0.92
+          }
+        }
+      ],
+      "iot_actual_qty_kg": 19.2,
+      "iot_usable_qty_kg": 4.45,
+      "data_sources": {
+        "quantity": "iot",
+        "quality": "vlm+iot"
+      }
+    },
+    {
+      "batch_id": "RCV-20260612-002",
+      "sku": "鲜牛肉",
+      "supplier": "冯校长供应链",
+      "po_amount": 1560.0,
+      "actual_amount": 1615.05,
+      "variance_amount": 55.05,
+      "variance_pct": 3.53,
+      "yield_rate": 0.227,
+      "quality_grade": "B",
+      "action": "negotiate",
+      "alerts": [
+        {
+          "type": "cost_price_over",
+          "severity": "warn",
+          "message": "鲜牛肉 来料单价超 PO 6.7%（PO ¥52.0/kg → 实收 ¥55.5/kg）",
+          "details": {
+            "price_diff_pct": 6.73,
+            "po_price": 52.0,
+            "actual_price": 55.5
+          }
+        },
+        {
+          "type": "cost_yield_low",
+          "severity": "warn",
+          "message": "鲜牛肉 出成率 22.7% 低于标准 88%",
+          "details": {
+            "yield_rate": 0.227,
+            "standard_yield": 0.88
+          }
+        }
+      ],
+      "iot_actual_qty_kg": 29.1,
+      "iot_usable_qty_kg": 6.6,
+      "data_sources": {
+        "quantity": "iot",
+        "quality": "vlm+iot"
+      }
+    },
+    {
+      "batch_id": "RCV-20260612-003",
+      "sku": "鸭血",
+      "supplier": "蓉城冻品",
+      "po_amount": 127.5,
+      "actual_amount": 125.8,
+      "variance_amount": -1.7,
+      "variance_pct": -1.33,
+      "yield_rate": 0.98,
+      "quality_grade": "A",
+      "action": "accept",
+      "alerts": [],
+      "iot_actual_qty_kg": null,
+      "iot_usable_qty_kg": null,
+      "data_sources": {
+        "quantity": "manual",
+        "quality": "vlm"
+      }
+    },
+    {
+      "batch_id": "RCV-20260612-004",
+      "sku": "蔬菜拼盘",
+      "supplier": "绿源农批",
+      "po_amount": 150.0,
+      "actual_amount": 138.0,
+      "variance_amount": -12.0,
+      "variance_pct": -8.0,
+      "yield_rate": 0.33,
+      "quality_grade": "C",
+      "action": "reject",
+      "alerts": [
+        {
+          "type": "cost_weight_short",
+          "severity": "warn",
+          "message": "蔬菜拼盘 来料短重 8.0%（PO 25.0kg → 实收 23.0kg）",
+          "details": {
+            "short_pct": 8.0,
+            "po_qty": 25.0,
+            "actual_qty": 23.0
+          }
+        },
+        {
+          "type": "cost_yield_low",
+          "severity": "warn",
+          "message": "蔬菜拼盘 出成率 33.0% 低于标准 85%",
+          "details": {
+            "yield_rate": 0.33,
+            "standard_yield": 0.85
+          }
+        },
+        {
+          "type": "cost_quality_reject",
+          "severity": "critical",
+          "message": "蔬菜拼盘 VLM 质检评级 C，建议拒收或降价入库",
+          "details": {
+            "quality_grade": "C"
+          }
+        },
+        {
+          "type": "cost_near_expiry",
+          "severity": "warn",
+          "message": "蔬菜拼盘 临期风险：剩余保质期 1 天",
+          "details": {
+            "remaining_shelf_days": 1
+          }
+        },
+        {
+          "type": "iot_temp_abnormal",
+          "severity": "critical",
+          "message": "蔬菜拼盘 IoT探针到货温度 8.5°C 超标，品质风险",
+          "details": {
+            "iot_probe_temp": 8.5,
+            "source": "iot"
+          }
+        },
+        {
+          "type": "iot_rfid_missing",
+          "severity": "warn",
+          "message": "蔬菜拼盘 IoT RFID 未扫描，数量/批次无法追溯",
+          "details": {
+            "source": "iot"
+          }
+        }
+      ],
+      "iot_actual_qty_kg": 23.0,
+      "iot_usable_qty_kg": 7.6,
+      "data_sources": {
+        "quantity": "iot",
+        "quality": "vlm+iot"
+      }
+    },
+    {
+      "batch_id": "RCV-20260612-005",
+      "sku": "底料",
+      "supplier": "总部配送中心",
+      "po_amount": 280.0,
+      "actual_amount": 280.0,
+      "variance_amount": 0.0,
+      "variance_pct": 0.0,
+      "yield_rate": 0.99,
+      "quality_grade": "A",
+      "action": "accept",
+      "alerts": [],
+      "iot_actual_qty_kg": null,
+      "iot_usable_qty_kg": null,
+      "data_sources": {
+        "quantity": "manual",
+        "quality": "vlm"
+      }
+    }
+  ],
+  "events": [
+    {
+      "event_type": "cost_weight_short",
+      "source": "system",
+      "level": "warn",
+      "store_id": "store_yuhuan",
+      "message": "毛肚 来料短重 4.0%（PO 20.0kg → 实收 19.2kg）",
+      "event_id": "886606c2-a5a4-4788-b839-3b7b3df1db45",
+      "timestamp": "2026-06-12T03:16:31+00:00",
+      "zone": "kitchen",
+      "table_id": "",
+      "confidence": 1.0,
+      "metadata": {
+        "batch_id": "RCV-20260612-001",
+        "sku": "毛肚",
+        "supplier": "冯校长供应链",
+        "short_pct": 4.0,
+        "po_qty": 20.0,
+        "actual_qty": 19.2
+      }
+    },
+    {
+      "event_type": "cost_yield_low",
+      "source": "system",
+      "level": "warn",
+      "store_id": "store_yuhuan",
+      "message": "毛肚 出成率 23.2% 低于标准 92%",
+      "event_id": "38b861d0-899a-48d2-ae65-477c3d734f9a",
+      "timestamp": "2026-06-12T03:16:31+00:00",
+      "zone": "kitchen",
+      "table_id": "",
+      "confidence": 1.0,
+      "metadata": {
+        "batch_id": "RCV-20260612-001",
+        "sku": "毛肚",
+        "supplier": "冯校长供应链",
+        "yield_rate": 0.232,
+        "standard_yield": 0.92
+      }
+    },
+    {
+      "event_type": "cost_price_over",
+      "source": "system",
+      "level": "warn",
+      "store_id": "store_yuhuan",
+      "message": "鲜牛肉 来料单价超 PO 6.7%（PO ¥52.0/kg → 实收 ¥55.5/kg）",
+      "event_id": "b88c9092-43a1-4cd3-9c3f-1ef1a8c236ee",
+      "timestamp": "2026-06-12T03:16:31+00:00",
+      "zone": "kitchen",
+      "table_id": "",
+      "confidence": 1.0,
+      "metadata": {
+        "batch_id": "RCV-20260612-002",
+        "sku": "鲜牛肉",
+        "supplier": "冯校长供应链",
+        "price_diff_pct": 6.73,
+        "po_price": 52.0,
+        "actual_price": 55.5
+      }
+    },
+    {
+      "event_type": "cost_yield_low",
+      "source": "system",
+      "level": "warn",
+      "store_id": "store_yuhuan",
+      "message": "鲜牛肉 出成率 22.7% 低于标准 88%",
+      "event_id": "31adaa5b-e4be-4d5c-8e31-1f7615a2ec6b",
+      "timestamp": "2026-06-12T03:16:31+00:00",
+      "zone": "kitchen",
+      "table_id": "",
+      "confidence": 1.0,
+      "metadata": {
+        "batch_id": "RCV-20260612-002",
+        "sku": "鲜牛肉",
+        "supplier": "冯校长供应链",
+        "yield_rate": 0.227,
+        "standard_yield": 0.88
+      }
+    },
+    {
+      "event_type": "cost_weight_short",
+      "source": "system",
+      "level": "warn",
+      "store_id": "store_yuhuan",
+      "message": "蔬菜拼盘 来料短重 8.0%（PO 25.0kg → 实收 23.0kg）",
+      "event_id": "a7875754-e860-4239-ab9b-272c5be93639",
+      "timestamp": "2026-06-12T03:16:31+00:00",
+      "zone": "kitchen",
+      "table_id": "",
+      "confidence": 1.0,
+      "metadata": {
+        "batch_id": "RCV-20260612-004",
+        "sku": "蔬菜拼盘",
+        "supplier": "绿源农批",
+        "short_pct": 8.0,
+        "po_qty": 25.0,
+        "actual_qty": 23.0
+      }
+    },
+    {
+      "event_type": "cost_yield_low",
+      "source": "system",
+      "level": "warn",
+      "store_id": "store_yuhuan",
+      "message": "蔬菜拼盘 出成率 33.0% 低于标准 85%",
+      "event_id": "c9fe434d-358c-4b53-bf8d-e3011a8777f4",
+      "timestamp": "2026-06-12T03:16:31+00:00",
+      "zone": "kitchen",
+      "table_id": "",
+      "confidence": 1.0,
+      "metadata": {
+        "batch_id": "RCV-20260612-004",
+        "sku": "蔬菜拼盘",
+        "supplier": "绿源农批",
+        "yield_rate": 0.33,
+        "standard_yield": 0.85
+      }
+    },
+    {
+      "event_type": "cost_quality_reject",
+      "source": "system",
+      "level": "critical",
+      "store_id": "store_yuhuan",
+      "message": "蔬菜拼盘 VLM 质检评级 C，建议拒收或降价入库",
+      "event_id": "907e6211-587c-4aad-a2a7-a00c5702775c",
+      "timestamp": "2026-06-12T03:16:31+00:00",
+      "zone": "kitchen",
+      "table_id": "",
+      "confidence": 1.0,
+      "metadata": {
+        "batch_id": "RCV-20260612-004",
+        "sku": "蔬菜拼盘",
+        "supplier": "绿源农批",
+        "quality_grade": "C"
+      }
+    },
+    {
+      "event_type": "cost_near_expiry",
+      "source": "system",
+      "level": "warn",
+      "store_id": "store_yuhuan",
+      "message": "蔬菜拼盘 临期风险：剩余保质期 1 天",
+      "event_id": "a1b055ce-2d3e-439c-8ffc-c99afe718b53",
+      "timestamp": "2026-06-12T03:16:31+00:00",
+      "zone": "kitchen",
+      "table_id": "",
+      "confidence": 1.0,
+      "metadata": {
+        "batch_id": "RCV-20260612-004",
+        "sku": "蔬菜拼盘",
+        "supplier": "绿源农批",
+        "remaining_shelf_days": 1
+      }
+    },
+    {
+      "event_type": "iot_temp_abnormal",
+      "source": "system",
+      "level": "critical",
+      "store_id": "store_yuhuan",
+      "message": "蔬菜拼盘 IoT探针到货温度 8.5°C 超标，品质风险",
+      "event_id": "606e4c08-0dd0-4326-ae78-5d5f358bc102",
+      "timestamp": "2026-06-12T03:16:31+00:00",
+      "zone": "kitchen",
+      "table_id": "",
+      "confidence": 1.0,
+      "metadata": {
+        "batch_id": "RCV-20260612-004",
+        "sku": "蔬菜拼盘",
+        "supplier": "绿源农批",
+        "iot_probe_temp": 8.5,
+        "source": "iot"
+      }
+    },
+    {
+      "event_type": "iot_rfid_missing",
+      "source": "system",
+      "level": "warn",
+      "store_id": "store_yuhuan",
+      "message": "蔬菜拼盘 IoT RFID 未扫描，数量/批次无法追溯",
+      "event_id": "666ffd17-5364-45b4-855a-46349aba8ac0",
+      "timestamp": "2026-06-12T03:16:31+00:00",
+      "zone": "kitchen",
+      "table_id": "",
+      "confidence": 1.0,
+      "metadata": {
+        "batch_id": "RCV-20260612-004",
+        "sku": "蔬菜拼盘",
+        "supplier": "绿源农批",
+        "source": "iot"
+      }
+    }
+  ],
+  "recommendations": [
+    "1 个 SKU 单价超 PO，联动采购中心更新协议价或更换供应商",
+    "3 个 SKU 出成率偏低，排查分拣/解冻 SOP 执行与刀工损耗",
+    "1 批来料建议拒收，触发 VLM 质检复核与退货流程"
+  ]
+}

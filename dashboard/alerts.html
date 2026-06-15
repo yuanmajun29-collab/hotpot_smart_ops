@@ -1,0 +1,113 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>告警 · 冯校长火锅 · 智能运营</title>
+  <link rel="stylesheet" href="assets/theme.css" />
+</head>
+<body>
+  <div class="app-shell">
+    <aside class="sidebar">
+      <div class="sidebar-brand"><h1>冯校长火锅</h1><p>智能运营 · MVP</p></div>
+      <a class="nav-item" href="home.html">首页概览</a>
+      <a class="nav-item" href="tables.html">前厅 · 桌态</a>
+      <a class="nav-item" href="kitchen.html">后厨 · IoT</a>
+      <a class="nav-item" href="sop.html">SOP 执行</a>
+      <a class="nav-item" href="cost.html">来料 · 成本</a>
+      <a class="nav-item active" data-nav="alerts" href="alerts.html">告警中心</a>
+      <a class="nav-item" href="report.html">运营日报</a>
+      <a class="nav-item" href="pda/receiving.html">收货 PDA</a>
+    </aside>
+    <div class="main-wrap">
+      <header class="topbar">
+        <div class="topbar-left">
+          <h2 id="store-name">—</h2>
+          <div class="topbar-meta">DEV-306 企微推送 · 告警确认 ack · F-A01~A04</div>
+        </div>
+        <div class="topbar-right">
+          <span class="chip chip-warn" id="escalation-chip" style="display:none">升级待处理 0</span>
+          <input class="hub-input" id="hub-url" type="text" />
+          <span class="chip" id="user-name">—</span>
+          <button class="btn btn-sm btn-ghost" id="btn-logout">退出</button>
+        </div>
+      </header>
+      <main class="content">
+        <div class="filter-bar">
+          <button class="btn btn-sm active" data-filter="all">全部</button>
+          <button class="btn btn-sm btn-ghost" data-filter="critical">严重</button>
+          <button class="btn btn-sm btn-ghost" data-filter="warn">警告</button>
+          <button class="btn btn-sm btn-ghost" data-filter="info">信息</button>
+        </div>
+        <div class="alerts-grid">
+          <div class="card">
+            <h3>实时事件流 · 确认后同步 Hub ack</h3>
+            <div class="events" id="events"></div>
+          </div>
+          <div class="card">
+            <h3>企微卡片预览 · 推送日志</h3>
+            <p class="card-hint">严重告警自动推送（模拟写入 demo/data/alert_push.log）</p>
+            <div class="wechat-preview" id="push-log"></div>
+          </div>
+        </div>
+      </main>
+    </div>
+  </div>
+  <script src="assets/core.js"></script>
+  <script>
+    HotpotApp.initShell("alerts");
+    let allEvents = [];
+    let pushLog = [];
+    let currentFilter = "all";
+
+    document.querySelectorAll(".filter-bar button").forEach((btn) => {
+      btn.onclick = () => {
+        document.querySelectorAll(".filter-bar button").forEach((b) => {
+          b.classList.remove("active");
+          b.classList.add("btn-ghost");
+        });
+        btn.classList.add("active");
+        btn.classList.remove("btn-ghost");
+        currentFilter = btn.dataset.filter;
+        render();
+      };
+    });
+
+    function render() {
+      HotpotApp.renderEvents(document.getElementById("events"), allEvents, {
+        filter: currentFilter,
+        showAck: true,
+        onAck: async () => render(),
+      });
+      HotpotApp.renderWechatPreview(document.getElementById("push-log"), pushLog);
+    }
+
+    async function refresh() {
+      try {
+        await HotpotApp.syncHubAcks();
+        const [events, pushes, escalations] = await Promise.all([
+          HotpotApp.fetchEvents(30),
+          HotpotApp.fetchAlertPushes(15),
+          HotpotApp.fetchEscalations(),
+        ]);
+        allEvents = events;
+        pushLog = pushes.pushes || [];
+        const chip = document.getElementById("escalation-chip");
+        const n = escalations.count || 0;
+        if (n > 0) {
+          chip.style.display = "";
+          chip.textContent = `升级待处理 ${n}（>${escalations.threshold_minutes || 30}min 未 ack）`;
+        } else {
+          chip.style.display = "none";
+        }
+        render();
+      } catch (e) {
+        document.getElementById("events").innerHTML =
+          "<p style='color:var(--accent)'>无法连接 Hub，请先启动 event_hub</p>";
+      }
+    }
+    refresh();
+    setInterval(refresh, 5000);
+  </script>
+</body>
+</html>

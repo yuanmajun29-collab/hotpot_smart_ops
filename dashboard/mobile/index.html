@@ -1,0 +1,224 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover" />
+  <meta name="apple-mobile-web-app-capable" content="yes" />
+  <meta name="theme-color" content="#0f1419" />
+  <title>冯校长火锅 · 智能运营 · 手机版</title>
+  <link rel="stylesheet" href="../assets/theme.css" />
+</head>
+<body>
+  <div class="mobile-app">
+    <header class="mobile-header">
+      <h1 id="store-name">—</h1>
+      <div class="mobile-header-meta">
+        <span id="user-chip">—</span>
+        <span>·</span>
+        <span id="conn-status"><span class="status-dot offline"></span>连接中</span>
+        <span>·</span>
+        <span>午市</span>
+      </div>
+    </header>
+
+    <main class="mobile-main">
+      <!-- Tab: 首页 -->
+      <section class="mobile-tab-panel active" id="panel-home">
+        <div class="mobile-kpi-grid">
+          <div class="card"><h3>严重告警</h3><div class="stat critical" id="m-critical">-</div></div>
+          <div class="card"><h3>待清台</h3><div class="stat warn" id="m-clean">-</div></div>
+          <div class="card"><h3>SOP 合规</h3><div class="stat ok" id="m-sop">-</div></div>
+          <div class="card"><h3>来料偏差</h3><div class="stat warn" id="m-cost">-</div></div>
+        </div>
+        <div class="card">
+          <h3>待处理</h3>
+          <div id="m-todo"></div>
+        </div>
+        <div class="card" style="margin-top:12px">
+          <h3>今日摘要</h3>
+          <p id="m-summary" style="font-size:0.85rem;color:var(--muted);line-height:1.7">加载中...</p>
+        </div>
+      </section>
+
+      <!-- Tab: 桌态 -->
+      <section class="mobile-tab-panel" id="panel-tables">
+        <p style="font-size:0.8rem;color:var(--muted);margin-bottom:12px">点击桌位查看 · 5s 自动刷新</p>
+        <div class="tables mobile-tables" id="m-table-grid"></div>
+        <div class="card" style="margin-top:16px">
+          <h3>翻台优先</h3>
+          <ul class="list-plain" id="m-suggestions"></ul>
+        </div>
+      </section>
+
+      <!-- Tab: 告警 -->
+      <section class="mobile-tab-panel" id="panel-alerts">
+        <div class="mobile-filter filter-bar">
+          <button class="btn btn-sm active" data-filter="all">全部</button>
+          <button class="btn btn-sm btn-ghost" data-filter="critical">严重</button>
+          <button class="btn btn-sm btn-ghost" data-filter="warn">警告</button>
+        </div>
+        <div class="events" id="m-events"></div>
+      </section>
+
+      <!-- Tab: 我的 -->
+      <section class="mobile-tab-panel" id="panel-profile">
+        <div class="card" style="margin-bottom:16px">
+          <h3>账号信息</h3>
+          <p style="font-size:0.9rem;line-height:1.8;margin-top:8px">
+            <span id="p-name">—</span><br>
+            <span style="color:var(--muted)" id="p-role">—</span>
+          </p>
+        </div>
+        <div class="card" style="margin-bottom:16px">
+          <h3>Hub 地址</h3>
+          <input class="hub-input-mobile" id="hub-url" type="text" />
+        </div>
+        <ul class="mobile-menu-list card" style="padding:0 12px">
+          <li><a href="../report.html">运营日报 <span>›</span></a></li>
+          <li><a href="../sop.html">SOP 执行 <span>›</span></a></li>
+          <li><a href="../cost.html">来料成本 <span>›</span></a></li>
+          <li><a href="../kitchen.html">后厨 IoT <span>›</span></a></li>
+          <li><a href="../pda/receiving.html">收货 PDA <span>›</span></a></li>
+          <li><a href="../home.html">桌面版看板 <span>›</span></a></li>
+        </ul>
+        <button class="btn btn-block btn-ghost" style="margin-top:20px" id="btn-logout">退出登录</button>
+      </section>
+    </main>
+
+    <nav class="mobile-tabbar">
+      <button class="mobile-tab active" data-tab="home" type="button">
+        <span class="icon">🏠</span><span>首页</span>
+      </button>
+      <button class="mobile-tab" data-tab="tables" type="button">
+        <span class="icon">🪑</span><span>桌态</span>
+      </button>
+      <button class="mobile-tab" data-tab="alerts" type="button">
+        <span class="icon">🔔</span><span>告警</span>
+        <span class="badge" id="tab-badge" style="display:none">0</span>
+      </button>
+      <button class="mobile-tab" data-tab="profile" type="button">
+        <span class="icon">👤</span><span>我的</span>
+      </button>
+    </nav>
+  </div>
+
+  <script src="../assets/core.js"></script>
+  <script>
+    const auth = HotpotApp.requireAuth();
+    if (!auth) throw new Error("auth required");
+
+    document.getElementById("store-name").textContent = auth.storeName || "试点店";
+    document.getElementById("user-chip").textContent = auth.name + " · " + auth.role;
+    document.getElementById("p-name").textContent = auth.name;
+    document.getElementById("p-role").textContent = auth.role + " · " + auth.storeName;
+
+    const hubInput = document.getElementById("hub-url");
+    hubInput.value = HotpotApp.hubUrl();
+    hubInput.onchange = () => HotpotApp.setHubUrl(hubInput.value);
+
+    document.getElementById("btn-logout").onclick = HotpotApp.logout;
+
+    let allEvents = [];
+    let alertFilter = "all";
+
+    document.querySelectorAll(".mobile-tab").forEach((tab) => {
+      tab.onclick = () => {
+        document.querySelectorAll(".mobile-tab").forEach((t) => t.classList.remove("active"));
+        document.querySelectorAll(".mobile-tab-panel").forEach((p) => p.classList.remove("active"));
+        tab.classList.add("active");
+        document.getElementById("panel-" + tab.dataset.tab).classList.add("active");
+      };
+    });
+
+    document.querySelectorAll("#panel-alerts .filter-bar button").forEach((btn) => {
+      btn.onclick = () => {
+        document.querySelectorAll("#panel-alerts .filter-bar button").forEach((b) => {
+          b.classList.remove("active");
+          b.classList.add("btn-ghost");
+        });
+        btn.classList.add("active");
+        btn.classList.remove("btn-ghost");
+        alertFilter = btn.dataset.filter;
+        renderAlerts();
+      };
+    });
+
+    function renderAlerts() {
+      HotpotApp.renderEvents(document.getElementById("m-events"), allEvents, {
+        filter: alertFilter,
+        showAck: true,
+        onAck: () => { renderAlerts(); updateBadge(); },
+      });
+    }
+
+    function updateBadge() {
+      const n = HotpotApp.countUnackedCritical(allEvents);
+      const badge = document.getElementById("tab-badge");
+      if (n > 0) { badge.style.display = "flex"; badge.textContent = n > 9 ? "9+" : n; }
+      else badge.style.display = "none";
+    }
+
+    async function refresh() {
+      try {
+        const [data, events] = await Promise.all([
+          HotpotApp.fetchSummary(),
+          HotpotApp.fetchEvents(25),
+        ]);
+        allEvents = events;
+        document.getElementById("conn-status").innerHTML =
+          '<span class="status-dot online"></span>已连接';
+
+        const t = data.table_state_counts || {};
+        const ev = data.by_level || {};
+        document.getElementById("m-critical").textContent = ev.critical ?? 0;
+        document.getElementById("m-clean").textContent = t.need_clean ?? 0;
+        document.getElementById("m-sop").textContent =
+          data.sop_stats?.compliance_rate != null ? data.sop_stats.compliance_rate + "%" : "-";
+        document.getElementById("m-cost").textContent =
+          data.cost_stats?.variance_rate_pct != null ? data.cost_stats.variance_rate_pct + "%" : "-";
+
+        document.getElementById("m-summary").textContent =
+          `空桌 ${t.empty || 0} · 用餐 ${t.dining || 0} · 待清 ${t.need_clean || 0} · 警告 ${ev.warn || 0} 条`;
+
+        const todo = document.getElementById("m-todo");
+        todo.innerHTML = "";
+        const items = [];
+        (data.turnover_suggestions || []).slice(0, 2).forEach((s) => {
+          items.push(`${s.table_id} 待清 → ${s.action}`);
+        });
+        if ((ev.critical || 0) > 0) items.push(`${ev.critical} 条严重告警`);
+        if (!items.length) items.push("运营正常，无紧急待办");
+        items.forEach((text) => {
+          const div = document.createElement("div");
+          div.className = "todo-item";
+          div.style.padding = "10px 0";
+          div.innerHTML = `<span style="font-size:0.9rem">${text}</span>`;
+          todo.appendChild(div);
+        });
+
+        HotpotApp.renderTableGrid(document.getElementById("m-table-grid"), data.table_states || {}, (table) => {
+          alert(table.table_id + " · " + (HotpotApp.STATE_LABELS[table.state] || table.state) + "\n（演示：完整详情见桌面版）");
+        });
+
+        const sug = document.getElementById("m-suggestions");
+        sug.innerHTML = "";
+        (data.turnover_suggestions || []).forEach((s, i) => {
+          const li = document.createElement("li");
+          li.textContent = `#${i + 1} ${s.table_id} → ${s.action}`;
+          sug.appendChild(li);
+        });
+        if (!sug.children.length) sug.innerHTML = "<li>暂无</li>";
+
+        renderAlerts();
+        updateBadge();
+      } catch (e) {
+        document.getElementById("conn-status").innerHTML =
+          '<span class="status-dot offline"></span>未连接 Hub';
+      }
+    }
+
+    refresh();
+    setInterval(refresh, 5000);
+  </script>
+</body>
+</html>

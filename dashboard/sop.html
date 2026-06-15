@@ -1,0 +1,101 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>SOP · 冯校长火锅 · 智能运营</title>
+  <link rel="stylesheet" href="assets/theme.css" />
+</head>
+<body>
+  <div class="app-shell">
+    <aside class="sidebar">
+      <div class="sidebar-brand"><h1>冯校长火锅</h1><p>智能运营 · MVP</p></div>
+      <a class="nav-item" href="home.html">首页概览</a>
+      <a class="nav-item" href="tables.html">前厅 · 桌态</a>
+      <a class="nav-item" href="kitchen.html">后厨 · IoT</a>
+      <a class="nav-item active" data-nav="sop" href="sop.html">SOP 执行</a>
+      <a class="nav-item" href="cost.html">来料 · 成本</a>
+      <a class="nav-item" href="alerts.html">告警中心</a>
+      <a class="nav-item" href="report.html">运营日报</a>
+      <a class="nav-item" href="pda/receiving.html">收货 PDA</a>
+    </aside>
+    <div class="main-wrap">
+      <header class="topbar">
+        <div class="topbar-left"><h2 id="store-name">—</h2><div class="topbar-meta">午市班次 · F-S01~S05</div></div>
+        <div class="topbar-right">
+          <input class="hub-input" id="hub-url" type="text" />
+          <span class="chip" id="user-name">—</span>
+          <button class="btn btn-sm btn-ghost" id="btn-logout">退出</button>
+        </div>
+      </header>
+      <main class="content">
+        <div class="grid">
+          <div class="card"><h3>本班合规率</h3><div class="stat ok" id="sop-rate">-</div></div>
+          <div class="card"><h3>通过</h3><div class="stat ok" id="sop-pass">-</div></div>
+          <div class="card"><h3>未通过</h3><div class="stat critical" id="sop-fail">-</div></div>
+        </div>
+        <div class="card" style="margin-bottom:20px">
+          <h3>SOP 清单 · 点击展开检查点</h3>
+          <div id="sop-list"></div>
+        </div>
+        <div class="card">
+          <h3>违规待整改 · F-S04</h3>
+          <div id="violations"></div>
+        </div>
+      </main>
+    </div>
+  </div>
+  <script src="assets/core.js"></script>
+  <script>
+    HotpotApp.initShell("sop");
+    async function refresh() {
+      try {
+        const data = await HotpotApp.fetchSummary();
+        const sop = data.sop_stats || {};
+        document.getElementById("sop-rate").textContent =
+          sop.compliance_rate != null ? sop.compliance_rate + "%" : "-";
+        document.getElementById("sop-pass").textContent = sop.passed ?? "-";
+        document.getElementById("sop-fail").textContent = sop.failed ?? "-";
+
+        const list = document.getElementById("sop-list");
+        list.innerHTML = "";
+        (sop.results || []).forEach((r) => {
+          const div = document.createElement("div");
+          div.style.cssText = "border:1px solid var(--border);border-radius:8px;margin-bottom:8px;overflow:hidden";
+          const tag = r.status === "passed" ? "pass" : r.status === "failed" ? "fail" : "pending";
+          div.innerHTML = `
+            <div style="padding:12px;cursor:pointer;display:flex;justify-content:space-between;align-items:center" class="sop-head">
+              <span>${r.sop_name || r.sop_id}</span>
+              <span class="tag ${tag}">${r.status}</span>
+            </div>
+            <div class="sop-detail" style="display:none;padding:0 12px 12px;font-size:0.85rem;color:var(--muted)">
+              ${r.reason || "检查点明细（演示）"} · <a href="#">查看全部检查点</a>
+            </div>`;
+          div.querySelector(".sop-head").onclick = () => {
+            const d = div.querySelector(".sop-detail");
+            d.style.display = d.style.display === "none" ? "block" : "none";
+          };
+          list.appendChild(div);
+        });
+        if (!list.children.length) list.innerHTML = "<p style='color:var(--muted)'>暂无 SOP 数据，请先运行 PoC</p>";
+
+        const viol = document.getElementById("violations");
+        viol.innerHTML = "";
+        const failed = (sop.results || []).filter((r) => r.status === "failed");
+        if (!failed.length) {
+          viol.innerHTML = "<p style='color:var(--muted)'>本班无违规项</p>";
+        } else {
+          failed.forEach((r) => {
+            const div = document.createElement("div");
+            div.className = "todo-item";
+            div.innerHTML = `<span>${r.sop_name}：${r.reason || "未达标"}</span><button class="btn btn-sm" onclick="alert('已指派厨师长（演示）')">指派整改</button>`;
+            viol.appendChild(div);
+          });
+        }
+      } catch (e) { console.warn(e); }
+    }
+    refresh();
+    setInterval(refresh, 8000);
+  </script>
+</body>
+</html>

@@ -1,0 +1,20 @@
+{
+  "brand": "冯校长火锅",
+  "region": "台州",
+  "pilot_stores": [
+    {
+      "store_id": "store_yuhuan",
+      "store_name": "冯校长火锅·玉环店",
+      "city": "玉环市",
+      "type": "direct",
+      "note": "Phase 1 试点店 A"
+    },
+    {
+      "store_id": "store_jiaojiang",
+      "store_name": "冯校长火锅·椒江店",
+      "city": "椒江区",
+      "type": "direct",
+      "note": "Phase 1 试点店 B"
+    }
+  ]
+}

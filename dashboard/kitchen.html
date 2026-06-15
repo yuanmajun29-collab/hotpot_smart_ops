@@ -1,0 +1,91 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>后厨 IoT · 冯校长火锅 · 智能运营</title>
+  <link rel="stylesheet" href="assets/theme.css" />
+</head>
+<body>
+  <div class="app-shell">
+    <aside class="sidebar">
+      <div class="sidebar-brand"><h1>冯校长火锅</h1><p>智能运营 · MVP</p></div>
+      <a class="nav-item" href="home.html">首页概览</a>
+      <a class="nav-item" href="tables.html">前厅 · 桌态</a>
+      <a class="nav-item active" data-nav="kitchen" href="kitchen.html">后厨 · IoT</a>
+      <a class="nav-item" href="sop.html">SOP 执行</a>
+      <a class="nav-item" href="cost.html">来料 · 成本</a>
+      <a class="nav-item" href="alerts.html">告警中心</a>
+      <a class="nav-item" href="report.html">运营日报</a>
+      <a class="nav-item" href="pda/receiving.html">收货 PDA</a>
+    </aside>
+    <div class="main-wrap">
+      <header class="topbar">
+        <div class="topbar-left"><h2 id="store-name">—</h2><div class="topbar-meta">食材全链路 · F-K01~K04</div></div>
+        <div class="topbar-right">
+          <input class="hub-input" id="hub-url" type="text" />
+          <span class="chip" id="user-name">—</span>
+          <button class="btn btn-sm btn-ghost" id="btn-logout">退出</button>
+        </div>
+      </header>
+      <main class="content">
+        <div class="grid">
+          <div class="card"><h3>冷冻库</h3><div class="stat ok" id="temp-freeze">-18°C</div><p style="font-size:0.8rem;color:var(--muted);margin-top:8px">标准 -22~-15°C</p></div>
+          <div class="card"><h3>冷藏库</h3><div class="stat warn" id="temp-cold">-</div><p style="font-size:0.8rem;color:var(--muted);margin-top:8px">标准 0~4°C</p></div>
+          <div class="card"><h3>门磁状态</h3><div class="stat ok" id="door-status">关闭</div></div>
+          <div class="card"><h3>链路告警</h3><div class="stat warn" id="iot-alerts-n">-</div></div>
+        </div>
+        <div class="card" style="margin-bottom:20px">
+          <h3>食材全链路快照 · F-K03</h3>
+          <div class="stage-row" id="stages"></div>
+        </div>
+        <div class="card">
+          <h3>IoT 告警明细</h3>
+          <ul class="list-plain" id="iot-alerts"></ul>
+        </div>
+      </main>
+    </div>
+  </div>
+  <script src="assets/core.js"></script>
+  <script>
+    HotpotApp.initShell("kitchen");
+    async function refresh() {
+      try {
+        const data = await HotpotApp.fetchSummary();
+        const iot = data.iot_stats || {};
+        const s = iot.summary || {};
+        document.getElementById("iot-alerts-n").textContent = s.iot_alert_count ?? 0;
+        const bs = s.readings_by_stage || {};
+        const stages = document.getElementById("stages");
+        stages.innerHTML = "";
+        [
+          { key: "receiving", name: "来料", n: bs.receiving || 0 },
+          { key: "storage", name: "保存", n: bs.storage || 0 },
+          { key: "processing", name: "加工", n: bs.processing || 0 },
+        ].forEach((st) => {
+          const alert = (s.iot_alerts_by_type && Object.keys(s.iot_alerts_by_type).length && st.key === "storage");
+          const div = document.createElement("div");
+          div.className = "stage-card" + (alert ? " alert" : "");
+          div.innerHTML = `<h4>${st.name}</h4><p>${st.n} 个采集点</p><p>${alert ? "⚠ 有异常" : "✓ 正常"}</p>`;
+          stages.appendChild(div);
+        });
+        const ul = document.getElementById("iot-alerts");
+        ul.innerHTML = "";
+        const types = s.iot_alerts_by_type || {};
+        Object.entries(types).forEach(([k, v]) => {
+          const li = document.createElement("li");
+          li.textContent = `${k}: ${v} 条`;
+          ul.appendChild(li);
+        });
+        if (!ul.children.length) ul.innerHTML = "<li>链路正常，无 IoT 告警</li>";
+        if (s.cold_storage_worst != null) {
+          document.getElementById("temp-cold").textContent = s.cold_storage_worst + "°C";
+          document.getElementById("temp-cold").className = "stat " + (s.cold_storage_worst > 4 ? "critical" : "ok");
+        }
+      } catch (e) { console.warn(e); }
+    }
+    refresh();
+    setInterval(refresh, 5000);
+  </script>
+</body>
+</html>

@@ -1,0 +1,95 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>桌态 · 冯校长火锅 · 智能运营</title>
+  <link rel="stylesheet" href="assets/theme.css" />
+</head>
+<body>
+  <div class="app-shell">
+    <aside class="sidebar">
+      <div class="sidebar-brand"><h1>冯校长火锅</h1><p>智能运营 · MVP</p></div>
+      <a class="nav-item" data-nav="home" href="home.html">首页概览</a>
+      <a class="nav-item active" data-nav="tables" href="tables.html">前厅 · 桌态</a>
+      <a class="nav-item" data-nav="kitchen" href="kitchen.html">后厨 · IoT</a>
+      <a class="nav-item" data-nav="sop" href="sop.html">SOP 执行</a>
+      <a class="nav-item" data-nav="cost" href="cost.html">来料 · 成本</a>
+      <a class="nav-item" data-nav="alerts" href="alerts.html">告警中心</a>
+      <a class="nav-item" data-nav="report" href="report.html">运营日报</a>
+      <a class="nav-item" data-nav="pda" href="pda/receiving.html">收货 PDA</a>
+    </aside>
+    <div class="main-wrap">
+      <header class="topbar">
+        <div class="topbar-left"><h2 id="store-name">—</h2><div class="topbar-meta">前厅翻台 · 5s 刷新</div></div>
+        <div class="topbar-right">
+          <input class="hub-input" id="hub-url" type="text" />
+          <span class="chip" id="user-name">—</span>
+          <button class="btn btn-sm" onclick="refresh()">刷新</button>
+          <button class="btn btn-sm btn-ghost" id="btn-logout">退出</button>
+        </div>
+      </header>
+      <main class="content">
+        <div class="grid grid-2">
+          <div class="card">
+            <h3>桌位平面图 · PRD F-T01</h3>
+            <p style="font-size:0.8rem;color:var(--muted);margin-bottom:12px">点击桌位查看详情 · 绿空/蓝用餐/黄待清/红待结</p>
+            <div class="tables" id="table-grid"></div>
+          </div>
+          <div class="card">
+            <h3>翻台优先建议 · F-T03</h3>
+            <ul class="list-plain" id="suggestions"></ul>
+          </div>
+        </div>
+      </main>
+    </div>
+  </div>
+  <div class="drawer-overlay" id="drawer">
+    <div class="drawer">
+      <h3 id="drawer-title" style="margin-bottom:16px">桌位详情</h3>
+      <div id="drawer-body"></div>
+      <button class="btn btn-ghost" style="margin-top:16px" onclick="closeDrawer()">关闭</button>
+    </div>
+  </div>
+  <script src="assets/core.js"></script>
+  <script>
+    HotpotApp.initShell("tables");
+    let lastData = {};
+    function closeDrawer() { document.getElementById("drawer").classList.remove("open"); }
+    document.getElementById("drawer").onclick = (e) => { if (e.target.id === "drawer") closeDrawer(); };
+
+    function openDrawer(table) {
+      document.getElementById("drawer-title").textContent = table.table_id + " · " + (HotpotApp.STATE_LABELS[table.state] || table.state);
+      document.getElementById("drawer-body").innerHTML = `
+        <p style="margin-bottom:12px;color:var(--muted)">状态变更时间线（演示）</p>
+        <ul class="list-plain">
+          <li>14:20 用餐中 → 待清台</li>
+          <li>14:05 空桌 → 用餐中</li>
+          <li>13:50 清台完成 → 空桌</li>
+        </ul>
+        <p style="margin-top:16px;font-size:0.85rem">VLM 清台就绪分：<b style="color:var(--warn)">72</b>（Phase 1 mock）</p>
+        <button class="btn btn-sm btn-warn" style="margin-top:12px" onclick="alert('已派保洁（演示）')">派保洁清台</button>
+      `;
+      document.getElementById("drawer").classList.add("open");
+    }
+
+    async function refresh() {
+      try {
+        lastData = await HotpotApp.fetchSummary();
+        HotpotApp.renderTableGrid(document.getElementById("table-grid"), lastData.table_states || {}, openDrawer);
+        const ul = document.getElementById("suggestions");
+        ul.innerHTML = "";
+        const items = lastData.turnover_suggestions || [];
+        if (!items.length) { ul.innerHTML = "<li>暂无建议</li>"; return; }
+        items.forEach((s, i) => {
+          const li = document.createElement("li");
+          li.innerHTML = `<b>#${i + 1}</b> ${s.table_id} [${HotpotApp.STATE_LABELS[s.state] || s.state}] → ${s.action}`;
+          ul.appendChild(li);
+        });
+      } catch (e) { console.warn(e); }
+    }
+    refresh();
+    setInterval(refresh, 5000);
+  </script>
+</body>
+</html>

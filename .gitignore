@@ -1,0 +1,13 @@
+__pycache__/
+*.py[cod]
+*.pyo
+.Python
+*.so
+.env
+.venv/
+venv/
+*.egg-info/
+.DS_Store
+demo/data/.pids/
+demo/data/hub.db
+demo/data/stores/*/edge_queue.db

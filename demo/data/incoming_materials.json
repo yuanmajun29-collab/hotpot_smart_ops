@@ -1,0 +1,62 @@
+[
+  {
+    "batch_id": "RCV-20260612-001",
+    "sku": "毛肚",
+    "supplier": "冯校长供应链",
+    "po_qty_kg": 20.0,
+    "actual_qty_kg": 19.2,
+    "po_unit_price": 68.0,
+    "actual_unit_price": 68.0,
+    "usable_qty_kg": 17.0,
+    "quality_grade": "A",
+    "remaining_shelf_days": 3
+  },
+  {
+    "batch_id": "RCV-20260612-002",
+    "sku": "鲜牛肉",
+    "supplier": "冯校长供应链",
+    "po_qty_kg": 30.0,
+    "actual_qty_kg": 29.1,
+    "po_unit_price": 52.0,
+    "actual_unit_price": 55.5,
+    "usable_qty_kg": 24.0,
+    "quality_grade": "B",
+    "remaining_shelf_days": 2
+  },
+  {
+    "batch_id": "RCV-20260612-003",
+    "sku": "鸭血",
+    "supplier": "蓉城冻品",
+    "po_qty_kg": 15.0,
+    "actual_qty_kg": 14.8,
+    "po_unit_price": 8.5,
+    "actual_unit_price": 8.5,
+    "usable_qty_kg": 14.5,
+    "quality_grade": "A",
+    "remaining_shelf_days": 5
+  },
+  {
+    "batch_id": "RCV-20260612-004",
+    "sku": "蔬菜拼盘",
+    "supplier": "绿源农批",
+    "po_qty_kg": 25.0,
+    "actual_qty_kg": 23.0,
+    "po_unit_price": 6.0,
+    "actual_unit_price": 6.0,
+    "usable_qty_kg": 17.5,
+    "quality_grade": "C",
+    "remaining_shelf_days": 1
+  },
+  {
+    "batch_id": "RCV-20260612-005",
+    "sku": "底料",
+    "supplier": "总部配送中心",
+    "po_qty_kg": 10.0,
+    "actual_qty_kg": 10.0,
+    "po_unit_price": 28.0,
+    "actual_unit_price": 28.0,
+    "usable_qty_kg": 9.9,
+    "quality_grade": "A",
+    "remaining_shelf_days": 30
+  }
+]

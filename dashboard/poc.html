@@ -1,0 +1,427 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>冯校长火锅 · 智能运营看板</title>
+  <style>
+    :root {
+      --bg: #0f1419;
+      --card: #1a2332;
+      --border: #2a3544;
+      --text: #e6edf3;
+      --muted: #8b949e;
+      --accent: #f85149;
+      --warn: #d29922;
+      --ok: #3fb950;
+      --info: #58a6ff;
+    }
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+    body {
+      font-family: "Segoe UI", system-ui, sans-serif;
+      background: var(--bg);
+      color: var(--text);
+      min-height: 100vh;
+      padding: 20px;
+    }
+    header {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      margin-bottom: 24px;
+      padding-bottom: 16px;
+      border-bottom: 1px solid var(--border);
+    }
+    h1 { font-size: 1.5rem; }
+    .subtitle { color: var(--muted); font-size: 0.9rem; margin-top: 4px; }
+    .grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(280px, 1fr));
+      gap: 16px;
+      margin-bottom: 24px;
+    }
+    .card {
+      background: var(--card);
+      border: 1px solid var(--border);
+      border-radius: 10px;
+      padding: 16px;
+    }
+    .card h2 {
+      font-size: 0.85rem;
+      color: var(--muted);
+      text-transform: uppercase;
+      letter-spacing: 0.05em;
+      margin-bottom: 12px;
+    }
+    .stat { font-size: 2rem; font-weight: 700; }
+    .stat.ok { color: var(--ok); }
+    .stat.warn { color: var(--warn); }
+    .stat.critical { color: var(--accent); }
+    .tables {
+      display: grid;
+      grid-template-columns: repeat(4, 1fr);
+      gap: 8px;
+    }
+    .table-cell {
+      padding: 10px;
+      border-radius: 6px;
+      text-align: center;
+      font-size: 0.85rem;
+      border: 1px solid var(--border);
+    }
+    .table-cell.empty { background: rgba(63,185,80,0.15); border-color: var(--ok); }
+    .table-cell.dining { background: rgba(88,166,255,0.15); border-color: var(--info); }
+    .table-cell.need_clean { background: rgba(210,153,34,0.2); border-color: var(--warn); }
+    .table-cell.checkout { background: rgba(248,81,73,0.15); border-color: var(--accent); }
+    .events { max-height: 320px; overflow-y: auto; }
+    .event {
+      padding: 10px;
+      border-left: 3px solid var(--border);
+      margin-bottom: 8px;
+      background: rgba(0,0,0,0.2);
+      border-radius: 0 6px 6px 0;
+      font-size: 0.9rem;
+    }
+    .event.critical { border-color: var(--accent); }
+    .event.warn { border-color: var(--warn); }
+    .event.info { border-color: var(--info); }
+    .event-meta { color: var(--muted); font-size: 0.75rem; margin-top: 4px; }
+    .suggestions li {
+      padding: 8px 0;
+      border-bottom: 1px solid var(--border);
+      list-style: none;
+    }
+    .report-box {
+      background: #0d1117;
+      border: 1px solid var(--border);
+      border-radius: 8px;
+      padding: 16px;
+      white-space: pre-wrap;
+      font-family: ui-monospace, monospace;
+      font-size: 0.85rem;
+      max-height: 400px;
+      overflow-y: auto;
+      line-height: 1.6;
+    }
+    button {
+      background: var(--info);
+      color: #fff;
+      border: none;
+      padding: 8px 16px;
+      border-radius: 6px;
+      cursor: pointer;
+      font-size: 0.9rem;
+    }
+    button:hover { opacity: 0.9; }
+    .toolbar { display: flex; gap: 8px; align-items: center; }
+    #hub-url { background: var(--card); border: 1px solid var(--border); color: var(--text); padding: 6px 10px; border-radius: 6px; width: 260px; }
+    .status-dot { width: 8px; height: 8px; border-radius: 50%; display: inline-block; margin-right: 6px; }
+    .status-dot.online { background: var(--ok); }
+    .status-dot.offline { background: var(--accent); }
+  </style>
+</head>
+<body>
+  <header>
+    <div>
+      <h1>冯校长火锅 · 智能运营看板</h1>
+      <p class="subtitle">LLM + VLM + 视频 + IoT + 边缘计算 · 全国连锁 PoC</p>
+    </div>
+    <div class="toolbar">
+      <input id="hub-url" type="text" value="http://127.0.0.1:8088" />
+      <button onclick="refresh()">刷新</button>
+      <button onclick="generateReport()">生成日报</button>
+    </div>
+  </header>
+
+  <div class="grid">
+    <div class="card">
+      <h2>连接状态</h2>
+      <div id="connection"><span class="status-dot offline"></span>检测中...</div>
+    </div>
+    <div class="card">
+      <h2>严重告警</h2>
+      <div class="stat critical" id="critical-count">-</div>
+    </div>
+    <div class="card">
+      <h2>警告事件</h2>
+      <div class="stat warn" id="warn-count">-</div>
+    </div>
+    <div class="card">
+      <h2>待清台</h2>
+      <div class="stat warn" id="need-clean-count">-</div>
+    </div>
+    <div class="card">
+      <h2>SOP 合规率</h2>
+      <div class="stat ok" id="sop-rate">-</div>
+    </div>
+    <div class="card">
+      <h2>来料成本偏差</h2>
+      <div class="stat warn" id="cost-variance">-</div>
+    </div>
+  </div>
+
+  <div class="grid">
+    <div class="card" style="grid-column: span 2;">
+      <h2>前厅桌态 (8桌演示)</h2>
+      <div class="tables" id="table-grid"></div>
+    </div>
+    <div class="card">
+      <h2>翻台优先建议</h2>
+      <ul class="suggestions" id="suggestions"></ul>
+    </div>
+  </div>
+
+  <div class="grid">
+    <div class="card">
+      <h2>IoT 食材全链路</h2>
+      <div id="iot-summary" style="font-size:0.85rem;color:var(--muted);line-height:1.8;margin-bottom:10px;"></div>
+      <ul class="suggestions" id="iot-alerts"></ul>
+    </div>
+    <div class="card">
+      <h2>后厨 SOP 执行</h2>
+      <ul class="suggestions" id="sop-list"></ul>
+    </div>
+    <div class="card" style="grid-column: span 2;">
+      <h2>来料成本控制</h2>
+      <div id="cost-summary" style="font-size:0.9rem;line-height:1.8;margin-bottom:12px;color:var(--muted);"></div>
+      <ul class="suggestions" id="cost-list"></ul>
+    </div>
+  </div>
+
+  <div class="grid">
+    <div class="card" style="grid-column: span 1;">
+      <h2>实时事件流</h2>
+      <div class="events" id="events"></div>
+    </div>
+    <div class="card" style="grid-column: span 2;">
+      <h2>LLM 运营日报</h2>
+      <div class="report-box" id="report">点击「生成日报」获取报告...</div>
+    </div>
+  </div>
+
+  <script>
+    const HUB_KEY = "hotpot_hub_url";
+    const AUTH_KEY = "hotpot_auth";
+
+    function getStoreId() {
+      try {
+        const auth = JSON.parse(sessionStorage.getItem(AUTH_KEY) || "null");
+        return auth?.storeId || "store_yuhuan";
+      } catch {
+        return "store_yuhuan";
+      }
+    }
+
+    function storeQuery(extra = "") {
+      const q = `store_id=${encodeURIComponent(getStoreId())}`;
+      return extra ? `${q}&${extra}` : q;
+    }
+
+    function hubUrl() {
+      const el = document.getElementById("hub-url");
+      localStorage.setItem(HUB_KEY, el.value);
+      return el.value.replace(/\/$/, "");
+    }
+
+    document.getElementById("hub-url").value =
+      localStorage.getItem(HUB_KEY) || "http://127.0.0.1:8088";
+
+    async function refresh() {
+      const url = hubUrl();
+      try {
+        const res = await fetch(`${url}/summary?${storeQuery()}`);
+        if (!res.ok) throw new Error(res.statusText);
+        const data = await res.json();
+        document.getElementById("connection").innerHTML =
+          '<span class="status-dot online"></span>已连接 ' + url;
+        document.getElementById("critical-count").textContent =
+          data.by_level?.critical ?? 0;
+        document.getElementById("warn-count").textContent =
+          data.by_level?.warn ?? 0;
+        document.getElementById("need-clean-count").textContent =
+          data.table_state_counts?.need_clean ?? 0;
+
+        const sop = data.sop_stats || {};
+        document.getElementById("sop-rate").textContent =
+          sop.compliance_rate != null ? sop.compliance_rate + "%" : "-";
+        renderSOP(sop);
+
+        const cost = data.cost_stats || {};
+        document.getElementById("cost-variance").textContent =
+          cost.variance_rate_pct != null ? cost.variance_rate_pct + "%" : "-";
+        renderCost(cost);
+
+        const iot = data.iot_stats || {};
+        renderIoT(iot);
+
+        renderTables(data.table_states || {});
+        renderSuggestions(data.turnover_suggestions || []);
+        await loadEvents();
+      } catch (e) {
+        document.getElementById("connection").innerHTML =
+          '<span class="status-dot offline"></span>未连接: ' + e.message;
+      }
+    }
+
+    function renderTables(states) {
+      const grid = document.getElementById("table-grid");
+      grid.innerHTML = "";
+      const ids = Object.keys(states).sort();
+      if (ids.length === 0) {
+        for (let i = 1; i <= 8; i++) {
+          const id = "T" + String(i).padStart(2, "0");
+          states[id] = { table_id: id, state: "empty" };
+        }
+      }
+      Object.values(states).sort((a, b) => a.table_id.localeCompare(b.table_id)).forEach(t => {
+        const div = document.createElement("div");
+        div.className = "table-cell " + (t.state || "empty");
+        div.textContent = t.table_id + "\n" + (t.state || "unknown");
+        grid.appendChild(div);
+      });
+    }
+
+    function renderSuggestions(items) {
+      const ul = document.getElementById("suggestions");
+      ul.innerHTML = "";
+      if (!items.length) {
+        ul.innerHTML = "<li>暂无建议</li>";
+        return;
+      }
+      items.forEach(s => {
+        const li = document.createElement("li");
+        li.textContent = `${s.table_id} [${s.state}] → ${s.action}`;
+        ul.appendChild(li);
+      });
+    }
+
+    function renderSOP(sop) {
+      const ul = document.getElementById("sop-list");
+      ul.innerHTML = "";
+      const results = sop.results || [];
+      if (!results.length) {
+        ul.innerHTML = "<li>暂无 SOP 数据</li>";
+        return;
+      }
+      results.forEach(r => {
+        const li = document.createElement("li");
+        const icon = r.status === "passed" ? "✓" : r.status === "failed" ? "✗" : "○";
+        li.textContent = `${icon} ${r.sop_name} [${r.status}]`;
+        if (r.reason) li.title = r.reason;
+        ul.appendChild(li);
+      });
+    }
+
+    function renderIoT(iot) {
+      const summary = document.getElementById("iot-summary");
+      const ul = document.getElementById("iot-alerts");
+      ul.innerHTML = "";
+      if (!iot.summary) {
+        summary.textContent = "暂无 IoT 数据";
+        return;
+      }
+      const s = iot.summary;
+      const bs = s.readings_by_stage || {};
+      summary.innerHTML =
+        `来料 <b>${bs.receiving||0}</b> · 保存 <b>${bs.storage||0}</b> · 加工 <b>${bs.processing||0}</b> 采集点<br>` +
+        `告警 <b style="color:var(--warn)">${s.iot_alert_count||0}</b> 条 · IoT+VLM+LLM 协同`;
+      const types = s.iot_alerts_by_type || {};
+      Object.entries(types).slice(0, 6).forEach(([k, v]) => {
+        const li = document.createElement("li");
+        li.textContent = `${k}: ${v}`;
+        ul.appendChild(li);
+      });
+      if (!ul.children.length) ul.innerHTML = "<li>链路正常</li>";
+    }
+
+    function renderCost(cost) {
+      const summary = document.getElementById("cost-summary");
+      const ul = document.getElementById("cost-list");
+      ul.innerHTML = "";
+      if (!cost.items) {
+        summary.textContent = "暂无来料数据";
+        ul.innerHTML = "<li>暂无</li>";
+        return;
+      }
+      summary.textContent =
+        `PO ¥${(cost.total_po_amount||0).toLocaleString()} → 实收 ¥${(cost.total_actual_amount||0).toLocaleString()} | 拒收 ${cost.reject_count||0} 批`;
+      (cost.items || []).forEach(item => {
+        const li = document.createElement("li");
+        const flag = item.action === "reject" ? "拒收" : item.action === "negotiate" ? "议价" : "入库";
+        li.textContent = `${item.sku} (${item.supplier}) 偏差 ${item.variance_pct}% → ${flag}`;
+        ul.appendChild(li);
+      });
+    }
+
+    async function loadEvents() {
+      const url = hubUrl();
+      const res = await fetch(`${url}/events?${storeQuery("limit=20")}`);
+      const events = await res.json();
+      const box = document.getElementById("events");
+      box.innerHTML = "";
+      events.forEach(ev => {
+        const div = document.createElement("div");
+        div.className = "event " + (ev.level || "info");
+        div.innerHTML = `<strong>${ev.event_type}</strong> · ${ev.message}
+          <div class="event-meta">${ev.source} · ${ev.timestamp || ""}</div>`;
+        box.appendChild(div);
+      });
+    }
+
+    async function generateReport() {
+      const reportEl = document.getElementById("report");
+      reportEl.textContent = "生成中...";
+      try {
+        const url = hubUrl();
+        const summary = await (await fetch(`${url}/summary?${storeQuery()}`)).json();
+        reportEl.textContent = buildReport(summary);
+      } catch (e) {
+        reportEl.textContent = "生成失败: " + e.message;
+      }
+    }
+
+    function buildReport(summary) {
+      const t = summary.table_state_counts || {};
+      const ev = summary.by_level || {};
+      const pos = summary.pos_stats || {};
+      const suggestions = summary.turnover_suggestions || [];
+      const sop = summary.sop_stats || {};
+      const cost = summary.cost_stats || {};
+      let lines = [
+        "# 冯校长火锅 运营日报",
+        "生成时间: " + new Date().toLocaleString("zh-CN"),
+        "",
+        "## 前厅翻台",
+        `空桌 ${t.empty||0} | 用餐 ${t.dining||0} | 待清台 ${t.need_clean||0} | 待结账 ${t.checkout||0}`,
+        "",
+        "## 后厨 SOP",
+        sop.compliance_rate != null ? `合规率 ${sop.compliance_rate}% (${sop.passed||0}/${sop.total||0})` : "暂无数据",
+        "",
+        "## 来料成本",
+        cost.variance_rate_pct != null
+          ? `偏差 ${cost.variance_rate_pct}% | PO ¥${cost.total_po_amount||0} → 实收 ¥${cost.total_actual_amount||0}`
+          : "暂无数据",
+        "",
+        "## 告警统计",
+        `严重 ${ev.critical||0} | 警告 ${ev.warn||0} | 信息 ${ev.info||0}`,
+        "",
+        "## 翻台建议"
+      ];
+      suggestions.slice(0, 5).forEach(s => {
+        lines.push(`- ${s.table_id} [${s.state}] → ${s.action}`);
+      });
+      lines.push("", "## 改进建议");
+      if ((t.need_clean||0) >= 2) lines.push("- 增配保洁，缩短清台等待");
+      if ((ev.critical||0) > 0) lines.push("- 立即处理冷链/燃气/烟雾严重告警");
+      if ((pos.dish_timeout_count||0) >= 3) lines.push("- 排查出餐超时档口");
+      if ((sop.failed||0) > 0) lines.push("- 补录未达标 SOP 并班组长复盘");
+      if ((cost.variance_rate_pct||0) > 3) lines.push("- 来料成本偏差超标，启动供应商对账");
+      if (lines.length < 18) lines.push("- 运营态势平稳，继续监控");
+      return lines.join("\n");
+    }
+
+    refresh();
+    setInterval(refresh, 5000);
+  </script>
+</body>
+</html>

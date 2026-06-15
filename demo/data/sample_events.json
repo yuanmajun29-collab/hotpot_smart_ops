@@ -1,0 +1,49 @@
+[
+  {
+    "event_type": "table_need_clean",
+    "source": "vision",
+    "level": "warn",
+    "store_id": "store_yuhuan",
+    "zone": "front",
+    "table_id": "T03",
+    "message": "桌位 T03: 待清台",
+    "confidence": 0.88
+  },
+  {
+    "event_type": "table_empty",
+    "source": "vision",
+    "level": "info",
+    "store_id": "store_yuhuan",
+    "zone": "front",
+    "table_id": "T01",
+    "message": "桌位 T01: 空桌可入座",
+    "confidence": 0.92
+  },
+  {
+    "event_type": "kitchen_no_hat",
+    "source": "vision",
+    "level": "warn",
+    "store_id": "store_yuhuan",
+    "zone": "kitchen",
+    "message": "后厨人员可能未佩戴厨师帽",
+    "confidence": 0.81
+  },
+  {
+    "event_type": "cold_chain_high",
+    "source": "iot",
+    "level": "critical",
+    "store_id": "store_yuhuan",
+    "zone": "kitchen",
+    "message": "cold_storage_1 温度异常: -8.2°C (正常 -22~-15°C)",
+    "metadata": {"sensor_id": "cold_storage_1", "value": -8.2}
+  },
+  {
+    "event_type": "dish_timeout",
+    "source": "pos",
+    "level": "warn",
+    "store_id": "store_yuhuan",
+    "zone": "kitchen",
+    "message": "订单 #8821 出餐超时 12 分钟",
+    "metadata": {"order_id": "8821", "delay_min": 12}
+  }
+]

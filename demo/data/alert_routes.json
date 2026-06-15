@@ -1,0 +1,21 @@
+{
+  "store_yuhuan": {
+    "store_name": "冯校长火锅·玉环店",
+    "webhook_url": "",
+    "recipients": ["店长", "厨师长"],
+    "push_warn": false,
+    "dashboard_url": "http://127.0.0.1:3000/alerts.html"
+  },
+  "store_jiaojiang": {
+    "store_name": "冯校长火锅·椒江店",
+    "webhook_url": "",
+    "recipients": ["店长", "厨师长"],
+    "push_warn": false,
+    "dashboard_url": "http://127.0.0.1:3000/alerts.html"
+  },
+  "defaults": {
+    "escalate_minutes": 30,
+    "push_warn_env": "HOTPOT_PUSH_WARN",
+    "webhook_env": "HOTPOT_WECHAT_WEBHOOK"
+  }
+}

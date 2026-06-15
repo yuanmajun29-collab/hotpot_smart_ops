@@ -1,0 +1,1636 @@
+{
+  "store_id": "store_yuhuan",
+  "pos_stats": {
+    "store_id": "store_yuhuan",
+    "store_name": "冯校长火锅·玉环店",
+    "date": "2026-06-12",
+    "turnover_rate": 2.6,
+    "daily_revenue": 51200,
+    "avg_ticket": 128,
+    "table_count": 40,
+    "dish_timeout_count": 4,
+    "queue_count": 18,
+    "queue_lost_rate": 0.12,
+    "food_cost_rate": 0.32,
+    "staff_count": 28
+  },
+  "table_states": [
+    {
+      "table_id": "T01",
+      "state": "dining",
+      "confidence": 0.8,
+      "updated_at": "2026-06-12T03:16:30+00:00"
+    },
+    {
+      "table_id": "T02",
+      "state": "need_clean",
+      "confidence": 0.85,
+      "updated_at": "2026-06-12T03:16:30+00:00"
+    },
+    {
+      "table_id": "T03",
+      "state": "checkout",
+      "confidence": 0.9,
+      "updated_at": "2026-06-12T03:16:30+00:00"
+    },
+    {
+      "table_id": "T04",
+      "state": "empty",
+      "confidence": 0.75,
+      "updated_at": "2026-06-12T03:16:30+00:00"
+    },
+    {
+      "table_id": "T05",
+      "state": "dining",
+      "confidence": 0.8,
+      "updated_at": "2026-06-12T03:16:30+00:00"
+    },
+    {
+      "table_id": "T06",
+      "state": "need_clean",
+      "confidence": 0.85,
+      "updated_at": "2026-06-12T03:16:30+00:00"
+    },
+    {
+      "table_id": "T07",
+      "state": "checkout",
+      "confidence": 0.9,
+      "updated_at": "2026-06-12T03:16:30+00:00"
+    },
+    {
+      "table_id": "T08",
+      "state": "empty",
+      "confidence": 0.75,
+      "updated_at": "2026-06-12T03:16:30+00:00"
+    }
+  ],
+  "sample_events": [
+    {
+      "event_type": "table_need_clean",
+      "source": "vision",
+      "level": "warn",
+      "store_id": "store_yuhuan",
+      "zone": "front",
+      "table_id": "T03",
+      "message": "桌位 T03: 待清台",
+      "confidence": 0.88
+    },
+    {
+      "event_type": "table_empty",
+      "source": "vision",
+      "level": "info",
+      "store_id": "store_yuhuan",
+      "zone": "front",
+      "table_id": "T01",
+      "message": "桌位 T01: 空桌可入座",
+      "confidence": 0.92
+    },
+    {
+      "event_type": "kitchen_no_hat",
+      "source": "vision",
+      "level": "warn",
+      "store_id": "store_yuhuan",
+      "zone": "kitchen",
+      "message": "后厨人员可能未佩戴厨师帽",
+      "confidence": 0.81
+    },
+    {
+      "event_type": "cold_chain_high",
+      "source": "iot",
+      "level": "critical",
+      "store_id": "store_yuhuan",
+      "zone": "kitchen",
+      "message": "cold_storage_1 温度异常: -8.2°C (正常 -22~-15°C)",
+      "metadata": {
+        "sensor_id": "cold_storage_1",
+        "value": -8.2
+      }
+    },
+    {
+      "event_type": "dish_timeout",
+      "source": "pos",
+      "level": "warn",
+      "store_id": "store_yuhuan",
+      "zone": "kitchen",
+      "message": "订单 #8821 出餐超时 12 分钟",
+      "metadata": {
+        "order_id": "8821",
+        "delay_min": 12
+      }
+    }
+  ],
+  "sop_stats": {
+    "store_id": "store_yuhuan",
+    "shift": "noon",
+    "evaluated_at": "2026-06-12T03:16:31+00:00",
+    "total": 5,
+    "passed": 1,
+    "failed": 4,
+    "pending": 0,
+    "compliance_rate": 20.0,
+    "results": [
+      {
+        "sop_id": "sop_opening",
+        "sop_name": "开档准备 SOP",
+        "category": "opening",
+        "status": "failed",
+        "reason": "检测到未戴帽/未戴口罩",
+        "checkpoints": [
+          {
+            "id": "hand_wash_station",
+            "name": "洗手消毒站就绪",
+            "type": "manual",
+            "passed": true,
+            "actual": true,
+            "expected": true
+          },
+          {
+            "id": "cold_storage_freezer",
+            "name": "IoT冷冻库温",
+            "type": "iot",
+            "passed": true,
+            "actual": -17.8,
+            "expected": null
+          },
+          {
+            "id": "kitchen_gear_ok",
+            "name": "厨师穿戴合规(VLM)",
+            "type": "vision",
+            "passed": false,
+            "actual": false,
+            "expected": null
+          }
+        ]
+      },
+      {
+        "sop_id": "sop_receiving",
+        "sop_name": "来料收货 SOP",
+        "category": "receiving",
+        "status": "failed",
+        "reason": "IoT秤重短重超阈值; IoT读数 8.5 超出范围 [-25, 4]; RFID未扫描无法追溯",
+        "checkpoints": [
+          {
+            "id": "receiving_scale_calibrated",
+            "name": "收货秤已校准",
+            "type": "manual",
+            "passed": true,
+            "actual": true,
+            "expected": true
+          },
+          {
+            "id": "receiving_weight_match",
+            "name": "IoT收货秤数量与PO匹配",
+            "type": "iot",
+            "passed": false,
+            "actual": false,
+            "expected": true
+          },
+          {
+            "id": "receiving_temp_check",
+            "name": "IoT探针到货温度",
+            "type": "iot",
+            "passed": false,
+            "actual": 8.5,
+            "expected": null
+          },
+          {
+            "id": "receiving_env_ok",
+            "name": "IoT卸货区湿度正常",
+            "type": "iot",
+            "passed": true,
+            "actual": 72,
+            "expected": null
+          },
+          {
+            "id": "receiving_rfid_logged",
+            "name": "IoT RFID批次扫描",
+            "type": "iot",
+            "passed": false,
+            "actual": false,
+            "expected": true
+          },
+          {
+            "id": "receiving_dual_sign",
+            "name": "双人验收签字",
+            "type": "manual",
+            "passed": true,
+            "actual": true,
+            "expected": true
+          },
+          {
+            "id": "receiving_vlm_grade",
+            "name": "VLM外观质检",
+            "type": "vision",
+            "passed": true,
+            "actual": true,
+            "expected": null
+          }
+        ]
+      },
+      {
+        "sop_id": "sop_storage",
+        "sop_name": "食材保存 SOP",
+        "category": "storage",
+        "status": "failed",
+        "reason": "IoT读数 6.5 超出范围 [-22, 4]; 冷库门未关; IoT读数 70 超出范围 [35, 65]; 未按先进先出入架",
+        "checkpoints": [
+          {
+            "id": "cold_storage_worst",
+            "name": "IoT冷库最高温",
+            "type": "iot",
+            "passed": false,
+            "actual": 6.5,
+            "expected": null
+          },
+          {
+            "id": "storage_door_closed",
+            "name": "IoT冷库门磁关闭",
+            "type": "iot",
+            "passed": false,
+            "actual": false,
+            "expected": true
+          },
+          {
+            "id": "storage_humidity_ok",
+            "name": "IoT冷库湿度",
+            "type": "iot",
+            "passed": false,
+            "actual": 70,
+            "expected": null
+          },
+          {
+            "id": "storage_fefo_ok",
+            "name": "IoT RFID货位/FEFO",
+            "type": "iot",
+            "passed": false,
+            "actual": false,
+            "expected": true
+          }
+        ]
+      },
+      {
+        "sop_id": "sop_prep_meat",
+        "sop_name": "荤菜改刀加工 SOP",
+        "category": "processing",
+        "status": "failed",
+        "reason": "IoT读数 5.0 超出范围 [0, 4]",
+        "checkpoints": [
+          {
+            "id": "raw_cooked_separate",
+            "name": "生熟分区(VLM)",
+            "type": "vision",
+            "passed": true,
+            "actual": true,
+            "expected": null
+          },
+          {
+            "id": "prep_input_weight",
+            "name": "IoT领料称重",
+            "type": "iot",
+            "passed": true,
+            "actual": true,
+            "expected": true
+          },
+          {
+            "id": "prep_yield_logged",
+            "name": "IoT出成率自动登记",
+            "type": "iot",
+            "passed": true,
+            "actual": true,
+            "expected": true
+          },
+          {
+            "id": "prep_thaw_temp_ok",
+            "name": "IoT解冻池水温",
+            "type": "iot",
+            "passed": false,
+            "actual": 5.0,
+            "expected": null
+          },
+          {
+            "id": "prep_thaw_time_ok",
+            "name": "IoT解冻时长",
+            "type": "iot",
+            "passed": true,
+            "actual": 120,
+            "expected": null
+          },
+          {
+            "id": "prep_area_env_ok",
+            "name": "IoT改刀间温度",
+            "type": "iot",
+            "passed": true,
+            "actual": 19.833333333333332,
+            "expected": null
+          },
+          {
+            "id": "prep_label_dated",
+            "name": "效期标签粘贴",
+            "type": "manual",
+            "passed": true,
+            "actual": true,
+            "expected": true
+          }
+        ]
+      },
+      {
+        "sop_id": "sop_haccp",
+        "sop_name": "HACCP 关键控制点巡检",
+        "category": "haccp",
+        "status": "passed",
+        "reason": "",
+        "checkpoints": [
+          {
+            "id": "haccp_cold_temp",
+            "name": "IoT冷库温度记录",
+            "type": "iot",
+            "passed": true,
+            "actual": -17.8,
+            "expected": null
+          },
+          {
+            "id": "haccp_cook_temp",
+            "name": "IoT中心温度达标",
+            "type": "iot",
+            "passed": true,
+            "actual": 82.0,
+            "expected": null
+          },
+          {
+            "id": "haccp_log_signed",
+            "name": "巡检记录签字",
+            "type": "manual",
+            "passed": true,
+            "actual": true,
+            "expected": true
+          }
+        ]
+      }
+    ],
+    "events": [
+      {
+        "event_type": "sop_violation",
+        "source": "system",
+        "level": "critical",
+        "store_id": "store_yuhuan",
+        "message": "SOP违规: 开档准备 SOP - 检测到未戴帽/未戴口罩",
+        "event_id": "da86e368-eeb9-4b31-8181-5a944b21aae9",
+        "timestamp": "2026-06-12T03:16:31+00:00",
+        "zone": "kitchen",
+        "table_id": "",
+        "confidence": 1.0,
+        "metadata": {
+          "sop_id": "sop_opening",
+          "sop_name": "开档准备 SOP",
+          "category": "opening",
+          "shift": "noon",
+          "checkpoints": [
+            {
+              "id": "hand_wash_station",
+              "name": "洗手消毒站就绪",
+              "type": "manual",
+              "passed": true,
+              "actual": true,
+              "expected": true
+            },
+            {
+              "id": "cold_storage_freezer",
+              "name": "IoT冷冻库温",
+              "type": "iot",
+              "passed": true,
+              "actual": -17.8,
+              "expected": null
+            },
+            {
+              "id": "kitchen_gear_ok",
+              "name": "厨师穿戴合规(VLM)",
+              "type": "vision",
+              "passed": false,
+              "actual": false,
+              "expected": null
+            }
+          ]
+        }
+      },
+      {
+        "event_type": "sop_violation",
+        "source": "system",
+        "level": "critical",
+        "store_id": "store_yuhuan",
+        "message": "SOP违规: 来料收货 SOP - IoT秤重短重超阈值; IoT读数 8.5 超出范围 [-25, 4]; RFID未扫描无法追溯",
+        "event_id": "3d654cfa-6786-49d6-ab37-f043a666f337",
+        "timestamp": "2026-06-12T03:16:31+00:00",
+        "zone": "kitchen",
+        "table_id": "",
+        "confidence": 1.0,
+        "metadata": {
+          "sop_id": "sop_receiving",
+          "sop_name": "来料收货 SOP",
+          "category": "receiving",
+          "shift": "noon",
+          "checkpoints": [
+            {
+              "id": "receiving_scale_calibrated",
+              "name": "收货秤已校准",
+              "type": "manual",
+              "passed": true,
+              "actual": true,
+              "expected": true
+            },
+            {
+              "id": "receiving_weight_match",
+              "name": "IoT收货秤数量与PO匹配",
+              "type": "iot",
+              "passed": false,
+              "actual": false,
+              "expected": true
+            },
+            {
+              "id": "receiving_temp_check",
+              "name": "IoT探针到货温度",
+              "type": "iot",
+              "passed": false,
+              "actual": 8.5,
+              "expected": null
+            },
+            {
+              "id": "receiving_env_ok",
+              "name": "IoT卸货区湿度正常",
+              "type": "iot",
+              "passed": true,
+              "actual": 72,
+              "expected": null
+            },
+            {
+              "id": "receiving_rfid_logged",
+              "name": "IoT RFID批次扫描",
+              "type": "iot",
+              "passed": false,
+              "actual": false,
+              "expected": true
+            },
+            {
+              "id": "receiving_dual_sign",
+              "name": "双人验收签字",
+              "type": "manual",
+              "passed": true,
+              "actual": true,
+              "expected": true
+            },
+            {
+              "id": "receiving_vlm_grade",
+              "name": "VLM外观质检",
+              "type": "vision",
+              "passed": true,
+              "actual": true,
+              "expected": null
+            }
+          ]
+        }
+      },
+      {
+        "event_type": "sop_violation",
+        "source": "system",
+        "level": "critical",
+        "store_id": "store_yuhuan",
+        "message": "SOP违规: 食材保存 SOP - IoT读数 6.5 超出范围 [-22, 4]; 冷库门未关; IoT读数 70 超出范围 [35, 65]; 未按先进先出入架",
+        "event_id": "c1012ae6-6954-454a-81e0-87909f2ac32f",
+        "timestamp": "2026-06-12T03:16:31+00:00",
+        "zone": "kitchen",
+        "table_id": "",
+        "confidence": 1.0,
+        "metadata": {
+          "sop_id": "sop_storage",
+          "sop_name": "食材保存 SOP",
+          "category": "storage",
+          "shift": "noon",
+          "checkpoints": [
+            {
+              "id": "cold_storage_worst",
+              "name": "IoT冷库最高温",
+              "type": "iot",
+              "passed": false,
+              "actual": 6.5,
+              "expected": null
+            },
+            {
+              "id": "storage_door_closed",
+              "name": "IoT冷库门磁关闭",
+              "type": "iot",
+              "passed": false,
+              "actual": false,
+              "expected": true
+            },
+            {
+              "id": "storage_humidity_ok",
+              "name": "IoT冷库湿度",
+              "type": "iot",
+              "passed": false,
+              "actual": 70,
+              "expected": null
+            },
+            {
+              "id": "storage_fefo_ok",
+              "name": "IoT RFID货位/FEFO",
+              "type": "iot",
+              "passed": false,
+              "actual": false,
+              "expected": true
+            }
+          ]
+        }
+      },
+      {
+        "event_type": "sop_violation",
+        "source": "system",
+        "level": "warn",
+        "store_id": "store_yuhuan",
+        "message": "SOP违规: 荤菜改刀加工 SOP - IoT读数 5.0 超出范围 [0, 4]",
+        "event_id": "71c28410-8623-40bb-9ea2-2a693efc4a59",
+        "timestamp": "2026-06-12T03:16:31+00:00",
+        "zone": "kitchen",
+        "table_id": "",
+        "confidence": 1.0,
+        "metadata": {
+          "sop_id": "sop_prep_meat",
+          "sop_name": "荤菜改刀加工 SOP",
+          "category": "processing",
+          "shift": "noon",
+          "checkpoints": [
+            {
+              "id": "raw_cooked_separate",
+              "name": "生熟分区(VLM)",
+              "type": "vision",
+              "passed": true,
+              "actual": true,
+              "expected": null
+            },
+            {
+              "id": "prep_input_weight",
+              "name": "IoT领料称重",
+              "type": "iot",
+              "passed": true,
+              "actual": true,
+              "expected": true
+            },
+            {
+              "id": "prep_yield_logged",
+              "name": "IoT出成率自动登记",
+              "type": "iot",
+              "passed": true,
+              "actual": true,
+              "expected": true
+            },
+            {
+              "id": "prep_thaw_temp_ok",
+              "name": "IoT解冻池水温",
+              "type": "iot",
+              "passed": false,
+              "actual": 5.0,
+              "expected": null
+            },
+            {
+              "id": "prep_thaw_time_ok",
+              "name": "IoT解冻时长",
+              "type": "iot",
+              "passed": true,
+              "actual": 120,
+              "expected": null
+            },
+            {
+              "id": "prep_area_env_ok",
+              "name": "IoT改刀间温度",
+              "type": "iot",
+              "passed": true,
+              "actual": 19.833333333333332,
+              "expected": null
+            },
+            {
+              "id": "prep_label_dated",
+              "name": "效期标签粘贴",
+              "type": "manual",
+              "passed": true,
+              "actual": true,
+              "expected": true
+            }
+          ]
+        }
+      },
+      {
+        "event_type": "sop_completed",
+        "source": "system",
+        "level": "info",
+        "store_id": "store_yuhuan",
+        "message": "SOP已完成: HACCP 关键控制点巡检",
+        "event_id": "71ccf181-d027-47c1-8eb2-7d8fe6da57ea",
+        "timestamp": "2026-06-12T03:16:31+00:00",
+        "zone": "kitchen",
+        "table_id": "",
+        "confidence": 1.0,
+        "metadata": {
+          "sop_id": "sop_haccp",
+          "shift": "noon"
+        }
+      }
+    ]
+  },
+  "cost_stats": {
+    "store_id": "store_yuhuan",
+    "analyzed_at": "2026-06-12T03:16:31+00:00",
+    "batch_count": 5,
+    "total_po_amount": 3477.5,
+    "total_actual_amount": 3464.45,
+    "total_variance_amount": -13.05,
+    "variance_rate_pct": -0.38,
+    "reject_count": 1,
+    "items": [
+      {
+        "batch_id": "RCV-20260612-001",
+        "sku": "毛肚",
+        "supplier": "冯校长供应链",
+        "po_amount": 1360.0,
+        "actual_amount": 1305.6,
+        "variance_amount": -54.4,
+        "variance_pct": -4.0,
+        "yield_rate": 0.232,
+        "quality_grade": "A",
+        "action": "accept",
+        "alerts": [
+          {
+            "type": "cost_weight_short",
+            "severity": "warn",
+            "message": "毛肚 来料短重 4.0%（PO 20.0kg → 实收 19.2kg）",
+            "details": {
+              "short_pct": 4.0,
+              "po_qty": 20.0,
+              "actual_qty": 19.2
+            }
+          },
+          {
+            "type": "cost_yield_low",
+            "severity": "warn",
+            "message": "毛肚 出成率 23.2% 低于标准 92%",
+            "details": {
+              "yield_rate": 0.232,
+              "standard_yield": 0.92
+            }
+          }
+        ],
+        "iot_actual_qty_kg": 19.2,
+        "iot_usable_qty_kg": 4.45,
+        "data_sources": {
+          "quantity": "iot",
+          "quality": "vlm+iot"
+        }
+      },
+      {
+        "batch_id": "RCV-20260612-002",
+        "sku": "鲜牛肉",
+        "supplier": "冯校长供应链",
+        "po_amount": 1560.0,
+        "actual_amount": 1615.05,
+        "variance_amount": 55.05,
+        "variance_pct": 3.53,
+        "yield_rate": 0.227,
+        "quality_grade": "B",
+        "action": "negotiate",
+        "alerts": [
+          {
+            "type": "cost_price_over",
+            "severity": "warn",
+            "message": "鲜牛肉 来料单价超 PO 6.7%（PO ¥52.0/kg → 实收 ¥55.5/kg）",
+            "details": {
+              "price_diff_pct": 6.73,
+              "po_price": 52.0,
+              "actual_price": 55.5
+            }
+          },
+          {
+            "type": "cost_yield_low",
+            "severity": "warn",
+            "message": "鲜牛肉 出成率 22.7% 低于标准 88%",
+            "details": {
+              "yield_rate": 0.227,
+              "standard_yield": 0.88
+            }
+          }
+        ],
+        "iot_actual_qty_kg": 29.1,
+        "iot_usable_qty_kg": 6.6,
+        "data_sources": {
+          "quantity": "iot",
+          "quality": "vlm+iot"
+        }
+      },
+      {
+        "batch_id": "RCV-20260612-003",
+        "sku": "鸭血",
+        "supplier": "蓉城冻品",
+        "po_amount": 127.5,
+        "actual_amount": 125.8,
+        "variance_amount": -1.7,
+        "variance_pct": -1.33,
+        "yield_rate": 0.98,
+        "quality_grade": "A",
+        "action": "accept",
+        "alerts": [],
+        "iot_actual_qty_kg": null,
+        "iot_usable_qty_kg": null,
+        "data_sources": {
+          "quantity": "manual",
+          "quality": "vlm"
+        }
+      },
+      {
+        "batch_id": "RCV-20260612-004",
+        "sku": "蔬菜拼盘",
+        "supplier": "绿源农批",
+        "po_amount": 150.0,
+        "actual_amount": 138.0,
+        "variance_amount": -12.0,
+        "variance_pct": -8.0,
+        "yield_rate": 0.33,
+        "quality_grade": "C",
+        "action": "reject",
+        "alerts": [
+          {
+            "type": "cost_weight_short",
+            "severity": "warn",
+            "message": "蔬菜拼盘 来料短重 8.0%（PO 25.0kg → 实收 23.0kg）",
+            "details": {
+              "short_pct": 8.0,
+              "po_qty": 25.0,
+              "actual_qty": 23.0
+            }
+          },
+          {
+            "type": "cost_yield_low",
+            "severity": "warn",
+            "message": "蔬菜拼盘 出成率 33.0% 低于标准 85%",
+            "details": {
+              "yield_rate": 0.33,
+              "standard_yield": 0.85
+            }
+          },
+          {
+            "type": "cost_quality_reject",
+            "severity": "critical",
+            "message": "蔬菜拼盘 VLM 质检评级 C，建议拒收或降价入库",
+            "details": {
+              "quality_grade": "C"
+            }
+          },
+          {
+            "type": "cost_near_expiry",
+            "severity": "warn",
+            "message": "蔬菜拼盘 临期风险：剩余保质期 1 天",
+            "details": {
+              "remaining_shelf_days": 1
+            }
+          },
+          {
+            "type": "iot_temp_abnormal",
+            "severity": "critical",
+            "message": "蔬菜拼盘 IoT探针到货温度 8.5°C 超标，品质风险",
+            "details": {
+              "iot_probe_temp": 8.5,
+              "source": "iot"
+            }
+          },
+          {
+            "type": "iot_rfid_missing",
+            "severity": "warn",
+            "message": "蔬菜拼盘 IoT RFID 未扫描，数量/批次无法追溯",
+            "details": {
+              "source": "iot"
+            }
+          }
+        ],
+        "iot_actual_qty_kg": 23.0,
+        "iot_usable_qty_kg": 7.6,
+        "data_sources": {
+          "quantity": "iot",
+          "quality": "vlm+iot"
+        }
+      },
+      {
+        "batch_id": "RCV-20260612-005",
+        "sku": "底料",
+        "supplier": "总部配送中心",
+        "po_amount": 280.0,
+        "actual_amount": 280.0,
+        "variance_amount": 0.0,
+        "variance_pct": 0.0,
+        "yield_rate": 0.99,
+        "quality_grade": "A",
+        "action": "accept",
+        "alerts": [],
+        "iot_actual_qty_kg": null,
+        "iot_usable_qty_kg": null,
+        "data_sources": {
+          "quantity": "manual",
+          "quality": "vlm"
+        }
+      }
+    ],
+    "events": [
+      {
+        "event_type": "cost_weight_short",
+        "source": "system",
+        "level": "warn",
+        "store_id": "store_yuhuan",
+        "message": "毛肚 来料短重 4.0%（PO 20.0kg → 实收 19.2kg）",
+        "event_id": "886606c2-a5a4-4788-b839-3b7b3df1db45",
+        "timestamp": "2026-06-12T03:16:31+00:00",
+        "zone": "kitchen",
+        "table_id": "",
+        "confidence": 1.0,
+        "metadata": {
+          "batch_id": "RCV-20260612-001",
+          "sku": "毛肚",
+          "supplier": "冯校长供应链",
+          "short_pct": 4.0,
+          "po_qty": 20.0,
+          "actual_qty": 19.2
+        }
+      },
+      {
+        "event_type": "cost_yield_low",
+        "source": "system",
+        "level": "warn",
+        "store_id": "store_yuhuan",
+        "message": "毛肚 出成率 23.2% 低于标准 92%",
+        "event_id": "38b861d0-899a-48d2-ae65-477c3d734f9a",
+        "timestamp": "2026-06-12T03:16:31+00:00",
+        "zone": "kitchen",
+        "table_id": "",
+        "confidence": 1.0,
+        "metadata": {
+          "batch_id": "RCV-20260612-001",
+          "sku": "毛肚",
+          "supplier": "冯校长供应链",
+          "yield_rate": 0.232,
+          "standard_yield": 0.92
+        }
+      },
+      {
+        "event_type": "cost_price_over",
+        "source": "system",
+        "level": "warn",
+        "store_id": "store_yuhuan",
+        "message": "鲜牛肉 来料单价超 PO 6.7%（PO ¥52.0/kg → 实收 ¥55.5/kg）",
+        "event_id": "b88c9092-43a1-4cd3-9c3f-1ef1a8c236ee",
+        "timestamp": "2026-06-12T03:16:31+00:00",
+        "zone": "kitchen",
+        "table_id": "",
+        "confidence": 1.0,
+        "metadata": {
+          "batch_id": "RCV-20260612-002",
+          "sku": "鲜牛肉",
+          "supplier": "冯校长供应链",
+          "price_diff_pct": 6.73,
+          "po_price": 52.0,
+          "actual_price": 55.5
+        }
+      },
+      {
+        "event_type": "cost_yield_low",
+        "source": "system",
+        "level": "warn",
+        "store_id": "store_yuhuan",
+        "message": "鲜牛肉 出成率 22.7% 低于标准 88%",
+        "event_id": "31adaa5b-e4be-4d5c-8e31-1f7615a2ec6b",
+        "timestamp": "2026-06-12T03:16:31+00:00",
+        "zone": "kitchen",
+        "table_id": "",
+        "confidence": 1.0,
+        "metadata": {
+          "batch_id": "RCV-20260612-002",
+          "sku": "鲜牛肉",
+          "supplier": "冯校长供应链",
+          "yield_rate": 0.227,
+          "standard_yield": 0.88
+        }
+      },
+      {
+        "event_type": "cost_weight_short",
+        "source": "system",
+        "level": "warn",
+        "store_id": "store_yuhuan",
+        "message": "蔬菜拼盘 来料短重 8.0%（PO 25.0kg → 实收 23.0kg）",
+        "event_id": "a7875754-e860-4239-ab9b-272c5be93639",
+        "timestamp": "2026-06-12T03:16:31+00:00",
+        "zone": "kitchen",
+        "table_id": "",
+        "confidence": 1.0,
+        "metadata": {
+          "batch_id": "RCV-20260612-004",
+          "sku": "蔬菜拼盘",
+          "supplier": "绿源农批",
+          "short_pct": 8.0,
+          "po_qty": 25.0,
+          "actual_qty": 23.0
+        }
+      },
+      {
+        "event_type": "cost_yield_low",
+        "source": "system",
+        "level": "warn",
+        "store_id": "store_yuhuan",
+        "message": "蔬菜拼盘 出成率 33.0% 低于标准 85%",
+        "event_id": "c9fe434d-358c-4b53-bf8d-e3011a8777f4",
+        "timestamp": "2026-06-12T03:16:31+00:00",
+        "zone": "kitchen",
+        "table_id": "",
+        "confidence": 1.0,
+        "metadata": {
+          "batch_id": "RCV-20260612-004",
+          "sku": "蔬菜拼盘",
+          "supplier": "绿源农批",
+          "yield_rate": 0.33,
+          "standard_yield": 0.85
+        }
+      },
+      {
+        "event_type": "cost_quality_reject",
+        "source": "system",
+        "level": "critical",
+        "store_id": "store_yuhuan",
+        "message": "蔬菜拼盘 VLM 质检评级 C，建议拒收或降价入库",
+        "event_id": "907e6211-587c-4aad-a2a7-a00c5702775c",
+        "timestamp": "2026-06-12T03:16:31+00:00",
+        "zone": "kitchen",
+        "table_id": "",
+        "confidence": 1.0,
+        "metadata": {
+          "batch_id": "RCV-20260612-004",
+          "sku": "蔬菜拼盘",
+          "supplier": "绿源农批",
+          "quality_grade": "C"
+        }
+      },
+      {
+        "event_type": "cost_near_expiry",
+        "source": "system",
+        "level": "warn",
+        "store_id": "store_yuhuan",
+        "message": "蔬菜拼盘 临期风险：剩余保质期 1 天",
+        "event_id": "a1b055ce-2d3e-439c-8ffc-c99afe718b53",
+        "timestamp": "2026-06-12T03:16:31+00:00",
+        "zone": "kitchen",
+        "table_id": "",
+        "confidence": 1.0,
+        "metadata": {
+          "batch_id": "RCV-20260612-004",
+          "sku": "蔬菜拼盘",
+          "supplier": "绿源农批",
+          "remaining_shelf_days": 1
+        }
+      },
+      {
+        "event_type": "iot_temp_abnormal",
+        "source": "system",
+        "level": "critical",
+        "store_id": "store_yuhuan",
+        "message": "蔬菜拼盘 IoT探针到货温度 8.5°C 超标，品质风险",
+        "event_id": "606e4c08-0dd0-4326-ae78-5d5f358bc102",
+        "timestamp": "2026-06-12T03:16:31+00:00",
+        "zone": "kitchen",
+        "table_id": "",
+        "confidence": 1.0,
+        "metadata": {
+          "batch_id": "RCV-20260612-004",
+          "sku": "蔬菜拼盘",
+          "supplier": "绿源农批",
+          "iot_probe_temp": 8.5,
+          "source": "iot"
+        }
+      },
+      {
+        "event_type": "iot_rfid_missing",
+        "source": "system",
+        "level": "warn",
+        "store_id": "store_yuhuan",
+        "message": "蔬菜拼盘 IoT RFID 未扫描，数量/批次无法追溯",
+        "event_id": "666ffd17-5364-45b4-855a-46349aba8ac0",
+        "timestamp": "2026-06-12T03:16:31+00:00",
+        "zone": "kitchen",
+        "table_id": "",
+        "confidence": 1.0,
+        "metadata": {
+          "batch_id": "RCV-20260612-004",
+          "sku": "蔬菜拼盘",
+          "supplier": "绿源农批",
+          "source": "iot"
+        }
+      }
+    ],
+    "recommendations": [
+      "1 个 SKU 单价超 PO，联动采购中心更新协议价或更换供应商",
+      "3 个 SKU 出成率偏低，排查分拣/解冻 SOP 执行与刀工损耗",
+      "1 批来料建议拒收，触发 VLM 质检复核与退货流程"
+    ]
+  },
+  "iot_stats": {
+    "store_id": "store_yuhuan",
+    "processed_at": "2026-06-12T03:16:31+00:00",
+    "batch_count": 3,
+    "stage_readings": {
+      "receiving": [
+        {
+          "batch_id": "RCV-20260612-001",
+          "sku": "毛肚",
+          "stage": "receiving",
+          "sensor_id": "receiving_scale",
+          "value": 19.2,
+          "unit": "kg",
+          "timestamp": "2026-06-12T03:16:31+00:00"
+        },
+        {
+          "batch_id": "RCV-20260612-001",
+          "sku": "毛肚",
+          "stage": "receiving",
+          "sensor_id": "receiving_probe_temp",
+          "value": -18.5,
+          "unit": "C",
+          "timestamp": "2026-06-12T03:16:31+00:00"
+        },
+        {
+          "batch_id": "RCV-20260612-001",
+          "sku": "毛肚",
+          "stage": "receiving",
+          "sensor_id": "receiving_humidity",
+          "value": 58,
+          "unit": "%RH",
+          "timestamp": "2026-06-12T03:16:31+00:00"
+        },
+        {
+          "batch_id": "RCV-20260612-001",
+          "sku": "毛肚",
+          "stage": "receiving",
+          "sensor_id": "receiving_rfid_gate",
+          "value": 1,
+          "unit": "count",
+          "timestamp": "2026-06-12T03:16:31+00:00"
+        },
+        {
+          "batch_id": "RCV-20260612-002",
+          "sku": "鲜牛肉",
+          "stage": "receiving",
+          "sensor_id": "receiving_scale",
+          "value": 29.1,
+          "unit": "kg",
+          "timestamp": "2026-06-12T03:16:31+00:00"
+        },
+        {
+          "batch_id": "RCV-20260612-002",
+          "sku": "鲜牛肉",
+          "stage": "receiving",
+          "sensor_id": "receiving_probe_temp",
+          "value": 2.8,
+          "unit": "C",
+          "timestamp": "2026-06-12T03:16:31+00:00"
+        },
+        {
+          "batch_id": "RCV-20260612-002",
+          "sku": "鲜牛肉",
+          "stage": "receiving",
+          "sensor_id": "receiving_humidity",
+          "value": 62,
+          "unit": "%RH",
+          "timestamp": "2026-06-12T03:16:31+00:00"
+        },
+        {
+          "batch_id": "RCV-20260612-002",
+          "sku": "鲜牛肉",
+          "stage": "receiving",
+          "sensor_id": "receiving_rfid_gate",
+          "value": 1,
+          "unit": "count",
+          "timestamp": "2026-06-12T03:16:31+00:00"
+        },
+        {
+          "batch_id": "RCV-20260612-004",
+          "sku": "蔬菜拼盘",
+          "stage": "receiving",
+          "sensor_id": "receiving_scale",
+          "value": 23.0,
+          "unit": "kg",
+          "timestamp": "2026-06-12T03:16:31+00:00"
+        },
+        {
+          "batch_id": "RCV-20260612-004",
+          "sku": "蔬菜拼盘",
+          "stage": "receiving",
+          "sensor_id": "receiving_probe_temp",
+          "value": 8.5,
+          "unit": "C",
+          "timestamp": "2026-06-12T03:16:31+00:00"
+        },
+        {
+          "batch_id": "RCV-20260612-004",
+          "sku": "蔬菜拼盘",
+          "stage": "receiving",
+          "sensor_id": "receiving_humidity",
+          "value": 72,
+          "unit": "%RH",
+          "timestamp": "2026-06-12T03:16:31+00:00"
+        },
+        {
+          "batch_id": "RCV-20260612-004",
+          "sku": "蔬菜拼盘",
+          "stage": "receiving",
+          "sensor_id": "receiving_rfid_gate",
+          "value": 0,
+          "unit": "count",
+          "timestamp": "2026-06-12T03:16:31+00:00"
+        }
+      ],
+      "storage": [
+        {
+          "batch_id": "RCV-20260612-001",
+          "sku": "毛肚",
+          "stage": "storage",
+          "sensor_id": "cold_storage_1",
+          "value": -17.8,
+          "unit": "C",
+          "timestamp": "2026-06-12T03:16:31+00:00"
+        },
+        {
+          "batch_id": "RCV-20260612-001",
+          "sku": "毛肚",
+          "stage": "storage",
+          "sensor_id": "freezer_door_1",
+          "value": 0,
+          "unit": "state",
+          "timestamp": "2026-06-12T03:16:31+00:00"
+        },
+        {
+          "batch_id": "RCV-20260612-001",
+          "sku": "毛肚",
+          "stage": "storage",
+          "sensor_id": "storage_humidity",
+          "value": 52,
+          "unit": "%RH",
+          "timestamp": "2026-06-12T03:16:31+00:00"
+        },
+        {
+          "batch_id": "RCV-20260612-001",
+          "sku": "毛肚",
+          "stage": "storage",
+          "sensor_id": "rfid_shelf_zone_a",
+          "value": "A-03-FEFO",
+          "unit": "tag",
+          "timestamp": "2026-06-12T03:16:31+00:00"
+        },
+        {
+          "batch_id": "RCV-20260612-002",
+          "sku": "鲜牛肉",
+          "stage": "storage",
+          "sensor_id": "cold_storage_2",
+          "value": 3.2,
+          "unit": "C",
+          "timestamp": "2026-06-12T03:16:31+00:00"
+        },
+        {
+          "batch_id": "RCV-20260612-002",
+          "sku": "鲜牛肉",
+          "stage": "storage",
+          "sensor_id": "freezer_door_1",
+          "value": 0,
+          "unit": "state",
+          "timestamp": "2026-06-12T03:16:31+00:00"
+        },
+        {
+          "batch_id": "RCV-20260612-002",
+          "sku": "鲜牛肉",
+          "stage": "storage",
+          "sensor_id": "storage_humidity",
+          "value": 48,
+          "unit": "%RH",
+          "timestamp": "2026-06-12T03:16:31+00:00"
+        },
+        {
+          "batch_id": "RCV-20260612-002",
+          "sku": "鲜牛肉",
+          "stage": "storage",
+          "sensor_id": "rfid_shelf_zone_a",
+          "value": "B-01-FEFO",
+          "unit": "tag",
+          "timestamp": "2026-06-12T03:16:31+00:00"
+        },
+        {
+          "batch_id": "RCV-20260612-004",
+          "sku": "蔬菜拼盘",
+          "stage": "storage",
+          "sensor_id": "cold_storage_2",
+          "value": 6.5,
+          "unit": "C",
+          "timestamp": "2026-06-12T03:16:31+00:00"
+        },
+        {
+          "batch_id": "RCV-20260612-004",
+          "sku": "蔬菜拼盘",
+          "stage": "storage",
+          "sensor_id": "freezer_door_1",
+          "value": 1,
+          "unit": "state",
+          "timestamp": "2026-06-12T03:16:31+00:00"
+        },
+        {
+          "batch_id": "RCV-20260612-004",
+          "sku": "蔬菜拼盘",
+          "stage": "storage",
+          "sensor_id": "storage_humidity",
+          "value": 70,
+          "unit": "%RH",
+          "timestamp": "2026-06-12T03:16:31+00:00"
+        },
+        {
+          "batch_id": "RCV-20260612-004",
+          "sku": "蔬菜拼盘",
+          "stage": "storage",
+          "sensor_id": "rfid_shelf_zone_a",
+          "value": "",
+          "unit": "tag",
+          "timestamp": "2026-06-12T03:16:31+00:00"
+        }
+      ],
+      "processing": [
+        {
+          "batch_id": "RCV-20260612-001",
+          "sku": "毛肚",
+          "stage": "processing",
+          "sensor_id": "prep_scale_raw",
+          "value": 5.0,
+          "unit": "kg",
+          "timestamp": "2026-06-12T03:16:31+00:00"
+        },
+        {
+          "batch_id": "RCV-20260612-001",
+          "sku": "毛肚",
+          "stage": "processing",
+          "sensor_id": "prep_scale_usable",
+          "value": 4.45,
+          "unit": "kg",
+          "timestamp": "2026-06-12T03:16:31+00:00"
+        },
+        {
+          "batch_id": "RCV-20260612-001",
+          "sku": "毛肚",
+          "stage": "processing",
+          "sensor_id": "thaw_pool_temp",
+          "value": 2.5,
+          "unit": "C",
+          "timestamp": "2026-06-12T03:16:31+00:00"
+        },
+        {
+          "batch_id": "RCV-20260612-001",
+          "sku": "毛肚",
+          "stage": "processing",
+          "sensor_id": "prep_area_temp",
+          "value": 18.0,
+          "unit": "C",
+          "timestamp": "2026-06-12T03:16:31+00:00"
+        },
+        {
+          "batch_id": "RCV-20260612-001",
+          "sku": "毛肚",
+          "stage": "processing",
+          "sensor_id": "prep_timer_thaw",
+          "value": 95,
+          "unit": "min",
+          "timestamp": "2026-06-12T03:16:31+00:00"
+        },
+        {
+          "batch_id": "RCV-20260612-002",
+          "sku": "鲜牛肉",
+          "stage": "processing",
+          "sensor_id": "prep_scale_raw",
+          "value": 8.0,
+          "unit": "kg",
+          "timestamp": "2026-06-12T03:16:31+00:00"
+        },
+        {
+          "batch_id": "RCV-20260612-002",
+          "sku": "鲜牛肉",
+          "stage": "processing",
+          "sensor_id": "prep_scale_usable",
+          "value": 6.6,
+          "unit": "kg",
+          "timestamp": "2026-06-12T03:16:31+00:00"
+        },
+        {
+          "batch_id": "RCV-20260612-002",
+          "sku": "鲜牛肉",
+          "stage": "processing",
+          "sensor_id": "thaw_pool_temp",
+          "value": 3.8,
+          "unit": "C",
+          "timestamp": "2026-06-12T03:16:31+00:00"
+        },
+        {
+          "batch_id": "RCV-20260612-002",
+          "sku": "鲜牛肉",
+          "stage": "processing",
+          "sensor_id": "prep_area_temp",
+          "value": 19.5,
+          "unit": "C",
+          "timestamp": "2026-06-12T03:16:31+00:00"
+        },
+        {
+          "batch_id": "RCV-20260612-002",
+          "sku": "鲜牛肉",
+          "stage": "processing",
+          "sensor_id": "prep_timer_thaw",
+          "value": 120,
+          "unit": "min",
+          "timestamp": "2026-06-12T03:16:31+00:00"
+        },
+        {
+          "batch_id": "RCV-20260612-004",
+          "sku": "蔬菜拼盘",
+          "stage": "processing",
+          "sensor_id": "prep_scale_raw",
+          "value": 10.0,
+          "unit": "kg",
+          "timestamp": "2026-06-12T03:16:31+00:00"
+        },
+        {
+          "batch_id": "RCV-20260612-004",
+          "sku": "蔬菜拼盘",
+          "stage": "processing",
+          "sensor_id": "prep_scale_usable",
+          "value": 7.6,
+          "unit": "kg",
+          "timestamp": "2026-06-12T03:16:31+00:00"
+        },
+        {
+          "batch_id": "RCV-20260612-004",
+          "sku": "蔬菜拼盘",
+          "stage": "processing",
+          "sensor_id": "thaw_pool_temp",
+          "value": 5.0,
+          "unit": "C",
+          "timestamp": "2026-06-12T03:16:31+00:00"
+        },
+        {
+          "batch_id": "RCV-20260612-004",
+          "sku": "蔬菜拼盘",
+          "stage": "processing",
+          "sensor_id": "prep_area_temp",
+          "value": 22.0,
+          "unit": "C",
+          "timestamp": "2026-06-12T03:16:31+00:00"
+        },
+        {
+          "batch_id": "RCV-20260612-004",
+          "sku": "蔬菜拼盘",
+          "stage": "processing",
+          "sensor_id": "prep_timer_thaw",
+          "value": 30,
+          "unit": "min",
+          "timestamp": "2026-06-12T03:16:31+00:00"
+        }
+      ]
+    },
+    "events": [
+      {
+        "event_type": "iot_weight_short",
+        "source": "iot",
+        "level": "warn",
+        "store_id": "store_yuhuan",
+        "message": "[IoT] 毛肚 收货秤短重 4.0%（PO 20.0kg → 秤重 19.2kg）",
+        "event_id": "a68d5515-399d-4cec-a4a8-114e9705c86f",
+        "timestamp": "2026-06-12T03:16:31+00:00",
+        "zone": "kitchen",
+        "table_id": "",
+        "confidence": 1.0,
+        "metadata": {
+          "batch_id": "RCV-20260612-001",
+          "sku": "毛肚",
+          "sensor_id": "receiving_scale",
+          "stage": "receiving",
+          "po_qty": 20.0,
+          "actual": 19.2
+        }
+      },
+      {
+        "event_type": "iot_weight_short",
+        "source": "iot",
+        "level": "warn",
+        "store_id": "store_yuhuan",
+        "message": "[IoT] 蔬菜拼盘 收货秤短重 8.0%（PO 25.0kg → 秤重 23.0kg）",
+        "event_id": "b4ad5b66-2f13-4a68-97c8-0421988d0d46",
+        "timestamp": "2026-06-12T03:16:31+00:00",
+        "zone": "kitchen",
+        "table_id": "",
+        "confidence": 1.0,
+        "metadata": {
+          "batch_id": "RCV-20260612-004",
+          "sku": "蔬菜拼盘",
+          "sensor_id": "receiving_scale",
+          "stage": "receiving",
+          "po_qty": 25.0,
+          "actual": 23.0
+        }
+      },
+      {
+        "event_type": "iot_temp_abnormal",
+        "source": "iot",
+        "level": "critical",
+        "store_id": "store_yuhuan",
+        "message": "[IoT/receiving] 蔬菜拼盘 到货探针测温（品质） 超温 8.5°C（标准 -25~4°C）",
+        "event_id": "ce6b6c33-41e6-426c-8448-0aa8edebb600",
+        "timestamp": "2026-06-12T03:16:31+00:00",
+        "zone": "kitchen",
+        "table_id": "",
+        "confidence": 1.0,
+        "metadata": {
+          "batch_id": "RCV-20260612-004",
+          "sku": "蔬菜拼盘",
+          "sensor_id": "receiving_probe_temp",
+          "stage": "receiving",
+          "value": 8.5
+        }
+      },
+      {
+        "event_type": "iot_rfid_missing",
+        "source": "iot",
+        "level": "warn",
+        "store_id": "store_yuhuan",
+        "message": "[IoT/来料] 蔬菜拼盘 RFID 批次未扫描，无法追溯",
+        "event_id": "fac6948d-8c35-4b8c-820a-f566aceca222",
+        "timestamp": "2026-06-12T03:16:31+00:00",
+        "zone": "kitchen",
+        "table_id": "",
+        "confidence": 1.0,
+        "metadata": {
+          "batch_id": "RCV-20260612-004",
+          "sku": "蔬菜拼盘",
+          "sensor_id": "receiving_rfid_gate"
+        }
+      },
+      {
+        "event_type": "iot_temp_abnormal",
+        "source": "iot",
+        "level": "warn",
+        "store_id": "store_yuhuan",
+        "message": "[IoT/storage] 蔬菜拼盘 冷藏库温（素菜/底料） 超温 6.5°C（标准 0~4°C）",
+        "event_id": "b2fb3bd5-a0aa-41c3-a570-89414687c2fe",
+        "timestamp": "2026-06-12T03:16:31+00:00",
+        "zone": "kitchen",
+        "table_id": "",
+        "confidence": 1.0,
+        "metadata": {
+          "batch_id": "RCV-20260612-004",
+          "sku": "蔬菜拼盘",
+          "sensor_id": "cold_storage_2",
+          "stage": "storage",
+          "value": 6.5
+        }
+      },
+      {
+        "event_type": "iot_door_open_timeout",
+        "source": "iot",
+        "level": "warn",
+        "store_id": "store_yuhuan",
+        "message": "[IoT/保存] 蔬菜拼盘 冷库门未关，冷链断链风险",
+        "event_id": "b77ae911-6110-434f-a405-51e7a146d21f",
+        "timestamp": "2026-06-12T03:16:31+00:00",
+        "zone": "kitchen",
+        "table_id": "",
+        "confidence": 1.0,
+        "metadata": {
+          "batch_id": "RCV-20260612-004",
+          "sku": "蔬菜拼盘",
+          "sensor_id": "freezer_door_1"
+        }
+      },
+      {
+        "event_type": "iot_humidity_abnormal",
+        "source": "iot",
+        "level": "warn",
+        "store_id": "store_yuhuan",
+        "message": "[IoT/storage] 蔬菜拼盘 湿度异常 70.0%RH（标准 35~65%）",
+        "event_id": "724a2b1a-aa06-41da-84aa-304781dfcaba",
+        "timestamp": "2026-06-12T03:16:31+00:00",
+        "zone": "kitchen",
+        "table_id": "",
+        "confidence": 1.0,
+        "metadata": {
+          "batch_id": "RCV-20260612-004",
+          "sku": "蔬菜拼盘",
+          "sensor_id": "storage_humidity",
+          "stage": "storage",
+          "value": 70.0
+        }
+      },
+      {
+        "event_type": "iot_fefo_violation",
+        "source": "iot",
+        "level": "warn",
+        "store_id": "store_yuhuan",
+        "message": "[IoT/保存] 蔬菜拼盘 未入 RFID 货位，FEFO 先进先出无法保障",
+        "event_id": "a37f8d7e-7259-45f6-8aa7-f03bc6b3908b",
+        "timestamp": "2026-06-12T03:16:31+00:00",
+        "zone": "kitchen",
+        "table_id": "",
+        "confidence": 1.0,
+        "metadata": {
+          "batch_id": "RCV-20260612-004",
+          "sku": "蔬菜拼盘",
+          "sensor_id": "rfid_shelf_zone_a"
+        }
+      },
+      {
+        "event_type": "iot_temp_abnormal",
+        "source": "iot",
+        "level": "warn",
+        "store_id": "store_yuhuan",
+        "message": "[IoT/processing] 蔬菜拼盘 解冻池水温 超温 5.0°C（标准 0~4°C）",
+        "event_id": "2c609051-8b42-4469-bc1b-c4c854a4c27a",
+        "timestamp": "2026-06-12T03:16:31+00:00",
+        "zone": "kitchen",
+        "table_id": "",
+        "confidence": 1.0,
+        "metadata": {
+          "batch_id": "RCV-20260612-004",
+          "sku": "蔬菜拼盘",
+          "sensor_id": "thaw_pool_temp",
+          "stage": "processing",
+          "value": 5.0
+        }
+      }
+    ],
+    "sop_signals": {
+      "receiving_weight_match": false,
+      "receiving_temp_check": 8.5,
+      "receiving_env_ok": 72,
+      "receiving_rfid_logged": false,
+      "cold_chain_ok": false,
+      "storage_door_closed": false,
+      "storage_humidity_ok": 70,
+      "storage_fefo_ok": false,
+      "prep_input_weight": true,
+      "prep_yield_logged": true,
+      "prep_thaw_temp_ok": 5.0,
+      "prep_area_env_ok": 19.833333333333332,
+      "prep_thaw_time_ok": 120,
+      "cold_storage_freezer": -17.8,
+      "haccp_cold_temp": -17.8,
+      "cold_storage_worst": 6.5
+    },
+    "cost_enrichments": [
+      {
+        "batch_id": "RCV-20260612-001",
+        "sku": "毛肚",
+        "po_qty_kg": 20.0,
+        "iot_actual_qty_kg": 19.2,
+        "iot_usable_qty_kg": 4.45,
+        "iot_raw_prep_kg": 5.0,
+        "iot_yield_rate": 0.89,
+        "iot_probe_temp": -18.5,
+        "iot_rfid_ok": true
+      },
+      {
+        "batch_id": "RCV-20260612-002",
+        "sku": "鲜牛肉",
+        "po_qty_kg": 30.0,
+        "iot_actual_qty_kg": 29.1,
+        "iot_usable_qty_kg": 6.6,
+        "iot_raw_prep_kg": 8.0,
+        "iot_yield_rate": 0.825,
+        "iot_probe_temp": 2.8,
+        "iot_rfid_ok": true
+      },
+      {
+        "batch_id": "RCV-20260612-004",
+        "sku": "蔬菜拼盘",
+        "po_qty_kg": 25.0,
+        "iot_actual_qty_kg": 23.0,
+        "iot_usable_qty_kg": 7.6,
+        "iot_raw_prep_kg": 10.0,
+        "iot_yield_rate": 0.76,
+        "iot_probe_temp": 8.5,
+        "iot_rfid_ok": false
+      }
+    ],
+    "summary": {
+      "readings_by_stage": {
+        "receiving": 12,
+        "storage": 12,
+        "processing": 15
+      },
+      "iot_alert_count": 9,
+      "iot_alerts_by_type": {
+        "iot_weight_short": 2,
+        "iot_temp_abnormal": 3,
+        "iot_rfid_missing": 1,
+        "iot_door_open_timeout": 1,
+        "iot_humidity_abnormal": 1,
+        "iot_fefo_violation": 1
+      }
+    }
+  }
+}

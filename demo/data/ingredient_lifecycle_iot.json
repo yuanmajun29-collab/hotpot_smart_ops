@@ -1,0 +1,83 @@
+[
+  {
+    "batch_id": "RCV-20260612-001",
+    "sku": "毛肚",
+    "supplier": "冯校长供应链",
+    "po_qty_kg": 20.0,
+    "iot": {
+      "receiving": {
+        "receiving_scale": 19.2,
+        "receiving_probe_temp": -18.5,
+        "receiving_humidity": 58,
+        "receiving_rfid_gate": 1
+      },
+      "storage": {
+        "cold_storage_1": -17.8,
+        "freezer_door_1": 0,
+        "storage_humidity": 52,
+        "rfid_shelf_zone_a": "A-03-FEFO"
+      },
+      "processing": {
+        "prep_scale_raw": 5.0,
+        "prep_scale_usable": 4.45,
+        "thaw_pool_temp": 2.5,
+        "prep_area_temp": 18.0,
+        "prep_timer_thaw": 95
+      }
+    }
+  },
+  {
+    "batch_id": "RCV-20260612-002",
+    "sku": "鲜牛肉",
+    "supplier": "冯校长供应链",
+    "po_qty_kg": 30.0,
+    "iot": {
+      "receiving": {
+        "receiving_scale": 29.1,
+        "receiving_probe_temp": 2.8,
+        "receiving_humidity": 62,
+        "receiving_rfid_gate": 1
+      },
+      "storage": {
+        "cold_storage_2": 3.2,
+        "freezer_door_1": 0,
+        "storage_humidity": 48,
+        "rfid_shelf_zone_a": "B-01-FEFO"
+      },
+      "processing": {
+        "prep_scale_raw": 8.0,
+        "prep_scale_usable": 6.6,
+        "thaw_pool_temp": 3.8,
+        "prep_area_temp": 19.5,
+        "prep_timer_thaw": 120
+      }
+    }
+  },
+  {
+    "batch_id": "RCV-20260612-004",
+    "sku": "蔬菜拼盘",
+    "supplier": "绿源农批",
+    "po_qty_kg": 25.0,
+    "iot": {
+      "receiving": {
+        "receiving_scale": 23.0,
+        "receiving_probe_temp": 8.5,
+        "receiving_humidity": 72,
+        "receiving_rfid_gate": 0
+      },
+      "storage": {
+        "cold_storage_2": 6.5,
+        "freezer_door_1": 1,
+        "storage_humidity": 70,
+        "rfid_shelf_zone_a": ""
+      },
+      "processing": {
+        "prep_scale_raw": 10.0,
+        "prep_scale_usable": 7.6,
+        "thaw_pool_temp": 5.0,
+        "prep_area_temp": 22.0,
+        "prep_timer_thaw": 30
+      }
+    }
+  }
+]

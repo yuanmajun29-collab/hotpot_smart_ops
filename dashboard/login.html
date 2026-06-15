@@ -1,0 +1,111 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>登录 · 冯校长火锅 · 智能运营</title>
+  <link rel="stylesheet" href="assets/theme.css" />
+</head>
+<body>
+  <div class="login-page">
+    <div class="login-card">
+      <h1>冯校长火锅</h1>
+      <p class="subtitle">智能运营 · Phase 1 MVP（玉环 / 椒江）</p>
+      <form id="login-form">
+        <div class="form-group">
+          <label>账号</label>
+          <input type="text" id="username" value="zhangdian" required />
+        </div>
+        <div class="form-group">
+          <label>密码</label>
+          <input type="password" id="password" value="demo" required />
+        </div>
+        <div class="form-group">
+          <label>角色</label>
+          <select id="role">
+            <option value="店长">店长</option>
+            <option value="前厅领班">前厅领班</option>
+            <option value="厨师长">厨师长</option>
+            <option value="区域督导">区域督导</option>
+          </select>
+        </div>
+        <div class="form-group">
+          <label>门店</label>
+          <select id="store">
+            <option value="冯校长火锅·玉环店" data-store-id="store_yuhuan">冯校长火锅·玉环店</option>
+            <option value="冯校长火锅·椒江店" data-store-id="store_jiaojiang">冯校长火锅·椒江店</option>
+          </select>
+        </div>
+        <button type="submit" class="btn btn-block" id="btn-desktop">进入桌面看板</button>
+        <button type="button" class="btn btn-block btn-ghost" id="btn-mobile" style="margin-top:10px">进入手机版 H5</button>
+      </form>
+      <p style="margin-top:16px;font-size:0.8rem;color:var(--muted);text-align:center;">
+        演示任意密码 · <a href="poc.html">旧版 PoC</a> · <a href="login.html?mobile=1">手机登录</a>
+      </p>
+    </div>
+  </div>
+  <script src="assets/core.js"></script>
+  <script>
+    function isMobileUA() {
+      return /Android|iPhone|iPad|iPod|Mobile/i.test(navigator.userAgent) || window.innerWidth <= 520;
+    }
+    function targetAfterLogin(mobile, role) {
+      if (role === "区域督导") return mobile ? "mobile/index.html" : "regional.html";
+      return mobile ? "mobile/index.html" : "home.html";
+    }
+    const params = new URLSearchParams(location.search);
+    const preferMobile = params.get("mobile") === "1";
+
+    if (HotpotApp.getAuth()) {
+      const a = HotpotApp.getAuth();
+      window.location.href = targetAfterLogin(preferMobile || isMobileUA(), a.role);
+    }
+
+    function doLogin(mobile) {
+      const storeEl = document.getElementById("store");
+      const role = document.getElementById("role").value;
+      const username = document.getElementById("username").value || "zhangdian";
+      const password = document.getElementById("password").value || "demo";
+      const storeName = storeEl.value;
+      const storeIdVal = storeEl.selectedOptions[0]?.dataset.storeId || "store_yuhuan";
+
+      HotpotApp.hubLogin(username, password, storeIdVal, role)
+        .then((tok) => {
+          const isRegional = role === "区域督导";
+          HotpotApp.setAuth({
+            name: username,
+            role,
+            storeName: isRegional ? "台州区域" : storeName,
+            storeId: isRegional ? "store_yuhuan" : storeIdVal,
+            token: tok.access_token,
+          });
+          window.location.href = targetAfterLogin(mobile, role);
+        })
+        .catch(() => {
+          HotpotApp.setAuth({
+            name: username,
+            role,
+            storeName,
+            storeId: storeIdVal,
+          });
+          window.location.href = targetAfterLogin(mobile, role);
+        });
+    }
+
+    document.getElementById("login-form").onsubmit = (e) => {
+      e.preventDefault();
+      doLogin(false);
+    };
+    document.getElementById("btn-mobile").onclick = () => doLogin(true);
+
+    if (preferMobile || isMobileUA()) {
+      document.getElementById("btn-mobile").textContent = "进入手机版 H5（推荐）";
+      const desk = document.getElementById("btn-desktop");
+      const mob = document.getElementById("btn-mobile");
+      desk.className = "btn btn-block btn-ghost";
+      mob.className = "btn btn-block";
+      mob.style.marginTop = "10px";
+    }
+  </script>
+</body>
+</html>

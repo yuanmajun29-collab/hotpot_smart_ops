@@ -1,0 +1,105 @@
+{
+  "version": "1.1",
+  "store_id": "store_yuhuan",
+  "sops": [
+    {
+      "id": "sop_opening",
+      "name": "开档准备 SOP",
+      "category": "opening",
+      "frequency": "每班次开始前",
+      "shifts": ["morning", "noon", "evening"],
+      "severity": "critical",
+      "checkpoints": [
+        {"id": "hand_wash_station", "name": "洗手消毒站就绪", "type": "manual", "expected": true},
+        {"id": "cold_storage_freezer", "name": "IoT冷冻库温", "type": "iot", "range": [-22, -15]},
+        {"id": "kitchen_gear_ok", "name": "厨师穿戴合规(VLM)", "type": "vision", "fail_message": "检测到未戴帽/未戴口罩"}
+      ]
+    },
+    {
+      "id": "sop_receiving",
+      "name": "来料收货 SOP",
+      "category": "receiving",
+      "frequency": "每批次到货",
+      "shifts": ["morning", "noon", "evening"],
+      "severity": "critical",
+      "checkpoints": [
+        {"id": "receiving_scale_calibrated", "name": "收货秤已校准", "type": "manual", "expected": true},
+        {"id": "receiving_weight_match", "name": "IoT收货秤数量与PO匹配", "type": "iot", "expected": true, "fail_message": "IoT秤重短重超阈值"},
+        {"id": "receiving_temp_check", "name": "IoT探针到货温度", "type": "iot", "range": [-25, 4]},
+        {"id": "receiving_env_ok", "name": "IoT卸货区湿度正常", "type": "iot", "range": [40, 75]},
+        {"id": "receiving_rfid_logged", "name": "IoT RFID批次扫描", "type": "iot", "expected": true, "fail_message": "RFID未扫描无法追溯"},
+        {"id": "receiving_dual_sign", "name": "双人验收签字", "type": "manual", "expected": true},
+        {"id": "receiving_vlm_grade", "name": "VLM外观质检", "type": "vision", "fail_message": "来料外观质检未通过"}
+      ]
+    },
+    {
+      "id": "sop_storage",
+      "name": "食材保存 SOP",
+      "category": "storage",
+      "frequency": "continuous",
+      "shifts": ["morning", "noon", "evening"],
+      "severity": "critical",
+      "checkpoints": [
+        {"id": "cold_storage_worst", "name": "IoT冷库最高温", "type": "iot", "range": [-22, 4]},
+        {"id": "storage_door_closed", "name": "IoT冷库门磁关闭", "type": "iot", "expected": true, "fail_message": "冷库门未关"},
+        {"id": "storage_humidity_ok", "name": "IoT冷库湿度", "type": "iot", "range": [35, 65]},
+        {"id": "storage_fefo_ok", "name": "IoT RFID货位/FEFO", "type": "iot", "expected": true, "fail_message": "未按先进先出入架"}
+      ]
+    },
+    {
+      "id": "sop_prep_meat",
+      "name": "荤菜改刀加工 SOP",
+      "category": "processing",
+      "frequency": "每批次备料",
+      "shifts": ["morning", "noon", "evening"],
+      "severity": "warn",
+      "checkpoints": [
+        {"id": "raw_cooked_separate", "name": "生熟分区(VLM)", "type": "vision", "fail_message": "生熟区域混放"},
+        {"id": "prep_input_weight", "name": "IoT领料称重", "type": "iot", "expected": true},
+        {"id": "prep_yield_logged", "name": "IoT出成率自动登记", "type": "iot", "expected": true, "fail_message": "改刀后可用重量未登记"},
+        {"id": "prep_thaw_temp_ok", "name": "IoT解冻池水温", "type": "iot", "range": [0, 4]},
+        {"id": "prep_thaw_time_ok", "name": "IoT解冻时长", "type": "iot", "range": [0, 240]},
+        {"id": "prep_area_env_ok", "name": "IoT改刀间温度", "type": "iot", "range": [15, 25]},
+        {"id": "prep_label_dated", "name": "效期标签粘贴", "type": "manual", "expected": true}
+      ]
+    },
+    {
+      "id": "sop_broth",
+      "name": "锅底熬制 SOP",
+      "category": "cooking",
+      "frequency": "每日",
+      "shifts": ["morning"],
+      "severity": "warn",
+      "checkpoints": [
+        {"id": "broth_recipe_ratio", "name": "底料配比复核", "type": "manual", "expected": true},
+        {"id": "broth_temp_hold", "name": "IoT保温温度", "type": "iot", "range": [85, 98]}
+      ]
+    },
+    {
+      "id": "sop_closing",
+      "name": "打烊清洁 SOP",
+      "category": "closing",
+      "frequency": "每班次结束",
+      "shifts": ["evening"],
+      "severity": "warn",
+      "checkpoints": [
+        {"id": "closing_sanitize", "name": "操作台消毒完成", "type": "manual", "expected": true},
+        {"id": "closing_waste_logged", "name": "余料报废登记", "type": "manual", "expected": true},
+        {"id": "closing_gas_off", "name": "IoT燃气浓度确认", "type": "iot", "range": [0, 10]}
+      ]
+    },
+    {
+      "id": "sop_haccp",
+      "name": "HACCP 关键控制点巡检",
+      "category": "haccp",
+      "frequency": "每2小时",
+      "shifts": ["morning", "noon", "evening"],
+      "severity": "critical",
+      "checkpoints": [
+        {"id": "haccp_cold_temp", "name": "IoT冷库温度记录", "type": "iot", "range": [-22, -15]},
+        {"id": "haccp_cook_temp", "name": "IoT中心温度达标", "type": "iot", "range": [75, 100]},
+        {"id": "haccp_log_signed", "name": "巡检记录签字", "type": "manual", "expected": true}
+      ]
+    }
+  ]
+}

@@ -1,0 +1,41 @@
+{
+  "store_id": "store_yuhuan",
+  "store_name": "冯校长火锅·玉环店",
+  "store_type": "direct",
+  "region": "台州",
+  "hub_url": "http://127.0.0.1:8088",
+  "hub_store_query": "store_id=store_yuhuan",
+  "cameras": [
+    {
+      "id": "front_01",
+      "zone": "front",
+      "stream_mode": "file",
+      "file_source": "demo/data/front_hall.jpg",
+      "rtsp": "rtsp://192.168.1.101/stream1",
+      "fps": 2,
+      "roi_file": "roi_tables.json"
+    },
+    {
+      "id": "kitchen_01",
+      "zone": "kitchen",
+      "stream_mode": "file",
+      "file_source": "demo/data/kitchen.jpg",
+      "rtsp": "rtsp://192.168.1.102/stream1",
+      "fps": 1
+    }
+  ],
+  "iot_gateway": {
+    "mqtt_broker": "mqtt://192.168.1.110:1883",
+    "client_id": "edge_yuhuan",
+    "topics_file": "mqtt_topics.json"
+  },
+  "model_version": "table_v1.0.0-mock",
+  "alert_thresholds": {
+    "cold_storage_min_c": -22,
+    "cold_storage_max_c": -15,
+    "gas_ppm_warn": 50
+  },
+  "phase": "Phase1-UAT",
+  "note": "玉环试点 A · 2026-06",
+  "edge_api_key": "edge_yuhuan_dev_key"
+}

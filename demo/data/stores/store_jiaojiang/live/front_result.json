@@ -1,0 +1,211 @@
+{
+  "store_id": "store_jiaojiang",
+  "zone": "front",
+  "image": "/home/liuwz/hotpot_smart_ops/demo/data/front_hall.jpg",
+  "timestamp": "2026-06-15T08:58:35+00:00",
+  "backend": "mock",
+  "table_states": [
+    {
+      "table_id": "T01",
+      "state": "empty",
+      "confidence": 0.8,
+      "updated_at": "2026-06-15T08:58:35+00:00"
+    },
+    {
+      "table_id": "T02",
+      "state": "dining",
+      "confidence": 0.85,
+      "updated_at": "2026-06-15T08:58:35+00:00"
+    },
+    {
+      "table_id": "T03",
+      "state": "dining",
+      "confidence": 0.9,
+      "updated_at": "2026-06-15T08:58:35+00:00"
+    },
+    {
+      "table_id": "T04",
+      "state": "empty",
+      "confidence": 0.75,
+      "updated_at": "2026-06-15T08:58:35+00:00"
+    },
+    {
+      "table_id": "T05",
+      "state": "checkout",
+      "confidence": 0.8,
+      "updated_at": "2026-06-15T08:58:35+00:00"
+    },
+    {
+      "table_id": "T06",
+      "state": "dining",
+      "confidence": 0.85,
+      "updated_at": "2026-06-15T08:58:35+00:00"
+    },
+    {
+      "table_id": "T07",
+      "state": "empty",
+      "confidence": 0.9,
+      "updated_at": "2026-06-15T08:58:35+00:00"
+    },
+    {
+      "table_id": "T08",
+      "state": "need_clean",
+      "confidence": 0.75,
+      "updated_at": "2026-06-15T08:58:35+00:00"
+    }
+  ],
+  "turnover_suggestions": [
+    {
+      "table_id": "T02",
+      "state": "need_clean",
+      "action": "立即清台",
+      "priority": 1
+    },
+    {
+      "table_id": "T06",
+      "state": "need_clean",
+      "action": "立即清台",
+      "priority": 1
+    },
+    {
+      "table_id": "T03",
+      "state": "checkout",
+      "action": "引导结账",
+      "priority": 2
+    },
+    {
+      "table_id": "T07",
+      "state": "checkout",
+      "action": "引导结账",
+      "priority": 2
+    },
+    {
+      "table_id": "T04",
+      "state": "empty",
+      "action": "可安排入座",
+      "priority": 3
+    },
+    {
+      "table_id": "T08",
+      "state": "empty",
+      "action": "可安排入座",
+      "priority": 3
+    }
+  ],
+  "events": [
+    {
+      "event_type": "table_dining",
+      "source": "vision",
+      "level": "info",
+      "store_id": "store_jiaojiang",
+      "message": "桌位 T01: 用餐中",
+      "event_id": "a133e009-4820-48cd-a7f5-a8ffe46a9608",
+      "timestamp": "2026-06-15T08:58:35+00:00",
+      "zone": "front",
+      "table_id": "T01",
+      "confidence": 0.8,
+      "metadata": {}
+    },
+    {
+      "event_type": "table_need_clean",
+      "source": "vision",
+      "level": "warn",
+      "store_id": "store_jiaojiang",
+      "message": "桌位 T02: 待清台",
+      "event_id": "00bd9423-f5b7-41a8-81a3-f6b6beb25a89",
+      "timestamp": "2026-06-15T08:58:35+00:00",
+      "zone": "front",
+      "table_id": "T02",
+      "confidence": 0.85,
+      "metadata": {}
+    },
+    {
+      "event_type": "table_checkout",
+      "source": "vision",
+      "level": "info",
+      "store_id": "store_jiaojiang",
+      "message": "桌位 T03: 待结账",
+      "event_id": "1a162b6e-2232-4761-88ea-9532dbaf8c7d",
+      "timestamp": "2026-06-15T08:58:35+00:00",
+      "zone": "front",
+      "table_id": "T03",
+      "confidence": 0.9,
+      "metadata": {}
+    },
+    {
+      "event_type": "table_empty",
+      "source": "vision",
+      "level": "info",
+      "store_id": "store_jiaojiang",
+      "message": "桌位 T04: 空桌可入座",
+      "event_id": "cb66fd25-915f-44cd-8e68-380948db7fa9",
+      "timestamp": "2026-06-15T08:58:35+00:00",
+      "zone": "front",
+      "table_id": "T04",
+      "confidence": 0.75,
+      "metadata": {}
+    },
+    {
+      "event_type": "table_dining",
+      "source": "vision",
+      "level": "info",
+      "store_id": "store_jiaojiang",
+      "message": "桌位 T05: 用餐中",
+      "event_id": "9be1099a-738f-4d3a-92e9-aec9cf17b263",
+      "timestamp": "2026-06-15T08:58:35+00:00",
+      "zone": "front",
+      "table_id": "T05",
+      "confidence": 0.8,
+      "metadata": {}
+    },
+    {
+      "event_type": "table_need_clean",
+      "source": "vision",
+      "level": "warn",
+      "store_id": "store_jiaojiang",
+      "message": "桌位 T06: 待清台",
+      "event_id": "64fc72d4-d33b-4f4e-bd7e-2c2dc7781524",
+      "timestamp": "2026-06-15T08:58:35+00:00",
+      "zone": "front",
+      "table_id": "T06",
+      "confidence": 0.85,
+      "metadata": {}
+    },
+    {
+      "event_type": "table_checkout",
+      "source": "vision",
+      "level": "info",
+      "store_id": "store_jiaojiang",
+      "message": "桌位 T07: 待结账",
+      "event_id": "0d46182d-e25f-4790-8c95-4062f8443e17",
+      "timestamp": "2026-06-15T08:58:35+00:00",
+      "zone": "front",
+      "table_id": "T07",
+      "confidence": 0.9,
+      "metadata": {}
+    },
+    {
+      "event_type": "table_empty",
+      "source": "vision",
+      "level": "info",
+      "store_id": "store_jiaojiang",
+      "message": "桌位 T08: 空桌可入座",
+      "event_id": "05fb6dce-2a5c-49b2-a797-f129098fe1a3",
+      "timestamp": "2026-06-15T08:58:35+00:00",
+      "zone": "front",
+      "table_id": "T08",
+      "confidence": 0.75,
+      "metadata": {}
+    }
+  ],
+  "annotated_image": "demo/data/stores/store_jiaojiang/live/front_hall_annotated.jpg",
+  "camera": "front_01",
+  "stream_mode": "file",
+  "source_meta": {
+    "source": "file",
+    "path": "/home/liuwz/hotpot_smart_ops/demo/data/front_hall.jpg",
+    "camera_id": "front_01",
+    "zone": "front"
+  },
+  "roi_count": 8
+}

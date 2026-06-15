@@ -1,0 +1,162 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>区域对标 · 冯校长火锅 · 智能运营</title>
+  <link rel="stylesheet" href="assets/theme.css" />
+</head>
+<body>
+  <div class="app-shell">
+    <aside class="sidebar">
+      <div class="sidebar-brand"><h1>冯校长火锅</h1><p>台州区域 · 跨店对标</p></div>
+      <a class="nav-item" data-nav="home" href="home.html">首页概览</a>
+      <a class="nav-item" data-nav="tables" href="tables.html">前厅 · 桌态</a>
+      <a class="nav-item" data-nav="kitchen" href="kitchen.html">后厨 · IoT</a>
+      <a class="nav-item" data-nav="sop" href="sop.html">SOP 执行</a>
+      <a class="nav-item" data-nav="cost" href="cost.html">来料 · 成本</a>
+      <a class="nav-item" data-nav="alerts" href="alerts.html">告警中心</a>
+      <a class="nav-item" data-nav="report" href="report.html">运营日报</a>
+      <a class="nav-item active" data-nav="regional" href="regional.html">区域 · 跨店对标</a>
+      <a class="nav-item" href="mobile/index.html">📱 手机版</a>
+    </aside>
+    <div class="main-wrap">
+      <header class="topbar">
+        <div class="topbar-left">
+          <h2 id="store-name">台州区域</h2>
+          <div class="topbar-meta">玉环 + 椒江 · <span id="conn-status">检测中</span></div>
+        </div>
+        <div class="topbar-right">
+          <input class="hub-input" id="hub-url" type="text" />
+          <span class="chip" id="user-name">—</span>
+          <button class="btn btn-sm btn-ghost" id="btn-logout">退出</button>
+        </div>
+      </header>
+      <main class="content">
+        <div class="mvp-banner">F-HQ01 跨店对标 · 区域督导视图 · 数据来自 Event Hub /benchmark</div>
+
+        <div class="card narrative-card" id="narrative-box">
+          <h3>区域洞察（规则引擎）</h3>
+          <ul id="narrative-list"><li>加载中...</li></ul>
+        </div>
+
+        <div class="card">
+          <h3>试点店 KPI 对比</h3>
+          <div class="benchmark-wrap">
+            <table class="benchmark-table" id="benchmark-table">
+              <thead>
+                <tr>
+                  <th>门店</th>
+                  <th>日营收</th>
+                  <th>翻台率</th>
+                  <th>SOP 合规</th>
+                  <th>来料偏差</th>
+                  <th>严重告警</th>
+                  <th>待清台</th>
+                  <th>操作</th>
+                </tr>
+              </thead>
+              <tbody id="benchmark-body"></tbody>
+            </table>
+          </div>
+        </div>
+
+        <div class="grid" style="margin-top:20px">
+          <div class="card">
+            <h3>SOP 合规排名</h3>
+            <div id="rank-sop" class="rank-list">—</div>
+          </div>
+          <div class="card">
+            <h3>食安告警（越少越好）</h3>
+            <div id="rank-alert" class="rank-list">—</div>
+          </div>
+          <div class="card">
+            <h3>翻台压力</h3>
+            <div id="rank-clean" class="rank-list">—</div>
+          </div>
+        </div>
+      </main>
+    </div>
+  </div>
+  <script src="assets/core.js"></script>
+  <script>
+    const auth = HotpotApp.initShell("regional");
+    if (auth) {
+      document.getElementById("store-name").textContent = "台州区域（玉环 + 椒江）";
+    }
+
+    function fmtPct(v) {
+      return v != null ? v + "%" : "—";
+    }
+    function fmtMoney(v) {
+      return v != null ? "¥" + Number(v).toLocaleString() : "—";
+    }
+
+    function renderRankings(data) {
+      const stores = data.stores || [];
+      const bySop = [...stores].sort(
+        (a, b) => (b.metrics.sop_compliance_rate || 0) - (a.metrics.sop_compliance_rate || 0)
+      );
+      document.getElementById("rank-sop").innerHTML = bySop
+        .map((s, i) => `<div class="rank-row"><span>#${i + 1} ${s.store_name.replace("冯校长火锅·", "")}</span><b>${fmtPct(s.metrics.sop_compliance_rate)}</b></div>`)
+        .join("");
+
+      const byAlert = [...stores].sort(
+        (a, b) => (a.metrics.critical_alerts || 0) - (b.metrics.critical_alerts || 0)
+      );
+      document.getElementById("rank-alert").innerHTML = byAlert
+        .map((s, i) => `<div class="rank-row"><span>#${i + 1} ${s.store_name.replace("冯校长火锅·", "")}</span><b>${s.metrics.critical_alerts ?? 0} 条</b></div>`)
+        .join("");
+
+      const byClean = [...stores].sort(
+        (a, b) => (b.metrics.need_clean || 0) - (a.metrics.need_clean || 0)
+      );
+      document.getElementById("rank-clean").innerHTML = byClean
+        .map((s, i) => `<div class="rank-row"><span>#${i + 1} ${s.store_name.replace("冯校长火锅·", "")}</span><b>${s.metrics.need_clean ?? 0} 桌</b></div>`)
+        .join("");
+    }
+
+    async function refresh() {
+      try {
+        const data = await HotpotApp.fetchBenchmark();
+        const tbody = document.getElementById("benchmark-body");
+        tbody.innerHTML = "";
+        (data.stores || []).forEach((s) => {
+          const m = s.metrics || {};
+          const tr = document.createElement("tr");
+          tr.innerHTML = `
+            <td><strong>${s.store_name.replace("冯校长火锅·", "")}</strong><div class="cell-muted">${s.city || ""}</div></td>
+            <td>${fmtMoney(m.daily_revenue)}</td>
+            <td>${m.turnover_rate ?? "—"}</td>
+            <td class="${(m.sop_compliance_rate || 0) >= 80 ? "cell-ok" : "cell-warn"}">${fmtPct(m.sop_compliance_rate)}</td>
+            <td>${fmtPct(m.cost_variance_pct)}</td>
+            <td class="${(m.critical_alerts || 0) > 0 ? "cell-critical" : ""}">${m.critical_alerts ?? 0}</td>
+            <td>${m.need_clean ?? 0}</td>
+            <td><button class="btn btn-sm" data-store-id="${s.store_id}" data-store-name="${s.store_name}">进入单店</button></td>`;
+          tbody.appendChild(tr);
+        });
+        tbody.querySelectorAll("button[data-store-id]").forEach((btn) => {
+          btn.onclick = () => HotpotApp.switchStore(btn.dataset.storeId, btn.dataset.storeName);
+        });
+
+        const ul = document.getElementById("narrative-list");
+        ul.innerHTML = "";
+        (data.narrative || []).forEach((line) => {
+          const li = document.createElement("li");
+          li.textContent = line;
+          ul.appendChild(li);
+        });
+        if (!data.narrative?.length) ul.innerHTML = "<li>暂无区域洞察</li>";
+
+        renderRankings(data);
+        document.getElementById("conn-status").innerHTML = '<span class="status-dot online"></span>已连接 · ' + (data.generated_at || "").slice(11, 19);
+      } catch (e) {
+        document.getElementById("conn-status").innerHTML = '<span class="status-dot offline"></span>未连接';
+        console.warn(e);
+      }
+    }
+    refresh();
+    setInterval(refresh, 10000);
+  </script>
+</body>
+</html>

@@ -1,0 +1,78 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>来料成本 · 冯校长火锅 · 智能运营</title>
+  <link rel="stylesheet" href="assets/theme.css" />
+</head>
+<body>
+  <div class="app-shell">
+    <aside class="sidebar">
+      <div class="sidebar-brand"><h1>冯校长火锅</h1><p>智能运营 · MVP</p></div>
+      <a class="nav-item" href="home.html">首页概览</a>
+      <a class="nav-item" href="tables.html">前厅 · 桌态</a>
+      <a class="nav-item" href="kitchen.html">后厨 · IoT</a>
+      <a class="nav-item" href="sop.html">SOP 执行</a>
+      <a class="nav-item active" data-nav="cost" href="cost.html">来料 · 成本</a>
+      <a class="nav-item" href="alerts.html">告警中心</a>
+      <a class="nav-item" href="report.html">运营日报</a>
+      <a class="nav-item" href="pda/receiving.html">收货 PDA</a>
+    </aside>
+    <div class="main-wrap">
+      <header class="topbar">
+        <div class="topbar-left"><h2 id="store-name">—</h2><div class="topbar-meta">来料对账 · F-C01~C04</div></div>
+        <div class="topbar-right">
+          <a class="btn btn-sm" href="pda/receiving.html">+ 收货验收</a>
+          <input class="hub-input" id="hub-url" type="text" />
+          <span class="chip" id="user-name">—</span>
+          <button class="btn btn-sm btn-ghost" id="btn-logout">退出</button>
+        </div>
+      </header>
+      <main class="content">
+        <div class="grid">
+          <div class="card"><h3>PO 总额</h3><div class="stat" id="po-total">-</div></div>
+          <div class="card"><h3>实收总额</h3><div class="stat ok" id="act-total">-</div></div>
+          <div class="card"><h3>偏差率</h3><div class="stat warn" id="var-pct">-</div></div>
+          <div class="card"><h3>拒收批次</h3><div class="stat critical" id="reject-n">-</div></div>
+        </div>
+        <div class="card">
+          <h3>当日来料批次 · 短重&gt;3% 标红</h3>
+          <ul class="list-plain" id="cost-list"></ul>
+        </div>
+      </main>
+    </div>
+  </div>
+  <script src="assets/core.js"></script>
+  <script>
+    HotpotApp.initShell("cost");
+    async function refresh() {
+      try {
+        const data = await HotpotApp.fetchSummary();
+        const cost = data.cost_stats || {};
+        document.getElementById("po-total").textContent = "¥" + (cost.total_po_amount || 0).toLocaleString();
+        document.getElementById("act-total").textContent = "¥" + (cost.total_actual_amount || 0).toLocaleString();
+        document.getElementById("var-pct").textContent =
+          cost.variance_rate_pct != null ? cost.variance_rate_pct + "%" : "-";
+        document.getElementById("reject-n").textContent = cost.reject_count ?? 0;
+        const ul = document.getElementById("cost-list");
+        ul.innerHTML = "";
+        (cost.items || []).forEach((item) => {
+          const li = document.createElement("li");
+          const bad = Math.abs(item.variance_pct || 0) > 3;
+          const flag = item.action === "reject" ? "拒收" : item.action === "negotiate" ? "议价" : "入库";
+          const grade = item.quality_grade ? ` · VLM ${item.quality_grade}级` : "";
+          li.innerHTML = `<span style="${bad ? "color:var(--accent)" : ""}"><b>${item.sku}</b> (${item.supplier}) 偏差 ${item.variance_pct}%${grade} → ${flag}</span>`;
+          if (item.action === "reject") {
+            li.innerHTML += `<br><small style="color:var(--muted)">拒收建议：短重/品质不达标，建议扣重结算</small>`;
+          }
+          ul.appendChild(li);
+        });
+        if (!ul.children.length) ul.innerHTML = "<li>暂无来料数据</li>";
+      } catch (e) { console.warn(e); }
+    }
+    refresh();
+    setInterval(refresh, 8000);
+  </script>
+</body>
+</html>

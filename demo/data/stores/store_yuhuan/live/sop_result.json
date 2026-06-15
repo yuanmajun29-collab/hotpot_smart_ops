@@ -1,0 +1,515 @@
+{
+  "store_id": "store_yuhuan",
+  "shift": "noon",
+  "evaluated_at": "2026-06-15T02:40:22+00:00",
+  "total": 5,
+  "passed": 1,
+  "failed": 4,
+  "pending": 0,
+  "compliance_rate": 20.0,
+  "results": [
+    {
+      "sop_id": "sop_opening",
+      "sop_name": "开档准备 SOP",
+      "category": "opening",
+      "status": "failed",
+      "reason": "检测到未戴帽/未戴口罩",
+      "checkpoints": [
+        {
+          "id": "hand_wash_station",
+          "name": "洗手消毒站就绪",
+          "type": "manual",
+          "passed": true,
+          "actual": true,
+          "expected": true
+        },
+        {
+          "id": "cold_storage_freezer",
+          "name": "IoT冷冻库温",
+          "type": "iot",
+          "passed": true,
+          "actual": -17.8,
+          "expected": null
+        },
+        {
+          "id": "kitchen_gear_ok",
+          "name": "厨师穿戴合规(VLM)",
+          "type": "vision",
+          "passed": false,
+          "actual": false,
+          "expected": null
+        }
+      ]
+    },
+    {
+      "sop_id": "sop_receiving",
+      "sop_name": "来料收货 SOP",
+      "category": "receiving",
+      "status": "failed",
+      "reason": "IoT秤重短重超阈值; IoT读数 8.5 超出范围 [-25, 4]; RFID未扫描无法追溯",
+      "checkpoints": [
+        {
+          "id": "receiving_scale_calibrated",
+          "name": "收货秤已校准",
+          "type": "manual",
+          "passed": true,
+          "actual": true,
+          "expected": true
+        },
+        {
+          "id": "receiving_weight_match",
+          "name": "IoT收货秤数量与PO匹配",
+          "type": "iot",
+          "passed": false,
+          "actual": false,
+          "expected": true
+        },
+        {
+          "id": "receiving_temp_check",
+          "name": "IoT探针到货温度",
+          "type": "iot",
+          "passed": false,
+          "actual": 8.5,
+          "expected": null
+        },
+        {
+          "id": "receiving_env_ok",
+          "name": "IoT卸货区湿度正常",
+          "type": "iot",
+          "passed": true,
+          "actual": 72,
+          "expected": null
+        },
+        {
+          "id": "receiving_rfid_logged",
+          "name": "IoT RFID批次扫描",
+          "type": "iot",
+          "passed": false,
+          "actual": false,
+          "expected": true
+        },
+        {
+          "id": "receiving_dual_sign",
+          "name": "双人验收签字",
+          "type": "manual",
+          "passed": true,
+          "actual": true,
+          "expected": true
+        },
+        {
+          "id": "receiving_vlm_grade",
+          "name": "VLM外观质检",
+          "type": "vision",
+          "passed": true,
+          "actual": true,
+          "expected": null
+        }
+      ]
+    },
+    {
+      "sop_id": "sop_storage",
+      "sop_name": "食材保存 SOP",
+      "category": "storage",
+      "status": "failed",
+      "reason": "IoT读数 6.5 超出范围 [-22, 4]; 冷库门未关; IoT读数 70 超出范围 [35, 65]; 未按先进先出入架",
+      "checkpoints": [
+        {
+          "id": "cold_storage_worst",
+          "name": "IoT冷库最高温",
+          "type": "iot",
+          "passed": false,
+          "actual": 6.5,
+          "expected": null
+        },
+        {
+          "id": "storage_door_closed",
+          "name": "IoT冷库门磁关闭",
+          "type": "iot",
+          "passed": false,
+          "actual": false,
+          "expected": true
+        },
+        {
+          "id": "storage_humidity_ok",
+          "name": "IoT冷库湿度",
+          "type": "iot",
+          "passed": false,
+          "actual": 70,
+          "expected": null
+        },
+        {
+          "id": "storage_fefo_ok",
+          "name": "IoT RFID货位/FEFO",
+          "type": "iot",
+          "passed": false,
+          "actual": false,
+          "expected": true
+        }
+      ]
+    },
+    {
+      "sop_id": "sop_prep_meat",
+      "sop_name": "荤菜改刀加工 SOP",
+      "category": "processing",
+      "status": "failed",
+      "reason": "IoT读数 5.0 超出范围 [0, 4]",
+      "checkpoints": [
+        {
+          "id": "raw_cooked_separate",
+          "name": "生熟分区(VLM)",
+          "type": "vision",
+          "passed": true,
+          "actual": true,
+          "expected": null
+        },
+        {
+          "id": "prep_input_weight",
+          "name": "IoT领料称重",
+          "type": "iot",
+          "passed": true,
+          "actual": true,
+          "expected": true
+        },
+        {
+          "id": "prep_yield_logged",
+          "name": "IoT出成率自动登记",
+          "type": "iot",
+          "passed": true,
+          "actual": true,
+          "expected": true
+        },
+        {
+          "id": "prep_thaw_temp_ok",
+          "name": "IoT解冻池水温",
+          "type": "iot",
+          "passed": false,
+          "actual": 5.0,
+          "expected": null
+        },
+        {
+          "id": "prep_thaw_time_ok",
+          "name": "IoT解冻时长",
+          "type": "iot",
+          "passed": true,
+          "actual": 120,
+          "expected": null
+        },
+        {
+          "id": "prep_area_env_ok",
+          "name": "IoT改刀间温度",
+          "type": "iot",
+          "passed": true,
+          "actual": 19.833333333333332,
+          "expected": null
+        },
+        {
+          "id": "prep_label_dated",
+          "name": "效期标签粘贴",
+          "type": "manual",
+          "passed": true,
+          "actual": true,
+          "expected": true
+        }
+      ]
+    },
+    {
+      "sop_id": "sop_haccp",
+      "sop_name": "HACCP 关键控制点巡检",
+      "category": "haccp",
+      "status": "passed",
+      "reason": "",
+      "checkpoints": [
+        {
+          "id": "haccp_cold_temp",
+          "name": "IoT冷库温度记录",
+          "type": "iot",
+          "passed": true,
+          "actual": -17.8,
+          "expected": null
+        },
+        {
+          "id": "haccp_cook_temp",
+          "name": "IoT中心温度达标",
+          "type": "iot",
+          "passed": true,
+          "actual": 82.0,
+          "expected": null
+        },
+        {
+          "id": "haccp_log_signed",
+          "name": "巡检记录签字",
+          "type": "manual",
+          "passed": true,
+          "actual": true,
+          "expected": true
+        }
+      ]
+    }
+  ],
+  "events": [
+    {
+      "event_type": "sop_violation",
+      "source": "system",
+      "level": "critical",
+      "store_id": "store_yuhuan",
+      "message": "SOP违规: 开档准备 SOP - 检测到未戴帽/未戴口罩",
+      "event_id": "6f46269a-216b-4b75-a7e4-2e042315d7e1",
+      "timestamp": "2026-06-15T02:40:22+00:00",
+      "zone": "kitchen",
+      "table_id": "",
+      "confidence": 1.0,
+      "metadata": {
+        "sop_id": "sop_opening",
+        "sop_name": "开档准备 SOP",
+        "category": "opening",
+        "shift": "noon",
+        "checkpoints": [
+          {
+            "id": "hand_wash_station",
+            "name": "洗手消毒站就绪",
+            "type": "manual",
+            "passed": true,
+            "actual": true,
+            "expected": true
+          },
+          {
+            "id": "cold_storage_freezer",
+            "name": "IoT冷冻库温",
+            "type": "iot",
+            "passed": true,
+            "actual": -17.8,
+            "expected": null
+          },
+          {
+            "id": "kitchen_gear_ok",
+            "name": "厨师穿戴合规(VLM)",
+            "type": "vision",
+            "passed": false,
+            "actual": false,
+            "expected": null
+          }
+        ]
+      }
+    },
+    {
+      "event_type": "sop_violation",
+      "source": "system",
+      "level": "critical",
+      "store_id": "store_yuhuan",
+      "message": "SOP违规: 来料收货 SOP - IoT秤重短重超阈值; IoT读数 8.5 超出范围 [-25, 4]; RFID未扫描无法追溯",
+      "event_id": "55553aae-c647-4978-87b9-3dd3e7340194",
+      "timestamp": "2026-06-15T02:40:22+00:00",
+      "zone": "kitchen",
+      "table_id": "",
+      "confidence": 1.0,
+      "metadata": {
+        "sop_id": "sop_receiving",
+        "sop_name": "来料收货 SOP",
+        "category": "receiving",
+        "shift": "noon",
+        "checkpoints": [
+          {
+            "id": "receiving_scale_calibrated",
+            "name": "收货秤已校准",
+            "type": "manual",
+            "passed": true,
+            "actual": true,
+            "expected": true
+          },
+          {
+            "id": "receiving_weight_match",
+            "name": "IoT收货秤数量与PO匹配",
+            "type": "iot",
+            "passed": false,
+            "actual": false,
+            "expected": true
+          },
+          {
+            "id": "receiving_temp_check",
+            "name": "IoT探针到货温度",
+            "type": "iot",
+            "passed": false,
+            "actual": 8.5,
+            "expected": null
+          },
+          {
+            "id": "receiving_env_ok",
+            "name": "IoT卸货区湿度正常",
+            "type": "iot",
+            "passed": true,
+            "actual": 72,
+            "expected": null
+          },
+          {
+            "id": "receiving_rfid_logged",
+            "name": "IoT RFID批次扫描",
+            "type": "iot",
+            "passed": false,
+            "actual": false,
+            "expected": true
+          },
+          {
+            "id": "receiving_dual_sign",
+            "name": "双人验收签字",
+            "type": "manual",
+            "passed": true,
+            "actual": true,
+            "expected": true
+          },
+          {
+            "id": "receiving_vlm_grade",
+            "name": "VLM外观质检",
+            "type": "vision",
+            "passed": true,
+            "actual": true,
+            "expected": null
+          }
+        ]
+      }
+    },
+    {
+      "event_type": "sop_violation",
+      "source": "system",
+      "level": "critical",
+      "store_id": "store_yuhuan",
+      "message": "SOP违规: 食材保存 SOP - IoT读数 6.5 超出范围 [-22, 4]; 冷库门未关; IoT读数 70 超出范围 [35, 65]; 未按先进先出入架",
+      "event_id": "9fa5db47-6d04-4fef-baa9-8c0e5364787a",
+      "timestamp": "2026-06-15T02:40:22+00:00",
+      "zone": "kitchen",
+      "table_id": "",
+      "confidence": 1.0,
+      "metadata": {
+        "sop_id": "sop_storage",
+        "sop_name": "食材保存 SOP",
+        "category": "storage",
+        "shift": "noon",
+        "checkpoints": [
+          {
+            "id": "cold_storage_worst",
+            "name": "IoT冷库最高温",
+            "type": "iot",
+            "passed": false,
+            "actual": 6.5,
+            "expected": null
+          },
+          {
+            "id": "storage_door_closed",
+            "name": "IoT冷库门磁关闭",
+            "type": "iot",
+            "passed": false,
+            "actual": false,
+            "expected": true
+          },
+          {
+            "id": "storage_humidity_ok",
+            "name": "IoT冷库湿度",
+            "type": "iot",
+            "passed": false,
+            "actual": 70,
+            "expected": null
+          },
+          {
+            "id": "storage_fefo_ok",
+            "name": "IoT RFID货位/FEFO",
+            "type": "iot",
+            "passed": false,
+            "actual": false,
+            "expected": true
+          }
+        ]
+      }
+    },
+    {
+      "event_type": "sop_violation",
+      "source": "system",
+      "level": "warn",
+      "store_id": "store_yuhuan",
+      "message": "SOP违规: 荤菜改刀加工 SOP - IoT读数 5.0 超出范围 [0, 4]",
+      "event_id": "f97ba3ea-91a5-40d6-b4d4-91a6935fd3b5",
+      "timestamp": "2026-06-15T02:40:22+00:00",
+      "zone": "kitchen",
+      "table_id": "",
+      "confidence": 1.0,
+      "metadata": {
+        "sop_id": "sop_prep_meat",
+        "sop_name": "荤菜改刀加工 SOP",
+        "category": "processing",
+        "shift": "noon",
+        "checkpoints": [
+          {
+            "id": "raw_cooked_separate",
+            "name": "生熟分区(VLM)",
+            "type": "vision",
+            "passed": true,
+            "actual": true,
+            "expected": null
+          },
+          {
+            "id": "prep_input_weight",
+            "name": "IoT领料称重",
+            "type": "iot",
+            "passed": true,
+            "actual": true,
+            "expected": true
+          },
+          {
+            "id": "prep_yield_logged",
+            "name": "IoT出成率自动登记",
+            "type": "iot",
+            "passed": true,
+            "actual": true,
+            "expected": true
+          },
+          {
+            "id": "prep_thaw_temp_ok",
+            "name": "IoT解冻池水温",
+            "type": "iot",
+            "passed": false,
+            "actual": 5.0,
+            "expected": null
+          },
+          {
+            "id": "prep_thaw_time_ok",
+            "name": "IoT解冻时长",
+            "type": "iot",
+            "passed": true,
+            "actual": 120,
+            "expected": null
+          },
+          {
+            "id": "prep_area_env_ok",
+            "name": "IoT改刀间温度",
+            "type": "iot",
+            "passed": true,
+            "actual": 19.833333333333332,
+            "expected": null
+          },
+          {
+            "id": "prep_label_dated",
+            "name": "效期标签粘贴",
+            "type": "manual",
+            "passed": true,
+            "actual": true,
+            "expected": true
+          }
+        ]
+      }
+    },
+    {
+      "event_type": "sop_completed",
+      "source": "system",
+      "level": "info",
+      "store_id": "store_yuhuan",
+      "message": "SOP已完成: HACCP 关键控制点巡检",
+      "event_id": "967717d3-7ff1-4133-b765-a8d0a4b1e650",
+      "timestamp": "2026-06-15T02:40:22+00:00",
+      "zone": "kitchen",
+      "table_id": "",
+      "confidence": 1.0,
+      "metadata": {
+        "sop_id": "sop_haccp",
+        "shift": "noon"
+      }
+    }
+  ]
+}

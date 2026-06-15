@@ -1,0 +1,211 @@
+{
+  "store_id": "store_yuhuan",
+  "zone": "front",
+  "image": "/home/liuwz/hotpot_smart_ops/demo/data/front_hall.jpg",
+  "timestamp": "2026-06-15T08:58:35+00:00",
+  "backend": "mock",
+  "table_states": [
+    {
+      "table_id": "T01",
+      "state": "dining",
+      "confidence": 0.8,
+      "updated_at": "2026-06-15T08:58:35+00:00"
+    },
+    {
+      "table_id": "T02",
+      "state": "need_clean",
+      "confidence": 0.85,
+      "updated_at": "2026-06-15T08:58:35+00:00"
+    },
+    {
+      "table_id": "T03",
+      "state": "checkout",
+      "confidence": 0.9,
+      "updated_at": "2026-06-15T08:58:35+00:00"
+    },
+    {
+      "table_id": "T04",
+      "state": "empty",
+      "confidence": 0.75,
+      "updated_at": "2026-06-15T08:58:35+00:00"
+    },
+    {
+      "table_id": "T05",
+      "state": "dining",
+      "confidence": 0.8,
+      "updated_at": "2026-06-15T08:58:35+00:00"
+    },
+    {
+      "table_id": "T06",
+      "state": "need_clean",
+      "confidence": 0.85,
+      "updated_at": "2026-06-15T08:58:35+00:00"
+    },
+    {
+      "table_id": "T07",
+      "state": "checkout",
+      "confidence": 0.9,
+      "updated_at": "2026-06-15T08:58:35+00:00"
+    },
+    {
+      "table_id": "T08",
+      "state": "empty",
+      "confidence": 0.75,
+      "updated_at": "2026-06-15T08:58:35+00:00"
+    }
+  ],
+  "turnover_suggestions": [
+    {
+      "table_id": "T02",
+      "state": "need_clean",
+      "action": "立即清台",
+      "priority": 1
+    },
+    {
+      "table_id": "T06",
+      "state": "need_clean",
+      "action": "立即清台",
+      "priority": 1
+    },
+    {
+      "table_id": "T03",
+      "state": "checkout",
+      "action": "引导结账",
+      "priority": 2
+    },
+    {
+      "table_id": "T07",
+      "state": "checkout",
+      "action": "引导结账",
+      "priority": 2
+    },
+    {
+      "table_id": "T04",
+      "state": "empty",
+      "action": "可安排入座",
+      "priority": 3
+    },
+    {
+      "table_id": "T08",
+      "state": "empty",
+      "action": "可安排入座",
+      "priority": 3
+    }
+  ],
+  "events": [
+    {
+      "event_type": "table_dining",
+      "source": "vision",
+      "level": "info",
+      "store_id": "store_yuhuan",
+      "message": "桌位 T01: 用餐中",
+      "event_id": "c1eaff4f-cea6-4078-92f6-d8c569505fa5",
+      "timestamp": "2026-06-15T08:58:35+00:00",
+      "zone": "front",
+      "table_id": "T01",
+      "confidence": 0.8,
+      "metadata": {}
+    },
+    {
+      "event_type": "table_need_clean",
+      "source": "vision",
+      "level": "warn",
+      "store_id": "store_yuhuan",
+      "message": "桌位 T02: 待清台",
+      "event_id": "3eb77fc4-b914-4190-a6a4-f434fb95260c",
+      "timestamp": "2026-06-15T08:58:35+00:00",
+      "zone": "front",
+      "table_id": "T02",
+      "confidence": 0.85,
+      "metadata": {}
+    },
+    {
+      "event_type": "table_checkout",
+      "source": "vision",
+      "level": "info",
+      "store_id": "store_yuhuan",
+      "message": "桌位 T03: 待结账",
+      "event_id": "215095a9-3853-4e2a-8666-6f8d87355699",
+      "timestamp": "2026-06-15T08:58:35+00:00",
+      "zone": "front",
+      "table_id": "T03",
+      "confidence": 0.9,
+      "metadata": {}
+    },
+    {
+      "event_type": "table_empty",
+      "source": "vision",
+      "level": "info",
+      "store_id": "store_yuhuan",
+      "message": "桌位 T04: 空桌可入座",
+      "event_id": "67018fd0-4829-4e05-a208-3f6e301f9b8a",
+      "timestamp": "2026-06-15T08:58:35+00:00",
+      "zone": "front",
+      "table_id": "T04",
+      "confidence": 0.75,
+      "metadata": {}
+    },
+    {
+      "event_type": "table_dining",
+      "source": "vision",
+      "level": "info",
+      "store_id": "store_yuhuan",
+      "message": "桌位 T05: 用餐中",
+      "event_id": "a19ce94c-a2d7-4060-891b-9ca6f359c9e3",
+      "timestamp": "2026-06-15T08:58:35+00:00",
+      "zone": "front",
+      "table_id": "T05",
+      "confidence": 0.8,
+      "metadata": {}
+    },
+    {
+      "event_type": "table_need_clean",
+      "source": "vision",
+      "level": "warn",
+      "store_id": "store_yuhuan",
+      "message": "桌位 T06: 待清台",
+      "event_id": "819cf7f8-e68b-488c-9360-3d6db799b823",
+      "timestamp": "2026-06-15T08:58:35+00:00",
+      "zone": "front",
+      "table_id": "T06",
+      "confidence": 0.85,
+      "metadata": {}
+    },
+    {
+      "event_type": "table_checkout",
+      "source": "vision",
+      "level": "info",
+      "store_id": "store_yuhuan",
+      "message": "桌位 T07: 待结账",
+      "event_id": "0238594b-40e0-44e4-bfdc-9561b2f049b9",
+      "timestamp": "2026-06-15T08:58:35+00:00",
+      "zone": "front",
+      "table_id": "T07",
+      "confidence": 0.9,
+      "metadata": {}
+    },
+    {
+      "event_type": "table_empty",
+      "source": "vision",
+      "level": "info",
+      "store_id": "store_yuhuan",
+      "message": "桌位 T08: 空桌可入座",
+      "event_id": "a35b3d18-3965-48eb-8924-f3a3e11b8216",
+      "timestamp": "2026-06-15T08:58:35+00:00",
+      "zone": "front",
+      "table_id": "T08",
+      "confidence": 0.75,
+      "metadata": {}
+    }
+  ],
+  "annotated_image": "demo/data/stores/store_yuhuan/live/front_hall_annotated.jpg",
+  "camera": "front_01",
+  "stream_mode": "file",
+  "source_meta": {
+    "source": "file",
+    "path": "/home/liuwz/hotpot_smart_ops/demo/data/front_hall.jpg",
+    "camera_id": "front_01",
+    "zone": "front"
+  },
+  "roi_count": 8
+}

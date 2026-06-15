@@ -1,0 +1,26 @@
+{
+  "store_id": "store_yuhuan",
+  "zone": "kitchen",
+  "image": "demo/data/kitchen.jpg",
+  "timestamp": "2026-06-12T03:16:30+00:00",
+  "backend": "mock",
+  "table_states": [],
+  "events": [
+    {
+      "event_type": "kitchen_no_hat",
+      "source": "vision",
+      "level": "warn",
+      "store_id": "store_yuhuan",
+      "message": "后厨人员可能未佩戴厨师帽",
+      "event_id": "e8da3726-487e-4a44-b9b9-cd582354ca2a",
+      "timestamp": "2026-06-12T03:16:30+00:00",
+      "zone": "kitchen",
+      "table_id": "",
+      "confidence": 0.9,
+      "metadata": {
+        "skin_ratio": 0.9985
+      }
+    }
+  ],
+  "annotated_image": "demo/data/kitchen_annotated.jpg"
+}

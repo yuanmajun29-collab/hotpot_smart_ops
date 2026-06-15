@@ -1,0 +1,11 @@
+{
+  "store_id": "store_yuhuan",
+  "topic_prefix": "hotpot/store_yuhuan",
+  "sensors": [
+    { "sensor_id": "cold_storage_1", "topic": "hotpot/store_yuhuan/sensors/cold_storage_1", "type": "temperature", "unit": "C" },
+    { "sensor_id": "freezer_1", "topic": "hotpot/store_yuhuan/sensors/freezer_1", "type": "temperature", "unit": "C" },
+    { "sensor_id": "receiving_scale", "topic": "hotpot/store_yuhuan/sensors/receiving_scale", "type": "weight", "unit": "kg" },
+    { "sensor_id": "gas_detector_1", "topic": "hotpot/store_yuhuan/sensors/gas_detector_1", "type": "gas", "unit": "ppm" },
+    { "sensor_id": "door_cold_1", "topic": "hotpot/store_yuhuan/sensors/door_cold_1", "type": "door", "unit": "bool" }
+  ]
+}
