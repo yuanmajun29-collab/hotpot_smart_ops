@@ -3,8 +3,11 @@
 from __future__ import annotations
 
 import os
+import time
 from pathlib import Path
 from typing import Any, Dict, List, Optional
+
+_START_TIME = time.time()
 
 from fastapi import Depends, FastAPI, HTTPException, Query, Request
 from fastapi.middleware.cors import CORSMiddleware
@@ -20,16 +23,19 @@ from cloud.event_hub.auth import (
     login_user,
 )
 from cloud.alert_gateway.gateway import AlertGateway
-from cloud.event_hub.db import HubDatabase
+from cloud.event_hub.db import create_hub_database
 from cloud.event_hub.hub_core import DEFAULT_STORE_ID, MultiTenantHub, seed_from_directory
 
 PROJECT_ROOT = Path(__file__).resolve().parents[2]
 DEFAULT_DB = PROJECT_ROOT / "demo" / "data" / "hub.db"
+DEFAULT_ALERT_DB = PROJECT_ROOT / "demo" / "data" / "hub_alerts.db"
 
 _db_path = Path(os.environ.get("HOTPOT_DB", str(DEFAULT_DB)))
-db = HubDatabase(_db_path)
+_database_url = os.environ.get("HOTPOT_DATABASE_URL", "")
+db = create_hub_database(_db_path, _database_url)
+_alert_db_path = Path(os.environ.get("HOTPOT_ALERT_DB", str(_db_path if not _database_url else DEFAULT_ALERT_DB)))
 hub = MultiTenantHub(on_persist=db.on_persist)
-alert_gateway = AlertGateway(_db_path)
+alert_gateway = AlertGateway(_alert_db_path)
 
 app = FastAPI(title="Hotpot Event Hub", version="2.0.0")
 app.add_middleware(
@@ -72,6 +78,7 @@ def startup() -> None:
 
 @app.get("/health")
 def health() -> Dict[str, Any]:
+    backend = "postgresql" if _database_url else "sqlite"
     return {
         "status": "ok",
         "multi_tenant": True,
@@ -79,7 +86,39 @@ def health() -> Dict[str, Any]:
         "auth_mode": AUTH_MODE,
         "persistent": True,
         "alert_gateway": True,
+        "db_backend": backend,
+        "uptime_sec": round(time.time() - _START_TIME, 1),
     }
+
+
+@app.get("/metrics")
+def metrics(auth: AuthContext = Depends(get_auth_context)) -> Dict[str, Any]:
+    store_ids = sorted(set(hub._registry) | set(hub._stores))
+    total_events = 0
+    total_critical = 0
+    stores_with_data = 0
+    for sid in store_ids:
+        summary = hub.get_store(sid).get_summary()
+        if summary.get("total_events") or hub.get_store(sid).has_data():
+            stores_with_data += 1
+        total_events += summary.get("total_events", 0)
+        total_critical += (summary.get("by_level") or {}).get("critical", 0)
+    return {
+        "uptime_sec": round(time.time() - _START_TIME, 1),
+        "store_count": len(store_ids),
+        "stores_with_data": stores_with_data,
+        "total_events": total_events,
+        "total_critical": total_critical,
+        "db_path": str(getattr(db, "db_path", _db_path)),
+        "db_backend": "postgresql" if _database_url else "sqlite",
+        "auth_mode": AUTH_MODE,
+    }
+
+
+class SopAskBody(BaseModel):
+    question: str
+    backend: Optional[str] = "rule"
+    top_k: int = 3
 
 
 class AlertAckBody(BaseModel):
@@ -148,6 +187,60 @@ def get_sop(
     sid = _resolve_store_id(store_id, None, request.headers.get("X-Store-Id"), auth)
     store = hub.get_store(sid)
     return store.sop_stats or {"store_id": sid, "results": []}
+
+
+@app.get("/pos")
+def get_pos(
+    request: Request,
+    store_id: Optional[str] = Query(None),
+    auth: AuthContext = Depends(get_auth_context),
+) -> Dict[str, Any]:
+    sid = _resolve_store_id(store_id, None, request.headers.get("X-Store-Id"), auth)
+    store = hub.get_store(sid)
+    return store.pos_stats or {"store_id": sid}
+
+
+@app.get("/erp")
+def get_erp(
+    request: Request,
+    store_id: Optional[str] = Query(None),
+    auth: AuthContext = Depends(get_auth_context),
+) -> Dict[str, Any]:
+    sid = _resolve_store_id(store_id, None, request.headers.get("X-Store-Id"), auth)
+    store = hub.get_store(sid)
+    return store.erp_stats or {"store_id": sid, "orders": []}
+
+
+@app.post("/erp")
+async def post_erp(
+    request: Request,
+    store_id: Optional[str] = Query(None),
+    auth: AuthContext = Depends(get_auth_context),
+) -> Dict[str, Any]:
+    data = await request.json()
+    sid = _resolve_store_id(store_id, data, request.headers.get("X-Store-Id"), auth)
+    enforce_store_write(auth, sid)
+    hub.get_store(sid).set_erp_stats(data if isinstance(data, dict) else {})
+    return {
+        "ok": True,
+        "store_id": sid,
+        "order_count": data.get("order_count") if isinstance(data, dict) else None,
+    }
+
+
+@app.post("/sop/ask")
+def sop_ask(
+    body: SopAskBody,
+    auth: AuthContext = Depends(get_auth_context),
+) -> Dict[str, Any]:
+    from cloud.llm_report.sop_rag import create_sop_agent
+
+    agent = create_sop_agent(body.backend or "rule")
+    if hasattr(agent, "answer") and body.backend == "openai":
+        result = agent.answer(body.question, body.top_k)
+    else:
+        result = agent.answer_rule(body.question, body.top_k)
+    return result
 
 
 @app.get("/cost")

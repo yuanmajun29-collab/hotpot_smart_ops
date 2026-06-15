@@ -11,3 +11,14 @@ venv/
 demo/data/.pids/
 demo/data/hub.db
 demo/data/stores/*/edge_queue.db
+demo/data/alert_push.log
+demo/data/stores/*/live/vision_worker.log
+demo/data/stores/*/live/*_result.json
+demo/data/stores/*/live/*_annotated.jpg
+demo/data/stores/*/live/daily_report.md
+demo/data/stores/*/live/erp_receiving.json
+demo/data/stores/*/live/pos_result.json
+demo/data/stores/*/live/erp_result.json
+.pytest_cache/
+datasets/
+runs/

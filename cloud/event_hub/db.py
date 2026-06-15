@@ -3,12 +3,26 @@
 from __future__ import annotations
 
 import json
+import os
 import sqlite3
 import threading
 from pathlib import Path
-from typing import Any, Dict, List, Optional
+from typing import Any, Dict, List, Optional, Union
 
 MAX_EVENTS_PER_STORE = 500
+
+
+def create_hub_database(
+    db_path: Path,
+    database_url: Optional[str] = None,
+) -> Union["HubDatabase", Any]:
+    """Factory: PostgreSQL when HOTPOT_DATABASE_URL set, else SQLite."""
+    url = database_url or os.environ.get("HOTPOT_DATABASE_URL", "")
+    if url:
+        from cloud.event_hub.pg_db import PostgresHubDatabase
+
+        return PostgresHubDatabase(url)
+    return HubDatabase(db_path)
 
 
 class HubDatabase:

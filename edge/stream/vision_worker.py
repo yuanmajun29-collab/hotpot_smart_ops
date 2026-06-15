@@ -206,7 +206,7 @@ def main() -> None:
     parser = argparse.ArgumentParser(description="Edge vision worker (file mode, UAT ROI)")
     parser.add_argument("--store-id", default="store_yuhuan")
     parser.add_argument("--hub-url", default="http://127.0.0.1:8088")
-    parser.add_argument("--backend", choices=("mock", "onnx"), default="mock")
+    parser.add_argument("--backend", choices=("mock", "onnx", "yolo", "rknn"), default="mock")
     parser.add_argument("--uat-root", default=str(DEFAULT_UAT_ROOT))
     parser.add_argument("--output-dir", default="", help="Write results under store live dir")
     parser.add_argument("--flush-queue", action="store_true", default=True)

@@ -1,0 +1,20 @@
+[Unit]
+Description=Hotpot Event Hub (multi-tenant API)
+After=network.target
+Wants=network-online.target
+
+[Service]
+Type=simple
+User=hotpot
+Group=hotpot
+WorkingDirectory=/opt/hotpot_smart_ops
+Environment=HOTPOT_AUTH_MODE=demo
+Environment=PYTHONUNBUFFERED=1
+ExecStart=/usr/bin/python3 cloud/event_hub/server.py --host 0.0.0.0 --port 8088 --seed-dir demo/data/stores
+Restart=on-failure
+RestartSec=5
+StandardOutput=journal
+StandardError=journal
+
+[Install]
+WantedBy=multi-user.target

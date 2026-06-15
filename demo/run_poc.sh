@@ -41,7 +41,7 @@ echo "=============================================="
 # Install deps if needed
 if ! python3 -c "import cv2, fastapi, jwt" 2>/dev/null; then
   echo "[1/11] Installing Python dependencies..."
-  pip install -q -r requirements.txt
+  python3 -m pip install -q -r requirements.txt
 else
   echo "[1/11] Dependencies OK"
 fi

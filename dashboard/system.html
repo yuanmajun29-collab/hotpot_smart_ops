@@ -1,0 +1,106 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>系统状态 · 冯校长火锅 · 智能运营</title>
+  <link rel="stylesheet" href="assets/theme.css" />
+  <style>
+    .status-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(280px, 1fr)); gap: 16px; }
+    .status-ok { color: var(--ok, #22c55e); }
+    .status-warn { color: var(--warn, #f59e0b); }
+    .metric-row { display: flex; justify-content: space-between; padding: 8px 0; border-bottom: 1px solid var(--border, #eee); font-size: 0.9rem; }
+    .metric-row:last-child { border-bottom: none; }
+    code { font-size: 0.85rem; word-break: break-all; }
+  </style>
+</head>
+<body>
+  <div class="app-shell">
+    <aside class="sidebar">
+      <div class="sidebar-brand"><h1>冯校长火锅</h1><p>智能运营 · MVP</p></div>
+      <a class="nav-item" data-nav="home" href="home.html">首页概览</a>
+      <a class="nav-item" data-nav="tables" href="tables.html">前厅 · 桌态</a>
+      <a class="nav-item" data-nav="kitchen" href="kitchen.html">后厨 · IoT</a>
+      <a class="nav-item" data-nav="sop" href="sop.html">SOP 执行</a>
+      <a class="nav-item" data-nav="cost" href="cost.html">来料 · 成本</a>
+      <a class="nav-item" data-nav="alerts" href="alerts.html">告警中心</a>
+      <a class="nav-item" data-nav="report" href="report.html">运营日报</a>
+      <a class="nav-item active" data-nav="system" href="system.html">系统状态</a>
+      <a class="nav-item" href="mobile/index.html">📱 手机版</a>
+    </aside>
+    <div class="main-wrap">
+      <header class="topbar">
+        <div class="topbar-left">
+          <h2>系统状态</h2>
+          <div class="topbar-meta">Hub · 多租户 · 运行指标</div>
+        </div>
+        <div class="topbar-right">
+          <input class="hub-input" id="hub-url" type="text" title="Event Hub URL" />
+          <span class="chip" id="user-name">—</span>
+          <button class="btn btn-sm btn-ghost" id="btn-logout">退出</button>
+        </div>
+      </header>
+      <main class="content">
+        <div class="status-grid">
+          <div class="card">
+            <h3>Event Hub</h3>
+            <div id="hub-health">检测中…</div>
+          </div>
+          <div class="card">
+            <h3>运行指标</h3>
+            <div id="hub-metrics">—</div>
+          </div>
+          <div class="card">
+            <h3>试点门店</h3>
+            <div id="store-list">—</div>
+          </div>
+        </div>
+        <div class="card" style="margin-top:20px">
+          <h3>快捷 API</h3>
+          <div class="metric-row"><span>健康检查</span><code id="api-health">—</code></div>
+          <div class="metric-row"><span>运行指标</span><code id="api-metrics">—</code></div>
+          <div class="metric-row"><span>跨店对标</span><code id="api-benchmark">—</code></div>
+        </div>
+      </main>
+    </div>
+  </div>
+  <script src="assets/core.js"></script>
+  <script>
+    HotpotApp.initShell("system");
+    const base = HotpotApp.hubUrl();
+    document.getElementById("api-health").textContent = base + "/health";
+    document.getElementById("api-metrics").textContent = base + "/metrics";
+    document.getElementById("api-benchmark").textContent = base + "/benchmark";
+
+    async function refresh() {
+      try {
+        const [health, metrics, stores] = await Promise.all([
+          HotpotApp.fetchHealth(),
+          HotpotApp.fetchMetrics(),
+          HotpotApp.fetchStores(),
+        ]);
+        document.getElementById("hub-health").innerHTML = `
+          <div class="metric-row"><span>状态</span><span class="status-ok">${health.status}</span></div>
+          <div class="metric-row"><span>引擎</span><span>${health.engine || "fastapi"}</span></div>
+          <div class="metric-row"><span>鉴权模式</span><span>${health.auth_mode}</span></div>
+          <div class="metric-row"><span>运行时长</span><span>${health.uptime_sec ?? metrics.uptime_sec ?? "-"}s</span></div>
+        `;
+        document.getElementById("hub-metrics").innerHTML = `
+          <div class="metric-row"><span>注册门店</span><span>${metrics.store_count}</span></div>
+          <div class="metric-row"><span>有数据门店</span><span>${metrics.stores_with_data}</span></div>
+          <div class="metric-row"><span>事件总数</span><span>${metrics.total_events}</span></div>
+          <div class="metric-row"><span>严重告警累计</span><span class="status-warn">${metrics.total_critical}</span></div>
+        `;
+        const list = stores.stores || [];
+        document.getElementById("store-list").innerHTML = list.map((s) =>
+          `<div class="metric-row"><span>${s.store_name || s.store_id}</span><span>${s.has_data ? "有数据" : "空"}</span></div>`
+        ).join("") || "暂无门店";
+      } catch (e) {
+        document.getElementById("hub-health").innerHTML = `<span class="status-warn">Hub 未连接: ${e.message}</span>`;
+      }
+    }
+    refresh();
+    setInterval(refresh, 15000);
+  </script>
+</body>
+</html>

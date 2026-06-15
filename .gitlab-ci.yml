@@ -1,0 +1,35 @@
+stages:
+  - test
+  - smoke
+
+variables:
+  PIP_CACHE_DIR: "$CI_PROJECT_DIR/.cache/pip"
+
+cache:
+  paths:
+    - .cache/pip
+
+test:hub:
+  stage: test
+  image: python:3.11-slim-bookworm
+  before_script:
+    - apt-get update -qq && apt-get install -y -qq libgl1 libglib2.0-0
+    - pip install -q -r requirements.txt pytest httpx
+  script:
+    - pytest tests/ -v --tb=short
+
+smoke:poc:
+  stage: smoke
+  image: python:3.11-slim-bookworm
+  before_script:
+    - apt-get update -qq && apt-get install -y -qq libgl1 libglib2.0-0
+    - python3 -m pip install -q -r requirements.txt
+  script:
+    - chmod +x demo/run_poc.sh demo/run_store_pipeline.sh demo/run_vision_daemon.sh
+    - VISION_DAEMON=0 python3 demo/generate_demo_images.py --out-dir demo/data
+    - python3 cloud/event_hub/server.py --port 8088 --seed-dir demo/data/stores &
+    - sleep 2
+    - bash demo/run_store_pipeline.sh store_yuhuan "玉环店" 1 http://127.0.0.1:8088
+    - python3 -c "import urllib.request; d=urllib.request.urlopen('http://127.0.0.1:8088/health').read(); assert b'ok' in d"
+    - python3 -c "import urllib.request; d=urllib.request.urlopen('http://127.0.0.1:8088/metrics').read(); assert b'uptime_sec' in d"
+  timeout: 10m

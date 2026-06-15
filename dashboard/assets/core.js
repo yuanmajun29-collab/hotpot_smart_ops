@@ -134,6 +134,28 @@ const HotpotApp = (() => {
     return res.json();
   }
 
+  async function fetchHealth() {
+    const res = await fetch(`${hubUrl()}/health`);
+    if (!res.ok) throw new Error(res.statusText);
+    return res.json();
+  }
+
+  async function fetchMetrics() {
+    const res = await fetch(`${hubUrl()}/metrics`, { headers: authHeaders() });
+    if (!res.ok) throw new Error(res.statusText);
+    return res.json();
+  }
+
+  async function askSop(question, backend = "rule") {
+    const res = await fetch(`${hubUrl()}/sop/ask`, {
+      method: "POST",
+      headers: authHeaders({ "Content-Type": "application/json" }),
+      body: JSON.stringify({ question, backend, top_k: 3 }),
+    });
+    if (!res.ok) throw new Error(res.statusText);
+    return res.json();
+  }
+
   async function fetchAlertPushes(limit = 20) {
     const res = await fetch(`${hubUrl()}/alerts/push-log?${storeQuery(`limit=${limit}`)}`, {
       headers: authHeaders(),
@@ -195,6 +217,15 @@ const HotpotApp = (() => {
     link.href = "regional.html";
     link.textContent = "区域 · 跨店对标";
     anchor.insertAdjacentElement("afterend", link);
+
+    if (!sidebar.querySelector('[data-nav="system"]')) {
+      const sys = document.createElement("a");
+      sys.className = "nav-item" + (activeNav === "system" ? " active" : "");
+      sys.dataset.nav = "system";
+      sys.href = "system.html";
+      sys.textContent = "系统状态";
+      link.insertAdjacentElement("afterend", sys);
+    }
   }
 
   function injectStoreSwitcher(auth) {
@@ -397,6 +428,9 @@ const HotpotApp = (() => {
     storeId,
     hubLogin,
     fetchSummary,
+    fetchHealth,
+    fetchMetrics,
+    askSop,
     fetchEvents,
     fetchAlertPushes,
     fetchAlertAcks,

@@ -1,0 +1,73 @@
+services:
+  hub:
+    image: python:3.11-slim-bookworm
+    working_dir: /app
+    volumes:
+      - .:/app
+    command: >
+      bash -c "apt-get update -qq && apt-get install -y -qq libgl1 libglib2.0-0 libpq-dev gcc >/dev/null
+      && pip install -q -r requirements.txt
+      && python cloud/event_hub/server.py --host 0.0.0.0 --port 8088 --seed-dir demo/data/stores"
+    ports:
+      - "8088:8088"
+    environment:
+      HOTPOT_AUTH_MODE: demo
+      HOTPOT_DATABASE_URL: ${HOTPOT_DATABASE_URL:-}
+    healthcheck:
+      test: ["CMD", "python3", "-c", "import urllib.request; urllib.request.urlopen('http://127.0.0.1:8088/health')"]
+      interval: 15s
+      timeout: 5s
+      retries: 3
+
+  dashboard:
+    image: python:3.11-slim-bookworm
+    working_dir: /app
+    volumes:
+      - .:/app
+    command: python dashboard/serve.py --host 0.0.0.0 --port 3000
+    ports:
+      - "3000:3000"
+    depends_on:
+      hub:
+        condition: service_healthy
+
+  vlm:
+    image: python:3.11-slim-bookworm
+    working_dir: /app
+    volumes:
+      - .:/app
+    command: >
+      bash -c "pip install -q -r requirements.txt
+      && python cloud/vlm_review/server.py --host 0.0.0.0 --port 8089"
+    ports:
+      - "8089:8089"
+    profiles:
+      - vlm
+
+  postgres:
+    image: postgres:16-alpine
+    environment:
+      POSTGRES_USER: hotpot
+      POSTGRES_PASSWORD: hotpot_dev
+      POSTGRES_DB: hotpot_ops
+    ports:
+      - "5432:5432"
+    volumes:
+      - hotpot_pg_data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U hotpot -d hotpot_ops"]
+      interval: 5s
+      timeout: 3s
+      retries: 5
+    profiles:
+      - postgres
+
+  mqtt:
+    image: eclipse-mosquitto:2
+    ports:
+      - "1883:1883"
+    profiles:
+      - iot
+
+volumes:
+  hotpot_pg_data:

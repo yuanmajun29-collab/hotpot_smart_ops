@@ -24,6 +24,13 @@ echo "----------------------------------------------"
 echo " Live pipeline · ${STORE_NAME} (${STORE_ID})"
 echo "----------------------------------------------"
 
+echo "  [pos] POS stats sync..."
+python3 cloud/integrations/pos_bridge.py \
+  --store-id "$STORE_ID" \
+  --store-name "$STORE_NAME" \
+  --hub-url "$HUB_URL" \
+  --mode sim > "${LIVE_DIR}/pos_result.json" 2>/dev/null
+
 echo "  [vision] UAT ROI + file mode (DEV-203 mock)..."
 VISION_ARGS=(
   --store-id "$STORE_ID"
@@ -95,9 +102,15 @@ print("[OK] Refined SOP stats for store_jiaojiang")
 PY
 fi
 
+echo "  [erp] PO sync from supply chain..."
+python3 cloud/integrations/erp_bridge.py \
+  --store-id "$STORE_ID" \
+  --hub-url "$HUB_URL" \
+  --output "${LIVE_DIR}/erp_receiving.json" > "${LIVE_DIR}/erp_result.json" 2>/dev/null
+
 echo "  [cost] incoming material analysis..."
 python3 cloud/cost_control/analyzer.py \
-  --input demo/data/incoming_materials.json \
+  --input "${LIVE_DIR}/erp_receiving.json" \
   --iot-enrichments "${LIVE_DIR}/iot_lifecycle_result.json" \
   --store-id "$STORE_ID" \
   --hub-url "$HUB_URL" > "${LIVE_DIR}/cost_result.json" 2>/dev/null

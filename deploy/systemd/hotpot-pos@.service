@@ -1,0 +1,19 @@
+[Unit]
+Description=Hotpot POS Bridge (%i)
+After=network.target hotpot-hub.service
+
+[Service]
+Type=simple
+User=hotpot
+Group=hotpot
+WorkingDirectory=/opt/hotpot_smart_ops
+Environment=PYTHONUNBUFFERED=1
+ExecStart=/usr/bin/python3 cloud/integrations/pos_bridge.py \
+  --store-id %i \
+  --hub-url http://127.0.0.1:8088 \
+  --mode sim --interval 300 --cycles 0
+Restart=always
+RestartSec=30
+
+[Install]
+WantedBy=multi-user.target

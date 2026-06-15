@@ -52,6 +52,7 @@ class EventStore:
         self.sop_stats: Dict[str, Any] = {}
         self.cost_stats: Dict[str, Any] = {}
         self.iot_stats: Dict[str, Any] = {}
+        self.erp_stats: Dict[str, Any] = {}
 
     def _persist(self, kind: str, payload: Any) -> None:
         if self._on_persist:
@@ -112,6 +113,13 @@ class EventStore:
             self.iot_stats = stats
             self._persist("iot", stats)
 
+    def set_erp_stats(self, stats: Dict[str, Any]) -> None:
+        with self._lock:
+            stats = dict(stats)
+            stats["store_id"] = self.store_id
+            self.erp_stats = stats
+            self._persist("erp", stats)
+
     def get_events(self, level: Optional[str] = None, limit: int = 50) -> List[Dict[str, Any]]:
         with self._lock:
             items = list(self.events)
@@ -127,6 +135,7 @@ class EventStore:
             sop = dict(self.sop_stats)
             cost = dict(self.cost_stats)
             iot = dict(self.iot_stats)
+            erp = dict(self.erp_stats)
         by_level = {"info": 0, "warn": 0, "critical": 0}
         by_source = {"vision": 0, "iot": 0, "pos": 0, "system": 0}
         for e in events:
@@ -146,6 +155,7 @@ class EventStore:
             "sop_stats": sop,
             "cost_stats": cost,
             "iot_stats": iot,
+            "erp_stats": erp,
             "turnover_suggestions": turnover_suggestions(tables),
         }
 
@@ -158,6 +168,7 @@ class EventStore:
                 or self.sop_stats
                 or self.cost_stats
                 or self.iot_stats
+                or self.erp_stats
             )
 
     def load_snapshot(self, kind: str, payload: Any) -> None:
@@ -172,6 +183,8 @@ class EventStore:
                 self.cost_stats = dict(payload)
             elif kind == "iot":
                 self.iot_stats = dict(payload)
+            elif kind == "erp":
+                self.erp_stats = dict(payload)
             elif kind == "event" and isinstance(payload, dict):
                 self.events.appendleft(payload)
 

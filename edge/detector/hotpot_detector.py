@@ -26,7 +26,7 @@ PROJECT_ROOT = Path(__file__).resolve().parents[2]
 if str(PROJECT_ROOT) not in sys.path:
     sys.path.insert(0, str(PROJECT_ROOT))
 
-from shared.schemas import EventLevel, EventSource, OpsEvent, TableState, utc_now_iso
+from shared.schemas import TABLE_STATES, EventLevel, EventSource, OpsEvent, TableState, utc_now_iso
 
 DETECT_PROJECT = Path("/home/liuwz/Detect_Inference_Project")
 
@@ -194,6 +194,74 @@ class MockHotpotDetector:
         return out
 
 
+class YoloOnnxDetector(MockHotpotDetector):
+    """ONNX ROI classifier backend (table + kitchen models in models/)."""
+
+    def __init__(self, store_id: str = "store_yuhuan") -> None:
+        super().__init__(store_id)
+        from edge.detector.yolo_onnx import load_kitchen_classifier, load_table_classifier
+
+        self._table_cls = load_table_classifier()
+        self._kitchen_cls = load_kitchen_classifier()
+        self._available = self._table_cls is not None or self._kitchen_cls is not None
+
+    @property
+    def available(self) -> bool:
+        return self._available
+
+    def detect_tables(self, image: np.ndarray, table_regions: Optional[List[Dict]] = None) -> List[TableState]:
+        if not self._table_cls:
+            return super().detect_tables(image, table_regions)
+        h, w = image.shape[:2]
+        if table_regions is None:
+            table_regions = []
+            cols, rows = 4, 2
+            for r in range(rows):
+                for c in range(cols):
+                    tid = f"T{r * cols + c + 1:02d}"
+                    x1 = int(c * w / cols + w * 0.02)
+                    y1 = int(r * h / rows + h * 0.05)
+                    x2 = int((c + 1) * w / cols - w * 0.02)
+                    y2 = int((r + 1) * h / rows - h * 0.05)
+                    table_regions.append({"table_id": tid, "bbox": [x1, y1, x2, y2]})
+        results: List[TableState] = []
+        for region in table_regions:
+            x1, y1, x2, y2 = region["bbox"]
+            roi = image[y1:y2, x1:x2]
+            if roi.size == 0:
+                continue
+            state, conf = self._table_cls.predict(roi)
+            if state not in TABLE_STATES:
+                state = "empty"
+            results.append(TableState(table_id=region["table_id"], state=state, confidence=conf))
+        return results
+
+    def detect_kitchen(self, image: np.ndarray) -> List[OpsEvent]:
+        if not self._kitchen_cls:
+            return super().detect_kitchen(image)
+        label, conf = self._kitchen_cls.predict(image)
+        if label == "kitchen_ok":
+            return []
+        level = EventLevel.CRITICAL if label == "kitchen_smoke" else EventLevel.WARN
+        msg_map = {
+            "kitchen_no_hat": "后厨人员可能未佩戴厨师帽",
+            "kitchen_no_mask": "后厨人员可能未佩戴口罩",
+            "kitchen_smoke": "检测到后厨烟雾/明火异常",
+        }
+        return [
+            OpsEvent(
+                event_type=label,
+                source=EventSource.VISION.value,
+                level=level.value,
+                store_id=self.store_id,
+                zone="kitchen",
+                message=msg_map.get(label, label),
+                confidence=conf,
+                metadata={"yolo_label": label},
+            )
+        ]
+
+
 class OnnxHotpotDetector(MockHotpotDetector):
     """Optional ONNX backend wrapping Detect_Inference_Project when available."""
 
@@ -231,6 +299,18 @@ class OnnxHotpotDetector(MockHotpotDetector):
 
 
 def create_detector(backend: str = "mock", store_id: str = "store_yuhuan"):
+    if backend == "rknn":
+        from edge.detector.rknn_backend import RknnHotpotDetector
+
+        det = RknnHotpotDetector(store_id=store_id)
+        if det.available:
+            return det
+        print("[WARN] RKNN unavailable, falling back to yolo/mock")
+    if backend == "yolo":
+        det = YoloOnnxDetector(store_id=store_id)
+        if det.available:
+            return det
+        print("[WARN] YOLO ONNX models not found, falling back to mock")
     if backend == "onnx":
         det = OnnxHotpotDetector(store_id=store_id)
         if det.available:
@@ -254,7 +334,15 @@ def run_on_frame(
         "zone": zone,
         "image": image_label,
         "timestamp": utc_now_iso(),
-        "backend": backend if isinstance(detector, OnnxHotpotDetector) and detector.available else "mock",
+        "backend": (
+            backend
+            if (
+                (isinstance(detector, YoloOnnxDetector) and detector.available)
+                or (isinstance(detector, OnnxHotpotDetector) and detector.available)
+                or (type(detector).__name__ == "RknnHotpotDetector" and getattr(detector, "available", False))
+            )
+            else "mock"
+        ),
     }
 
     if zone == "front":
@@ -331,7 +419,7 @@ def main() -> None:
     parser = argparse.ArgumentParser(description="Hotpot edge vision detector")
     parser.add_argument("--image", required=True, help="Input image path")
     parser.add_argument("--zone", choices=("front", "kitchen"), default="front")
-    parser.add_argument("--backend", choices=("mock", "onnx"), default="mock")
+    parser.add_argument("--backend", choices=("mock", "onnx", "yolo", "rknn"), default="mock")
     parser.add_argument("--store-id", default="store_yuhuan")
     parser.add_argument("--hub-url", default="", help="POST events to event hub")
     parser.add_argument("--output", default="", help="Write JSON result to file")
