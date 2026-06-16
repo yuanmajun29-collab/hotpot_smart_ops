@@ -4,7 +4,7 @@
 
 | 项目 | 内容 |
 |------|------|
-| 文档版本 | V1.3 |
+| 文档版本 | V1.4 |
 | 文档类型 | 产品需求与设计规格 |
 | 上游 | [solution.md](solution.md)（解决方案） |
 | 下游 | [design_dev_implementation_plan.md](design_dev_implementation_plan.md) · [sprint_task_backlog.md](sprint_task_backlog.md) |
@@ -412,8 +412,11 @@ stateDiagram-v2
 | F-HQ01 | 跨店对标看板 | P1 | 翻台/SOP/成本/告警排名 | 1 | ✅ |
 | **F-HQ06** | **区域总揽首页** | **P1** | 大区/区域树 + 门店健康度矩阵 + KPI rollup | 1 | ✅ |
 | **F-HQ07** | **异常门店清单** | **P1** | 按食安/SOP/翻台/来料自动标红，支持下钻单店 | 1 | ✅ |
-| F-HQ12 | 全国总揽首页 | P1 | 多大区 Tab、全国 KPI、异常店 Top N | 2 | ⬜ |
-| F-HQ13 | 层级下钻路径统一 | P1 | national → zone → region → store 面包屑 | 2 | ⚠️ |
+| **F-EXEC01** | **集团驾驶仓** | **P1** | 老板/CEO 全国战略摘要只读；`cockpit.html` | 1 | ✅ v1 |
+| F-HQ12 | 全国总揽首页 | P1 | 多大区 Tab、全国 KPI；`national.html` | 2 | ⚠️ API ✅ UI 待建 |
+| F-HQ13 | 层级下钻路径统一 | P1 | national → zone → region → store 面包屑 | 2 | ⚠️ 部分 |
+
+**F-EXEC01 / F-HQ12 分工**：驾驶仓 v1（P1）与全国总揽页（P2）共用 `GET /v1/national/overview`；见 [architecture_api_spec.md §2.7](architecture_api_spec.md#27-层级--战略观测只读)。
 
 ### 5.10 模块：运营后台（Admin Console）— Phase 2+
 
@@ -649,7 +652,23 @@ Step 5/5  签字
 
 **加盟约束**：F-HQ02~HQ05 对加盟账号不可见；本店 SOP 只读。
 
-**角色计数口径**：当前实现的 7 角色为店长、前厅领班、厨师长、收货员、区域督导、总部 PMO、集团决策者。加盟业主为 P3 规划角色；班组长、营销运营、财务审计为本次补全角色，需同步进入 `auth.py`、`rbac.json`、后端读写守卫和 Admin 角色表。
+### 9.1 角色实现状态（与架构对齐）
+
+| 角色 | 演示账号 | 代码 `auth.py` | RBAC | 目标 Phase |
+|------|----------|:--------------:|:----:|------------|
+| 店长 | zhangdian | ✅ | ✅ | P1 |
+| 前厅领班 | lingban | ✅ | ✅ | P1 |
+| 厨师长 | chushi | ✅ | ✅ | P1 |
+| 收货员 | shouhuo | ✅ | ✅ | P1 |
+| 区域督导 | quyududao | ✅ | ✅ | P1 |
+| 总部 PMO | zongbu | ✅ | ✅ | P1 demo · P2 DB |
+| 集团决策者（CEO） | laoban | ✅ | ✅ | P1 |
+| 班组长 `shift_lead` | — | ⬜ | ⬜ | P2 · DEV-528 |
+| 营销运营 `marketing_ops` | — | ⬜ | ⬜ | P2 · DEV-529 |
+| 财务审计 `finance_audit` | — | ⬜ | ⬜ | P2 · DEV-530 |
+| 加盟业主 | — | ⬜ | ⬜ | P3 · F-EXEC02 |
+
+**角色计数口径**：当前实现 **8** 个 demo 角色（含集团决策者）；班组长/营销/财务为 PRD 规划角色；加盟业主为 P3。权限矩阵上表为 **目标态**；实现须与 [architecture_api_spec.md](architecture_api_spec.md) strict 模式及 DEV-503 同步。
 
 ---
 
@@ -864,8 +883,8 @@ Phase 1 **产品设计交付**包含以下产物（与 [product_design_index.md 
 
 | 版本 | 日期 | 说明 |
 |------|------|------|
-| V1.3 | 2026-06-16 | §2 P8 与 §2.1 设计 vs 分期交付；对齐 ADR-013 |
-| V1.2 | 2026-06-16 | 全国层级、Admin、F-TASK/F-SALES/F-TRACE |
+| V1.4 | 2026-06-16 | F-EXEC01 入 §5.9；F-HQ12/API 分工；§9.1 角色实现状态；与 api_spec 对齐 |
+| V1.3 | 2026-06-16 | §2 P8、§2.1 设计 vs 分期；F-TASK/F-SALES/F-TRACE |
 | V1.1 | 2026-06-15 | §14~15 实现快照与交付定义；文档体系扩展 |
 | V1.0 | 2026-06-12 | 初版 PRD |
 

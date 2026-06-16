@@ -109,7 +109,7 @@ flowchart TB
 | 异常店清单 | F-HQ07 | ✅ |
 | 跨店 KPI 对比 | F-HQ01 | ✅ |
 | **集团驾驶仓** | **F-EXEC01** | ✅ v1 |
-| 全国总揽独立页 | F-HQ12 | ⚠️ 合并在 cockpit API |
+| 全国总揽独立页 | F-HQ12 | ⚠️ API ✅（与 F-EXEC01 共用）；`national.html` P2 |
 | 统一面包屑下钻 | F-HQ13 | ⚠️ 部分 |
 
 ### 5.3 运营后台（管控面 · v0.1）

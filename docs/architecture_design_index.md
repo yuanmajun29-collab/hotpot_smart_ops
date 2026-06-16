@@ -4,7 +4,7 @@
 
 | 项目 | 内容 |
 |------|------|
-| 版本 | V1.2 |
+| 版本 | V1.3 |
 | 更新 | 2026-06-16 |
 | 前置 | 产品设计规格 OK · [product_design_index.md](product_design_index.md) |
 | 评审 | [architecture_review_checklist.md](architecture_review_checklist.md)（AR-401） |
@@ -53,6 +53,18 @@ flowchart TB
 
 **禁止**：用「还在打桩」缩小产品设计范围；用「文档未写」为临时实现开绿灯。
 
+### 1.2 产品 ↔ 架构 对齐检查（评审用）
+
+| 检查项 | 产品文档 | 架构文档 | 状态 |
+|--------|----------|----------|------|
+| 功能 ID 完整 | `product_design.md` §5 | `architecture_api_spec.md` §6 | ✅ V1.1 |
+| 全国层级 | `product_hierarchy_national_chain.md` | `architecture_hierarchy_phase_plan.md` | ✅ |
+| F-EXEC01 vs F-HQ12 | 驾驶仓 P1 · national UI P2 | API 双挂 §2.7 | ✅ |
+| F-TASK | §5.4.1 · task 详设 | api §3 · data §5.4~5.5 | ✅ |
+| DEV 编号 | `sprint_task_backlog` §12.1 | hierarchy §8 · task §13 | ✅ |
+| 角色目标态 | PRD §9 + §9.1 | DEV-503/528~530 | ✅ |
+| ADR | product §2.1 P8 | ADR-001~013 | ✅ |
+
 ---
 
 ## 2. 读什么、什么时候读
@@ -64,8 +76,8 @@ flowchart TB
 | **全国连锁层级 · 分阶段** | [architecture_hierarchy_phase_plan.md](architecture_hierarchy_phase_plan.md) | 全文 |
 | 30 分钟架构总览 | [design_dev_implementation_plan.md](design_dev_implementation_plan.md) | §1.1~1.2 目标与三层架构 |
 | 模块与数据流 | 同上 | §1.3 模块 · §1.2.3 六闭环 C-01~C06 |
-| REST API 目录 | [architecture_api_spec.md](architecture_api_spec.md) | 现有 + /v1 规划 |
-| 数据模型 / 表结构 | [architecture_data_model_phase1.md](architecture_data_model_phase1.md) | OpsEvent · events 表 |
+| REST API 目录 | [architecture_api_spec.md](architecture_api_spec.md) | **V1.1** 全量 · PRD 主映射 §6 |
+| 数据模型 / 表结构 | [architecture_data_model_phase1.md](architecture_data_model_phase1.md) | **V1.1** OpsEvent · tasks · 组织 · 追溯 |
 | 部署拓扑 | [architecture_deployment_phase1.md](architecture_deployment_phase1.md) | docker · systemd · 两店 |
 | **业务/Admin 分离（nginx）** | [deploy/nginx/README.md](../deploy/nginx/README.md) | combined · 子域 · 双端口 |
 | 架构决策 ADR | [architecture_decisions.md](architecture_decisions.md) | ADR-001~013 |
@@ -197,8 +209,8 @@ flowchart TB
 |------|------|
 | **architecture_design_index.md** | 本索引 · DoD · BL 映射 |
 | [architecture_design_phase1.md](architecture_design_phase1.md) | Phase 1 架构规格（可读主文档） |
-| [architecture_api_spec.md](architecture_api_spec.md) | REST API 目录与 /v1 规划 |
-| [architecture_data_model_phase1.md](architecture_data_model_phase1.md) | OpsEvent · 表结构 |
+| [architecture_api_spec.md](architecture_api_spec.md) | REST API V1.1 · PRD 主映射 §6 |
+| [architecture_data_model_phase1.md](architecture_data_model_phase1.md) | 数据模型 V1.1 · OpsEvent · tasks · 组织 |
 | [architecture_deployment_phase1.md](architecture_deployment_phase1.md) | docker · systemd · 两店拓扑 |
 | [architecture_decisions.md](architecture_decisions.md) | ADR-001~013 |
 | [architecture_changelog.md](architecture_changelog.md) | 架构变更日志 |

@@ -535,9 +535,34 @@ IMP-402 Go-Live验收,Task,EPIC-5试点实施,0,P0,impl,Sprint 4,10项P0,4周KPI
 | DEV-501 | EPIC-7 组织 | `orgs/zones/regions/stores` 表 + 迁移 | F-HQ08 | 8d |
 | DEV-502 | EPIC-7 组织 | Admin 门店 CRUD API + `admin/stores.html` | F-HQ08 | 10d |
 | DEV-503 | EPIC-7 访问 | 用户/角色/权限 CRUD + strict scope | F-HQ09/10 | 12d |
-| DEV-504 | EPIC-7 看板 | `national.html` + `/v1/national/overview` | F-HQ12 | 6d |
+| DEV-504 | EPIC-7 看板 | `national.html`（API 已有 · F-EXEC01 已消费） | F-HQ12 | 4d |
 | DEV-505 | EPIC-7 审计 | `admin_audit_log` + 列表页 | F-HQ11 | 5d |
 | DEV-506 | EPIC-7 配置 | SOP/阈值 OTA 配置中心 | F-HQ02/03 | 10d |
+
+### 12.1.1 Phase 1.5 · F-TASK（feature flag · 非 Go-Live 前置）
+
+> 详设：[task_supervision_engine_design.md](task_supervision_engine_design.md) · API：[architecture_api_spec.md §3](architecture_api_spec.md#3-phase-15-规划-apif-task--feature-flag)
+
+| DEV | Epic | 任务 | PRD | 预估 |
+|-----|------|------|-----|------|
+| DEV-520 | EPIC-8 任务 | `task_store.py` + tasks/task_events 表 + 迁移 | F-TASK01 | 5d |
+| DEV-521 | EPIC-8 任务 | 状态机 + `/v1/tasks/*` 路由 | F-TASK01~04 | 8d |
+| DEV-522 | EPIC-8 任务 | task_factory（SOP/告警/清台自动生单） | F-TASK02 | 5d |
+| DEV-523 | EPIC-8 任务 | `dashboard/tasks.html` 任务中心 | F-TASK08 | 4d |
+| DEV-524 | EPIC-8 任务 | H5「我的待办」 | F-TASK09 | 4d |
+| DEV-525 | EPIC-8 任务 | SLA 计算 + 超时升级调度 | F-TASK07 | 5d |
+| DEV-526 | EPIC-8 任务 | 企微督办三卡片 | F-TASK10 | 4d |
+| DEV-527 | EPIC-8 任务 | `/v1/region/tasks/overview` | F-TASK12 | 3d |
+| DEV-528 | EPIC-8 访问 | `shift_lead` 角色 + 权限入库 | — | 3d |
+
+**EPIC-8**：任务督办引擎（P1.5 内核 DEV-520~524；P2 增强 DEV-525~528）
+
+### 12.1.2 Phase 2 · F-SALES / F-TRACE
+
+| DEV | Epic | 任务 | PRD | 预估 |
+|-----|------|------|-----|------|
+| DEV-529 | EPIC-9 增收 | `/v1/sales/rules` + `marketing_ops` + 规则页 | F-SALES01~03 | 8d |
+| DEV-530 | EPIC-9 追溯 | `GET /v1/trace/{trace_id}` 查询聚合 | F-TRACE01~02 | 6d |
 
 **EPIC-7**：全国连锁运营后台（Phase 2，约 10~12 周，与 20 店 rollout 并行）
 
@@ -565,6 +590,7 @@ IMP-402 Go-Live验收,Task,EPIC-5试点实施,0,P0,impl,Sprint 4,10项P0,4周KPI
 
 | 版本 | 日期 | 说明 |
 |------|------|------|
+| V1.4 | 2026-06-16 | §12.1.1 F-TASK DEV-520~528；§12.1.2 DEV-529/530；DEV-504 注明 API 已有 |
 | V1.3 | 2026-06-16 | 新增 §12.1 Phase 2 EPIC-7（DEV-501~506 全国连锁 Admin） |
 | V1.2 | 2026-06-15 | 新增 §6.1 UAT Go-Live 阻塞专项 DEV-408~426 + PM-401/402 |
 | V1.1 | 2026-06-12 | 增加 PRD/US/Figma 追溯列 + §12 矩阵 |

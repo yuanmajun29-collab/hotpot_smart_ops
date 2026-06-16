@@ -4,6 +4,17 @@
 
 ---
 
+## V1.2 · 2026-06-16
+
+| 变更 | 说明 |
+|------|------|
+| `architecture_api_spec.md` V1.1 | 全量 API 目录、F-EXEC01/F-HQ12、Admin stub、P1.5 tasks |
+| `architecture_data_model_phase1.md` V1.1 | tasks/task_events、组织表、F-TRACE 字段 |
+| DEV 编号 | sprint §12.1.1~12.1.2 与 product_hierarchy/task 详设统一 |
+| `architecture_design_index.md` | §1.2 产品↔架构对齐检查表 |
+
+---
+
 ## V1.1 · 2026-06-16
 
 | 变更 | 说明 |

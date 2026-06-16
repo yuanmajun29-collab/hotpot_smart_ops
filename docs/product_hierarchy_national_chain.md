@@ -4,7 +4,7 @@
 
 | 项目 | 内容 |
 |------|------|
-| 版本 | V1.0 |
+| 版本 | V1.2 |
 | 更新 | 2026-06-16 |
 | 读者 | 产品 · 架构 · 研发 · PMO |
 | 关联 | [product_design.md](product_design.md) · [architecture_hierarchy_phase_plan.md](architecture_hierarchy_phase_plan.md) |
@@ -80,9 +80,9 @@ flowchart TB
 | F-HQ01 | 跨店 KPI 对比表 | L2+ | P1 | 1 | ✅ `regional.html` |
 | F-HQ06 | 区域总揽 + 健康矩阵 | L1~L2 | P1 | 1 | ✅ 华东大区 rollup |
 | F-HQ07 | 异常门店清单 | L1~L2 | P1 | 1 | ✅ |
-| **F-HQ12** | **全国总揽首页** | L0 | P1 | 2 | ⬜ 多大区 Tab + 全国 KPI |
+| **F-HQ12** | **全国总揽首页** | L0 | P1 | **2** | ⚠️ API ✅；`national.html` 待建 |
 | **F-HQ13** | **大区下钻路径统一** | L0~L3 | P1 | 2 | ⚠️ 部分（URL `region_id`） |
-| **F-EXEC01** | **集团驾驶仓** | L0 | P1 | **2** | ✅ `cockpit.html` |
+| **F-EXEC01** | **集团驾驶仓** | L0 | P1 | **1** | ✅ `cockpit.html` v1 |
 | **F-EXEC02** | **加盟业主 ROI 简版** | L3 单店 | P2 | **3** | ⬜ 手机 H5 |
 | F-R05 | 区域 narrative（LLM） | L1~L2 | P2 | 3 | ⬜ 规则引擎已有 |
 
@@ -136,7 +136,7 @@ flowchart TB
 
 |  persona | 建议角色名 | 与现有角色区别 | Phase |
 |----------|------------|----------------|-------|
-| **品牌/集团老板、CEO 办** | `集团决策者` | 只看结果与风险，**不**配 SOP、不增店；与 PMO（管标准与推广）分离 | **P2 驾驶仓 v1** |
+| **品牌/集团老板、CEO 办** | `集团决策者` | 只看结果与风险，**不**配 SOP、不增店；与 PMO 分离 | **P1 驾驶仓 v1** |
 | **加盟门店投资人** | `加盟业主`（已有） | 只看**本店** ROI、食安、日报；零配置、手机优先 | **P3 增强** |
 | ~~直营单店老板~~ | 不单独设角 | 通常=店长或区域股东；避免与店长权限重叠 | — |
 
@@ -150,12 +150,13 @@ flowchart TB
 | 层级看板 `regional.html` | 督导、大区运营 | 怎么巡、怎么纠偏 | 可下钻、偏**运营执行** |
 | 运营后台 `admin/` | IT、PMO | 怎么配、怎么开户 | **写配置** |
 
-**驾驶仓 v1 内容（F-EXEC01，建议 P2）**：
+**驾驶仓 v1（F-EXEC01 · Phase 1 · 已实现）**：
 
-- 全国/大区 KPI 条：店数、营收汇总、SOP 均值、异常店数、食安红灯
-- 异常店 Top N + 趋势（较上周）
-- 筹备 vs 营业店进度
-- 一键跳转层级看板下钻（**不在驾驶仓里做配置**）
+- 全国/大区 KPI 条：店数、健康分布、SOP 均值、异常店数
+- 异常店 Top N + 下钻入口
+- 消费 `GET /v1/national/overview`；**不在驾驶仓内做配置**
+
+**F-HQ12（Phase 2）**：独立 `national.html`（多大区 Tab、完整 IA），**复用同一 API**，不新增后端契约。
 
 **驾驶仓 v2（P3）**：单店 ROI、加盟 vs 直营对比、LLM 周报语音摘要、手机 H5 全屏。
 
@@ -166,11 +167,11 @@ flowchart TB
 ### 6.1 层级看板 IA（观测面）
 
 ```
-驾驶仓 cockpit.html（Phase 2 · 老板/CEO 默认首页）
-└── 全国 KPI 摘要 · 异常 Top N · 趋势
-    └── [下钻] → national.html / regional.html
+驾驶仓 cockpit.html（Phase 1 · 集团决策者默认首页 · F-EXEC01）
+└── GET /v1/national/overview · 全国 KPI 摘要 · 异常 Top N
+    └── [下钻] → regional.html / national.html（Phase 2）
 
-全国总揽 national.html（Phase 2）
+全国总揽 national.html（Phase 2 · F-HQ12）
 └── 大区 zone_east_china
     └── 区域 regional.html?region_id=region_*
         └── [进入单店] → home.html（switchStore）
@@ -225,26 +226,34 @@ admin/
 | 组织层级 | `stores.json` 静态 1 大区 3 区域 | DB + Admin CRUD |
 | 用户 | `DEMO_USERS` 硬编码 7 账号 | `users` 表 + Admin |
 | 角色权限 | `rbac.json` 静态 | `roles` + `permissions` 表 + 缓存 |
-| 全国视图 | 仅华东大区 | `national.html` 多大区 |
+| 全国视图 | `cockpit.html` + API 已有 | `national.html` 多大区完整页（F-HQ12） |
 | 审计 | 业务 ack/签字有；配置变更无 | `admin_audit_log` |
 
 ---
 
-## 9. 研发追溯（预留 DEV ID）
+## 9. 研发追溯（DEV ID · 与 sprint 统一）
 
-| DEV | 内容 | Phase | 依赖 |
-|-----|------|-------|------|
-| DEV-501 | 组织模型 `orgs` + stores 关联 API | P2 | DEV-102 |
-| DEV-502 | Admin 门店 CRUD UI + API | P2 | DEV-501 |
-| DEV-503 | 用户/角色/权限 CRUD | P2 | DEV-501, DEV-425 |
-| DEV-504 | `national.html` 全国总揽 | P2 | DEV-501, F-HQ06 |
-| DEV-505 | Admin 审计日志 | P2 | DEV-503 |
-| DEV-506 | SOP/阈值 OTA 配置中心 | P2 | DEV-501 |
-| DEV-521 | F-TASK tasks/task_events + SOP 兼容迁移 | P1.5 | DEV-421, DEV-425 |
-| DEV-522 | F-SALES 规则版与营销运营权限 | P2 | DEV-503, DEV-521 |
-| DEV-523 | F-TRACE 追溯链查询 | P2 | ADR-002, DEV-521 |
+| DEV | 内容 | Phase | PRD | 依赖 |
+|-----|------|-------|-----|------|
+| DEV-501 | 组织模型 `orgs` + stores 关联 API | P2 | F-HQ08 | DEV-102 |
+| DEV-502 | Admin 门店 CRUD UI + API（DB） | P2 | F-HQ08 | DEV-501 |
+| DEV-503 | 用户/角色/权限 CRUD + strict | P2 | F-HQ09/10 | DEV-501, DEV-425 |
+| DEV-504 | `national.html` 全国总揽 UI | P2 | F-HQ12 | DEV-501；API 已有 |
+| DEV-505 | Admin 审计日志（DB） | P2 | F-HQ11 | DEV-503 |
+| DEV-506 | SOP/阈值 OTA 配置中心 | P2 | F-HQ02/03 | DEV-501 |
+| DEV-520 | `task_store.py` + tasks/task_events 表 | P1.5 | F-TASK01 | sop_assign_store |
+| DEV-521 | 状态机 + `/v1/tasks/*` | P1.5 | F-TASK01~04 | DEV-520 |
+| DEV-522 | task_factory 自动生单 | P1.5 | F-TASK02 | DEV-521 |
+| DEV-523 | `dashboard/tasks.html` | P1.5 | F-TASK08 | DEV-521 |
+| DEV-524 | 移动端「我的待办」 | P1.5 | F-TASK09 | DEV-521 |
+| DEV-525~527 | SLA 升级 / 企微督办 / 区域 rollup | P2 | F-TASK10~12 | DEV-521 |
+| DEV-528 | `shift_lead` 角色入库 | P2 | — | DEV-503 |
+| DEV-529 | F-SALES 规则 API + `marketing_ops` | P2 | F-SALES01~03 | DEV-503 |
+| DEV-530 | F-TRACE `GET /v1/trace/{id}` | P2 | F-TRACE01~02 | ADR-002, DEV-521 |
 
-详见 [architecture_hierarchy_phase_plan.md](architecture_hierarchy_phase_plan.md)。
+> F-TASK DEV-520~527 详表见 [task_supervision_engine_design.md §13](task_supervision_engine_design.md#13-dev-追溯)。**F-EXEC01** 驾驶仓 v1 已落地，无独立 DEV（含于试点交付）。
+
+详见 [architecture_hierarchy_phase_plan.md](architecture_hierarchy_phase_plan.md) · [sprint_task_backlog.md §12.1](sprint_task_backlog.md#121-phase-2-全国连锁预排--未启动)。
 
 ---
 
@@ -252,5 +261,6 @@ admin/
 
 | 版本 | 日期 | 说明 |
 |------|------|------|
-| V1.0 | 2026-06-16 | 全国层级、双产品面、F-HQ08~13、分阶段交付基线 |
+| V1.2 | 2026-06-16 | F-EXEC01 归 Phase 1；F-HQ12 与 API 拆分；DEV 编号与 task 详设/sprint 统一 |
 | V1.1 | 2026-06-16 | 补充班组长/营销运营/财务审计角色边界、P1.5 F-TASK、P2 F-SALES/F-TRACE |
+| V1.0 | 2026-06-16 | 全国层级、双产品面、F-HQ08~13、分阶段交付基线 |

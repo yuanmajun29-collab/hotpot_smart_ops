@@ -4,7 +4,7 @@
 
 | 项目 | 内容 |
 |------|------|
-| 版本 | V1.1 |
+| 版本 | V1.2 |
 | 更新 | 2026-06-16 |
 | 维护人 | 产品 |
 
@@ -34,7 +34,9 @@
 | **腾讯会议配置** | [product_meetings_tencent.json](product_meetings_tencent.json) | 改号后运行 `scripts/gen_product_meetings_ics.py` |
 | 店长概念测试 / UAT | [uat_concept_test_record.md](uat_concept_test_record.md) | [user_story_map.md §6](user_story_map.md#6-概念测试脚本30min--试点店长) |
 | 研发排期与阻塞项 | [sprint_task_backlog.md §6.1](sprint_task_backlog.md#61-uat-go-live-阻塞专项dev-408) | [poc_to_production_gap.md](poc_to_production_gap.md) |
+| **产品与架构对齐检查** | [architecture_design_index.md §1.2](architecture_design_index.md#12-产品--架构-对齐检查评审用) | api_spec §6 |
 | **架构设计评审** | [architecture_design_index.md](architecture_design_index.md) | [architecture_review_checklist.md](architecture_review_checklist.md) AR-401 |
+| **API 与 PRD 映射** | [architecture_api_spec.md §6](architecture_api_spec.md#6-与产品功能追溯主映射) | data_model V1.1 |
 | 现场部署 | [pilot_deployment_checklist_direct.md](pilot_deployment_checklist_direct.md) | [design_dev_implementation_plan.md](design_dev_implementation_plan.md) |
 
 ---

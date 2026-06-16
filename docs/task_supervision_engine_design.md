@@ -441,6 +441,8 @@ flowchart LR
 | DEV-527 | 区域 rollup `/v1/region/tasks/overview` | P2 | DEV-521, F-HQ06 |
 | DEV-528 | `shift_lead` 角色 + 权限矩阵入库 | P2 | DEV-503(RBAC) |
 
+**编号说明**：DEV-529（F-SALES）、DEV-530（F-TRACE）见 [sprint_task_backlog.md §12.1.2](sprint_task_backlog.md#1212-phase-2--f-sales--f-trace)；勿与 DEV-522/523（任务 UI）混用。
+
 ---
 
 ## 14. ADR-010 草案（待 AR-402 拍板）

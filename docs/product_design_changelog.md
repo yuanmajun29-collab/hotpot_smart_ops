@@ -4,6 +4,16 @@
 
 ---
 
+## V1.5 · 2026-06-16
+
+| 变更 | 说明 |
+|------|------|
+| `product_design.md` V1.4 | F-EXEC01、F-HQ12/API 分工、§9.1 角色实现状态 |
+| `product_hierarchy_national_chain.md` V1.2 | F-EXEC01 归 P1；DEV 编号统一 |
+| 对齐 | `architecture_api_spec` V1.1 · `architecture_data_model` V1.1 · sprint §12.1 |
+
+---
+
 ## V1.4 · 2026-06-16
 
 | 变更 | 说明 |
