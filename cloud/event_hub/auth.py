@@ -23,6 +23,19 @@ DEFAULT_API_KEYS: Dict[str, str] = {
     "admin_seed_key": "*",
 }
 
+# Mirrors dashboard/assets/rbac.json actions (DEV-425/426)
+ROLE_ACTIONS: Dict[str, List[str]] = {
+    "店长": ["ack", "table_correct", "receiving_submit", "sop_assign", "report_generate"],
+    "前厅领班": ["ack", "table_correct"],
+    "厨师长": ["ack", "receiving_submit", "sop_assign"],
+    "收货员": ["receiving_submit"],
+    "区域督导": ["ack", "sop_assign", "report_generate"],
+    "总部PMO": ["report_generate", "sop_assign", "admin_write"],
+    "总部 IT": ["report_generate", "sop_assign", "admin_write"],
+    "集团决策者": [],
+    "edge": ["table_correct", "receiving_submit", "sop_assign"],
+}
+
 DEMO_USERS = {
     ("zhangdian", "demo"): {"role": "店长", "name": "张店长"},
     ("lingban", "demo"): {"role": "前厅领班", "name": "李领班"},
@@ -183,3 +196,19 @@ def enforce_store_write(auth: AuthContext, store_id: str) -> None:
         return
     if not can_write_store(auth, store_id):
         raise HTTPException(status_code=403, detail=f"Write forbidden for store {store_id}")
+
+
+def can_action(auth: AuthContext, action: str) -> bool:
+    if AUTH_MODE == "demo" and auth.auth_type == "anonymous":
+        return True
+    if auth.auth_type == "api_key":
+        return True
+    return action in ROLE_ACTIONS.get(auth.role, [])
+
+
+def enforce_action(auth: AuthContext, action: str) -> None:
+    if not can_action(auth, action):
+        raise HTTPException(
+            status_code=403,
+            detail=f"Action '{action}' forbidden for role {auth.role}",
+        )

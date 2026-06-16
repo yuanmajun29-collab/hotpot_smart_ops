@@ -19,6 +19,7 @@ from cloud.event_hub.auth import (
     TokenRequest,
     can_admin,
     data_scope_for_role,
+    enforce_action,
     enforce_admin,
     enforce_store_read,
     enforce_store_write,
@@ -207,10 +208,7 @@ class DailyReportGenerateBody(BaseModel):
 
 
 def _enforce_report_generate(auth: AuthContext) -> None:
-    if AUTH_MODE == "demo" and auth.auth_type == "anonymous":
-        return
-    if auth.role not in ("店长", "区域督导"):
-        raise HTTPException(status_code=403, detail="无日报生成权限")
+    enforce_action(auth, "report_generate")
 
 
 def _append_cost_item(store: Any, batch: Dict[str, Any], signatures: List[Dict[str, Any]]) -> None:
@@ -246,6 +244,7 @@ def receiving_submit(
 ) -> Dict[str, Any]:
     sid = body.store_id or auth.store_id or DEFAULT_STORE_ID
     enforce_store_write(auth, sid)
+    enforce_action(auth, "receiving_submit")
     store = hub.get_store(sid)
 
     batch_id = body.batch_id or new_batch_id(sid)
@@ -352,6 +351,7 @@ def sop_assign(
 ) -> Dict[str, Any]:
     sid = body.store_id or auth.store_id or DEFAULT_STORE_ID
     enforce_store_write(auth, sid)
+    enforce_action(auth, "sop_assign")
     store = hub.get_store(sid)
 
     assigned_by = auth.sub or auth.role or "店长"
@@ -841,6 +841,7 @@ async def post_tables(
     data = await request.json()
     sid = _resolve_store_id(store_id, data, request.headers.get("X-Store-Id"), auth)
     enforce_store_write(auth, sid)
+    enforce_action(auth, "table_correct")
     tables = data if isinstance(data, list) else data.get("tables", [])
     hub.get_store(sid).set_table_states(tables)
     return {"ok": True, "store_id": sid, "count": len(tables)}
@@ -957,6 +958,7 @@ def alerts_ack(
 ) -> Dict[str, Any]:
     sid = body.store_id or auth.store_id or DEFAULT_STORE_ID
     enforce_store_write(auth, sid)
+    enforce_action(auth, "ack")
     ack_by = body.ack_by or auth.sub or "店长"
     return alert_gateway.ack(body.event_id, sid, ack_by, body.ack_note or "")
 

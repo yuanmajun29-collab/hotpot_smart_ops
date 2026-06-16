@@ -439,12 +439,14 @@ const HotpotApp = (() => {
     return res.json();
   }
 
-  async function vlmQualityGrade(sku, batchId = "") {
+  async function vlmQualityGrade(sku, batchId = "", imageBase64 = "") {
     const vlmBase = hubUrl().replace(":8088", ":8089");
+    const body = { sku, batch_id: batchId };
+    if (imageBase64) body.image_base64 = imageBase64;
     const res = await fetch(`${vlmBase}/quality-grade`, {
       method: "POST",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ sku, batch_id: batchId }),
+      body: JSON.stringify(body),
     });
     if (!res.ok) throw new Error(res.statusText);
     return res.json();
@@ -741,6 +743,27 @@ const HotpotApp = (() => {
     });
   }
 
+  function guardAction(role, action, el) {
+    if (!el) return;
+    if (!canAction(role, action)) {
+      el.disabled = true;
+      el.title = "当前角色无此操作权限";
+      el.classList.add("rbac-disabled");
+    }
+  }
+
+  async function initPdaShell() {
+    await loadRbac();
+    const auth = requireAuth();
+    if (!auth) return null;
+    if (!canAccessMenu(auth.role, "pda")) {
+      const first = RBAC_MATRIX?.roles?.[auth.role]?.menus?.[0];
+      window.location.href = first && NAV_PAGES[first] ? NAV_PAGES[first] : loginPageUrl();
+      return null;
+    }
+    return auth;
+  }
+
   function initShell(activeNav) {
     const auth = requireAuth();
     if (!auth) return null;
@@ -751,7 +774,7 @@ const HotpotApp = (() => {
 
     enhanceSidebar(activeNav, auth);
     injectStoreSwitcher(auth);
-    applyRbac(auth, activeNav);
+    loadRbac().then(() => applyRbac(auth, activeNav));
 
     const storeEl = document.getElementById("store-name");
     if (storeEl) storeEl.textContent = auth.storeName || "冯校长火锅·玉环店";
@@ -840,6 +863,9 @@ const HotpotApp = (() => {
     loadRbac,
     canAccessMenu,
     canAction,
+    guardAction,
+    initPdaShell,
+    authHeaders,
     fetchErp,
     fetchDailyReports,
     generateDailyReport,

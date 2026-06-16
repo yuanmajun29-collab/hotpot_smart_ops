@@ -44,8 +44,9 @@
 
     <div class="pda-step-panel" data-step="3">
       <h2 style="font-size:1.1rem;margin-bottom:16px">Step 4/5 · VLM 外观质检</h2>
-      <div id="vlm-photo" style="height:140px;background:var(--card);border:1px solid var(--border);border-radius:8px;display:flex;align-items:center;justify-content:center;color:var(--muted);margin-bottom:12px;cursor:pointer">
-        📷 点击拍照（VLM 打桩）
+      <input type="file" id="vlm-file" accept="image/*" capture="environment" style="display:none" />
+      <div id="vlm-photo" style="height:140px;background:var(--card);border:1px solid var(--border);border-radius:8px;display:flex;align-items:center;justify-content:center;color:var(--muted);margin-bottom:12px;cursor:pointer;overflow:hidden;background-size:cover;background-position:center">
+        📷 点击拍照（调用摄像头）
       </div>
       <p>VLM 品质等级：<span class="tag pass" id="vlm-grade" style="font-size:1rem;padding:4px 12px">—</span></p>
       <p style="font-size:0.85rem;color:var(--muted);margin-top:8px" id="vlm-note">拍照后自动评级</p>
@@ -82,6 +83,7 @@
     let poWeight = 0;
     let actualWeight = 0;
     let vlmGrade = "";
+    let vlmImageBase64 = "";
     let tempC = null;
     let lastBatchId = "";
     let poOrders = [];
@@ -206,24 +208,53 @@
       status.style.color = "var(--ok)";
     }
 
-    async function runVlmGrade() {
+    async function runVlmGrade(imageBase64) {
       const photo = document.getElementById("vlm-photo");
       const gradeEl = document.getElementById("vlm-grade");
       const note = document.getElementById("vlm-note");
       photo.textContent = "VLM 分析中…";
+      photo.style.backgroundImage = "";
       try {
-        const data = await HotpotApp.vlmQualityGrade(selectedSku, selectedPo);
+        const data = await HotpotApp.vlmQualityGrade(selectedSku, selectedPo, imageBase64);
         vlmGrade = data.quality_grade || data.grade || "B";
         gradeEl.textContent = vlmGrade + " 级";
         gradeEl.className = "tag " + (vlmGrade === "A" ? "pass" : vlmGrade === "B" ? "pending" : "fail");
         note.textContent = (data.defects || []).join("；") || "外观正常，符合入库标准";
-        photo.textContent = "📷 已拍照 ✓";
+        if (imageBase64) {
+          photo.textContent = "";
+          photo.style.backgroundImage = `url(data:image/jpeg;base64,${imageBase64})`;
+        } else {
+          photo.textContent = "📷 已评级 ✓";
+        }
       } catch (e) {
         vlmGrade = "A";
         gradeEl.textContent = "A 级";
         note.textContent = "VLM 服务不可用，默认 A 级";
         photo.textContent = "📷 演示评级 ✓";
       }
+    }
+
+    function readFileAsBase64(file) {
+      return new Promise((resolve, reject) => {
+        const reader = new FileReader();
+        reader.onload = () => {
+          const result = reader.result || "";
+          const b64 = String(result).split(",")[1] || "";
+          resolve(b64);
+        };
+        reader.onerror = reject;
+        reader.readAsDataURL(file);
+      });
+    }
+
+    async function onVlmPhotoSelected(file) {
+      if (!file) return;
+      vlmImageBase64 = await readFileAsBase64(file);
+      await runVlmGrade(vlmImageBase64);
+    }
+
+    function triggerVlmCapture() {
+      document.getElementById("vlm-file").click();
     }
 
     function sign(el) {
@@ -243,7 +274,7 @@
       const chef = document.getElementById("sig2").dataset.signedBy || "chushi";
       const variance = variancePct(actualWeight, poWeight);
       const body = {
-        store_id: auth?.store_id || "store_yuhuan",
+        store_id: HotpotApp.storeId(),
         po_id: selectedPo,
         sku: selectedSku,
         weight_kg: actualWeight,
@@ -255,11 +286,9 @@
           { role: "chef", signed_by: chef },
         ],
       };
-      const headers = { "Content-Type": "application/json" };
-      if (auth?.access_token) headers.Authorization = "Bearer " + auth.access_token;
       const res = await fetch(HotpotApp.hubUrl() + "/v1/receiving/submit", {
         method: "POST",
-        headers,
+        headers: HotpotApp.authHeaders({ "Content-Type": "application/json" }),
         body: JSON.stringify(body),
       });
       if (!res.ok) {
@@ -324,11 +353,21 @@
       updateUI();
     }
 
-    document.getElementById("vlm-photo").onclick = runVlmGrade;
+    document.getElementById("vlm-photo").onclick = triggerVlmCapture;
+    document.getElementById("vlm-file").onchange = (e) => {
+      const file = e.target.files && e.target.files[0];
+      if (file) onVlmPhotoSelected(file);
+    };
     updateUI();
     if (typeof HotpotApp !== "undefined") {
-      HotpotApp.requireAuth();
-      loadErpPos();
+      HotpotApp.initPdaShell().then((auth) => {
+        if (!auth) return;
+        if (!HotpotApp.canAction(auth.role, "receiving_submit")) {
+          document.getElementById("btn-next").disabled = true;
+          document.getElementById("btn-next").title = "当前角色无收货提交权限";
+        }
+        loadErpPos();
+      });
     }
   </script>
 </body>
