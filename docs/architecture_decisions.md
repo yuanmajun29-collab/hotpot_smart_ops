@@ -4,8 +4,8 @@
 
 | 项目 | 内容 |
 |------|------|
-| 版本 | V1.0 |
-| 更新 | 2026-06-15 |
+| 版本 | V1.1 |
+| 更新 | 2026-06-16 |
 
 ---
 
@@ -117,6 +117,49 @@
 | 决策 | 组织四级：`org → zone → region → store`；JWT/RBAC 含 `data_scope`（store/region/zone/national）；**观测面**（层级看板）与**管控面**（Admin）分离；P1 静态 JSON，P2 入库 + Admin API |
 | 后果 | `stores.json` 过渡；P2 新增 `orgs/zones/regions/stores/users/roles` 表与 `/v1/admin/*`；Hub 中间件强制 scope |
 | 关联 | [product_hierarchy_national_chain.md](product_hierarchy_national_chain.md) · [architecture_hierarchy_phase_plan.md](architecture_hierarchy_phase_plan.md) |
+
+---
+
+## ADR-010：F-TASK 轻量任务督办引擎
+
+| 项 | 内容 |
+|----|------|
+| 状态 | **提议中** |
+| 日期 | 2026-06-16 |
+| 背景 | SOP 指派、告警 ack、来料异常、翻台督促分散，组织执行缺少统一闭环 |
+| 决策 | P1.5 新增 `tasks` + `task_events` 轻量任务内核；`overdue/escalated` 作为 SLA 派生标记，不作为主状态；`sop_assignments` 迁移为兼容视图/写入路径 |
+| 权限 | `reopen` 仅店长/督导/PMO 且必须 reason；`cancel` 未 closed 前由创建人/店长/督导执行，closed 后仅 admin override；`reassign` 必须写 task_event 和 `sla_policy` |
+| SLA | `reassign` 必须显式选择 `reset_from_reassign` 或 `keep_original_due_at`，禁止隐式重置 |
+| 后果 | 可替代 DEV-421；不抢占 BL-01~08；不开启 feature flag 时旧 SOP 指派行为不变 |
+| 关联 | [task_supervision_engine_design.md](task_supervision_engine_design.md) · ADR-009 |
+
+---
+
+## ADR-011：F-SALES 规则版增收/推销
+
+| 项 | 内容 |
+|----|------|
+| 状态 | **提议中** |
+| 日期 | 2026-06-16 |
+| 背景 | 组织目标包含推销/增收，但 Phase 1 不宜引入会员营销复杂度 |
+| 决策 | F-SALES 从 Phase 1 Won't Have 调整为 Phase 2 Should Have，仅做 rule-based 推销建议、话术库和人工确认任务；会员画像/会员自动化延后 P3 |
+| 权限 | `marketing_ops` 可按 region/zone/national scope 维护 F-SALES 规则；不可修改 SOP、阈值、用户、门店 |
+| 后果 | 可生成 F-TASK 任务；不进入 Phase 1 UAT，不作为 IMP-402 前置 |
+| 关联 | [org_hierarchy_coverage_assessment.md](org_hierarchy_coverage_assessment.md) · ADR-009/010 |
+
+---
+
+## ADR-012：F-TRACE 复用事件与任务的追溯链
+
+| 项 | 内容 |
+|----|------|
+| 状态 | **提议中** |
+| 日期 | 2026-06-16 |
+| 背景 | 来料、SOP、告警、日报已有事件与签字记录，但缺少统一追溯链 |
+| 决策 | 不新建大而全追溯表；复用 ADR-002 `OpsEvent`、ADR-010 `task_events`、来料签字和日报记录，通过 `ref_type/ref_id/trace_id` 串联查询 |
+| 权限 | `finance_audit` 只读成本、追溯、日报、审计；不可 ack/reassign/cancel |
+| 后果 | 降低迁移风险；P2 可先做查询 API，P3 再接 BI/数据湖 |
+| 关联 | ADR-002 · ADR-009 · ADR-010 |
 
 ---
 

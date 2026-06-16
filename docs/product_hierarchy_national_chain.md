@@ -119,8 +119,18 @@ flowchart TB
 | 总部 IT | `admin/` | 全国 | — | 系统状态 | ✓ 组织/用户/角色 |
 | **集团决策者（老板/CEO）** | **`cockpit.html` 驾驶仓** | 全国 | — | ✓ 摘要 | — |
 | 加盟业主 | 手机简版 / `cockpit.html?store` | 本店 | 只读 | — | — |
+| **班组长 `shift_lead`** | `tables.html` / 任务列表 | 本店 | 桌态+任务子集 | — | — |
+| **营销运营 `marketing_ops`** | F-SALES 规则页 | 区域/大区/全国 | — | 活动效果只读 | F-SALES 配置 |
+| **财务审计 `finance_audit`** | 成本/追溯/日报 | 本店/区域/全国 | 成本只读 | 审计只读 | — |
 
 **加盟约束（P6）**：加盟账号不可见 F-HQ02~05/08~11 写操作；SOP/阈值总部下发只读。
+
+**新增角色边界**：
+
+- 班组长仅在 `store` scope 内处理桌态和 F-TASK，可 ack/reassign，不可收货提交、不可 Admin 写。
+- 营销运营只管理 F-SALES 规则/话术/任务模板，不可修改 SOP、阈值、用户、门店。
+- 财务审计只读成本、追溯、日报和审计记录，不可 ack、reassign、cancel。
+- 当前代码已有 7 角色不含加盟业主；加盟业主为 P3 规划角色，进入 SaaS 简版时再纳入 `rbac.json`。
 
 ### 5.1 是否增加「老板」角色？— 建议 **要，但拆两种，不混为一谈**
 
@@ -199,7 +209,8 @@ admin/
 | Phase | 时间盒 | 组织规模 | 产品交付 | 验收信号 |
 |-------|--------|----------|----------|----------|
 | **P1 试点** | 当前 | 2 店 · 1 区域 · 1 大区 | 门店看板 7 模块 + PDA；区域/大区 rollup；演示 RBAC | 玉环/椒江 UAT 通过 |
-| **P2 区域** | +3~4 月 | 20 店 · 多区域 · 华东完整 | `national.html`；`admin/` 组织/用户/角色；SOP·阈值 OTA；PG 多租户 | 新店 0 代码开户；PMO 自助增店 |
+| **P1.5 任务内核** | +2~3 周 | 2 店 · feature flag | F-TASK kernel；SOP 指派兼容；SLA 派生标记 | 不抢占 BL-01~08；可替代 DEV-421 |
+| **P2 区域** | +3~4 月 | 20 店 · 多区域 · 华东完整 | `national.html`；`admin/` 组织/用户/角色；SOP·阈值 OTA；F-SALES 规则版；F-TRACE；PG 多租户 | 新店 0 代码开户；PMO 自助增店 |
 | **P3 全国** | +6 月 | 50+ 店 · 多大区 | 全国总揽；供应商 KPI；LLM narrative；加盟 SaaS 只读 | 单店部署 <3 天；大区日活 |
 | **P4 中台深化** | 持续 | 100+ 店 | ModelHub、数据湖导出、会员联动 | 总部 BI 对接 |
 
@@ -229,6 +240,9 @@ admin/
 | DEV-504 | `national.html` 全国总揽 | P2 | DEV-501, F-HQ06 |
 | DEV-505 | Admin 审计日志 | P2 | DEV-503 |
 | DEV-506 | SOP/阈值 OTA 配置中心 | P2 | DEV-501 |
+| DEV-521 | F-TASK tasks/task_events + SOP 兼容迁移 | P1.5 | DEV-421, DEV-425 |
+| DEV-522 | F-SALES 规则版与营销运营权限 | P2 | DEV-503, DEV-521 |
+| DEV-523 | F-TRACE 追溯链查询 | P2 | ADR-002, DEV-521 |
 
 详见 [architecture_hierarchy_phase_plan.md](architecture_hierarchy_phase_plan.md)。
 
@@ -239,3 +253,4 @@ admin/
 | 版本 | 日期 | 说明 |
 |------|------|------|
 | V1.0 | 2026-06-16 | 全国层级、双产品面、F-HQ08~13、分阶段交付基线 |
+| V1.1 | 2026-06-16 | 补充班组长/营销运营/财务审计角色边界、P1.5 F-TASK、P2 F-SALES/F-TRACE |
