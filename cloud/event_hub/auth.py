@@ -31,6 +31,9 @@ DEMO_USERS = {
     ("quyududao", "demo"): {"role": "区域督导", "name": "区域督导", "store_id": "*"},
     ("zongbu", "demo"): {"role": "总部PMO", "name": "总部PMO", "store_id": "*"},
     ("laoban", "demo"): {"role": "集团决策者", "name": "冯老板", "store_id": "*"},
+    ("banzu", "demo"): {"role": "班组长", "name": "孙班组长"},
+    ("yingxiao", "demo"): {"role": "营销运营", "name": "周营销", "store_id": "*"},
+    ("caiwu", "demo"): {"role": "财务审计", "name": "吴财审", "store_id": "*"},
 }
 
 bearer_scheme = HTTPBearer(auto_error=False)
@@ -52,10 +55,11 @@ class AuthContext(BaseModel):
 
 
 def data_scope_for_role(role: str) -> str:
-    if role in ("总部PMO", "总部 IT", "集团决策者"):
+    if role in ("总部PMO", "总部 IT", "集团决策者", "营销运营", "财务审计"):
         return "national"
     if role == "区域督导":
         return "region"
+    # 班组长 falls through to store scope (本店·本班组)
     return "store"
 
 
@@ -104,7 +108,7 @@ def login_user(req: TokenRequest) -> Dict[str, Any]:
     role = req.role or user["role"]
     if role == "区域督导":
         store_id = "*"
-    if role in ("总部PMO", "总部 IT", "集团决策者"):
+    if role in ("总部PMO", "总部 IT", "集团决策者", "营销运营", "财务审计"):
         store_id = "*"
     token = create_access_token(req.username, role, store_id)
     return {
@@ -133,7 +137,7 @@ def resolve_api_key(key: Optional[str]) -> Optional[AuthContext]:
 def can_read_store(auth: AuthContext, store_id: str) -> bool:
     if auth.store_id == "*":
         return True
-    if auth.role in ("区域督导", "集团决策者"):
+    if auth.role in ("区域督导", "集团决策者", "营销运营", "财务审计"):
         return True
     return auth.store_id == store_id
 
@@ -141,11 +145,14 @@ def can_read_store(auth: AuthContext, store_id: str) -> bool:
 def can_write_store(auth: AuthContext, store_id: str) -> bool:
     if auth.auth_type == "api_key":
         return auth.store_id == "*" or auth.store_id == store_id
-    if auth.role == "集团决策者":
+    # read-only / non-operational-write roles
+    if auth.role in ("集团决策者", "营销运营", "财务审计"):
         return False
     if auth.role == "区域督导":
         return True
-    if auth.role in ("店长", "厨师长", "前厅领班", "edge"):
+    # 班组长：本店写（任务 ack/reassign、桌态）；更细的"不可收货提交/Admin写"由
+    # rbac.json actions + 端点级校验把关，此处只做门店级 scope 判定。
+    if auth.role in ("店长", "厨师长", "前厅领班", "班组长", "edge"):
         return auth.store_id == "*" or auth.store_id == store_id
     if auth.role == "收货员":
         return auth.store_id == store_id

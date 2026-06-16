@@ -1,8 +1,8 @@
 {
   "roles": {
     "店长": {
-      "menus": ["home", "tables", "kitchen", "sop", "cost", "alerts", "report", "pda", "system"],
-      "actions": ["ack", "table_correct", "receiving_submit", "sop_assign", "report_generate"]
+      "menus": ["home", "tables", "kitchen", "sop", "cost", "alerts", "report", "pda", "tasks", "system"],
+      "actions": ["ack", "table_correct", "receiving_submit", "sop_assign", "report_generate", "task_create", "task_ack", "task_reassign", "task_verify", "task_cancel"]
     },
     "前厅领班": {
       "menus": ["home", "tables", "alerts"],
@@ -17,15 +17,36 @@
       "actions": ["receiving_submit"]
     },
     "区域督导": {
-      "menus": ["regional", "home", "tables", "kitchen", "sop", "cost", "alerts", "report", "system"],
-      "actions": ["ack", "sop_assign", "report_generate"]
+      "menus": ["regional", "home", "tables", "kitchen", "sop", "cost", "alerts", "report", "tasks", "system"],
+      "actions": ["ack", "sop_assign", "report_generate", "task_create", "task_reassign", "task_verify", "task_reopen", "task_cancel"]
     },
     "总部PMO": {
-      "menus": ["admin", "admin_stores", "admin_pipeline", "cockpit", "regional", "report", "system", "alerts"],
-      "actions": ["report_generate", "sop_assign", "admin_write"]
+      "menus": ["admin", "admin_stores", "admin_pipeline", "cockpit", "regional", "report", "tasks", "system", "alerts"],
+      "actions": ["report_generate", "sop_assign", "admin_write", "task_create", "task_verify", "task_reopen"]
     },
     "集团决策者": {
       "menus": ["cockpit", "regional", "report"],
+      "actions": []
+    },
+    "班组长": {
+      "_role_id": "shift_lead",
+      "_scope": "store",
+      "_note": "本店·本班组执行督办；权限 < 店长；可桌态/任务 ack/reassign，不可收货提交或 Admin 写",
+      "menus": ["home", "tables", "tasks"],
+      "actions": ["ack", "table_correct", "task_ack", "task_reassign"]
+    },
+    "营销运营": {
+      "_role_id": "marketing_ops",
+      "_scope": "region|zone|national",
+      "_note": "仅写 F-SALES 规则/话术；不碰 SOP/阈值/用户管理；不参与任务 ack/复核",
+      "menus": ["regional", "sales", "report"],
+      "actions": ["sales_config"]
+    },
+    "财务审计": {
+      "_role_id": "finance_audit",
+      "_scope": "store|region|national (read-only)",
+      "_note": "成本/追溯/日报/审计只读；不可 ack/reassign/cancel 或任何写操作",
+      "menus": ["cost", "trace", "report"],
       "actions": []
     }
   },
@@ -43,6 +64,9 @@
     "cockpit": "集团驾驶仓",
     "admin": "运营后台",
     "admin_stores": "组织 · 门店",
-    "admin_pipeline": "数据流 · 打桩"
+    "admin_pipeline": "数据流 · 打桩",
+    "tasks": "任务督办中心",
+    "sales": "增收 · F-SALES",
+    "trace": "全链路追溯"
   }
 }
