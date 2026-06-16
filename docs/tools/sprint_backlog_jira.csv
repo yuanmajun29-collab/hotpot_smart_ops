@@ -35,3 +35,24 @@ IMP-301 POS API开通,Task,EPIC-5试点实施,0,P0,impl,Sprint 3,F-T03,US-013,We
 IMP-302 ERP联调窗口,Task,EPIC-5试点实施,0,P0,impl,Sprint 3,"F-C01,F-P01",US-050,PO接口
 IMP-401 2店刷机联调(玉环/椒江),Task,EPIC-5试点实施,0,P0,impl,Sprint 4,,,Go-Live就绪
 IMP-402 Go-Live验收,Task,EPIC-5试点实施,0,P0,impl,Sprint 4,MVP P0,US-001~063,10项P0+4周KPI
+DEV-408 玉环椒江ROI标定入库,Story,EPIC-6 UAT阻塞清零,3,P0,cv;uat,Sprint 2~4,F-T01,US-073,两店bbox写入config
+DEV-409 两店RTSP稳定拉流,Story,EPIC-6 UAT阻塞清零,3,P0,rtsp;edge,Sprint 2~4,F-T01,US-073,24h断线重连smoke
+DEV-410 生产推理yolo/rknn切换,Story,EPIC-6 UAT阻塞清零,5,P0,cv;rknn,Sprint 2~4,F-T01,US-073,准确率>=85%报告
+DEV-411 真MQTT传感器映射表,Story,EPIC-6 UAT阻塞清零,4,P0,iot,Sprint 2~4,"F-K01,F-K02","US-020, US-021",秤温湿度门磁topic
+DEV-412 温湿度曲线kitchen页,Story,EPIC-6 UAT阻塞清零,3,P0,iot;frontend,Sprint 4,F-K01,US-020,24h时序曲线
+DEV-413 门磁超时告警规则,Story,EPIC-6 UAT阻塞清零,2,P0,iot;alert,Sprint 4,F-K02,US-021,开门>3min事件
+DEV-414 店级企微webhook配置,Story,EPIC-6 UAT阻塞清零,1,P0,alert;devops,Sprint 4,F-A04,US-062,HOTPOT_WECHAT_WEBHOOK
+DEV-415 企微推送E2E与30sSLA,Story,EPIC-6 UAT阻塞清零,2,P0,alert;test,Sprint 4,"F-A04,F-K04","US-023, US-062",critical推送脚本
+DEV-416 PDA Step1 ERP PO列表,Story,EPIC-6 UAT阻塞清零,2,P0,pda;erp,Sprint 4,F-P01,US-050,GET /erp动态PO
+DEV-417 PDA Step2-3秤重探针,Story,EPIC-6 UAT阻塞清零,3,P0,pda;iot,Sprint 4,"F-P02,F-P03","US-051, US-052",MQTT秤+温度POST
+DEV-418 PDA Step4 VLM拍照,Story,EPIC-6 UAT阻塞清零,3,P0,pda;vlm,Sprint 4,"F-P05,F-C03",US-041,multipart review
+DEV-419 PDA Step5验收提交入库,Story,EPIC-6 UAT阻塞清零,3,P0,pda;backend,Sprint 4,"F-P06,F-C01","US-033, US-053",POST receiving/submit
+DEV-420 收货签字表与API,Story,EPIC-6 UAT阻塞清零,2,P0,backend,Sprint 4,"F-S05,F-P06",US-033,receiving_signatures
+DEV-421 SOP违规指派API,Story,EPIC-6 UAT阻塞清零,3,P0,sop;frontend,Sprint 4,F-S04,US-032,POST sop/assign
+DEV-422 督导审计查询API,Story,EPIC-6 UAT阻塞清零,2,P0,backend,Sprint 4,"F-A03,F-S05",US-061,audit端点
+DEV-423 22点自动日报调度,Story,EPIC-6 UAT阻塞清零,2,P0,llm;scheduler,Sprint 4,F-R01,US-063,APScheduler 22:00
+DEV-424 日报企微Push深链,Story,EPIC-6 UAT阻塞清零,2,P0,llm;alert,Sprint 4,F-R01,US-063,企微卡片+report链接
+DEV-425 角色菜单矩阵守卫,Story,EPIC-6 UAT阻塞清零,3,P0,frontend;rbac,Sprint 4,,US-071,§9矩阵侧栏
+DEV-426 操作级RBAC按钮拦截,Story,EPIC-6 UAT阻塞清零,2,P0,frontend;rbac,Sprint 4,,US-071,ack签字指派权限
+PM-401 Phase1产品评审,Task,EPIC-6 UAT阻塞清零,0,P0,product,Sprint 4,MVP P0,,PRD§5+§7评审
+PM-402 两店店长概念测试,Task,EPIC-6 UAT阻塞清零,0,P0,product,Sprint 4,MVP P0,,UAT§6+Changelog

@@ -54,12 +54,22 @@
             <h3>试点门店</h3>
             <div id="store-list">—</div>
           </div>
+          <div class="card">
+            <h3>企微 Webhook · DEV-414</h3>
+            <div id="webhook-routes">检测中…</div>
+          </div>
+        </div>
+        <div class="card" style="margin-top:20px">
+          <h3>平台能力</h3>
+          <div id="platform-features">—</div>
         </div>
         <div class="card" style="margin-top:20px">
           <h3>快捷 API</h3>
           <div class="metric-row"><span>健康检查</span><code id="api-health">—</code></div>
           <div class="metric-row"><span>运行指标</span><code id="api-metrics">—</code></div>
           <div class="metric-row"><span>跨店对标</span><code id="api-benchmark">—</code></div>
+          <div class="metric-row"><span>Webhook 路由</span><code id="api-routes">—</code></div>
+          <div class="metric-row"><span>测试推送</span><code id="api-test-push">—</code></div>
         </div>
       </main>
     </div>
@@ -71,13 +81,16 @@
     document.getElementById("api-health").textContent = base + "/health";
     document.getElementById("api-metrics").textContent = base + "/metrics";
     document.getElementById("api-benchmark").textContent = base + "/benchmark";
+    document.getElementById("api-routes").textContent = base + "/alerts/routes";
+    document.getElementById("api-test-push").textContent = base + "/alerts/test-push?store_id=" + HotpotApp.storeId();
 
     async function refresh() {
       try {
-        const [health, metrics, stores] = await Promise.all([
+        const [health, metrics, stores, routes] = await Promise.all([
           HotpotApp.fetchHealth(),
           HotpotApp.fetchMetrics(),
           HotpotApp.fetchStores(),
+          HotpotApp.fetchAlertRoutes(),
         ]);
         document.getElementById("hub-health").innerHTML = `
           <div class="metric-row"><span>状态</span><span class="status-ok">${health.status}</span></div>
@@ -95,6 +108,19 @@
         document.getElementById("store-list").innerHTML = list.map((s) =>
           `<div class="metric-row"><span>${s.store_name || s.store_id}</span><span>${s.has_data ? "有数据" : "空"}</span></div>`
         ).join("") || "暂无门店";
+        document.getElementById("webhook-routes").innerHTML = (routes.routes || []).map((r) =>
+          `<div class="metric-row">
+            <span>${r.store_name || r.store_id}</span>
+            <span class="${r.webhook_configured ? "status-ok" : "status-warn"}">
+              ${r.webhook_configured ? "已配置" : "未配置"} · ${r.webhook_source}
+            </span>
+          </div>`
+        ).join("") || "无路由";
+        document.getElementById("platform-features").innerHTML = `
+          <div class="metric-row"><span>告警网关</span><span class="status-ok">${health.alert_gateway ? "启用" : "关闭"}</span></div>
+          <div class="metric-row"><span>日报调度 22:00</span><span class="${health.daily_report_scheduler ? "status-ok" : "status-warn"}">${health.daily_report_scheduler ? "运行中" : "已关闭"}</span></div>
+          <div class="metric-row"><span>持久化</span><span>${health.db_backend || "sqlite"}</span></div>
+        `;
       } catch (e) {
         document.getElementById("hub-health").innerHTML = `<span class="status-warn">Hub 未连接: ${e.message}</span>`;
       }

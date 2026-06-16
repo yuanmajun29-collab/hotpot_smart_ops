@@ -4,7 +4,7 @@
 
 | 项目 | 内容 |
 |------|------|
-| 版本 | V1.1 |
+| 版本 | V1.3 |
 | 周期 | 12 周（4 Sprint × 3 周） |
 | 总工时 | 约 **420 人日**（含缓冲 15%） |
 | 关联 | [product_design.md](product_design.md) · [user_story_map.md](user_story_map.md) · [design_dev_implementation_plan.md](design_dev_implementation_plan.md) |
@@ -20,6 +20,7 @@
 | EPIC-3 | 智能与集成（VLM/LLM/POS/告警） | S3 | 算法 + 后端 |
 | EPIC-4 | 试点就绪（看板/镜像/UAT） | S4 | 前端 + DevOps + PM |
 | EPIC-5 | 试点实施（并行） | S2~S4 | 区域 IT + PMO |
+| EPIC-6 | **UAT Go-Live 阻塞清零** | S2~S4+ | 全员（见 [§6.1](#61-uat-go-live-阻塞专项dev-408)） |
 
 ---
 
@@ -214,7 +215,7 @@ flowchart TB
 | DEV-406 | 试点部署 Runbook + 培训课件 | — | — | — | PM + 后端 | 3 | 全部 DEV | P0 | 3 |
 | DEV-407 | 2 店 UAT 配置包（玉环/椒江 ROI/MQTT/账号） | F-T01 | US-073 | — | 后端 + 算法 | 5 | DEV-402, DEV-404 | P0 | 5 |
 | IMP-401 | 2 店现场施工 + 刷机 + 联调（玉环/椒江） | — | — | — | 区域 IT | — | DEV-404 | P0 | — |
-| IMP-402 | Go-Live 验收（10 项 P0） | MVP 全部 P0 | US-001~063 | — | PMO | — | DEV-407 | P0 | — |
+| IMP-402 | Go-Live 验收（10 项 P0） | MVP 全部 P0 | US-001~063 | — | PMO | — | DEV-407, **EPIC-6 全部 P0** | P0 | — |
 
 **Sprint 4 合计**：41 人日 · 41 SP
 
@@ -227,6 +228,118 @@ flowchart TB
 - [ ] 玉环 + 椒江各 1 份 config.json + ROI + MQTT topic 表
 - [ ] staging 全链路跑通 24h
 - [ ] 店长/督导测试账号可用
+
+---
+
+## 6.1 UAT Go-Live 阻塞专项（DEV-408+）
+
+> 来源：[phase1_mvp_acceptance_checklist.md §5](phase1_mvp_acceptance_checklist.md#5-uat-阻塞项go-live-前必须清零)  
+> **目标**：IMP-402 Go-Live 前 8 条阻塞项全部勾选；子任务全部 **P0**，优先于 P1 功能扩展。
+
+### 阻塞项 → 子任务映射
+
+| BL | 阻塞项（验收表 §5） | 子任务 | 父任务 / 依赖 |
+|----|---------------------|--------|---------------|
+| **BL-01** | 桌态来自真实摄像头 | DEV-408, DEV-409, DEV-410 | DEV-202~204, DEV-407, IMP-201 |
+| **BL-02** | IoT 真传感器上线 | DEV-411, DEV-412, DEV-413 | DEV-205~207, DEV-402, IMP-201 |
+| **BL-03** | 企微 webhook 配置并联调 | DEV-414, DEV-415 | DEV-306, DEV-103 |
+| **BL-04** | PDA 与 Hub/ERP/秤/VLM 打通 | DEV-416, DEV-417, DEV-418, DEV-419 | DEV-403, DEV-305, DEV-301, DEV-206 |
+| **BL-05** | 签字与 ack 持久化审计 | DEV-420, DEV-421, DEV-422 | DEV-101, DEV-306, DEV-403 |
+| **BL-06** | 22:00 自动日报 + 推送 | DEV-423, DEV-424 | DEV-302, DEV-306 |
+| **BL-07** | RBAC 按角色隐藏菜单/操作 | DEV-425, DEV-426 | DEV-401, DEV-402 |
+| **BL-08** | 产品评审 + 店长概念测试 | PM-401, PM-402 | [验收表 §6~7](phase1_mvp_acceptance_checklist.md#6-现场-upt-脚本勾选用) |
+
+```mermaid
+flowchart LR
+    subgraph BL01 [BL-01 桌态真数据]
+        DEV408[DEV-408 ROI标定]
+        DEV409[DEV-409 RTSP稳定]
+        DEV410[DEV-410 生产推理]
+    end
+    subgraph BL04 [BL-04 PDA打通]
+        DEV416[DEV-416 PO列表]
+        DEV417[DEV-417 秤温]
+        DEV418[DEV-418 VLM拍照]
+        DEV419[DEV-419 提交入库]
+    end
+    DEV408 --> DEV410
+    DEV409 --> DEV410
+    DEV416 --> DEV417 --> DEV418 --> DEV419
+    DEV410 --> IMP402[IMP-402 Go-Live]
+    DEV419 --> IMP402
+    DEV415[DEV-415 企微E2E] --> IMP402
+    PM402[PM-402 概念测试] --> IMP402
+```
+
+### 子任务明细
+
+| ID | 标题 | PRD | US | 负责人 | 人日 | 依赖 | 优先级 | SP | BL |
+|----|------|-----|-----|--------|------|------|--------|-----|-----|
+| **DEV-408** | 玉环/椒江 ROI 标定交付 + `store_config.rois` 入库 | F-T01 | US-073 | 算法 + IT | 3 | DEV-203, IMP-201 | P0 | 3 | BL-01 |
+| **DEV-409** | 两店 RTSP 多路拉流 + 断线重连 24h smoke | F-T01,F-T02 | US-010, US-073 | 嵌入式 | 3 | DEV-203, IMP-201 | P0 | 3 | BL-01 |
+| **DEV-410** | 边缘推理 `mock→yolo/rknn` 切换 + 准确率摸底报告 | F-T01 | US-073 | 算法 | 5 | DEV-202, DEV-204, DEV-408 | P0 | 5 | BL-01 |
+| **DEV-411** | 真 MQTT 传感器 topic 注册 + 店级映射表（秤/温湿度/门磁） | F-K01,F-K02 | US-020, US-021 | 嵌入式 | 4 | DEV-205, IMP-201 | P0 | 4 | BL-02 |
+| **DEV-412** | 温湿度时序入库 + `kitchen.html` 24h 曲线 | F-K01 | US-020 | 前端 + 后端 | 3 | DEV-411, DEV-402 | P0 | 3 | BL-02 |
+| **DEV-413** | 门磁超时规则（>3min）+ warn/critical 事件生成 | F-K02 | US-021 | 后端 + 嵌入式 | 2 | DEV-411, DEV-306 | P0 | 2 | BL-02 |
+| **DEV-414** | 店级 `HOTPOT_WECHAT_WEBHOOK` 配置 + 部署清单项 | F-A04 | US-062 | DevOps + 后端 | 1 | DEV-306, DEV-103 | P0 | 1 | BL-03 |
+| **DEV-415** | critical 企微推送 E2E 测试 + 30s SLA 脚本 | F-A04,F-K04 | US-023, US-062 | 后端 + 测试 | 2 | DEV-414 | P0 | 2 | BL-03 |
+| **DEV-416** | PDA Step1：`GET /erp` 当日 PO 动态列表 | F-P01 | US-050 | 前端 | 2 | DEV-403, DEV-305 | P0 | 2 | BL-04 |
+| **DEV-417** | PDA Step2~3：MQTT 秤重 + 探针温度 `POST` Hub | F-P02,F-P03 | US-051, US-052 | 前端 + 嵌入式 | 3 | DEV-416, DEV-206 | P0 | 3 | BL-04 |
+| **DEV-418** | PDA Step4：拍照 `multipart` → VLM `/review` 等级回显 | F-P05,F-C03 | US-041 | 前端 | 3 | DEV-417, DEV-301 | P0 | 3 | BL-04 |
+| **DEV-419** | PDA Step5：`POST /receiving/submit` 双人签字 + 批次入库 | F-P06,F-C01 | US-033, US-053 | 后端 + 前端 | 3 | DEV-418, DEV-420 | P0 | 3 | BL-04 |
+| **DEV-420** | `receiving_signatures` 表 + 签字查询 API | F-S05,F-P06 | US-033 | 后端 | 2 | DEV-101 | P0 | 2 | BL-05 |
+| **DEV-421** | SOP 违规指派 `POST /sop/assign` + 工单状态 | F-S04 | US-032 | 后端 + 前端 | 3 | DEV-307, DEV-402 | P0 | 3 | BL-05 |
+| **DEV-422** | 督导审计 `GET /audit/acks` + `/audit/signatures` | F-A03,F-S05 | US-061 | 后端 | 2 | DEV-420, DEV-306 | P0 | 2 | BL-05 |
+| **DEV-423** | APScheduler 22:00 自动日报生成（店级时区） | F-R01 | US-063 | 后端 | 2 | DEV-302 | P0 | 2 | BL-06 |
+| **DEV-424** | 日报企微 Push 卡片 + 深链 `report.html` | F-R01 | US-063 | 后端 | 2 | DEV-423, DEV-414 | P0 | 2 | BL-06 |
+| **DEV-425** | 角色→菜单矩阵 JSON + 侧栏/路由守卫 | — | US-071 | 前端 | 3 | DEV-401 | P0 | 3 | BL-07 |
+| **DEV-426** | 操作级 RBAC（ack/签字/指派/桌态纠正）按钮拦截 | — | US-071 | 前端 | 2 | DEV-425, DEV-402 | P0 | 2 | BL-07 |
+| **PM-401** | Phase 1 MVP 产品评审（PRD §5 + §7 线框） | MVP P0 | — | 产品 + PMO | 1 | — | P0 | — | BL-08 |
+| **PM-402** | 玉环+椒江店长概念测试 + PRD/Figma Changelog | MVP P0 | — | 产品 | 2 | PM-401, DEV-402 | P0 | — | BL-08 |
+
+**EPIC-6 合计**：研发 **48 人日 · 48 SP** + 产品 **3 人日**（PM-401/402）
+
+### DEV-408 验收标准
+- [ ] 玉环、椒江各店每桌 `table_id` + `bbox` ROI 写入 `demo/data/stores/*/config.json`
+- [ ] ROI 可视化预览图归档（供法务/店长签字）
+- [ ] Hub `/tables` 与边缘 config `rois` 字段一致
+
+### DEV-410 验收标准
+- [ ] 边缘 `HOTPOT_DETECTOR_BACKEND=yolo` 或 `rknn` 生产默认，mock 仅 dev
+- [ ] 试点店抽样 100 帧四态准确率 ≥85%
+- [ ] 混淆矩阵 + 误报率报告提交 PMO
+
+### DEV-415 验收标准
+- [ ] 注入 synthetic critical 事件 → 店长企微 30s 内收到
+- [ ] `pytest` 或 `scripts/wecom_push_e2e.sh` 纳入 CI 可选门禁
+- [ ] 失败时 push-log 可查原因
+
+### DEV-419 验收标准
+- [ ] PDA 全流程 <3min/批次（UAT 脚本 UAT-P01~P05）
+- [ ] 提交后 `cost.html` 可见新批次且偏差正确
+- [ ] 签字记录 `GET /audit/signatures` 可查询
+
+### DEV-423 验收标准
+- [ ] 22:00（Asia/Shanghai）自动生成当日日报 Markdown 入库
+- [ ] Hub 重启后调度器恢复，不重复生成同日主键
+- [ ] 手动触发与定时任务共用 `report_agent` 逻辑
+
+### DEV-425 验收标准
+- [ ] 7 角色菜单可见性与 [product_design.md §9](product_design.md#9-权限与角色) 矩阵一致
+- [ ] 收货员登录仅见 PDA；督导默认 `regional.html`
+- [ ] 越权 API 返回 403（前后端双重校验）
+
+### PM-402 验收标准
+- [ ] 2 店店长各完成 [验收表 §6](phase1_mvp_acceptance_checklist.md#6-现场-upt-脚本勾选用) 50min UAT
+- [ ] 概念测试五问回答写入 PRD Changelog 或 `docs/uat_feedback_*.md`
+- [ ] 阻塞项未清零项有明确延期日期与责任人
+
+### 建议执行顺序（2 周冲刺）
+
+| 周 | 并行泳道 A（现场/边缘） | 并行泳道 B（云端/前端） | 并行泳道 C（产品） |
+|----|-------------------------|-------------------------|-------------------|
+| W1 | DEV-408→410, DEV-411→413 | DEV-414→415, DEV-420→422 | PM-401 |
+| W2 | DEV-409 + IMP-401 联调 | DEV-416→419, DEV-423→424, DEV-425→426 | PM-402 → IMP-402 |
 
 ---
 
@@ -400,8 +513,33 @@ IMP-402 Go-Live验收,Task,EPIC-5试点实施,0,P0,impl,Sprint 4,10项P0,4周KPI
 | DEV-402 | S4 | F-H02~F-R02 等 | US-001~060 | Web/* |
 | DEV-403 | S4 | F-P01~P06 | US-033,050~053 | PDA/Recv-* |
 | DEV-407 | S4 | F-T01 | US-073 | — |
+| DEV-408~410 | S2~S4 | F-T01,F-T02 | US-010, US-073 | Web/Tables |
+| DEV-411~413 | S2~S4 | F-K01,F-K02 | US-020, US-021 | Web/Kitchen |
+| DEV-414~415 | S3~S4 | F-A04,F-K04 | US-023, US-062 | Push/Alert-* |
+| DEV-416~419 | S4 | F-P01~P06,F-C03 | US-033, US-041, US-050~053 | PDA/Recv-* |
+| DEV-420~422 | S4 | F-S04,F-S05,F-A03 | US-032, US-033, US-061 | Web/SOP, Web/Alerts |
+| DEV-423~424 | S3~S4 | F-R01 | US-063 | Web/Report, Push/DailyReport |
+| DEV-425~426 | S4 | — | US-071 | Web/Login |
+| PM-401~402 | S4 | MVP P0 | — | — |
 
-完整 PRD 列表见 [product_design.md §5](product_design.md#5-功能规格feature-prd) · 用户故事见 [user_story_map.md §4](user_story_map.md#4-release-1-用户故事详表可进-jiralinear)
+完整 PRD 列表见 [product_design.md §5](product_design.md#5-功能规格feature-prd) · 用户故事见 [user_story_map.md §4](user_story_map.md#4-release-1-用户故事详表可进-jiralinear) · UAT 阻塞见 [§6.1](#61-uat-go-live-阻塞专项dev-408)
+
+---
+
+## 12.1 Phase 2 全国连锁（预排 · 未启动）
+
+> 规格：[product_hierarchy_national_chain.md](product_hierarchy_national_chain.md) · 架构：[architecture_hierarchy_phase_plan.md](architecture_hierarchy_phase_plan.md)
+
+| DEV | Epic | 任务 | PRD | 预估 |
+|-----|------|------|-----|------|
+| DEV-501 | EPIC-7 组织 | `orgs/zones/regions/stores` 表 + 迁移 | F-HQ08 | 8d |
+| DEV-502 | EPIC-7 组织 | Admin 门店 CRUD API + `admin/stores.html` | F-HQ08 | 10d |
+| DEV-503 | EPIC-7 访问 | 用户/角色/权限 CRUD + strict scope | F-HQ09/10 | 12d |
+| DEV-504 | EPIC-7 看板 | `national.html` + `/v1/national/overview` | F-HQ12 | 6d |
+| DEV-505 | EPIC-7 审计 | `admin_audit_log` + 列表页 | F-HQ11 | 5d |
+| DEV-506 | EPIC-7 配置 | SOP/阈值 OTA 配置中心 | F-HQ02/03 | 10d |
+
+**EPIC-7**：全国连锁运营后台（Phase 2，约 10~12 周，与 20 店 rollout 并行）
 
 ---
 
@@ -427,5 +565,7 @@ IMP-402 Go-Live验收,Task,EPIC-5试点实施,0,P0,impl,Sprint 4,10项P0,4周KPI
 
 | 版本 | 日期 | 说明 |
 |------|------|------|
+| V1.3 | 2026-06-16 | 新增 §12.1 Phase 2 EPIC-7（DEV-501~506 全国连锁 Admin） |
+| V1.2 | 2026-06-15 | 新增 §6.1 UAT Go-Live 阻塞专项 DEV-408~426 + PM-401/402 |
 | V1.1 | 2026-06-12 | 增加 PRD/US/Figma 追溯列 + §12 矩阵 |
 | V1.0 | 2026-06-12 | 初版：Sprint 1~4 + Jira CSV + Linear 模板 |

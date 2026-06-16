@@ -25,13 +25,49 @@ curl http://127.0.0.1:8088/benchmark
 
 ## 完整方案文档
 
+**产品设计（入口）** → **[docs/product_design_index.md](docs/product_design_index.md)** — 文档索引与阶段 DoD
+
+| 类型 | 文档 |
+|------|------|
+| 目标 | [product_goal_card.md](docs/product_goal_card.md) — 一页目标卡 |
+| PRD | [product_design.md](docs/product_design.md) — 产品设计规格 V1.1 |
+| 故事 | [user_story_map.md](docs/user_story_map.md) — 用户故事地图 |
+| 界面 | [figma_component_spec.md](docs/figma_component_spec.md) — 组件与 Frame |
+| 推送 | [push_notification_templates.md](docs/push_notification_templates.md) — 企微文案 |
+| 验收 | [phase1_mvp_acceptance_checklist.md](docs/phase1_mvp_acceptance_checklist.md) — MVP 勾选表 |
+| 评审 | [product_review_checklist.md](docs/product_review_checklist.md) — PM-401 |
+| 评审结论回填 | [pm401_review_outcome_template.md](docs/pm401_review_outcome_template.md) — 通过/有条件通过 |
+| 邀请 | [pm401_meeting_invite_template.md](docs/pm401_meeting_invite_template.md) — 模板 |
+| 邀请定稿 | [pm401_meeting_invite_20260617.md](docs/pm401_meeting_invite_20260617.md) — **6/17 14:00** |
+| 议程 PDF | [pm401_meeting_agenda_20260617.html](docs/pm401_meeting_agenda_20260617.html) — 打印/导出 PDF |
+| PM-402 邀请 | [pm402_meeting_invite_20260619_20.md](docs/pm402_meeting_invite_20260619_20.md) — **6/19·6/20** |
+| 日历 ICS | [product_meetings_phase1.ics](docs/product_meetings_phase1.ics) — 含腾讯会议 888-888-888 |
+| 腾讯会议配置 | [product_meetings_tencent.md](docs/product_meetings_tencent.md) — 替换真实会议号 |
+| UAT | [uat_concept_test_record.md](docs/uat_concept_test_record.md) — PM-402 |
+| 变更 | [product_design_changelog.md](docs/product_design_changelog.md) |
+
+**架构设计（Phase 1）**
+
+| 文档 | 用途 |
+|------|------|
+| [architecture_design_index.md](docs/architecture_design_index.md) | 索引 · DoD · **AR-401 入口** |
+| [architecture_design_phase1.md](docs/architecture_design_phase1.md) | Phase 1 架构规格 |
+| [architecture_api_spec.md](docs/architecture_api_spec.md) | REST API + /v1 规划 |
+| [architecture_data_model_phase1.md](docs/architecture_data_model_phase1.md) | OpsEvent · 表结构 |
+| [architecture_deployment_phase1.md](docs/architecture_deployment_phase1.md) | docker · systemd · 两店 |
+| [architecture_decisions.md](docs/architecture_decisions.md) | ADR-001~008 |
+| [architecture_review_checklist.md](docs/architecture_review_checklist.md) | AR-401 评审清单 |
+| [ar401_code_directory_mapping.md](docs/ar401_code_directory_mapping.md) | **会前必读** · 代码目录映射 |
+| [ar401_meeting_invite_20260618.md](docs/ar401_meeting_invite_20260618.md) | **6/18 10:00** 邀请定稿 |
+| [ar401_meeting_agenda_20260618.html](docs/ar401_meeting_agenda_20260618.html) | 可打印议程 |
+| [architecture_review_outcome_template.md](docs/architecture_review_outcome_template.md) | 会后回填 |
+| [architecture_changelog.md](docs/architecture_changelog.md) | 架构变更日志 |
+
+**方案与实施**
 - **[docs/solution.md](docs/solution.md)** — V2.0 完整方案（17 章）
-- **[docs/product_design.md](docs/product_design.md)** — 产品设计文档（PRD）
-- **[docs/user_story_map.md](docs/user_story_map.md)** — 用户故事地图
-- **[docs/figma_component_spec.md](docs/figma_component_spec.md)** — Figma 组件清单
 - **[docs/design_dev_implementation_plan.md](docs/design_dev_implementation_plan.md)** — 设计 · 开发 · 实施方案（主计划）
 - **[docs/executive_summary_onepager.md](docs/executive_summary_onepager.md)** — 决策层一页纸
-- **[docs/sprint_task_backlog.md](docs/sprint_task_backlog.md)** — Sprint 1~4 任务（Jira/Linear 模板）
+- **[docs/sprint_task_backlog.md](docs/sprint_task_backlog.md)** — Sprint 1~4 任务（含 §6.1 UAT 阻塞专项）
 - **[docs/pilot_deployment_checklist.md](docs/pilot_deployment_checklist.md)** — 试点部署清单索引
   - [直营店清单](docs/pilot_deployment_checklist_direct.md)
   - [加盟店清单](docs/pilot_deployment_checklist_franchise.md)
@@ -121,12 +157,21 @@ bash demo/run_vision_daemon.sh --stop
 # IoT 模拟
 python3 edge/iot_mock/sensor_simulator.py --hub-url http://127.0.0.1:8088 --inject-anomaly
 
-# MQTT 桥接（需 broker；可用 docker compose --profile iot up -d）
+# IoT 打桩（无需 MQTT / 真设备，BL-02）
+./scripts/run_iot_stub.sh                  # 两店 normal，30s 周期
+./scripts/run_iot_stub.sh door_alert       # 门磁超时演示（15s 阈值）
+./scripts/run_iot_stub.sh --stop
+
+# MQTT 桥接（真设备接入后使用）
 python3 edge/iot_mock/mqtt_bridge.py --store-id store_yuhuan --hub-url http://127.0.0.1:8088
 python3 edge/iot_mock/mqtt_bridge.py --store-id store_yuhuan --mock-publish  # 向 broker 发模拟数据
 
 # RTSP 模式（UAT config stream_mode=rtsp；无摄像头时自动回退静态图）
 HOTPOT_RTSP_ENABLED=1 python3 edge/stream/vision_worker.py --store-id store_yuhuan --hub-url http://127.0.0.1:8088
+
+# BL-01 试点真 CV 一键切换（RTSP + yolo，改 deploy/uat 配置并重启 daemon）
+./scripts/enable_pilot_cv.sh pilot yolo    # 启用
+./scripts/enable_pilot_cv.sh demo mock   # 回退演示模式
 
 # YOLO/ONNX 模型推理（需 models/table_state.onnx，见 models/README.md）
 python3 edge/stream/vision_worker.py --backend yolo --store-id store_yuhuan --hub-url http://127.0.0.1:8088

@@ -13,6 +13,10 @@ services:
     environment:
       HOTPOT_AUTH_MODE: demo
       HOTPOT_DATABASE_URL: ${HOTPOT_DATABASE_URL:-}
+      HOTPOT_WECHAT_WEBHOOK: ${HOTPOT_WECHAT_WEBHOOK:-}
+      HOTPOT_WECHAT_WEBHOOK_STORE_YUHUAN: ${HOTPOT_WECHAT_WEBHOOK_STORE_YUHUAN:-}
+      HOTPOT_WECHAT_WEBHOOK_STORE_JIAOJIANG: ${HOTPOT_WECHAT_WEBHOOK_STORE_JIAOJIANG:-}
+      HOTPOT_PUSH_WARN: ${HOTPOT_PUSH_WARN:-0}
     healthcheck:
       test: ["CMD", "python3", "-c", "import urllib.request; urllib.request.urlopen('http://127.0.0.1:8088/health')"]
       interval: 15s

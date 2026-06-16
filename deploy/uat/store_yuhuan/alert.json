@@ -1,0 +1,10 @@
+{
+  "store_id": "store_yuhuan",
+  "store_name": "冯校长火锅·玉环店",
+  "webhook_url": "",
+  "webhook_env": "HOTPOT_WECHAT_WEBHOOK_STORE_YUHUAN",
+  "recipients": ["店长", "厨师长"],
+  "push_warn": false,
+  "dashboard_url": "http://127.0.0.1:3000/alerts.html",
+  "note": "生产环境将 webhook 写入店级 env 或 HOTPOT_WECHAT_WEBHOOK 全局兜底"
+}

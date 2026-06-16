@@ -26,10 +26,13 @@
             <option value="店长">店长</option>
             <option value="前厅领班">前厅领班</option>
             <option value="厨师长">厨师长</option>
+            <option value="收货员">收货员</option>
             <option value="区域督导">区域督导</option>
+            <option value="总部PMO">总部 PMO</option>
+            <option value="集团决策者">集团决策者（老板）</option>
           </select>
         </div>
-        <div class="form-group">
+        <div class="form-group" id="store-group">
           <label>门店</label>
           <select id="store">
             <option value="冯校长火锅·玉环店" data-store-id="store_yuhuan">冯校长火锅·玉环店</option>
@@ -50,11 +53,46 @@
       return /Android|iPhone|iPad|iPod|Mobile/i.test(navigator.userAgent) || window.innerWidth <= 520;
     }
     function targetAfterLogin(mobile, role) {
+      if (role === "集团决策者") return mobile ? "mobile/index.html" : "cockpit.html";
+      if (role === "总部PMO" || role === "总部 IT") {
+        return mobile ? "mobile/index.html" : HotpotApp.adminPageUrl("admin/index.html");
+      }
       if (role === "区域督导") return mobile ? "mobile/index.html" : "regional.html";
+      if (role === "收货员") return "pda/receiving.html";
       return mobile ? "mobile/index.html" : "home.html";
     }
+    function isNoStoreRole(role) {
+      return role === "总部PMO" || role === "总部 IT" || role === "集团决策者";
+    }
+    function isHQRole(role) {
+      return role === "总部PMO" || role === "总部 IT";
+    }
+
+    function updateRoleUI() {
+      const role = document.getElementById("role").value;
+      const noStore = isNoStoreRole(role);
+      document.getElementById("store-group").style.display = noStore ? "none" : "";
+      const btn = document.getElementById("btn-desktop");
+      if (role === "集团决策者") btn.textContent = "进入集团驾驶仓";
+      else if (isHQRole(role)) btn.textContent = "进入运营后台";
+      else btn.textContent = "进入桌面看板";
+    }
+
     const params = new URLSearchParams(location.search);
     const preferMobile = params.get("mobile") === "1";
+
+    if (params.get("admin") === "1") {
+      document.getElementById("username").value = "zongbu";
+      document.getElementById("role").value = "总部PMO";
+      HotpotApp.syncDeploymentOrigins({ admin: true });
+    } else if (params.get("cockpit") === "1") {
+      document.getElementById("username").value = "laoban";
+      document.getElementById("role").value = "集团决策者";
+    } else if (location.port !== "3001") {
+      HotpotApp.syncDeploymentOrigins({ combined: true });
+    }
+    document.getElementById("role").onchange = updateRoleUI;
+    updateRoleUI();
 
     if (HotpotApp.getAuth()) {
       const a = HotpotApp.getAuth();
@@ -66,27 +104,32 @@
       const role = document.getElementById("role").value;
       const username = document.getElementById("username").value || "zhangdian";
       const password = document.getElementById("password").value || "demo";
-      const storeName = storeEl.value;
-      const storeIdVal = storeEl.selectedOptions[0]?.dataset.storeId || "store_yuhuan";
+      const isHQ = isHQRole(role);
+      const isExec = role === "集团决策者";
+      const noStore = isNoStoreRole(role);
+      const storeName = isExec ? "集团总部" : isHQ ? "全国总部" : storeEl.value;
+      const storeIdVal = noStore ? "store_yuhuan" : (storeEl.selectedOptions[0]?.dataset.storeId || "store_yuhuan");
 
       HotpotApp.hubLogin(username, password, storeIdVal, role)
         .then((tok) => {
           const isRegional = role === "区域督导";
+          const user = tok.user || {};
           HotpotApp.setAuth({
-            name: username,
-            role,
-            storeName: isRegional ? "台州区域" : storeName,
-            storeId: isRegional ? "store_yuhuan" : storeIdVal,
+            name: user.name || username,
+            role: user.role || role,
+            storeName: isExec ? "集团总部" : isHQ ? "全国总部" : isRegional ? "台州区域" : storeName,
+            storeId: noStore || isRegional ? "*" : storeIdVal,
             token: tok.access_token,
           });
-          window.location.href = targetAfterLogin(mobile, role);
+          window.location.href = targetAfterLogin(mobile, user.role || role);
         })
         .catch(() => {
+          const isRegional = role === "区域督导";
           HotpotApp.setAuth({
             name: username,
             role,
-            storeName,
-            storeId: storeIdVal,
+            storeName: isExec ? "集团总部" : isHQ ? "全国总部" : isRegional ? "台州区域" : storeName,
+            storeId: noStore || isRegional ? "*" : storeIdVal,
           });
           window.location.href = targetAfterLogin(mobile, role);
         });

@@ -27,7 +27,10 @@ DEMO_USERS = {
     ("zhangdian", "demo"): {"role": "店长", "name": "张店长"},
     ("lingban", "demo"): {"role": "前厅领班", "name": "李领班"},
     ("chushi", "demo"): {"role": "厨师长", "name": "王厨师长"},
+    ("shouhuo", "demo"): {"role": "收货员", "name": "赵收货"},
     ("quyududao", "demo"): {"role": "区域督导", "name": "区域督导", "store_id": "*"},
+    ("zongbu", "demo"): {"role": "总部PMO", "name": "总部PMO", "store_id": "*"},
+    ("laoban", "demo"): {"role": "集团决策者", "name": "冯老板", "store_id": "*"},
 }
 
 bearer_scheme = HTTPBearer(auto_error=False)
@@ -48,12 +51,32 @@ class AuthContext(BaseModel):
     auth_type: str  # jwt | api_key | anonymous
 
 
+def data_scope_for_role(role: str) -> str:
+    if role in ("总部PMO", "总部 IT", "集团决策者"):
+        return "national"
+    if role == "区域督导":
+        return "region"
+    return "store"
+
+
+def can_admin(auth: AuthContext) -> bool:
+    return auth.role in ("总部PMO", "总部 IT")
+
+
+def enforce_admin(auth: AuthContext) -> None:
+    if AUTH_MODE == "demo" and auth.auth_type == "anonymous":
+        return
+    if not can_admin(auth):
+        raise HTTPException(status_code=403, detail="Admin access required")
+
+
 def create_access_token(username: str, role: str, store_id: str) -> str:
     now = datetime.now(timezone.utc)
     payload = {
         "sub": username,
         "role": role,
         "store_id": store_id,
+        "data_scope": data_scope_for_role(role),
         "iat": now,
         "exp": now + timedelta(hours=JWT_EXPIRE_HOURS),
     }
@@ -81,12 +104,20 @@ def login_user(req: TokenRequest) -> Dict[str, Any]:
     role = req.role or user["role"]
     if role == "区域督导":
         store_id = "*"
+    if role in ("总部PMO", "总部 IT", "集团决策者"):
+        store_id = "*"
     token = create_access_token(req.username, role, store_id)
     return {
         "access_token": token,
         "token_type": "bearer",
         "expires_in": JWT_EXPIRE_HOURS * 3600,
-        "user": {"username": req.username, "name": user["name"], "role": role, "store_id": store_id},
+        "user": {
+            "username": req.username,
+            "name": user["name"],
+            "role": role,
+            "store_id": store_id,
+            "data_scope": data_scope_for_role(role),
+        },
     }
 
 
@@ -102,7 +133,7 @@ def resolve_api_key(key: Optional[str]) -> Optional[AuthContext]:
 def can_read_store(auth: AuthContext, store_id: str) -> bool:
     if auth.store_id == "*":
         return True
-    if auth.role == "区域督导":
+    if auth.role in ("区域督导", "集团决策者"):
         return True
     return auth.store_id == store_id
 
@@ -110,10 +141,14 @@ def can_read_store(auth: AuthContext, store_id: str) -> bool:
 def can_write_store(auth: AuthContext, store_id: str) -> bool:
     if auth.auth_type == "api_key":
         return auth.store_id == "*" or auth.store_id == store_id
+    if auth.role == "集团决策者":
+        return False
     if auth.role == "区域督导":
         return True
     if auth.role in ("店长", "厨师长", "前厅领班", "edge"):
         return auth.store_id == "*" or auth.store_id == store_id
+    if auth.role == "收货员":
+        return auth.store_id == store_id
     return False
 
 

@@ -13,9 +13,10 @@
     "push_warn": false,
     "dashboard_url": "http://127.0.0.1:3000/alerts.html"
   },
-  "defaults": {
+    "defaults": {
     "escalate_minutes": 30,
     "push_warn_env": "HOTPOT_PUSH_WARN",
-    "webhook_env": "HOTPOT_WECHAT_WEBHOOK"
+    "webhook_env": "HOTPOT_WECHAT_WEBHOOK",
+    "webhook_env_per_store": "HOTPOT_WECHAT_WEBHOOK_{STORE_ID}"
   }
 }

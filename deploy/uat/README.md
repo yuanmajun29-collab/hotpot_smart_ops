@@ -15,6 +15,33 @@
 | `mqtt_topics.json` | MQTT topic 与传感器映射 |
 | `roi_tables.json` | 前厅桌位 ROI 标定（8 桌） |
 | `accounts.json` | 看板/PDA 演示账号（PoC 用，生产换 JWT） |
+| `alert.json` | 企微 webhook 路由（DEV-414） |
+
+## 企微 Webhook（DEV-414 · BL-03）
+
+店级配置优先级：`alert.json` 内 `webhook_url` → 店级 env → 全局 `HOTPOT_WECHAT_WEBHOOK`。
+
+| 门店 | 环境变量 |
+|------|----------|
+| 玉环 | `HOTPOT_WECHAT_WEBHOOK_STORE_YUHUAN` |
+| 椒江 | `HOTPOT_WECHAT_WEBHOOK_STORE_JIAOJIANG` |
+| 全局兜底 | `HOTPOT_WECHAT_WEBHOOK` |
+
+```bash
+# 1. 配置（见 deploy/.env.wechat.example）
+export HOTPOT_WECHAT_WEBHOOK_STORE_YUHUAN='https://qyapi.weixin.qq.com/cgi-bin/webhook/send?key=...'
+
+# 2. 检查路由状态
+curl -s 'http://127.0.0.1:8088/alerts/routes?store_id=store_yuhuan' | python3 -m json.tool
+
+# 3. 发送测试卡片（店长手机应收到）
+python3 scripts/send_test_wechat_alert.py --store-id store_yuhuan
+
+# 4. SLA 探针（critical 30s 内送达）
+python3 scripts/test_wechat_push_sla.py --store-id store_yuhuan
+```
+
+warn 级默认不推手机；开启：`export HOTPOT_PUSH_WARN=1`
 
 ## 鉴权（DEV-102）
 

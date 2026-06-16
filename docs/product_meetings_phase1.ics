@@ -1,0 +1,110 @@
+BEGIN:VCALENDAR
+VERSION:2.0
+PRODID:-//Fengxiaozhang Hotpot//Smart Ops Phase1//ZH
+CALSCALE:GREGORIAN
+METHOD:PUBLISH
+X-WR-CALNAME:冯校长火锅·智能运营 Phase1 产品+架构会议
+X-WR-TIMEZONE:Asia/Shanghai
+BEGIN:VTIMEZONE
+TZID:Asia/Shanghai
+X-LIC-LOCATION:Asia/Shanghai
+BEGIN:STANDARD
+TZOFFSETFROM:+0800
+TZOFFSETTO:+0800
+TZNAME:CST
+DTSTART:19700101T000000
+END:STANDARD
+END:VTIMEZONE
+BEGIN:VEVENT
+UID:pm401-20260617@hotpot-smart-ops.local
+DTSTAMP:20260615T060000Z
+DTSTART;TZID=Asia/Shanghai:20260617T140000
+DTEND;TZID=Asia/Shanghai:20260617T160000
+SUMMARY:PM-401 Phase1 MVP 产品评审
+LOCATION:腾讯会议 888-888-888 密码 061717
+DESCRIPTION:腾讯会议号：888-888-888\n会议密码：061717\n入会链接：https://meeting.tencent.com/dm/placeholder-replace-after-create\n（占位：真实会议号见 docs/product_meetings_tencent.json）\n\n冯校长火锅·智能运营 Phase 1 MVP 产品评审\n\n14:00-14:15 目标与边界\n14:15-15:15 功能走查+看板演示\n15:15-15:45 体验专项\n15:45-16:00 原则+阻塞项+签字\n\n演示看板：http://10.1.12.17:3000/login.html\n账号：zhangdian / demo\n\n议程：docs/pm401_meeting_agenda_20260617.html
+CATEGORIES:产品评审
+STATUS:CONFIRMED
+BEGIN:VALARM
+ACTION:DISPLAY
+DESCRIPTION:Reminder
+TRIGGER:-PT1440M
+UID:pm401-20260617-alarm-0@hotpot-smart-ops.local
+END:VALARM
+BEGIN:VALARM
+ACTION:DISPLAY
+DESCRIPTION:Reminder
+TRIGGER:-PT30M
+UID:pm401-20260617-alarm-1@hotpot-smart-ops.local
+END:VALARM
+END:VEVENT
+BEGIN:VEVENT
+UID:ar401-20260618@hotpot-smart-ops.local
+DTSTAMP:20260615T060000Z
+DTSTART;TZID=Asia/Shanghai:20260618T100000
+DTEND;TZID=Asia/Shanghai:20260618T123000
+SUMMARY:AR-401 Phase1 架构设计评审
+LOCATION:腾讯会议 888-888-888 密码 061718
+DESCRIPTION:腾讯会议号：888-888-888\n会议密码：061718\n入会链接：https://meeting.tencent.com/dm/placeholder-replace-after-create\n\n冯校长火锅·智能运营 Phase 1 架构设计评审\n\n10:00-10:15 目标与边界\n10:15-10:45 逻辑架构+六闭环\n10:45-11:15 API/数据/ADR\n11:15-11:45 部署+安全+gap\n11:45-12:15 BL-01~07 排期\n12:15-12:30 结论签字\n\nHub：http://10.1.12.17:8088/health\n议程：docs/ar401_meeting_agenda_20260618.html
+CATEGORIES:架构评审
+STATUS:CONFIRMED
+BEGIN:VALARM
+ACTION:DISPLAY
+DESCRIPTION:Reminder
+TRIGGER:-PT1440M
+UID:ar401-20260618-alarm-0@hotpot-smart-ops.local
+END:VALARM
+BEGIN:VALARM
+ACTION:DISPLAY
+DESCRIPTION:Reminder
+TRIGGER:-PT30M
+UID:ar401-20260618-alarm-1@hotpot-smart-ops.local
+END:VALARM
+END:VEVENT
+BEGIN:VEVENT
+UID:pm402-yuhuan-20260619@hotpot-smart-ops.local
+DTSTAMP:20260615T060000Z
+DTSTART;TZID=Asia/Shanghai:20260619T100000
+DTEND;TZID=Asia/Shanghai:20260619T105000
+SUMMARY:PM-402 店长概念测试 · 玉环店
+LOCATION:冯校长火锅·玉环店（现场）腾讯会议 888-888-888
+DESCRIPTION:腾讯会议号：888-888-888\n会议密码：061717\n入会链接：https://meeting.tencent.com/dm/placeholder-replace-after-create\n\n店长概念测试约50分钟\n登录门店选「玉环店」\n\n演示：http://10.1.12.17:3000/login.html\n记录：docs/uat_concept_test_record.md
+CATEGORIES:概念测试
+STATUS:CONFIRMED
+BEGIN:VALARM
+ACTION:DISPLAY
+DESCRIPTION:Reminder
+TRIGGER:-PT1440M
+UID:pm402-yuhuan-20260619-alarm-0@hotpot-smart-ops.local
+END:VALARM
+BEGIN:VALARM
+ACTION:DISPLAY
+DESCRIPTION:Reminder
+TRIGGER:-PT30M
+UID:pm402-yuhuan-20260619-alarm-1@hotpot-smart-ops.local
+END:VALARM
+END:VEVENT
+BEGIN:VEVENT
+UID:pm402-jiaojiang-20260620@hotpot-smart-ops.local
+DTSTAMP:20260615T060000Z
+DTSTART;TZID=Asia/Shanghai:20260620T100000
+DTEND;TZID=Asia/Shanghai:20260620T105000
+SUMMARY:PM-402 店长概念测试 · 椒江店
+LOCATION:冯校长火锅·椒江店（现场）腾讯会议 888-888-888
+DESCRIPTION:腾讯会议号：888-888-888\n会议密码：061717\n入会链接：https://meeting.tencent.com/dm/placeholder-replace-after-create\n\n店长概念测试约50分钟\n登录门店选「椒江店」\n\n演示：http://10.1.12.17:3000/login.html\n记录：docs/uat_concept_test_record.md
+CATEGORIES:概念测试
+STATUS:CONFIRMED
+BEGIN:VALARM
+ACTION:DISPLAY
+DESCRIPTION:Reminder
+TRIGGER:-PT1440M
+UID:pm402-jiaojiang-20260620-alarm-0@hotpot-smart-ops.local
+END:VALARM
+BEGIN:VALARM
+ACTION:DISPLAY
+DESCRIPTION:Reminder
+TRIGGER:-PT30M
+UID:pm402-jiaojiang-20260620-alarm-1@hotpot-smart-ops.local
+END:VALARM
+END:VEVENT
+END:VCALENDAR

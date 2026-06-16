@@ -1,0 +1,114 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>数据流打桩 · 运营后台</title>
+  <link rel="stylesheet" href="../assets/theme.css" />
+  <style>
+    .layer-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(140px, 1fr)); gap: 10px; }
+    .layer-card { padding: 12px; border-radius: 8px; background: var(--card2); text-align: center; }
+    .layer-card.on { border: 1px solid var(--ok); }
+    .layer-card.off { opacity: 0.45; }
+    pre.log { font-size: 0.75rem; max-height: 200px; overflow: auto; background: #0f172a; padding: 12px; border-radius: 8px; }
+  </style>
+</head>
+<body>
+  <div class="app-shell">
+    <aside class="sidebar">
+      <div class="sidebar-brand"><h1>运营后台</h1><p>数据流 · 打桩</p></div>
+      <a class="nav-item" data-nav="admin" href="index.html">总览</a>
+      <a class="nav-item" data-nav="admin_stores" href="stores.html">组织 · 门店</a>
+      <a class="nav-item active" data-nav="admin_pipeline" href="pipeline.html">数据流 · 打桩</a>
+      <a class="nav-item" href="../regional.html">层级看板</a>
+    </aside>
+    <div class="main-wrap">
+      <header class="topbar">
+        <div class="topbar-left"><h2>数据流打桩</h2><div class="topbar-meta">stub → 真设备 分步替换</div></div>
+        <div class="topbar-right">
+          <input class="hub-input" id="hub-url" type="text" />
+          <span class="chip" id="user-name">—</span>
+          <button class="btn btn-sm btn-ghost" id="btn-logout">退出</button>
+        </div>
+      </header>
+      <main class="content">
+        <div class="card">
+          <h3>打桩模式</h3>
+          <p style="font-size:0.9rem;color:var(--muted)">
+            <strong>inprocess（默认）</strong>：Hub 内存注入，秒级，适合演示与测试。<br>
+            <strong>subprocess</strong>：调用 <code>demo/run_store_pipeline.sh</code> 跑完整脚本链（vision/iot/sop/erp），更接近生产。
+          </p>
+          <div style="display:flex;gap:10px;flex-wrap:wrap;margin-top:12px">
+            <select id="tick-mode">
+              <option value="inprocess">inprocess 内存打桩</option>
+              <option value="subprocess">subprocess 完整流水线</option>
+            </select>
+            <label><input type="checkbox" id="inject-anomaly" /> 注入异常（首店）</label>
+            <button class="btn" id="btn-tick-all">全店运行</button>
+          </div>
+          <pre class="log" id="run-log" style="margin-top:12px">等待运行…</pre>
+        </div>
+
+        <div class="card" style="margin-top:16px">
+          <h3>数据层说明（由底向上替换）</h3>
+          <div class="layer-grid">
+            <div class="layer-card on"><div>Vision</div><small>mock / RTSP</small></div>
+            <div class="layer-card on"><div>IoT</div><small>sim / MQTT</small></div>
+            <div class="layer-card on"><div>POS</div><small>sim / API</small></div>
+            <div class="layer-card on"><div>SOP</div><small>规则 / CV+IoT</small></div>
+            <div class="layer-card on"><div>ERP</div><small>file / API</small></div>
+            <div class="layer-card on"><div>Cost</div><small>analyzer</small></div>
+            <div class="layer-card on"><div>Hub</div><small>OpsEvent</small></div>
+          </div>
+        </div>
+
+        <div class="card" style="margin-top:16px">
+          <h3>门店就绪度</h3>
+          <div id="store-cards"></div>
+        </div>
+      </main>
+    </div>
+  </div>
+  <script src="../assets/core.js"></script>
+  <script>
+    HotpotApp.initAdminShell("admin_pipeline");
+
+    async function refresh() {
+      const pipe = await HotpotApp.fetchAdminPipelineStatus();
+      const container = document.getElementById("store-cards");
+      container.innerHTML = "";
+      (pipe.stores || []).forEach((s) => {
+        const div = document.createElement("div");
+        div.className = "card";
+        div.style.marginBottom = "10px";
+        const L = s.layers || {};
+        div.innerHTML = `
+          <strong>${s.store_name}</strong> (${s.store_id}) — ${s.pipeline_pct}%
+          <div class="layer-grid" style="margin-top:8px">
+            ${Object.entries(L).map(([k,v]) => `<div class="layer-card ${v?"on":"off"}">${k}</div>`).join("")}
+          </div>
+          <button class="btn btn-sm" style="margin-top:8px" data-id="${s.store_id}">单店 tick</button>`;
+        container.appendChild(div);
+      });
+      container.querySelectorAll("button[data-id]").forEach((b) => {
+        b.onclick = () => runTick(b.dataset.id);
+      });
+    }
+
+    async function runTick(storeId) {
+      const log = document.getElementById("run-log");
+      log.textContent = "运行中…";
+      const res = await HotpotApp.adminPipelineTick({
+        store_id: storeId || undefined,
+        mode: document.getElementById("tick-mode").value,
+        inject_anomaly: document.getElementById("inject-anomaly").checked,
+      });
+      log.textContent = JSON.stringify(res, null, 2);
+      await refresh();
+    }
+
+    document.getElementById("btn-tick-all").onclick = () => runTick(null);
+    refresh();
+  </script>
+</body>
+</html>

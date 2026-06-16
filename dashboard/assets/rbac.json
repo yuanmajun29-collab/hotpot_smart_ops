@@ -1,0 +1,48 @@
+{
+  "roles": {
+    "店长": {
+      "menus": ["home", "tables", "kitchen", "sop", "cost", "alerts", "report", "pda", "system"],
+      "actions": ["ack", "table_correct", "receiving_submit", "sop_assign", "report_generate"]
+    },
+    "前厅领班": {
+      "menus": ["home", "tables", "alerts"],
+      "actions": ["ack", "table_correct"]
+    },
+    "厨师长": {
+      "menus": ["home", "kitchen", "sop", "cost", "pda"],
+      "actions": ["ack", "receiving_submit", "sop_assign"]
+    },
+    "收货员": {
+      "menus": ["pda"],
+      "actions": ["receiving_submit"]
+    },
+    "区域督导": {
+      "menus": ["regional", "home", "tables", "kitchen", "sop", "cost", "alerts", "report", "system"],
+      "actions": ["ack", "sop_assign", "report_generate"]
+    },
+    "总部PMO": {
+      "menus": ["admin", "admin_stores", "admin_pipeline", "cockpit", "regional", "report", "system", "alerts"],
+      "actions": ["report_generate", "sop_assign", "admin_write"]
+    },
+    "集团决策者": {
+      "menus": ["cockpit", "regional", "report"],
+      "actions": []
+    }
+  },
+  "menu_labels": {
+    "home": "首页概览",
+    "tables": "前厅 · 桌态",
+    "kitchen": "后厨 · IoT",
+    "sop": "SOP 执行",
+    "cost": "来料 · 成本",
+    "alerts": "告警中心",
+    "report": "运营日报",
+    "pda": "收货 PDA",
+    "system": "系统状态",
+    "regional": "区域 · 跨店对标",
+    "cockpit": "集团驾驶仓",
+    "admin": "运营后台",
+    "admin_stores": "组织 · 门店",
+    "admin_pipeline": "数据流 · 打桩"
+  }
+}

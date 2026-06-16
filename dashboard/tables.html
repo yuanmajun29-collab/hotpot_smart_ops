@@ -59,6 +59,7 @@
     document.getElementById("drawer").onclick = (e) => { if (e.target.id === "drawer") closeDrawer(); };
 
     function openDrawer(table) {
+      const canCorrect = HotpotApp.canAction(HotpotApp.getAuth()?.role, "table_correct");
       document.getElementById("drawer-title").textContent = table.table_id + " · " + (HotpotApp.STATE_LABELS[table.state] || table.state);
       document.getElementById("drawer-body").innerHTML = `
         <p style="margin-bottom:12px;color:var(--muted)">状态变更时间线（演示）</p>
@@ -68,8 +69,19 @@
           <li>13:50 清台完成 → 空桌</li>
         </ul>
         <p style="margin-top:16px;font-size:0.85rem">VLM 清台就绪分：<b style="color:var(--warn)">72</b>（Phase 1 mock）</p>
-        <button class="btn btn-sm btn-warn" style="margin-top:12px" onclick="alert('已派保洁（演示）')">派保洁清台</button>
+        <div id="drawer-actions"></div>
       `;
+      const actions = document.getElementById("drawer-actions");
+      if (canCorrect) {
+        const btn = document.createElement("button");
+        btn.className = "btn btn-sm btn-warn";
+        btn.style.marginTop = "12px";
+        btn.textContent = "派保洁清台";
+        btn.onclick = () => alert("已派保洁（演示）");
+        actions.appendChild(btn);
+      } else {
+        actions.innerHTML = "<p style='margin-top:12px;font-size:0.85rem;color:var(--muted)'>当前角色无桌态纠正权限</p>";
+      }
       document.getElementById("drawer").classList.add("open");
     }
 

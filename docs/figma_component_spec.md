@@ -1,13 +1,15 @@
 # Figma 组件清单与设计规格
 
-**冯校长火锅 · 智能运营 · Phase 1 MVP · V1.0**
+**冯校长火锅 · 智能运营 · Phase 1 MVP · V1.1**
 
 | 项目 | 内容 |
 |------|------|
+| 版本 | V1.1 |
 | 关联 PRD | [product_design.md](product_design.md) |
-| PoC 参考 | `dashboard/index.html` |
-| 目标交付 | Sprint 4（DEV-401/402/403）高保真 + Dev Mode 标注 |
+| HTML 原型 | `dashboard/`（Phase 1 交互源，见 §10） |
+| 目标交付 | Sprint 4 高保真 + Dev Mode 标注（与 HTML 对齐） |
 | Figma 文件建议命名 | `Hotpot-SmartOps-Phase1` |
+| 更新日期 | 2026-06-15 |
 
 ---
 
@@ -187,33 +189,35 @@ Hotpot-SmartOps-Phase1
 
 ## 4. 页面 Frame 清单（高保真）
 
-| Frame 名 | 路由 | PRD 功能 | Dev 任务 | 状态 |
-|----------|------|----------|----------|------|
-| `Web/Login` | `/login` | DEV-401 | DEV-401 | 待设计 |
-| `Web/Home` | `/` | F-H01~H03 | DEV-402 | PoC 可参照 |
-| `Web/Tables` | `/tables` | F-T01~T03 | DEV-402 | PoC 可参照 |
-| `Web/Tables/Drawer` | overlay | F-T04~T06 | DEV-402 | 待设计 |
-| `Web/Kitchen` | `/kitchen` | F-K01~K07 | DEV-402 | PoC 部分 |
-| `Web/SOP` | `/sop` | F-S01~S05 | DEV-402 | PoC 部分 |
-| `Web/SOP/Detail` | `/sop/:id` | F-S02 | DEV-402 | 待设计 |
-| `Web/Cost` | `/cost` | F-C01~C05 | DEV-402 | PoC 部分 |
-| `Web/Alerts` | `/alerts` | F-A01~A03 | DEV-402 | PoC 部分 |
-| `Web/Report` | `/report` | F-R01~R04 | DEV-402 | PoC 可参照 |
-| `Web/Report/History` | `/report/history` | F-R04 | DEV-402 | 待设计 |
-| `Mobile/Home` | H5 Tab-Home | F-H02 | DEV-402 | ✅ HTML 原型 |
-| `Mobile/Tables` | H5 Tab-Tables | F-T01~T03 | DEV-402 | ✅ HTML 原型 |
-| `Mobile/Alerts` | H5 Tab-Alerts | F-A01~A03 | DEV-402 | ✅ HTML 原型 |
-| `Mobile/Profile` | H5 Tab-Profile | — | DEV-402 | ✅ HTML 原型 |
-| `PDA/Recv-Step1` | PO 选择 | F-P01 | DEV-403 | 待设计 |
-| `PDA/Recv-Step2` | 称重 | F-P02 | DEV-403 | 待设计 |
-| `PDA/Recv-Step3` | 测温 | F-P03 | DEV-403 | 待设计 |
-| `PDA/Recv-Step4` | VLM 拍照 | F-P05 | DEV-403 | 待设计 |
-| `PDA/Recv-Step5` | 签字提交 | F-P06 | DEV-403 | 待设计 |
-| `Push/Alert-Critical` | 企微 | F-A04 | DEV-306 | 待设计 |
-| `Push/Alert-Warn` | 企微 | F-A04 | DEV-306 | 待设计 |
-| `Push/DailyReport` | 企微 | F-R01 | DEV-302 | 待设计 |
+| Frame 名 | 路由 | PRD 功能 | Dev 任务 | HTML 原型 | 状态 |
+|----------|------|----------|----------|-----------|------|
+| `Web/Login` | `/login` | DEV-401 | DEV-401 | `login.html` | 🟡 HTML 已有，待 Figma 对齐 |
+| `Web/Home` | `/` | F-H01~H03 | DEV-402 | `home.html` | ✅ HTML 原型 |
+| `Web/Tables` | `/tables` | F-T01~T03 | DEV-402 | `tables.html` | ✅ HTML 原型 |
+| `Web/Tables/Drawer` | overlay | F-T04~T06 | DEV-402 | `tables.html#drawer` | 🟡 演示数据，待真时间线 |
+| `Web/Kitchen` | `/kitchen` | F-K01~K07 | DEV-402 | `kitchen.html` | 🟡 HTML 缺曲线 |
+| `Web/SOP` | `/sop` | F-S01~S05 | DEV-402 | `sop.html` | 🟡 HTML 缺独立详情页 |
+| `Web/SOP/Detail` | `/sop/:id` | F-S02 | DEV-402 | — | ⬜ 待设计 |
+| `Web/Cost` | `/cost` | F-C01~C05 | DEV-402 | `cost.html` | ✅ HTML 原型 |
+| `Web/Alerts` | `/alerts` | F-A01~A03 | DEV-402 | `alerts.html` | ✅ HTML 原型 |
+| `Web/Report` | `/report` | F-R01~R04 | DEV-402 | `report.html` | 🟡 HTML 缺历史页 |
+| `Web/Report/History` | `/report/history` | F-R04 | DEV-402 | — | ⬜ Phase 2 / Should Have |
+| `Mobile/Home` | H5 Tab-Home | F-H02 | DEV-402 | `mobile/index.html` | ✅ HTML 原型 |
+| `Mobile/Tables` | H5 Tab-Tables | F-T01~T03 | DEV-402 | `mobile/index.html` | ✅ HTML 原型 |
+| `Mobile/Alerts` | H5 Tab-Alerts | F-A01~A03 | DEV-402 | `mobile/index.html` | ✅ HTML 原型 |
+| `Mobile/Profile` | H5 Tab-Profile | — | DEV-402 | `mobile/index.html` | ✅ HTML 原型 |
+| `PDA/Recv-Step1` | PO 选择 | F-P01 | DEV-403 | `pda/receiving.html` | 🟡 HTML 静态 PO |
+| `PDA/Recv-Step2` | 称重 | F-P02 | DEV-403 | `pda/receiving.html` | 🟡 HTML 静态秤重 |
+| `PDA/Recv-Step3` | 测温 | F-P03 | DEV-403 | `pda/receiving.html` | 🟡 HTML 只读温度 |
+| `PDA/Recv-Step4` | VLM 拍照 | F-P05 | DEV-403 | `pda/receiving.html` | 🟡 HTML 占位拍照 |
+| `PDA/Recv-Step5` | 签字提交 | F-P06 | DEV-403 | `pda/receiving.html` | 🟡 HTML 点击签字 |
+| `Push/Alert-Critical` | 企微 | F-A04 | DEV-306 | `push_notification_templates.md` | 🟡 文案定稿，看板预览 |
+| `Push/Alert-Warn` | 企微 | F-A04 | DEV-306 | 同上 | 🟡 首月默认不推手机 |
+| `Push/DailyReport` | 企微 | F-R01 | DEV-302 | `report.html` 预览区 | 🟡 待 DEV-424 |
 
-**Phase 1 最低交付 Frame 数**：18 个（Web 10 + PDA 5 + Push 3）
+**状态图例**：✅ HTML 可演示 · 🟡 有原型待对齐/联调 · ⬜ 未开始
+
+**Phase 1 最低 Frame 数**：18 个（Web 10 + PDA 5 + Push 3）— 允许以 **HTML + 推送模板** 替代 Figma 先行试点（决策 D-001）
 
 ---
 
@@ -328,6 +332,35 @@ PRD: F-H02, F-T01
 
 | 版本 | 日期 | 说明 |
 |------|------|------|
+| V1.1 | 2026-06-15 | §4 Frame 状态对齐 HTML；新增 §10 对齐策略 |
 | V1.0 | 2026-06-12 | Phase 1 MVP 组件清单 |
 
-**下一步**：设计师按 §4 Frame 清单建稿 → 与店长做概念测试 → Dev Mode 交付前端（DEV-402/403）
+---
+
+## 10. HTML 原型与 Figma 对齐策略
+
+**决策 D-001**（见 [product_design_changelog.md](product_design_changelog.md)）：Phase 1 以 `dashboard/` HTML 为**交互与评审主源**，Figma 用于视觉统一与 Dev Mode 标注，不阻塞 UAT 联调。
+
+### 10.1 对齐优先级
+
+| 优先级 | Frame | HTML 文件 | 对齐要点 |
+|--------|-------|-----------|----------|
+| P0 | Web/Tables | `tables.html` | 四态色、网格、Top5 列表 |
+| P0 | PDA/Recv-* | `pda/receiving.html` | 5 步 stepper、签字区 |
+| P0 | Web/Alerts | `alerts.html` | 分级筛选、ack 按钮、企微预览 |
+| P0 | Push/* | `push_notification_templates.md` | 文案与深链 |
+| P1 | Web/Home | `home.html` | KPI 5 卡、快捷入口 |
+| P1 | Web/Kitchen | `kitchen.html` | 补温湿度曲线占位 |
+| P1 | Web/SOP | `sop.html` | 违规清单、问答区 |
+| P2 | Web/SOP/Detail | — | 检查点全量列表 |
+| P2 | Web/Report/History | — | Phase 2 |
+
+### 10.2 设计师交付 DoD
+
+- [ ] P0 Frame 与 HTML 截图像素级对比（1440 / 480×800）
+- [ ] 组件库 Variables 与 §2 Token 一致
+- [ ] 每个 Frame 右上角 API 注释（见 §7）
+- [ ] Prototype 链接 4 条主流程（登录→桌态→告警 ack→PDA）
+- [ ] 评审记录存入 [product_review_checklist.md](product_review_checklist.md)
+
+**下一步**：P0 Frame 对齐 → 店长概念测试 → Dev Mode 交付前端（DEV-402/403）

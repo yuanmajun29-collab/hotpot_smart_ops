@@ -4,12 +4,14 @@
 
 | 项目 | 内容 |
 |------|------|
-| 文档版本 | V1.0 |
+| 文档版本 | V1.2 |
 | 文档类型 | 产品需求与设计规格 |
 | 上游 | [solution.md](solution.md)（解决方案） |
 | 下游 | [design_dev_implementation_plan.md](design_dev_implementation_plan.md) · [sprint_task_backlog.md](sprint_task_backlog.md) |
-| PoC 参考 UI | `dashboard/index.html` |
-| 更新日期 | 2026-06-12 |
+| 文档索引 | [product_design_index.md](product_design_index.md) · [product_goal_card.md](product_goal_card.md) |
+| PoC / MVP UI | `dashboard/`（HTML 原型，见 [figma_component_spec.md §10](figma_component_spec.md#10-html-原型与-figma-对齐策略)） |
+| 更新日期 | 2026-06-16 |
+| 全国连锁层级 | [product_hierarchy_national_chain.md](product_hierarchy_national_chain.md) |
 
 ---
 
@@ -28,6 +30,8 @@
 11. [产品路线图](#11-产品路线图)
 12. [Phase 1 MVP 范围](#12-phase-1-mvp-范围)
 13. [与 PoC 看板的演进关系](#13-与-poc-看板的演进关系)
+14. [实现状态快照](#14-实现状态快照2026-06-15)
+15. [产品设计交付定义](#15-产品设计交付定义)
 
 ---
 
@@ -351,15 +355,32 @@ stateDiagram-v2
 
 ---
 
-### 5.9 模块：总部中台（HQ Console）— Phase 2+
+### 5.9 模块：层级看板（HQ Dashboard）— Phase 1 起
 
-| ID | 功能 | 优先级 | 说明 |
-|----|------|--------|------|
-| F-HQ01 | 跨店对标看板 | P1 | 翻台/SOP/成本/告警排名 |
-| F-HQ02 | SOP 配置 OTA | P1 | 版本、生效范围、回滚 |
-| F-HQ03 | 阈值配置 | P1 | 短重%、温度范围 |
-| F-HQ04 | 供应商 KPI | P2 | 短重率、拒收率 |
-| F-HQ05 | 模型 OTA 管理 | P2 | CV 模型版本 |
+| ID | 功能 | 优先级 | 说明 | Phase | 状态 |
+|----|------|--------|------|-------|------|
+| F-HQ01 | 跨店对标看板 | P1 | 翻台/SOP/成本/告警排名 | 1 | ✅ |
+| **F-HQ06** | **区域总揽首页** | **P1** | 大区/区域树 + 门店健康度矩阵 + KPI rollup | 1 | ✅ |
+| **F-HQ07** | **异常门店清单** | **P1** | 按食安/SOP/翻台/来料自动标红，支持下钻单店 | 1 | ✅ |
+| F-HQ12 | 全国总揽首页 | P1 | 多大区 Tab、全国 KPI、异常店 Top N | 2 | ⬜ |
+| F-HQ13 | 层级下钻路径统一 | P1 | national → zone → region → store 面包屑 | 2 | ⚠️ |
+
+### 5.10 模块：运营后台（Admin Console）— Phase 2+
+
+> **全局规格**：[product_hierarchy_national_chain.md](product_hierarchy_national_chain.md) · 架构：[architecture_hierarchy_phase_plan.md](architecture_hierarchy_phase_plan.md)
+
+| ID | 功能 | 用户 | 验收标准 | 优先级 | Phase |
+|----|------|------|----------|--------|-------|
+| F-HQ08 | 组织与门店管理 | 总部 IT/PMO | 增删改门店、归属大区/区域、筹备/开业/停业；新店 Hub 自动建租户 | P0 | 2 |
+| F-HQ09 | 用户管理 | 总部 IT | 增删改用户、绑定 scope、启用/禁用 | P0 | 2 |
+| F-HQ10 | 角色与权限 | 总部 IT | 角色 CRUD、菜单/操作/数据范围矩阵 | P0 | 2 |
+| F-HQ11 | 操作审计 | 总部 PMO | 配置与权限变更留痕、可检索 | P1 | 2 |
+| F-HQ02 | SOP 配置 OTA | 总部 PMO | 版本、生效范围、回滚 | P1 | 2 |
+| F-HQ03 | 阈值配置 OTA | 总部 PMO | 短重%、温度范围 | P1 | 2 |
+| F-HQ04 | 供应商 KPI | 总部 PMO | 短重率、拒收率 | P2 | 3 |
+| F-HQ05 | 模型 OTA 管理 | 总部 IT | CV 模型版本 | P2 | 3 |
+
+**Phase 1 过渡**：门店/用户/角色靠 `stores.json`、`auth.py`、`rbac.json` 维护；**不提供** Web 写界面。
 
 ---
 
@@ -390,6 +411,7 @@ stateDiagram-v2
 | Web 看板 | 左侧固定 7 项 | 顶栏：门店名、班次、告警角标 |
 | 手机 H5 | 底部 4 Tab：首页/桌态/告警/我的 | 日报从首页进 |
 | PDA | 单任务流，无全局导航 | 完成后回 PO 列表 |
+| **区域/总部 Web** | **区域总揽（默认首页）** | 区域切换、健康矩阵、异常店、下钻单店 |
 
 ### 6.3 全局顶栏元素
 
@@ -400,6 +422,53 @@ stateDiagram-v2
 | 告警角标 | critical 未 ack 数量 |
 | 连接状态 | 绿/红点（PoC 已有） |
 | 用户菜单 | 角色、退出 |
+
+### 6.4 区域 / 总部 IA（F-HQ06 · F-HQ07）
+
+> **读者**：区域督导、总部 PMO。Phase 1 实现台州 2 店 PoC；温州/杭州等区域显示「筹备中」。
+
+```
+登录（区域督导 / 总部 PMO）
+└── 区域总揽 regional.html          ← 默认落地页（华东大区 zone_east_china）
+    ├── 大区切换（华东大区 · 筹备：华南/华北 Phase 2+）
+    ├── 子区域切换（台州 · 温州筹备 · 杭州筹备）
+    ├── 子区域 rollup 卡片（大区视图，点击下钻）
+    ├── KPI 汇总条（接入店数 / 健康·关注·异常 / 严重告警 / 均 SOP）
+    ├── 门店健康度矩阵（绿黄红 + 健康分 + 点击进入单店）
+    ├── 异常门店清单（原因 + 进入处理）
+    ├── 区域洞察 narrative
+    ├── 跨店 KPI 对比表（F-HQ01）
+    ├── 维度排名（SOP / 食安 / 翻台）
+    └── 督导审计（签字 / 工单 / ack 聚合）
+        └── [进入单店] → home.html（切换 store_id）
+```
+
+| 元素 | 规则 |
+|------|------|
+| 健康分 | 100 分制；严重告警、SOP&lt;70、偏差&gt;5% 等扣分 |
+| 异常店 | `health != ok` 自动入清单，critical 优先 |
+| 筹备区域 | `status=planned`，仅展示标签，无门店矩阵 |
+| 下钻 | 任意门店卡片/按钮 → `switchStore` → 单店看板 |
+
+**演示账号**：`quyududao` / `zongbu`，密码 `demo`，角色选「区域督导」或「总部 PMO」。
+
+### 6.5 运营后台 IA（F-HQ08~11 · Phase 2）
+
+```
+admin/
+├── 首页（门店数、待办、最近变更）
+├── 组织管理 → 大区 / 区域 / 门店 CRUD
+├── 用户与访问 → 用户 / 角色 / 权限矩阵
+├── 业务配置 → SOP OTA · 阈值 · 企微 Webhook
+└── 审计日志
+```
+
+| 角色 | 入口 | 写权限 |
+|------|------|--------|
+| 总部 IT | `admin/` | 组织、用户、角色 |
+| 总部 PMO | `admin/` + 层级看板 | 业务配置（SOP/阈值） |
+| 区域督导 | 层级看板 | 无 Admin 写 |
+| 加盟业主 | — | 无 |
 
 ---
 
@@ -610,10 +679,14 @@ F-T04~T06, F-K05~K07, F-S06~S07, F-C05, F-R03~R04, F-P04, F-P07, F-H03~H04
 ### 12.3 Won't Have（Phase 1 不做）
 
 - 等位屏联动（F-T07）
-- 总部中台（F-HQ*）
+- **运营后台写操作**（F-HQ08~11 · Admin CRUD）→ Phase 2
+- **全国总揽**（F-HQ12）→ Phase 2
+- F-HQ02~05 配置/模型 OTA → Phase 2~3
 - 会员营销话术
 - 电视大屏
 - 独立原生 App
+
+> Phase 1 **已做**层级看板只读：F-HQ01、F-HQ06、F-HQ07（`regional.html`）。
 
 ---
 
@@ -630,6 +703,60 @@ F-T04~T06, F-K05~K07, F-S06~S07, F-C05, F-R03~R04, F-P04, F-P07, F-H03~H04
 | 无登录 | RBAC + 加盟只读 |
 
 **设计资产复用**：PoC 色板（`--ok/--warn/--accent`）、桌态四态 class、卡片布局 → 作为 V1.0 设计系统基础。
+
+**MVP 多页现状**（2026-06-15+）：`regional.html` **区域总揽（F-HQ06/07）** · `login.html` · `home.html` · … · `system.html`
+
+---
+
+## 14. 实现状态快照（2026-06-15）
+
+> 详细勾选见 [phase1_mvp_acceptance_checklist.md](phase1_mvp_acceptance_checklist.md) · 目标差距见 [product_goal_card.md](product_goal_card.md)
+
+### 14.1 Must Have 模块就绪度
+
+| 模块 | 功能 ID | 文档 | UI | API | 真数据 | UAT |
+|------|---------|:----:|:--:|:---:|:------:|:---:|
+| 首页 | F-H01~H02 | ✅ | ⚠️ | ⚠️ | ❌ | ❌ |
+| 桌态 | F-T01~T03 | ✅ | ✅ | ✅ | ❌ | ❌ |
+| 后厨 IoT | F-K01~K04 | ✅ | ⚠️ | ✅ | ❌ | ❌ |
+| SOP | F-S01~S05 | ✅ | ⚠️ | ✅ | ❌ | ❌ |
+| 成本 | F-C01~C04 | ✅ | ⚠️ | ✅ | ❌ | ❌ |
+| 告警 | F-A01~A04 | ✅ | ⚠️ | ⚠️ | ❌ | ❌ |
+| 日报 | F-R01~R02 | ✅ | ⚠️ | ⚠️ | ⚠️ | ❌ |
+| PDA | F-P01~P03,P05~P06 | ✅ | ⚠️ | ⚠️ | ❌ | ❌ |
+| 账号 | ACC-01~03 | ✅ | ✅ | ⚠️ | ⚠️ | ❌ |
+
+图例：✅ 通过 · ⚠️ 部分/mock · ❌ 未达 PRD
+
+### 14.2 产品设计阶段判定
+
+| 层级 | 状态 | 说明 |
+|------|------|------|
+| 规格（PRD/故事/追溯） | ✅ 完成 | 可支撑研发排期 |
+| 原型（HTML 7 模块+PDA+H5） | ✅ 完成 | 可概念测试 |
+| 视觉（Figma 18 Frame） | ⬜ 进行中 | HTML 先行，见 changelog D-001 |
+| 验证（评审+店长测试） | ⬜ 待执行 | PM-401/402 清单已备 |
+
+---
+
+## 15. 产品设计交付定义
+
+Phase 1 **产品设计交付**包含以下产物（与 [product_design_index.md §3](product_design_index.md#3-产品设计阶段完成定义dod) 一致）：
+
+| 类别 | 交付物 | 路径 |
+|------|--------|------|
+| 目标 | 产品目标卡 | `product_goal_card.md` |
+| 规格 | 本文 PRD + MVP 范围 | `product_design.md` |
+| 故事 | 用户故事地图 + US 状态 | `user_story_map.md` |
+| 界面 | 组件 Token + Frame 清单 | `figma_component_spec.md` |
+| 原型 | 可交互 HTML 看板 | `dashboard/` |
+| 通知 | 企微推送模板 | `push_notification_templates.md` |
+| 验收 | MVP 勾选表 + UAT 脚本 | `phase1_mvp_acceptance_checklist.md` |
+| 评审 | 产品评审清单 | `product_review_checklist.md` |
+| 验证 | 概念测试记录模板 | `uat_concept_test_record.md` |
+| 变更 | 设计 Changelog | `product_design_changelog.md` |
+
+**签字门槛**：PM-401 评审通过 + PM-402 两店概念测试记录归档 + Must Have UAT 可勾选。
 
 ---
 
@@ -655,14 +782,33 @@ F-T04~T06, F-K05~K07, F-S06~S07, F-C05, F-R03~R04, F-P04, F-P07, F-H03~H04
 |------|------|
 | [solution.md](solution.md) | 业务方案 · Why |
 | **product_design.md（本文）** | 产品规格 · What（F-xxx） |
+| [product_goal_card.md](product_goal_card.md) | 目标一页纸 · 五项目标差距 |
+| [product_design_index.md](product_design_index.md) | 文档索引 · 阶段 DoD |
 | [user_story_map.md](user_story_map.md) | 用户故事 · Who/When（US-xxx） |
 | [figma_component_spec.md](figma_component_spec.md) | 界面设计 · How it looks |
+| [push_notification_templates.md](push_notification_templates.md) | 企微/推送文案 |
+| [phase1_mvp_acceptance_checklist.md](phase1_mvp_acceptance_checklist.md) | MVP 验收勾选 |
+| [product_review_checklist.md](product_review_checklist.md) | 产品评审（PM-401） |
+| [uat_concept_test_record.md](uat_concept_test_record.md) | 概念测试记录（PM-402） |
+| [product_design_changelog.md](product_design_changelog.md) | 设计变更日志 |
 | [design_dev_implementation_plan.md](design_dev_implementation_plan.md) | 技术+实施 · How to build |
 | [sprint_task_backlog.md](sprint_task_backlog.md) | 研发任务（DEV-xxx） |
 
 ---
 
-**下一步建议**：
-1. 产品评审本文 §5 MVP + §7 线框  
-2. 设计师按 [figma_component_spec.md](figma_component_spec.md) 建 Figma 稿  
-3. 与 3 家试点店长按 [user_story_map.md §6](user_story_map.md#6-概念测试脚本30min--试点店长) 做概念测试  
+## 附录 C：版本记录
+
+| 版本 | 日期 | 说明 |
+|------|------|------|
+| V1.1 | 2026-06-15 | §14~15 实现快照与交付定义；文档体系扩展 |
+| V1.0 | 2026-06-12 | 初版 PRD |
+
+---
+
+**下一步（可执行）**：
+
+1. **PM-401** — 按 [product_review_checklist.md](product_review_checklist.md) 召开产品评审（§5 MVP + §7 线框）
+2. **PM-402** — 玉环/椒江店长填写 [uat_concept_test_record.md](uat_concept_test_record.md)
+3. **设计** — HTML 原型对齐 Figma（或书面确认 [changelog D-001](product_design_changelog.md)）
+4. **研发** — 按 [sprint_task_backlog.md §6.1](sprint_task_backlog.md#61-uat-go-live-阻塞专项dev-408) 清零 UAT 阻塞项
+5. 反馈写入 [product_design_changelog.md](product_design_changelog.md) 反馈区

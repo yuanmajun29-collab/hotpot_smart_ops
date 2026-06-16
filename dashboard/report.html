@@ -10,20 +10,21 @@
   <div class="app-shell">
     <aside class="sidebar">
       <div class="sidebar-brand"><h1>冯校长火锅</h1><p>智能运营 · MVP</p></div>
-      <a class="nav-item" href="home.html">首页概览</a>
-      <a class="nav-item" href="tables.html">前厅 · 桌态</a>
-      <a class="nav-item" href="kitchen.html">后厨 · IoT</a>
-      <a class="nav-item" href="sop.html">SOP 执行</a>
-      <a class="nav-item" href="cost.html">来料 · 成本</a>
-      <a class="nav-item" href="alerts.html">告警中心</a>
+      <a class="nav-item" data-nav="home" href="home.html">首页概览</a>
+      <a class="nav-item" data-nav="tables" href="tables.html">前厅 · 桌态</a>
+      <a class="nav-item" data-nav="kitchen" href="kitchen.html">后厨 · IoT</a>
+      <a class="nav-item" data-nav="sop" href="sop.html">SOP 执行</a>
+      <a class="nav-item" data-nav="cost" href="cost.html">来料 · 成本</a>
+      <a class="nav-item" data-nav="alerts" href="alerts.html">告警中心</a>
       <a class="nav-item active" data-nav="report" href="report.html">运营日报</a>
-      <a class="nav-item" href="pda/receiving.html">收货 PDA</a>
+      <a class="nav-item" data-nav="pda" href="pda/receiving.html">收货 PDA</a>
     </aside>
     <div class="main-wrap">
       <header class="topbar">
-        <div class="topbar-left"><h2 id="store-name">—</h2><div class="topbar-meta">LLM 运营日报 · F-R01~R02</div></div>
+        <div class="topbar-left"><h2 id="store-name">—</h2><div class="topbar-meta">LLM 运营日报 · F-R01~R02 · 22:00 自动</div></div>
         <div class="topbar-right">
-          <button class="btn btn-sm" onclick="generate()">生成日报</button>
+          <button class="btn btn-sm" id="btn-gen">生成日报</button>
+          <button class="btn btn-sm btn-ghost" id="btn-push">推送企微</button>
           <input class="hub-input" id="hub-url" type="text" />
           <span class="chip" id="user-name">—</span>
           <button class="btn btn-sm btn-ghost" id="btn-logout">退出</button>
@@ -32,25 +33,19 @@
       <main class="content">
         <div class="grid grid-2">
           <div class="card">
-            <h3>历史日报（演示）</h3>
-            <ul class="list-plain" id="history">
-              <li><a href="#" onclick="generate();return false">今日 · 刚刚</a></li>
-              <li style="color:var(--muted)">昨日 · Phase 2 接入</li>
-              <li style="color:var(--muted)">6/10 · Phase 2 接入</li>
-            </ul>
+            <h3>历史日报</h3>
+            <ul class="list-plain" id="history"><li style="color:var(--muted)">加载中...</li></ul>
           </div>
           <div class="card">
-            <h3>推送预览（企微卡片）</h3>
-            <div style="background:#0d1117;border:1px solid var(--border);border-radius:8px;padding:14px;font-size:0.85rem">
-              <b>【运营日报】蜀大侠·春熙店</b><br>
-              翻台待清 3 桌 · SOP 92% · 来料偏差 2.1%<br>
-              <span style="color:var(--info)">👉 点击查看完整日报</span>
+            <h3>推送预览（企微卡片 · DEV-424）</h3>
+            <div id="push-preview" style="background:#0d1117;border:1px solid var(--border);border-radius:8px;padding:14px;font-size:0.85rem;color:var(--muted)">
+              生成并推送后显示预览
             </div>
           </div>
         </div>
         <div class="card" style="margin-top:20px">
-          <h3>LLM 运营日报</h3>
-          <div class="report-box" id="report">点击「生成日报」或等待自动加载...</div>
+          <h3>运营日报</h3>
+          <div class="report-box" id="report">加载中...</div>
         </div>
       </main>
     </div>
@@ -58,17 +53,98 @@
   <script src="assets/core.js"></script>
   <script>
     HotpotApp.initShell("report");
-    async function generate() {
+    const urlParams = new URLSearchParams(window.location.search);
+    const deepDate = urlParams.get("date");
+
+    function renderPushPreview(data, pushed) {
+      const preview = document.getElementById("push-preview");
+      if (!pushed) {
+        preview.textContent = "未推送（可点击「推送企微」）";
+        return;
+      }
+      const summary = (data.markdown || "").split("\n").slice(0, 6).join("<br>");
+      preview.innerHTML = `<b>【运营日报】企微卡片已发送</b><br>${summary}`;
+    }
+
+    async function loadReportByDate(date) {
       const el = document.getElementById("report");
+      el.textContent = "加载中...";
+      try {
+        const data = await HotpotApp.fetchDailyReports(1, date);
+        const row = (data.reports || [])[0];
+        if (row) {
+          el.textContent = row.markdown;
+          renderPushPreview(row, row.pushed);
+          return true;
+        }
+        el.textContent = `未找到 ${date} 的日报，正在生成…`;
+        return false;
+      } catch (e) {
+        el.textContent = "加载失败: " + e.message;
+        return false;
+      }
+    }
+
+    async function loadHistory() {
+      const ul = document.getElementById("history");
+      try {
+        const data = await HotpotApp.fetchDailyReports(10);
+        ul.innerHTML = "";
+        (data.reports || []).forEach((r) => {
+          const li = document.createElement("li");
+          const a = document.createElement("a");
+          a.href = `?date=${encodeURIComponent(r.report_date)}`;
+          a.textContent = `${r.report_date} · ${r.pushed ? "已推送" : "未推送"}`;
+          a.onclick = (e) => {
+            e.preventDefault();
+            document.getElementById("report").textContent = r.markdown;
+            renderPushPreview(r, r.pushed);
+            history.replaceState(null, "", `?date=${encodeURIComponent(r.report_date)}`);
+          };
+          li.appendChild(a);
+          ul.appendChild(li);
+        });
+        if (!ul.children.length) ul.innerHTML = "<li style='color:var(--muted)'>暂无历史，点击生成</li>";
+      } catch (e) {
+        ul.innerHTML = "<li style='color:var(--muted)'>加载失败</li>";
+      }
+    }
+
+    async function generate(push = false) {
+      const el = document.getElementById("report");
+      if (!HotpotApp.canAction(HotpotApp.getAuth()?.role, "report_generate")) {
+        el.textContent = "当前角色无日报生成权限";
+        document.getElementById("btn-gen").style.display = "none";
+        document.getElementById("btn-push").style.display = "none";
+        if (deepDate) await loadReportByDate(deepDate);
+        return;
+      }
       el.textContent = "生成中...";
       try {
-        const summary = await HotpotApp.fetchSummary();
-        el.textContent = HotpotApp.buildReport(summary);
+        const data = await HotpotApp.generateDailyReport(push);
+        el.textContent = data.markdown;
+        renderPushPreview(data, push && data.pushed);
+        if (push && !data.pushed) {
+          document.getElementById("push-preview").textContent =
+            "推送未成功：请检查系统状态页 webhook 配置";
+        }
+        await loadHistory();
       } catch (e) {
         el.textContent = "生成失败: " + e.message;
       }
     }
-    generate();
+
+    document.getElementById("btn-gen").onclick = () => generate(false);
+    document.getElementById("btn-push").onclick = () => generate(true);
+    loadHistory();
+    (async () => {
+      if (deepDate) {
+        const ok = await loadReportByDate(deepDate);
+        if (!ok) await generate(false);
+      } else {
+        await generate(false);
+      }
+    })();
   </script>
 </body>
 </html>

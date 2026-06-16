@@ -8,6 +8,11 @@ from datetime import datetime, timezone
 from typing import Any, Dict, List, Optional
 from urllib.parse import urlparse
 
+from cloud.event_hub.daily_report_store import PG_DAILY_REPORTS_SCHEMA
+from cloud.event_hub.iot_readings_store import PG_IOT_READINGS_SCHEMA
+from cloud.event_hub.receiving_store import PG_RECEIVING_SCHEMA
+from cloud.event_hub.sop_assign_store import PG_SOP_ASSIGN_SCHEMA
+
 MAX_EVENTS_PER_STORE = 500
 
 
@@ -61,6 +66,10 @@ class PostgresHubDatabase:
                             PRIMARY KEY (store_id, kind)
                         );
                         """
+                        + PG_RECEIVING_SCHEMA
+                        + PG_SOP_ASSIGN_SCHEMA
+                        + PG_IOT_READINGS_SCHEMA
+                        + PG_DAILY_REPORTS_SCHEMA
                     )
                 conn.commit()
             finally:

@@ -6,8 +6,9 @@
 |------|------|
 | 关联 PRD | [product_design.md](product_design.md) |
 | 关联 Backlog | [sprint_task_backlog.md](sprint_task_backlog.md) |
+| 概念测试记录 | [uat_concept_test_record.md](uat_concept_test_record.md) |
 | 方法 | Jeff Patton Story Mapping |
-| 更新 | 2026-06-12 |
+| 更新 | 2026-06-15 |
 
 ---
 
@@ -258,15 +259,65 @@ flowchart TB
 
 ---
 
-## 8. 文档关系
+## 8. Release 1 用户故事实现状态（2026-06-15）
+
+> 与 [phase1_mvp_acceptance_checklist.md](phase1_mvp_acceptance_checklist.md) 同步更新
+
+| US | 摘要 | PRD | Dev | UI | API | 真数据 | 状态 |
+|----|------|-----|-----|:--:|:---:|:------:|:----:|
+| US-001 | 首页设备在线 | F-H01 | DEV-402 | ⚠️ | ⚠️ | ❌ | 进行中 |
+| US-002 | 首页 KPI 卡片 | F-H02 | DEV-402 | ✅ | ✅ | ⚠️ | 进行中 |
+| US-010 | 桌态四态平面图 | F-T01 | DEV-202,402 | ✅ | ✅ | ❌ | 阻塞 BL-01 |
+| US-011 | 桌态 5s 刷新 | F-T02 | DEV-402 | ✅ | ✅ | ⚠️ | 进行中 |
+| US-012 | 翻台 Top5 | F-T03 | DEV-304,402 | ✅ | ✅ | ⚠️ | 进行中 |
+| US-013 | 结账 1min 更新桌态 | F-T03 | DEV-304 | — | ⚠️ | ❌ | 阻塞 BL-01 |
+| US-020 | 冷冻/冷藏温湿度 | F-K01 | DEV-205,402 | ⚠️ | ✅ | ❌ | 阻塞 BL-02 |
+| US-021 | 门磁开太久告警 | F-K02 | DEV-205,306 | ⚠️ | ✅ | ❌ | 阻塞 BL-02 |
+| US-022 | 全链路三阶段 | F-K03 | DEV-207,402 | ✅ | ✅ | ⚠️ | 进行中 |
+| US-023 | 烟雾 30s 推送 | F-K04 | DEV-306 | ⚠️ | ⚠️ | ❌ | 阻塞 BL-03 |
+| US-030 | 7 套 SOP + 合规率 | F-S01~S03 | DEV-307,402 | ✅ | ✅ | ⚠️ | 进行中 |
+| US-031 | 检查点明细 | F-S02 | DEV-402 | ⚠️ | ✅ | ⚠️ | 进行中 |
+| US-032 | 违规指派 | F-S04 | DEV-421 | ⚠️ | ❌ | ❌ | 待开发 |
+| US-033 | PDA 电子签字 | F-S05 | DEV-403,420 | ✅ | ❌ | ❌ | 阻塞 BL-05 |
+| US-040 | 来料批次与偏差 | F-C01~C02 | DEV-305,402 | ✅ | ✅ | ⚠️ | 进行中 |
+| US-041 | VLM 10s 分级 | F-C03 | DEV-301,403 | ⚠️ | ✅ | ❌ | 阻塞 BL-04 |
+| US-042 | 拒收建议理由 | F-C04 | DEV-302 | ⚠️ | ⚠️ | ❌ | 进行中 |
+| US-050 | PDA 选 PO | F-P01 | DEV-416 | ✅ | ✅ | ❌ | 阻塞 BL-04 |
+| US-051 | 秤重自动填 | F-P02 | DEV-417,206 | ✅ | ⚠️ | ❌ | 阻塞 BL-04 |
+| US-052 | 探针温度 | F-P03 | DEV-417 | ✅ | ❌ | ❌ | 阻塞 BL-04 |
+| US-053 | 双人签字 | F-P06 | DEV-419 | ✅ | ❌ | ❌ | 阻塞 BL-04 |
+| US-060 | 告警分级过滤 | F-A01~A02 | DEV-402 | ✅ | ✅ | ⚠️ | 进行中 |
+| US-061 | 告警 ack 留痕 | F-A03 | DEV-306,402 | ✅ | ✅ | ✅ | 进行中 |
+| US-062 | critical 企微 | F-A04 | DEV-415 | ⚠️ | ⚠️ | ❌ | 阻塞 BL-03 |
+| US-063 | 22:00 LLM 日报 | F-R01~R02 | DEV-423,302 | ⚠️ | ⚠️ | ⚠️ | 阻塞 BL-06 |
+| US-070 | 事件持久化 | — | DEV-101 | — | ✅ | ✅ | 完成 |
+| US-071 | 租户隔离 RBAC | — | DEV-102,425 | ✅ | ⚠️ | ⚠️ | 阻塞 BL-07 |
+| US-072 | 断网 24h 队列 | — | DEV-105 | — | ⚠️ | ⚠️ | 进行中 |
+| US-073 | 真实摄像头桌态 | F-T01 | DEV-408~410 | ✅ | ✅ | ❌ | 阻塞 BL-01 |
+
+**统计**：Release 1 共 33 条 · 完成 1 · 进行中 14 · 阻塞/UAT 待清零 18
+
+---
+
+## 9. 文档关系
 
 | 文档 | 用途 |
 |------|------|
 | [product_design.md](product_design.md) | 功能 PRD（F-xxx） |
 | **user_story_map.md（本文）** | 用户故事（US-xxx）与 Release 切片 |
 | [figma_component_spec.md](figma_component_spec.md) | 界面组件与 Frame |
+| [uat_concept_test_record.md](uat_concept_test_record.md) | 店长概念测试记录 |
 | [sprint_task_backlog.md](sprint_task_backlog.md) | 研发任务（DEV-xxx）+ 追溯矩阵 |
 
 ---
 
-**维护**：概念测试或 Sprint Review 后，更新 Release 切片与 US 状态。
+## 10. 版本记录
+
+| 版本 | 日期 | 说明 |
+|------|------|------|
+| V1.1 | 2026-06-15 | 新增 §8 US 实现状态表 |
+| V1.0 | 2026-06-12 | Release 1 故事地图初版 |
+
+---
+
+**维护**：概念测试或 Sprint Review 后，更新 §8 US 状态与 Release 切片。

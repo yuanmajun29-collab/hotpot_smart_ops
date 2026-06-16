@@ -1,0 +1,296 @@
+# 全国连锁层级架构 · 分阶段实施计划
+
+**冯校长火锅 · 智能运营 · L0~L3 技术架构**
+
+| 项目 | 内容 |
+|------|------|
+| 版本 | V1.0 |
+| 更新 | 2026-06-16 |
+| 关联 | [product_hierarchy_national_chain.md](product_hierarchy_national_chain.md) · [architecture_decisions.md](architecture_decisions.md) ADR-009 |
+
+---
+
+## 1. 三层云边架构（扩展版）
+
+```mermaid
+flowchart TB
+    subgraph L1 [L1 单店边缘]
+        Edge[CV + IoT + 离线队列]
+    end
+
+    subgraph L2 [L2 区域 Hub 多租户]
+        Hub[event_hub FastAPI]
+        PG[(PostgreSQL)]
+        Tenant[store_id 隔离]
+        Hub --> PG
+        Hub --> Tenant
+    end
+
+    subgraph L3 [L3 管控与聚合 Phase 2+]
+        Admin[admin API + UI]
+        Config[config_service]
+        Agg[region/national aggregator]
+        Admin --> PG
+        Config --> PG
+        Agg --> Hub
+    end
+
+    subgraph UI [前端双轨]
+        StoreDash[dashboard 门店看板]
+        HierDash[regional / national 层级看板]
+        AdminUI[admin 运营后台]
+    end
+
+    Edge -->|OpsEvent / IoT| Hub
+    Hub --> StoreDash
+    Agg --> HierDash
+    Admin --> AdminUI
+```
+
+| 层 | Phase 1 | Phase 2 | Phase 3 |
+|----|---------|---------|---------|
+| L1 边缘 | 2 店 file/mock + IoT 打桩 | 20 店 RTSP + MQTT | 标准化镜像 OTA |
+| L2 Hub | 单实例 · SQLite/PG · 内存+DB | 多区域租户强化 · 读写分离预备 | 区域 Hub 可选 HA |
+| L3 管控 | **无**（JSON 配置） | Admin + Config 服务（可同 Hub 进程模块化） | 独立 ConfigHub · 数据湖导出 |
+
+---
+
+## 2. 组织数据模型（目标态）
+
+### 2.1 实体关系
+
+```mermaid
+erDiagram
+    ORG ||--o{ ZONE : contains
+    ZONE ||--o{ REGION : contains
+    REGION ||--o{ STORE : contains
+    STORE ||--o{ USER_STORE : assigns
+    USER ||--o{ USER_STORE : has
+    USER }o--|| ROLE : has
+    ROLE ||--o{ ROLE_PERMISSION : grants
+    PERMISSION ||--o{ ROLE_PERMISSION : in
+
+    ORG {
+        string org_id PK
+        string name
+    }
+    ZONE {
+        string zone_id PK
+        string org_id FK
+        string name
+        string status
+    }
+    REGION {
+        string region_id PK
+        string zone_id FK
+        string name
+        string status
+    }
+    STORE {
+        string store_id PK
+        string region_id FK
+        string name
+        string status
+        json config_ref
+    }
+    USER {
+        string user_id PK
+        string username
+        string status
+        string role_id FK
+        string data_scope
+    }
+```
+
+### 2.2 Phase 1 过渡（当前）
+
+| 实体 | 存储 | 说明 |
+|------|------|------|
+| ZONE / REGION | `demo/data/stores.json` | 含 `parent_regions` + `regions` |
+| STORE | `pilot_stores` + Hub `EventStore` | 每店 seed + 运行时 |
+| USER | `auth.py` `DEMO_USERS` | 演示 |
+| ROLE/PERM | `dashboard/assets/rbac.json` | 前端守卫 |
+
+### 2.3 Phase 2 目标表（PostgreSQL）
+
+| 表 | 用途 |
+|----|------|
+| `orgs` | 全国总部 |
+| `zones` | 大区 |
+| `regions` | 区域 |
+| `stores` | 门店元数据 + `status` |
+| `users` | 账号（密码 hash） |
+| `roles` | 角色定义 |
+| `role_permissions` | 菜单/操作/data_scope |
+| `user_store_scopes` | 用户可访问门店（可选多店） |
+| `admin_audit_log` | 配置变更审计 |
+
+Hub 业务表（`events`、`alert_pushes`、`daily_reports`…）继续以 `store_id` 分区查询；**组织表独立**，通过 `stores.store_id` 关联。
+
+---
+
+## 3. API 分层
+
+### 3.1 已实现（Phase 1）
+
+| 域 | 端点 | 说明 |
+|----|------|------|
+| 门店运营 | `/events` `/summary` `/v1/receiving/*` … | 写需 `store_id` |
+| 层级聚合 | `GET /v1/region/overview` | `region_id` = 区域或 `zone_*` |
+| 对标 | `GET /benchmark` | 兼容别名 |
+| 认证 | `POST /auth/token` | demo 用户 |
+
+### 3.2 规划（Phase 2 · Admin）
+
+| 域 | 方法 | 路径 | 权限 |
+|----|------|------|------|
+| 大区 | GET/POST/PUT | `/v1/admin/zones` | `admin:zone:write` |
+| 区域 | GET/POST/PUT | `/v1/admin/regions` | `admin:region:write` |
+| 门店 | GET/POST/PUT/DELETE | `/v1/admin/stores` | `admin:store:write` |
+| 用户 | GET/POST/PUT | `/v1/admin/users` | `admin:user:write` |
+| 角色 | GET/POST/PUT | `/v1/admin/roles` | `admin:role:write` |
+| 权限 | GET/PUT | `/v1/admin/roles/{id}/permissions` | `admin:role:write` |
+| 审计 | GET | `/v1/admin/audit-logs` | `admin:audit:read` |
+| 全国总揽 | GET | `/v1/national/overview` | `scope:national:read` |
+
+**鉴权**：`HOTPOT_AUTH_MODE=strict`；JWT claims 含 `data_scope`（`store` | `region` | `zone` | `national`）及 `scope_ids[]`。
+
+### 3.3 数据 scope  enforcement（Hub 中间件）
+
+```
+请求 store_id → 校验 user.scope 是否包含该店
+请求 region_id → 校验区域是否在 user 可见范围
+Admin 写操作 → 仅 national 或 delegate 角色
+```
+
+Phase 1 demo 模式保持宽松；P2 上线 strict + scope 强制。
+
+---
+
+## 4. 前端架构
+
+| 应用 | 目录 | 构建 | 部署 |
+|------|------|------|------|
+| 门店看板 | `dashboard/` | 静态 HTML + `core.js` | `:3000` 同域 |
+| 层级看板 | `regional.html` `national.html` | 同上 | 同上 |
+| 运营后台 | `admin/`（新建） | 可复用 `theme.css` | 同域 `/admin/` 或子域 |
+
+**路由守卫**：
+
+- `initShell()` 读 RBAC（P1 JSON → P2 API `/v1/auth/me`）
+- 层级页要求 `data_scope >= region`
+- Admin 要求 `admin:*` 权限
+
+**下钻协议**（统一）：
+
+```
+national → ?zone_id=zone_east_china
+regional → ?region_id=region_taizhou
+store    → switchStore(store_id) → home.html
+```
+
+---
+
+## 5. 分阶段实施计划（研发）
+
+### Phase 1 · 试点（当前 — 已基本完成）
+
+| 里程碑 | 交付 | 状态 |
+|--------|------|------|
+| M1.1 | 门店看板 7 模块 + PDA | ✅ |
+| M1.2 | 多租户 Hub `store_id` | ✅ |
+| M1.3 | 区域/大区 rollup API + `regional.html` | ✅ |
+| M1.4 | 演示 RBAC + 企微 + 日报 | ✅ |
+| M1.5 | UAT 2 店 | 进行中 |
+
+**技术债（带入 P2）**：`DEMO_USERS`、`rbac.json`、`stores.json` 静态配置。
+
+---
+
+### Phase 2 · 区域推广（20 店 · 建议 10~12 周）
+
+| 周次 | 里程碑 | DEV | 验收 |
+|------|--------|-----|------|
+| W1~2 | 组织模型入库 | DEV-501 | `stores`/`zones`/`regions` 表；迁移脚本从 JSON 导入 |
+| W3~4 | Admin 门店 CRUD | DEV-502 | PMO  Web 增店后 Hub 自动建租户空壳 + seed 模板 |
+| W5~6 | 用户/角色/权限 | DEV-503 | 淘汰 `DEMO_USERS`；strict 模式；收货员仅 PDA |
+| W7 | 全国总揽页 | DEV-504 | `national.html` + `/v1/national/overview` |
+| W8 | 审计日志 | DEV-505 | 增删改用户/店留痕 |
+| W9~10 | 配置 OTA | DEV-506 | SOP JSON、阈值 webhook 版本化 |
+| W11~12 | 20 店 rollout | IMP-402 | 单店开户 <30min（后台操作） |
+
+**架构门禁**：
+
+- [ ] 所有 Admin API 集成测试 + RBAC 负例
+- [ ] `HOTPOT_AUTH_MODE=strict` staging 默认开启
+- [ ] PostgreSQL 单库多租户压测（20 store 并发写）
+
+---
+
+### Phase 3 · 全国（50+ 店）
+
+| 里程碑 | 内容 |
+|--------|------|
+| M3.1 | 多大区 `national` 性能优化（物化视图 / 定时 rollup 表） |
+| M3.2 | 加盟 SaaS：门店只读 + 业主手机简版 |
+| M3.3 | 供应商 KPI 中台、LLM 区域 narrative |
+| M3.4 | 可选：区域 Hub 分片（按大区） |
+
+---
+
+### Phase 4 · 中台深化
+
+ConfigHub 独立服务、ModelHub、总部 BI/数据湖、会员中台联动（见 [solution.md](solution.md) Phase 3）。
+
+---
+
+## 6. 部署拓扑演进
+
+| 环境 | Phase 1 | Phase 2 | Phase 3 |
+|------|---------|---------|---------|
+| 边缘 | 2× RK3588 或 dev mock | 20 店 systemd | 镜像 OTA |
+| Hub | 1 VM · docker compose | 1 VM PG 16 · 备份 | 主从或按大区拆分 |
+| 看板 |静态 nginx/python serve | 同左 + admin 静态 | CDN 可选 |
+
+nginx 配置见 [deploy/nginx/README.md](../deploy/nginx/README.md)（同域 / 子域 / 双端口）。
+| 配置 | git + JSON | Admin UI → DB | ConfigHub |
+
+---
+
+## 7. 安全与合规
+
+| 项 | Phase 1 | Phase 2+ |
+|----|---------|----------|
+| 认证 | demo JWT | strict + 密码策略 + 可选 SSO |
+| 授权 | 前端 RBAC | Hub 中间件 data_scope |
+| 审计 | 业务 ack/签字 | + Admin 配置审计 |
+| 加盟 | — | 写操作禁止；配置只读副本 |
+| 隐私 | 无人脸 | 同左 |
+
+---
+
+## 8. 与现有代码映射
+
+| 能力 | 当前路径 | P2 演进 |
+|------|----------|---------|
+| 组织注册 | `demo/data/stores.json` | `cloud/event_hub/org_store.py` + 表 |
+| 区域聚合 | `hub_core.get_region_overview` | + `get_national_overview` |
+| 认证 | `cloud/event_hub/auth.py` | + DB 用户查询 |
+| RBAC | `dashboard/assets/rbac.json` | API `/v1/auth/me` |
+| 层级 UI | `dashboard/regional.html` | + `national.html` |
+| 运营后台 | — | `dashboard/admin/` + `app.py` admin routes |
+
+---
+
+## 9. ADR 关联
+
+- **ADR-001**：Phase 1 不做完整 L3 → **修订**：P1 不做 Admin **写**能力；P2 起 L3 模块化并入 Hub
+- **ADR-009**（新增）：全国组织层级与 data_scope 模型
+
+---
+
+## 10. 变更记录
+
+| 版本 | 日期 | 说明 |
+|------|------|------|
+| V1.0 | 2026-06-16 | 组织 ER、Admin API、P1~P4 研发里程碑 |

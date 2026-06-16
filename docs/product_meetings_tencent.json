@@ -1,0 +1,22 @@
+{
+  "meeting_id": "888888888",
+  "meeting_id_display": "888-888-888",
+  "password": "061717",
+  "join_url": "https://meeting.tencent.com/dm/placeholder-replace-after-create",
+  "note": "创建腾讯会议后，更新 meeting_id / password / join_url，运行: python3 scripts/gen_product_meetings_ics.py",
+  "pm401": {
+    "date": "20260617",
+    "start": "140000",
+    "end": "160000",
+    "summary": "PM-401 Phase1 MVP 产品评审"
+  },
+  "ar401": {
+    "date": "20260618",
+    "start": "100000",
+    "end": "123000",
+    "summary": "AR-401 Phase1 架构设计评审",
+    "password": "061718"
+  },
+  "demo_dashboard": "http://10.1.12.17:3000/login.html",
+  "demo_account": "zhangdian / demo"
+}

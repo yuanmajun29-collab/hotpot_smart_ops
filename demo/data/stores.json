@@ -1,12 +1,48 @@
 {
   "brand": "冯校长火锅",
   "region": "台州",
+  "parent_regions": [
+    {
+      "zone_id": "zone_east_china",
+      "zone_name": "华东大区",
+      "status": "active",
+      "child_region_ids": ["region_taizhou", "region_wenzhou", "region_hangzhou"]
+    }
+  ],
+  "regions": [
+    {
+      "region_id": "region_taizhou",
+      "region_name": "台州区域",
+      "parent": "华东大区",
+      "parent_zone_id": "zone_east_china",
+      "status": "active",
+      "store_ids": ["store_yuhuan", "store_jiaojiang"]
+    },
+    {
+      "region_id": "region_wenzhou",
+      "region_name": "温州区域",
+      "parent": "华东大区",
+      "parent_zone_id": "zone_east_china",
+      "status": "planned",
+      "store_ids": []
+    },
+    {
+      "region_id": "region_hangzhou",
+      "region_name": "杭州区域",
+      "parent": "华东大区",
+      "parent_zone_id": "zone_east_china",
+      "status": "planned",
+      "store_ids": []
+    }
+  ],
   "pilot_stores": [
     {
       "store_id": "store_yuhuan",
       "store_name": "冯校长火锅·玉环店",
       "city": "玉环市",
       "type": "direct",
+      "status": "active",
+      "region_id": "region_taizhou",
       "note": "Phase 1 试点店 A"
     },
     {
@@ -14,6 +50,8 @@
       "store_name": "冯校长火锅·椒江店",
       "city": "椒江区",
       "type": "direct",
+      "status": "active",
+      "region_id": "region_taizhou",
       "note": "Phase 1 试点店 B"
     }
   ]

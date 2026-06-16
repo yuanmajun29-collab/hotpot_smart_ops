@@ -1,0 +1,164 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>运营后台 · 冯校长火锅</title>
+  <link rel="stylesheet" href="../assets/theme.css" />
+  <style>
+    .admin-kpi { display: grid; grid-template-columns: repeat(auto-fill, minmax(160px, 1fr)); gap: 12px; margin-bottom: 20px; }
+    .admin-kpi .card { padding: 14px; text-align: center; }
+    .admin-kpi .num { font-size: 1.6rem; font-weight: 700; color: var(--accent, #38bdf8); }
+    .flow-steps { display: flex; flex-wrap: wrap; gap: 8px; margin: 12px 0; }
+    .flow-step { padding: 6px 12px; border-radius: 6px; background: var(--card2, #1e293b); font-size: 0.85rem; }
+    .flow-step.done { border: 1px solid var(--ok, #22c55e); color: var(--ok); }
+    .flow-step.pending { opacity: 0.5; }
+    .admin-actions { display: flex; gap: 10px; flex-wrap: wrap; margin-bottom: 16px; }
+    .badge { display: inline-block; padding: 2px 8px; border-radius: 4px; font-size: 0.75rem; }
+    .badge-ok { background: rgba(34,197,94,0.2); color: #22c55e; }
+    .badge-warn { background: rgba(245,158,11,0.2); color: #f59e0b; }
+    table.admin-table { width: 100%; border-collapse: collapse; font-size: 0.9rem; }
+    table.admin-table th, table.admin-table td { padding: 10px 8px; border-bottom: 1px solid var(--border, #334155); text-align: left; }
+  </style>
+</head>
+<body>
+  <div class="app-shell">
+    <aside class="sidebar" id="admin-sidebar">
+      <div class="sidebar-brand"><h1>运营后台</h1><p>全国连锁 · Admin v0.1</p></div>
+      <a class="nav-item active" data-nav="admin" href="index.html">总览</a>
+      <a class="nav-item" data-nav="admin_stores" href="stores.html">组织 · 门店</a>
+      <a class="nav-item" data-nav="admin_pipeline" href="pipeline.html">数据流 · 打桩</a>
+      <a class="nav-item" href="../regional.html">层级看板</a>
+      <a class="nav-item" href="../system.html">系统状态</a>
+    </aside>
+    <div class="main-wrap">
+      <header class="topbar">
+        <div class="topbar-left">
+          <h2>运营总览</h2>
+          <div class="topbar-meta">stub 模式 · 设备数据打桩 · 业务流程贯通</div>
+        </div>
+        <div class="topbar-right">
+          <input class="hub-input" id="hub-url" type="text" title="Event Hub URL" />
+          <span class="chip" id="user-name">—</span>
+          <button class="btn btn-sm btn-ghost" id="btn-logout">退出</button>
+        </div>
+      </header>
+      <main class="content">
+        <div class="admin-actions">
+          <button class="btn" id="btn-tick-all">▶ 全店打桩 tick（内存）</button>
+          <button class="btn btn-ghost" id="btn-refresh">刷新状态</button>
+          <a class="btn btn-ghost" href="../regional.html">打开层级看板</a>
+        </div>
+
+        <div class="admin-kpi" id="kpi-row">
+          <div class="card"><div class="num" id="kpi-stores">—</div><div>门店数</div></div>
+          <div class="card"><div class="num" id="kpi-pipeline">—</div><div>数据流就绪%</div></div>
+          <div class="card"><div class="num" id="kpi-critical">—</div><div>异常店</div></div>
+          <div class="card"><div class="num" id="kpi-zones">—</div><div>运营大区</div></div>
+        </div>
+
+        <div class="card">
+          <h3>端到端数据流（打桩 → Hub → 看板）</h3>
+          <div class="flow-steps">
+            <span class="flow-step done">① 边缘 Vision stub</span>
+            <span class="flow-step done">② IoT sensor stub</span>
+            <span class="flow-step done">③ POS sim</span>
+            <span class="flow-step done">④ SOP engine</span>
+            <span class="flow-step done">⑤ ERP file</span>
+            <span class="flow-step done">⑥ Cost analyzer</span>
+            <span class="flow-step done">⑦ Hub 聚合</span>
+            <span class="flow-step done">⑧ 层级看板 / 门店看板</span>
+          </div>
+          <p style="font-size:0.85rem;color:var(--muted);margin:0">
+            当前为 <strong>inprocess 打桩</strong>：一键注入各层数据到 Hub。后续可切换 subprocess 模式跑完整 shell 流水线，再逐步替换为真 RTSP/MQTT/ERP API。
+          </p>
+        </div>
+
+        <div class="card" style="margin-top:16px">
+          <h3>门店数据层状态</h3>
+          <table class="admin-table">
+            <thead>
+              <tr>
+                <th>门店</th><th>状态</th><th>就绪</th>
+                <th>vision</th><th>iot</th><th>pos</th><th>sop</th><th>erp</th><th>cost</th>
+                <th></th>
+              </tr>
+            </thead>
+            <tbody id="pipeline-tbody"></tbody>
+          </table>
+        </div>
+
+        <div class="card" style="margin-top:16px">
+          <h3>最近审计</h3>
+          <div id="audit-list" style="font-size:0.85rem;color:var(--muted)">—</div>
+        </div>
+      </main>
+    </div>
+  </div>
+  <script src="../assets/core.js"></script>
+  <script>
+    HotpotApp.initAdminShell("admin");
+
+    function layerIcon(ok) {
+      return ok ? '<span class="badge badge-ok">✓</span>' : '<span class="badge badge-warn">—</span>';
+    }
+
+    async function loadDashboard() {
+      const [pipe, national, audit] = await Promise.all([
+        HotpotApp.fetchAdminPipelineStatus(),
+        HotpotApp.fetchNationalOverview(),
+        HotpotApp.fetchAdminAuditLogs(10),
+      ]);
+      const sum = pipe.summary || {};
+      document.getElementById("kpi-stores").textContent = sum.store_count ?? "—";
+      document.getElementById("kpi-pipeline").textContent = (sum.avg_pipeline_pct ?? 0) + "%";
+      const rollup = national.rollup || {};
+      document.getElementById("kpi-critical").textContent = rollup.critical_stores ?? 0;
+      document.getElementById("kpi-zones").textContent = (national.zones || []).length;
+
+      const tbody = document.getElementById("pipeline-tbody");
+      tbody.innerHTML = "";
+      (pipe.stores || []).forEach((s) => {
+        const L = s.layers || {};
+        const tr = document.createElement("tr");
+        tr.innerHTML = `
+          <td><strong>${s.store_name}</strong><br><code style="font-size:0.75rem">${s.store_id}</code></td>
+          <td>${s.status || "active"}</td>
+          <td>${s.pipeline_pct}%</td>
+          <td>${layerIcon(L.vision)}</td><td>${layerIcon(L.iot)}</td>
+          <td>${layerIcon(L.pos)}</td><td>${layerIcon(L.sop)}</td>
+          <td>${layerIcon(L.erp)}</td><td>${layerIcon(L.cost)}</td>
+          <td><button class="btn btn-sm btn-ghost" data-tick="${s.store_id}">tick</button></td>`;
+        tbody.appendChild(tr);
+      });
+      tbody.querySelectorAll("[data-tick]").forEach((btn) => {
+        btn.onclick = async () => {
+          btn.disabled = true;
+          await HotpotApp.adminPipelineTick({ store_id: btn.dataset.tick });
+          await loadDashboard();
+          btn.disabled = false;
+        };
+      });
+
+      const auditEl = document.getElementById("audit-list");
+      const logs = audit.logs || [];
+      auditEl.innerHTML = logs.length
+        ? logs.map((l) => `<div>${l.created_at} · ${l.action} ${l.entity} ${l.entity_id} · ${l.actor}</div>`).join("")
+        : "暂无配置变更";
+    }
+
+    document.getElementById("btn-refresh").onclick = loadDashboard;
+    document.getElementById("btn-tick-all").onclick = async () => {
+      const btn = document.getElementById("btn-tick-all");
+      btn.disabled = true;
+      btn.textContent = "运行中…";
+      await HotpotApp.adminPipelineTick({});
+      await loadDashboard();
+      btn.disabled = false;
+      btn.textContent = "▶ 全店打桩 tick（内存）";
+    };
+
+    loadDashboard().catch((e) => alert("加载失败: " + e.message));
+  </script>
+</body>
+</html>

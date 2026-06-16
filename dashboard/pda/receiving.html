@@ -23,39 +23,32 @@
 
     <div class="pda-step-panel active" data-step="0">
       <h2 style="font-size:1.1rem;margin-bottom:16px">Step 1/5 · 选择 PO</h2>
-      <div class="po-item selected" data-po="PO-20260612-001">
-        <b>PO-20260612-001</b><br>
-        <span style="color:var(--muted);font-size:0.9rem">毛肚 · 冯校长供应链 · PO 20.0 kg</span>
-      </div>
-      <div class="po-item" data-po="PO-20260612-002">
-        <b>PO-20260612-002</b><br>
-        <span style="color:var(--muted);font-size:0.9rem">鲜切牛肉 · 冯校长供应链 · PO 15.0 kg</span>
-      </div>
+      <div id="po-list"><p style="color:var(--muted)">加载 ERP PO…</p></div>
     </div>
 
     <div class="pda-step-panel" data-step="1">
       <h2 style="font-size:1.1rem;margin-bottom:16px">Step 2/5 · 称重（IoT 自动）</h2>
-      <p style="color:var(--muted);font-size:0.9rem;margin-bottom:8px">收货智能秤已连接</p>
-      <div class="pda-big-num" style="color:var(--warn)">19.2 <small style="font-size:1rem">kg</small></div>
-      <p style="text-align:center">PO 20.0 kg · 偏差 <b style="color:var(--accent)">-4.0%</b> ⚠</p>
+      <p style="color:var(--muted);font-size:0.9rem;margin-bottom:8px" id="scale-status">收货智能秤连接中…</p>
+      <div class="pda-big-num" id="scale-value" style="color:var(--warn)">— <small style="font-size:1rem">kg</small></div>
+      <p style="text-align:center" id="scale-variance">PO — kg · 偏差 —</p>
     </div>
 
     <div class="pda-step-panel" data-step="2">
       <h2 style="font-size:1.1rem;margin-bottom:16px">Step 3/5 · 探针测温</h2>
       <div class="form-group">
-        <label>冷链货核心温度</label>
-        <input type="text" value="-18.5 °C" readonly style="width:100%;padding:12px;background:var(--card);border:1px solid var(--border);border-radius:6px;color:var(--ok)" />
+        <label>冷链货核心温度（freezer_1）</label>
+        <input type="text" id="temp-input" value="—" readonly style="width:100%;padding:12px;background:var(--card);border:1px solid var(--border);border-radius:6px;color:var(--ok)" />
       </div>
-      <p style="font-size:0.85rem;color:var(--ok)">✓ 温度合格（标准 -25~4°C）</p>
+      <p style="font-size:0.85rem" id="temp-status">读取 IoT 探针…</p>
     </div>
 
     <div class="pda-step-panel" data-step="3">
       <h2 style="font-size:1.1rem;margin-bottom:16px">Step 4/5 · VLM 外观质检</h2>
-      <div style="height:140px;background:var(--card);border:1px solid var(--border);border-radius:8px;display:flex;align-items:center;justify-content:center;color:var(--muted);margin-bottom:12px">
-        📷 点击拍照（演示）
+      <div id="vlm-photo" style="height:140px;background:var(--card);border:1px solid var(--border);border-radius:8px;display:flex;align-items:center;justify-content:center;color:var(--muted);margin-bottom:12px;cursor:pointer">
+        📷 点击拍照（VLM 打桩）
       </div>
-      <p>VLM 品质等级：<span class="tag pass" style="font-size:1rem;padding:4px 12px">A 级</span></p>
-      <p style="font-size:0.85rem;color:var(--muted);margin-top:8px">外观正常，符合入库标准</p>
+      <p>VLM 品质等级：<span class="tag pass" id="vlm-grade" style="font-size:1rem;padding:4px 12px">—</span></p>
+      <p style="font-size:0.85rem;color:var(--muted);margin-top:8px" id="vlm-note">拍照后自动评级</p>
     </div>
 
     <div class="pda-step-panel" data-step="4">
@@ -64,13 +57,13 @@
       <div class="signature-pad" id="sig1" onclick="sign(this)">点击签字</div>
       <p style="font-size:0.9rem;margin-bottom:8px">厨师长签字</p>
       <div class="signature-pad" id="sig2" onclick="sign(this)">点击签字</div>
-      <p style="font-size:0.85rem;color:var(--warn);margin-top:12px">短重 4% 已记录，建议扣重结算</p>
+      <p style="font-size:0.85rem;color:var(--warn);margin-top:12px" id="variance-note">偏差计算中…</p>
     </div>
 
     <div class="pda-step-panel" data-step="5" style="text-align:center;padding:40px 0">
       <div style="font-size:3rem;margin-bottom:16px">✓</div>
       <h2>验收提交成功</h2>
-      <p style="color:var(--muted);margin-top:12px">批次 RCV-001 已入库 Hub</p>
+      <p style="color:var(--muted);margin-top:12px" id="success-msg">批次已入库 Hub</p>
       <a class="btn" href="../cost.html" style="display:inline-block;margin-top:24px">查看来料成本</a>
     </div>
   </div>
@@ -80,20 +73,204 @@
     <button class="btn" style="flex:2" id="btn-next" onclick="nextStep()">下一步</button>
   </footer>
 
+  <script src="../assets/core.js"></script>
   <script>
     let step = 0;
     const total = 5;
+    let selectedPo = "";
+    let selectedSku = "";
+    let poWeight = 0;
+    let actualWeight = 0;
+    let vlmGrade = "";
+    let tempC = null;
+    let lastBatchId = "";
+    let poOrders = [];
 
-    document.querySelectorAll(".po-item").forEach((el) => {
-      el.onclick = () => {
-        document.querySelectorAll(".po-item").forEach((p) => p.classList.remove("selected"));
-        el.classList.add("selected");
-      };
-    });
+    const FALLBACK_POS = [
+      { po_id: "PO-20260612-001", sku: "毛肚", supplier: "冯校长供应链", planned_qty_kg: 20.0 },
+      { po_id: "PO-20260612-002", sku: "鲜切牛肉", supplier: "冯校长供应链", planned_qty_kg: 15.0 },
+    ];
+
+    function latestReading(data) {
+      const items = data?.readings || [];
+      if (!items.length) return null;
+      return items[items.length - 1];
+    }
+
+    function variancePct(actual, planned) {
+      if (!planned) return null;
+      return ((actual - planned) / planned * 100).toFixed(1);
+    }
+
+    function renderPoList(orders) {
+      const box = document.getElementById("po-list");
+      box.innerHTML = "";
+      orders.forEach((o, idx) => {
+        const el = document.createElement("div");
+        el.className = "po-item" + (idx === 0 ? " selected" : "");
+        el.dataset.po = o.po_id;
+        el.dataset.sku = o.sku;
+        el.dataset.weight = o.planned_qty_kg || o.po_qty_kg || 0;
+        el.innerHTML = `<b>${o.po_id}</b><br><span style="color:var(--muted);font-size:0.9rem">${o.sku} · ${o.supplier || "供应链"} · PO ${el.dataset.weight} kg</span>`;
+        el.onclick = () => selectPo(el);
+        box.appendChild(el);
+      });
+      if (orders.length) selectPo(box.querySelector(".po-item"));
+    }
+
+    function selectPo(el) {
+      document.querySelectorAll(".po-item").forEach((p) => p.classList.remove("selected"));
+      el.classList.add("selected");
+      selectedPo = el.dataset.po;
+      selectedSku = el.dataset.sku;
+      poWeight = parseFloat(el.dataset.weight) || 0;
+      refreshScalePanel();
+      refreshVarianceNote();
+    }
+
+    function refreshScalePanel() {
+      const varEl = document.getElementById("scale-variance");
+      const vp = variancePct(actualWeight, poWeight);
+      const warn = vp && Math.abs(parseFloat(vp)) > 3;
+      document.getElementById("scale-value").style.color = warn ? "var(--warn)" : "var(--ok)";
+      varEl.innerHTML = `PO ${poWeight} kg · 偏差 <b style="color:var(--accent)">${vp ?? "—"}%</b>${warn ? " ⚠" : ""}`;
+    }
+
+    function refreshVarianceNote() {
+      const vp = variancePct(actualWeight, poWeight);
+      const el = document.getElementById("variance-note");
+      if (vp === null) {
+        el.textContent = "等待称重数据";
+        return;
+      }
+      const abs = Math.abs(parseFloat(vp));
+      el.textContent = abs > 3
+        ? `短重 ${abs}% 已记录，建议扣重结算`
+        : `偏差 ${vp}% 在允许范围内`;
+      el.style.color = abs > 3 ? "var(--warn)" : "var(--muted)";
+    }
+
+    async function loadErpPos() {
+      try {
+        const erp = await HotpotApp.fetchErp();
+        poOrders = (erp.orders || []).filter((o) => o.status !== "cancelled");
+        if (!poOrders.length) poOrders = FALLBACK_POS;
+      } catch (e) {
+        poOrders = FALLBACK_POS;
+      }
+      renderPoList(poOrders);
+    }
+
+    async function loadScaleReading() {
+      const status = document.getElementById("scale-status");
+      try {
+        const data = await HotpotApp.fetchIotReadings("receiving_scale", 1);
+        const r = latestReading(data);
+        if (r && r.value != null) {
+          actualWeight = parseFloat(r.value);
+          document.getElementById("scale-value").innerHTML =
+            `${actualWeight} <small style="font-size:1rem">kg</small>`;
+          status.textContent = "收货智能秤已连接 · " + (r.recorded_at || "");
+          refreshScalePanel();
+          refreshVarianceNote();
+          return;
+        }
+      } catch (e) { /* fallback below */ }
+      actualWeight = poWeight ? poWeight * 0.96 : 19.2;
+      document.getElementById("scale-value").innerHTML =
+        `${actualWeight} <small style="font-size:1rem">kg</small>`;
+      status.textContent = "IoT 无数据，使用演示秤重";
+      refreshScalePanel();
+      refreshVarianceNote();
+    }
+
+    async function loadProbeTemp() {
+      const input = document.getElementById("temp-input");
+      const status = document.getElementById("temp-status");
+      try {
+        const data = await HotpotApp.fetchIotReadings("freezer_1", 1);
+        const r = latestReading(data);
+        if (r && r.value != null) {
+          tempC = parseFloat(r.value);
+          input.value = `${tempC} °C`;
+          const ok = tempC >= -25 && tempC <= 4;
+          status.textContent = ok ? "✓ 温度合格（标准 -25~4°C）" : "⚠ 温度异常，请复核";
+          status.style.color = ok ? "var(--ok)" : "var(--warn)";
+          input.style.color = ok ? "var(--ok)" : "var(--warn)";
+          return;
+        }
+      } catch (e) { /* fallback */ }
+      tempC = -18.5;
+      input.value = `${tempC} °C`;
+      status.textContent = "IoT 无数据，使用演示温度 ✓";
+      status.style.color = "var(--ok)";
+    }
+
+    async function runVlmGrade() {
+      const photo = document.getElementById("vlm-photo");
+      const gradeEl = document.getElementById("vlm-grade");
+      const note = document.getElementById("vlm-note");
+      photo.textContent = "VLM 分析中…";
+      try {
+        const data = await HotpotApp.vlmQualityGrade(selectedSku, selectedPo);
+        vlmGrade = data.quality_grade || data.grade || "B";
+        gradeEl.textContent = vlmGrade + " 级";
+        gradeEl.className = "tag " + (vlmGrade === "A" ? "pass" : vlmGrade === "B" ? "pending" : "fail");
+        note.textContent = (data.defects || []).join("；") || "外观正常，符合入库标准";
+        photo.textContent = "📷 已拍照 ✓";
+      } catch (e) {
+        vlmGrade = "A";
+        gradeEl.textContent = "A 级";
+        note.textContent = "VLM 服务不可用，默认 A 级";
+        photo.textContent = "📷 演示评级 ✓";
+      }
+    }
 
     function sign(el) {
-      el.textContent = "已签字 ✓";
+      const auth = HotpotApp.getAuth();
+      const name = auth?.display_name || auth?.username || "签字人";
+      el.textContent = name + " 已签字 ✓";
       el.classList.add("signed");
+      el.dataset.signedBy = name;
+    }
+
+    async function submitReceiving() {
+      if (!HotpotApp.canAction(HotpotApp.getAuth()?.role, "receiving_submit")) {
+        throw new Error("当前角色无收货提交权限");
+      }
+      const auth = HotpotApp.getAuth();
+      const receiver = document.getElementById("sig1").dataset.signedBy || auth?.username || "zhangdian";
+      const chef = document.getElementById("sig2").dataset.signedBy || "chushi";
+      const variance = variancePct(actualWeight, poWeight);
+      const body = {
+        store_id: auth?.store_id || "store_yuhuan",
+        po_id: selectedPo,
+        sku: selectedSku,
+        weight_kg: actualWeight,
+        po_weight_kg: poWeight,
+        vlm_grade: vlmGrade || "A",
+        temp_c: tempC,
+        signatures: [
+          { role: "receiver", signed_by: receiver },
+          { role: "chef", signed_by: chef },
+        ],
+      };
+      const headers = { "Content-Type": "application/json" };
+      if (auth?.access_token) headers.Authorization = "Bearer " + auth.access_token;
+      const res = await fetch(HotpotApp.hubUrl() + "/v1/receiving/submit", {
+        method: "POST",
+        headers,
+        body: JSON.stringify(body),
+      });
+      if (!res.ok) {
+        const err = await res.json().catch(() => ({}));
+        throw new Error(err.detail || res.statusText || "提交失败");
+      }
+      const data = await res.json();
+      lastBatchId = data.batch_id;
+      document.getElementById("success-msg").textContent =
+        "批次 " + lastBatchId + " 已入库 Hub（偏差 " + (data.variance_pct ?? variance) + "%）";
+      return data;
     }
 
     function updateUI() {
@@ -108,15 +285,35 @@
       document.getElementById("btn-prev").style.visibility = step === 0 || step >= total ? "hidden" : "visible";
       document.getElementById("btn-next").textContent = step === total - 1 ? "提交验收" : step >= total ? "完成" : "下一步";
       document.getElementById("btn-next").style.display = step >= total ? "none" : "";
+      if (step === 1) loadScaleReading();
+      if (step === 2) loadProbeTemp();
     }
 
     function nextStep() {
+      if (step === 3 && !vlmGrade) {
+        alert("请先完成 VLM 外观质检（点击拍照）");
+        return;
+      }
       if (step === total - 1) {
         if (!document.getElementById("sig1").classList.contains("signed") ||
             !document.getElementById("sig2").classList.contains("signed")) {
           alert("请完成双人签字");
           return;
         }
+        const btn = document.getElementById("btn-next");
+        btn.disabled = true;
+        btn.textContent = "提交中…";
+        submitReceiving()
+          .then(() => {
+            step++;
+            updateUI();
+          })
+          .catch((e) => alert(e.message || String(e)))
+          .finally(() => {
+            btn.disabled = false;
+            btn.textContent = step >= total ? "完成" : "提交验收";
+          });
+        return;
       }
       if (step < total) step++;
       updateUI();
@@ -127,7 +324,12 @@
       updateUI();
     }
 
+    document.getElementById("vlm-photo").onclick = runVlmGrade;
     updateUI();
+    if (typeof HotpotApp !== "undefined") {
+      HotpotApp.requireAuth();
+      loadErpPos();
+    }
   </script>
 </body>
 </html>

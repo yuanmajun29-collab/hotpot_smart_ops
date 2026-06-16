@@ -22,6 +22,95 @@ def utc_now_iso() -> str:
     return datetime.now(timezone.utc).replace(microsecond=0).isoformat()
 
 
+def compute_store_health(metrics: Dict[str, Any]) -> Dict[str, Any]:
+    """F-HQ06/F-HQ07: derive ok | warn | critical from store metrics."""
+    reasons: List[str] = []
+    status = "ok"
+    critical_alerts = int(metrics.get("critical_alerts") or 0)
+    warn_alerts = int(metrics.get("warn_alerts") or 0)
+    sop = metrics.get("sop_compliance_rate")
+    cost_var = metrics.get("cost_variance_pct")
+    need_clean = int(metrics.get("need_clean") or 0)
+
+    if critical_alerts > 0:
+        status = "critical"
+        reasons.append(f"严重告警 {critical_alerts} 条未闭环")
+    if sop is not None and float(sop) < 70:
+        status = "critical"
+        reasons.append(f"SOP 合规仅 {sop}%")
+    elif sop is not None and float(sop) < 85 and status != "critical":
+        status = "warn"
+        reasons.append(f"SOP 合规 {sop}% 偏低")
+    if cost_var is not None and float(cost_var) > 5:
+        if status != "critical":
+            status = "warn"
+        reasons.append(f"来料偏差 {cost_var}%")
+    if need_clean >= 3:
+        if status == "ok":
+            status = "warn"
+        reasons.append(f"待清台 {need_clean} 桌积压")
+    if warn_alerts >= 3 and status == "ok":
+        status = "warn"
+        reasons.append(f"警告事件 {warn_alerts} 条")
+
+    score = 100
+    score -= critical_alerts * 15
+    score -= max(0, warn_alerts - 1) * 3
+    if sop is not None:
+        score -= max(0, 90 - float(sop)) * 0.5
+    if need_clean:
+        score -= need_clean * 2
+    score = max(0, min(100, int(score)))
+
+    return {"status": status, "score": score, "reasons": reasons}
+
+
+def _rollup_from_rows(rows: List[Dict[str, Any]]) -> Dict[str, Any]:
+    health_counts = {"ok": 0, "warn": 0, "critical": 0}
+    for r in rows:
+        health_counts[r["health"]["status"]] = health_counts.get(r["health"]["status"], 0) + 1
+    sop_vals = [r["metrics"]["sop_compliance_rate"] for r in rows if r["metrics"].get("sop_compliance_rate") is not None]
+    return {
+        "store_count": len(rows),
+        "critical_stores": health_counts.get("critical", 0),
+        "warn_stores": health_counts.get("warn", 0),
+        "ok_stores": health_counts.get("ok", 0),
+        "total_critical_alerts": sum(r["metrics"].get("critical_alerts", 0) for r in rows),
+        "total_need_clean": sum(r["metrics"].get("need_clean", 0) for r in rows),
+        "avg_sop_compliance": round(sum(sop_vals) / len(sop_vals), 1) if sop_vals else None,
+    }
+
+
+def _anomaly_stores_from_rows(rows: List[Dict[str, Any]]) -> List[Dict[str, Any]]:
+    anomaly: List[Dict[str, Any]] = []
+    for r in rows:
+        if r["health"]["status"] != "ok":
+            anomaly.append(
+                {
+                    "store_id": r["store_id"],
+                    "store_name": r["store_name"],
+                    "health": r["health"]["status"],
+                    "score": r["health"]["score"],
+                    "reasons": r["health"]["reasons"],
+                    "metrics": r["metrics"],
+                }
+            )
+    order = {"critical": 0, "warn": 1, "ok": 2}
+    anomaly.sort(key=lambda x: (order.get(x["health"], 9), -x["score"]))
+    return anomaly
+
+
+def _region_worst_health(rows: List[Dict[str, Any]], status: str = "active") -> str:
+    if status == "planned" or not rows:
+        return "planned"
+    statuses = [r["health"]["status"] for r in rows]
+    if "critical" in statuses:
+        return "critical"
+    if "warn" in statuses:
+        return "warn"
+    return "ok"
+
+
 def turnover_suggestions(tables: Dict[str, Dict]) -> List[Dict[str, Any]]:
     priority = {"need_clean": 1, "checkout": 2, "empty": 3}
     items = []
@@ -199,6 +288,8 @@ class MultiTenantHub:
         self._lock = threading.Lock()
         self._stores: Dict[str, EventStore] = {}
         self._registry: Dict[str, Dict[str, Any]] = {}
+        self._regions: List[Dict[str, Any]] = []
+        self._zones: List[Dict[str, Any]] = []
         self._on_persist = on_persist
         self._load_registry()
 
@@ -207,6 +298,8 @@ class MultiTenantHub:
             return
         try:
             data = json.loads(STORES_REGISTRY.read_text(encoding="utf-8"))
+            self._regions = list(data.get("regions", []))
+            self._zones = list(data.get("parent_regions", []))
             for item in data.get("pilot_stores", []):
                 sid = item.get("store_id")
                 if sid:
@@ -230,35 +323,114 @@ class MultiTenantHub:
             items.append(meta)
         return items
 
-    def get_benchmark(self) -> Dict[str, Any]:
+    def _store_benchmark_row(self, sid: str) -> Optional[Dict[str, Any]]:
+        meta = self._registry.get(sid, {})
+        summary = self.get_store(sid).get_summary()
+        if not summary.get("total_events") and not self.get_store(sid).has_data():
+            return None
+        pos = summary.get("pos_stats") or {}
+        sop = summary.get("sop_stats") or {}
+        cost = summary.get("cost_stats") or {}
+        levels = summary.get("by_level") or {}
+        tables = summary.get("table_state_counts") or {}
+        metrics = {
+            "daily_revenue": pos.get("daily_revenue", 0),
+            "turnover_rate": pos.get("turnover_rate", 0),
+            "sop_compliance_rate": sop.get("compliance_rate"),
+            "cost_variance_pct": cost.get("variance_rate_pct"),
+            "critical_alerts": levels.get("critical", 0),
+            "warn_alerts": levels.get("warn", 0),
+            "need_clean": tables.get("need_clean", 0),
+            "empty_tables": tables.get("empty", 0),
+        }
+        health = compute_store_health(metrics)
+        return {
+            "store_id": sid,
+            "store_name": meta.get("store_name", sid),
+            "city": meta.get("city", ""),
+            "type": meta.get("type", ""),
+            "metrics": metrics,
+            "health": health,
+        }
+
+    def _rows_for_region(self, region_meta: Dict[str, Any]) -> List[Dict[str, Any]]:
         rows: List[Dict[str, Any]] = []
-        for sid in sorted(set(self._registry) | set(self._stores)):
-            meta = self._registry.get(sid, {})
-            summary = self.get_store(sid).get_summary()
-            if not summary.get("total_events") and not self.get_store(sid).has_data():
-                continue
-            pos = summary.get("pos_stats") or {}
-            sop = summary.get("sop_stats") or {}
-            cost = summary.get("cost_stats") or {}
-            levels = summary.get("by_level") or {}
-            tables = summary.get("table_state_counts") or {}
-            rows.append(
-                {
-                    "store_id": sid,
-                    "store_name": meta.get("store_name", sid),
-                    "city": meta.get("city", ""),
-                    "metrics": {
-                        "daily_revenue": pos.get("daily_revenue", 0),
-                        "turnover_rate": pos.get("turnover_rate", 0),
-                        "sop_compliance_rate": sop.get("compliance_rate"),
-                        "cost_variance_pct": cost.get("variance_rate_pct"),
-                        "critical_alerts": levels.get("critical", 0),
-                        "warn_alerts": levels.get("warn", 0),
-                        "need_clean": tables.get("need_clean", 0),
-                        "empty_tables": tables.get("empty", 0),
-                    },
-                }
-            )
+        for sid in region_meta.get("store_ids") or []:
+            row = self._store_benchmark_row(sid)
+            if row:
+                rows.append(row)
+        return rows
+
+    def _child_region_summary(self, region_meta: Dict[str, Any]) -> Dict[str, Any]:
+        rows = self._rows_for_region(region_meta)
+        rollup = _rollup_from_rows(rows)
+        return {
+            "region_id": region_meta.get("region_id"),
+            "region_name": region_meta.get("region_name"),
+            "parent": region_meta.get("parent", ""),
+            "status": region_meta.get("status", "planned"),
+            "store_count": len(region_meta.get("store_ids") or []),
+            "connected_stores": len(rows),
+            "health_status": _region_worst_health(rows, region_meta.get("status", "active")),
+            "rollup": rollup,
+        }
+
+    def get_region_overview(self, region_id: Optional[str] = None) -> Dict[str, Any]:
+        """F-HQ06/F-HQ07: zone or region rollup, health matrix, anomaly stores."""
+        regions_meta = self._regions or [
+            {
+                "region_id": "region_taizhou",
+                "region_name": "台州区域",
+                "parent": "华东大区",
+                "status": "active",
+                "store_ids": sorted(self._registry.keys()),
+            }
+        ]
+        zones_meta = self._zones or [
+            {
+                "zone_id": "zone_east_china",
+                "zone_name": "华东大区",
+                "status": "active",
+                "child_region_ids": [r.get("region_id") for r in regions_meta],
+            }
+        ]
+
+        zone = None
+        region = None
+        if region_id:
+            zone = next((z for z in zones_meta if z.get("zone_id") == region_id), None)
+            if not zone:
+                region = next((r for r in regions_meta if r.get("region_id") == region_id), None)
+        if not zone and not region:
+            zone = next((z for z in zones_meta if z.get("status") == "active"), zones_meta[0] if zones_meta else None)
+
+        level = "zone" if zone else "region"
+        if zone:
+            scope_id = zone.get("zone_id", "zone_east_china")
+            scope_name = zone.get("zone_name", "华东大区")
+            parent_name = ""
+            child_ids = set(zone.get("child_region_ids") or [])
+            child_metas = [r for r in regions_meta if r.get("region_id") in child_ids]
+            store_ids: List[str] = []
+            for cm in child_metas:
+                store_ids.extend(cm.get("store_ids") or [])
+            child_regions = [self._child_region_summary(cm) for cm in child_metas]
+        else:
+            region = region or next((r for r in regions_meta if r.get("status") == "active"), regions_meta[0])
+            scope_id = region.get("region_id", "region_taizhou")
+            scope_name = region.get("region_name", "台州区域")
+            parent_name = region.get("parent", "")
+            store_ids = list(region.get("store_ids") or [])
+            child_regions = []
+
+        rows: List[Dict[str, Any]] = []
+        for sid in store_ids:
+            row = self._store_benchmark_row(sid)
+            if row:
+                rows.append(row)
+
+        rollup = _rollup_from_rows(rows)
+        anomaly_stores = _anomaly_stores_from_rows(rows)
 
         def _rank(key: str, reverse: bool = True) -> Dict[str, int]:
             sorted_rows = sorted(
@@ -276,33 +448,176 @@ class MultiTenantHub:
         }
 
         narrative: List[str] = []
-        if len(rows) >= 2:
-            by_sop = sorted(rows, key=lambda r: r["metrics"].get("sop_compliance_rate") or 0, reverse=True)
+        if level == "zone":
+            active_children = [c for c in child_regions if c.get("status") == "active"]
+            planned_children = [c for c in child_regions if c.get("status") == "planned"]
             narrative.append(
-                f"SOP 合规：{by_sop[0]['store_name']}（{by_sop[0]['metrics'].get('sop_compliance_rate')}%）"
-                f" 领先 {by_sop[-1]['store_name']}（{by_sop[-1]['metrics'].get('sop_compliance_rate')}%）"
+                f"{scope_name}共接入 {rollup['store_count']} 家门店，"
+                f"覆盖 {len(active_children)} 个运营区域"
             )
-            by_crit = sorted(rows, key=lambda r: r["metrics"].get("critical_alerts") or 0)
-            if by_crit[0]["metrics"].get("critical_alerts", 0) < by_crit[-1]["metrics"].get("critical_alerts", 0):
+            if planned_children:
+                names = "、".join(c["region_name"] for c in planned_children)
+                narrative.append(f"筹备中区域：{names}")
+            if rollup["critical_stores"]:
+                names = [a["store_name"] for a in anomaly_stores if a["health"] == "critical"]
+                narrative.append(f"⚠ 大区 {rollup['critical_stores']} 家店需立即关注：{', '.join(names)}")
+            worst_child = sorted(
+                [c for c in child_regions if c.get("connected_stores")],
+                key=lambda c: ({"critical": 0, "warn": 1, "ok": 2, "planned": 3}.get(c.get("health_status", "ok"), 9)),
+            )
+            if worst_child and worst_child[0].get("health_status") in ("critical", "warn"):
+                c0 = worst_child[0]
+                narrative.append(f"优先巡检：{c0['region_name']}（{c0['rollup'].get('critical_stores', 0)} 家异常）")
+        else:
+            if rollup["critical_stores"]:
+                names = [a["store_name"] for a in anomaly_stores if a["health"] == "critical"]
+                narrative.append(f"⚠ {rollup['critical_stores']} 家店需立即关注：{', '.join(names)}")
+            if len(rows) >= 2:
+                by_sop = sorted(rows, key=lambda r: r["metrics"].get("sop_compliance_rate") or 0, reverse=True)
                 narrative.append(
-                    f"食安告警：{by_crit[-1]['store_name']} 严重告警 {by_crit[-1]['metrics'].get('critical_alerts')} 条，"
-                    f"建议优先巡检"
+                    f"SOP 合规：{by_sop[0]['store_name']}（{by_sop[0]['metrics'].get('sop_compliance_rate')}%）"
+                    f" 领先 {by_sop[-1]['store_name']}（{by_sop[-1]['metrics'].get('sop_compliance_rate')}%）"
                 )
-            by_clean = sorted(rows, key=lambda r: r["metrics"].get("need_clean") or 0, reverse=True)
-            if by_clean[0]["metrics"].get("need_clean", 0) > 0:
-                narrative.append(
-                    f"翻台压力：{by_clean[0]['store_name']} 待清台 {by_clean[0]['metrics'].get('need_clean')} 桌，"
-                    f"建议增配保洁"
-                )
+                by_crit = sorted(rows, key=lambda r: r["metrics"].get("critical_alerts") or 0)
+                if by_crit[0]["metrics"].get("critical_alerts", 0) < by_crit[-1]["metrics"].get("critical_alerts", 0):
+                    narrative.append(
+                        f"食安告警：{by_crit[-1]['store_name']} 严重告警 {by_crit[-1]['metrics'].get('critical_alerts')} 条，"
+                        f"建议优先巡检"
+                    )
+                by_clean = sorted(rows, key=lambda r: r["metrics"].get("need_clean") or 0, reverse=True)
+                if by_clean[0]["metrics"].get("need_clean", 0) > 0:
+                    narrative.append(
+                        f"翻台压力：{by_clean[0]['store_name']} 待清台 {by_clean[0]['metrics'].get('need_clean')} 桌，"
+                        f"建议增配保洁"
+                    )
+        if not narrative:
+            narrative.append("区域内门店运营态势正常")
+
+        regions_brief = [
+            {
+                "region_id": r.get("region_id"),
+                "region_name": r.get("region_name"),
+                "parent": r.get("parent"),
+                "status": r.get("status", "planned"),
+                "store_count": len(r.get("store_ids") or []),
+            }
+            for r in regions_meta
+        ]
+        zones_brief = [
+            {
+                "zone_id": z.get("zone_id"),
+                "zone_name": z.get("zone_name"),
+                "status": z.get("status", "active"),
+                "region_count": len(z.get("child_region_ids") or []),
+            }
+            for z in zones_meta
+        ]
 
         return {
-            "region": "台州",
+            "brand": "冯校长火锅",
+            "level": level,
+            "region_id": scope_id,
+            "region_name": scope_name,
+            "parent_region": parent_name,
+            "region": scope_name,
             "store_count": len(rows),
+            "rollup": rollup,
+            "health_matrix": [
+                {
+                    "store_id": r["store_id"],
+                    "store_name": r["store_name"],
+                    "city": r.get("city", ""),
+                    "health": r["health"]["status"],
+                    "score": r["health"]["score"],
+                    "reasons": r["health"]["reasons"],
+                }
+                for r in rows
+            ],
+            "anomaly_stores": anomaly_stores,
+            "regions": regions_brief,
+            "parent_regions": zones_brief,
+            "child_regions": child_regions,
             "stores": rows,
             "rankings": rankings,
             "narrative": narrative,
             "generated_at": utc_now_iso(),
         }
+
+    def get_benchmark(self) -> Dict[str, Any]:
+        return self.get_region_overview()
+
+    def get_national_overview(self) -> Dict[str, Any]:
+        """F-HQ12: aggregate all zones for national dashboard."""
+        zones = list(self._zones) or [{"zone_id": "zone_east_china", "zone_name": "华东大区", "status": "active"}]
+        zone_rollups = []
+        all_rows: List[Dict[str, Any]] = []
+        all_anomaly: List[Dict[str, Any]] = []
+
+        for z in zones:
+            zid = z.get("zone_id")
+            if not zid:
+                continue
+            overview = self.get_region_overview(zid)
+            rollup = overview.get("rollup") or {}
+            zone_rollups.append(
+                {
+                    "zone_id": zid,
+                    "zone_name": z.get("zone_name", zid),
+                    "status": z.get("status", "active"),
+                    "rollup": rollup,
+                    "health_status": _region_worst_health(
+                        overview.get("stores") or [],
+                        z.get("status", "active"),
+                    ),
+                    "child_regions": overview.get("child_regions") or [],
+                }
+            )
+            all_rows.extend(overview.get("stores") or [])
+            all_anomaly.extend(overview.get("anomaly_stores") or [])
+
+        national_rollup = _rollup_from_rows(all_rows) if all_rows else {
+            "store_count": len(self._registry),
+            "critical_stores": 0,
+            "warn_stores": 0,
+            "ok_stores": 0,
+            "total_critical_alerts": 0,
+            "total_need_clean": 0,
+            "avg_sop_compliance": None,
+        }
+        order = {"critical": 0, "warn": 1, "ok": 2}
+        all_anomaly.sort(key=lambda x: (order.get(x.get("health"), 9), -x.get("score", 0)))
+        top_anomaly = all_anomaly[:10]
+
+        narrative = [
+            f"全国共接入 {national_rollup.get('store_count', 0)} 家门店，"
+            f"覆盖 {len([z for z in zone_rollups if z.get('status') == 'active'])} 个运营大区"
+        ]
+        if national_rollup.get("critical_stores"):
+            names = [a["store_name"] for a in top_anomaly if a.get("health") == "critical"][:3]
+            narrative.append(f"⚠ {national_rollup['critical_stores']} 家店需立即关注：{', '.join(names)}")
+
+        return {
+            "brand": "冯校长火锅",
+            "level": "national",
+            "region_id": "org_hq",
+            "region_name": "全国总部",
+            "rollup": national_rollup,
+            "zones": zone_rollups,
+            "stores": all_rows,
+            "anomaly_stores": top_anomaly,
+            "narrative": narrative,
+            "generated_at": utc_now_iso(),
+        }
+
+    def reload_registry_from(self, data: Dict[str, Any]) -> None:
+        with self._lock:
+            self._zones = list(data.get("parent_regions", []))
+            self._regions = list(data.get("regions", []))
+            self._registry = {
+                s["store_id"]: dict(s)
+                for s in data.get("pilot_stores", [])
+                if s.get("store_id")
+            }
 
     def apply_seed(self, seed: Dict[str, Any]) -> None:
         store_id = seed.get("store_id") or DEFAULT_STORE_ID
@@ -317,6 +632,8 @@ class MultiTenantHub:
             store.set_cost_stats(seed["cost_stats"])
         if seed.get("iot_stats"):
             store.set_iot_stats(seed["iot_stats"])
+        if seed.get("erp_stats"):
+            store.set_erp_stats(seed["erp_stats"])
         for ev in seed.get("sample_events", []):
             store.add_event(dict(ev))
 

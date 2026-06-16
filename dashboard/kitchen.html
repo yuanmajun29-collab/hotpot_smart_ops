@@ -43,6 +43,12 @@
           <h3>IoT 告警明细</h3>
           <ul class="list-plain" id="iot-alerts"></ul>
         </div>
+        <div class="card" style="margin-top:20px">
+          <h3>冷库温度 24h（打桩时序 · DEV-412）</h3>
+          <p style="font-size:0.8rem;color:var(--muted);margin-bottom:8px">数据来源 <code>/v1/iot/readings</code> · 运行 <code>./scripts/run_iot_stub.sh</code></p>
+          <canvas id="temp-chart" height="120" style="width:100%;max-height:140px;background:var(--card);border-radius:8px"></canvas>
+          <p id="temp-chart-meta" style="font-size:0.8rem;color:var(--muted);margin-top:8px">—</p>
+        </div>
       </main>
     </div>
   </div>
@@ -82,7 +88,51 @@
           document.getElementById("temp-cold").textContent = s.cold_storage_worst + "°C";
           document.getElementById("temp-cold").className = "stat " + (s.cold_storage_worst > 4 ? "critical" : "ok");
         }
+        const stage = iot.stage_readings || {};
+        const door = Object.values(stage).find((r) => r.type === "door");
+        if (door) {
+          const open = door.value === 1 || door.value === true || door.value === "1";
+          document.getElementById("door-status").textContent = open ? "开启" : "关闭";
+          document.getElementById("door-status").className = "stat " + (open ? "warn" : "ok");
+        }
+        const freeze = stage.cold_storage_1 || stage.freezer_1;
+        if (freeze) {
+          document.getElementById("temp-freeze").textContent = freeze.value + "°C";
+        }
+        await renderTempChart();
       } catch (e) { console.warn(e); }
+    }
+
+    function renderTempChart() {
+      return HotpotApp.fetchIotReadings("cold_storage_1", 24).then((data) => {
+        const pts = data.readings || [];
+        const canvas = document.getElementById("temp-chart");
+        const meta = document.getElementById("temp-chart-meta");
+        if (!pts.length) {
+          meta.textContent = "暂无时序数据 — 请运行 ./scripts/run_iot_stub.sh";
+          return;
+        }
+        const ctx = canvas.getContext("2d");
+        const w = canvas.width = canvas.offsetWidth * 2;
+        const h = canvas.height = 240;
+        ctx.clearRect(0, 0, w, h);
+        const vals = pts.map((p) => p.value);
+        const min = Math.min(...vals) - 1;
+        const max = Math.max(...vals) + 1;
+        ctx.strokeStyle = "#3b82f6";
+        ctx.lineWidth = 2;
+        ctx.beginPath();
+        pts.forEach((p, i) => {
+          const x = (i / Math.max(pts.length - 1, 1)) * (w - 20) + 10;
+          const y = h - 20 - ((p.value - min) / (max - min || 1)) * (h - 40);
+          if (i === 0) ctx.moveTo(x, y);
+          else ctx.lineTo(x, y);
+        });
+        ctx.stroke();
+        meta.textContent = `${pts.length} 点 · 最近 ${pts[pts.length - 1].value}°C · ${pts[pts.length - 1].recorded_at?.slice(11, 19) || ""}`;
+      }).catch(() => {
+        document.getElementById("temp-chart-meta").textContent = "时序加载失败";
+      });
     }
     refresh();
     setInterval(refresh, 5000);

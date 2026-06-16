@@ -9,6 +9,11 @@ import threading
 from pathlib import Path
 from typing import Any, Dict, List, Optional, Union
 
+from cloud.event_hub.daily_report_store import SQLITE_DAILY_REPORTS_SCHEMA
+from cloud.event_hub.iot_readings_store import SQLITE_IOT_READINGS_SCHEMA
+from cloud.event_hub.receiving_store import SQLITE_RECEIVING_SCHEMA
+from cloud.event_hub.sop_assign_store import SQLITE_SOP_ASSIGN_SCHEMA
+
 MAX_EVENTS_PER_STORE = 500
 
 
@@ -61,6 +66,10 @@ class HubDatabase:
                         PRIMARY KEY (store_id, kind)
                     );
                     """
+                    + SQLITE_RECEIVING_SCHEMA
+                    + SQLITE_SOP_ASSIGN_SCHEMA
+                    + SQLITE_IOT_READINGS_SCHEMA
+                    + SQLITE_DAILY_REPORTS_SCHEMA
                 )
                 conn.commit()
             finally:

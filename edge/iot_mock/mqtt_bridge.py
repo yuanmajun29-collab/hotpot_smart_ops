@@ -15,8 +15,9 @@ PROJECT_ROOT = Path(__file__).resolve().parents[2]
 if str(PROJECT_ROOT) not in sys.path:
     sys.path.insert(0, str(PROJECT_ROOT))
 
+from edge.iot_mock.iot_rules import DoorTimeoutTracker, level_for_sensor
 from shared.hub_client import EdgeHubClient
-from shared.schemas import EventLevel, EventSource, utc_now_iso
+from shared.schemas import EventSource, utc_now_iso
 from shared.store_config import DEFAULT_UAT_ROOT, uat_dir
 
 try:
@@ -32,21 +33,8 @@ def load_mqtt_topics(store_id: str, uat_root: Path) -> Dict[str, Any]:
     return json.loads(path.read_text(encoding="utf-8"))
 
 
-def _level_for_reading(sensor_type: str, value: float, thresholds: Dict[str, Any]) -> str:
-    if sensor_type == "temperature":
-        lo = thresholds.get("cold_storage_min_c", -22)
-        hi = thresholds.get("cold_storage_max_c", -15)
-        if value > hi + 3 or value < lo - 3:
-            return EventLevel.CRITICAL.value
-        if value > hi or value < lo:
-            return EventLevel.WARN.value
-    if sensor_type == "gas":
-        warn = thresholds.get("gas_ppm_warn", 50)
-        if value >= warn * 2:
-            return EventLevel.CRITICAL.value
-        if value >= warn:
-            return EventLevel.WARN.value
-    return EventLevel.INFO.value
+def _level_for_reading(sensor_type: str, value: Any, thresholds: Dict[str, Any]) -> str:
+    return level_for_sensor(sensor_type, value, thresholds)
 
 
 def parse_payload(topic_cfg: Dict[str, Any], payload: bytes) -> Optional[Dict[str, Any]]:
@@ -91,6 +79,9 @@ class MqttHubBridge:
         self._readings: Dict[str, Any] = {}
         self._lock = threading.Lock()
         self._client: Optional[Any] = None
+        self._door_tracker = DoorTimeoutTracker(
+            timeout_sec=float(self.thresholds.get("door_open_timeout_sec", 180))
+        )
 
     def _on_message(self, _client: Any, _userdata: Any, msg: Any) -> None:
         cfg = self.topic_map.get(msg.topic)
@@ -100,12 +91,22 @@ class MqttHubBridge:
         if not parsed:
             return
         sid = parsed["sensor_id"]
+        stype = parsed["type"]
         with self._lock:
             self._readings[sid] = parsed
 
-        level = _level_for_reading(parsed["type"], float(parsed["value"]), self.thresholds)
+        level = _level_for_reading(stype, parsed["value"], self.thresholds)
+        parsed["level"] = level
+
+        if stype == "door":
+            door_ev = self._door_tracker.on_reading(
+                sid, parsed["value"], store_id=self.store_id, zone="kitchen"
+            )
+            if door_ev:
+                self.hub.post_event(door_ev)
+
         event = {
-            "event_type": f"iot_{parsed['type']}_reading",
+            "event_type": f"iot_{stype}_reading" if stype != "door" else "iot_door_reading",
             "source": EventSource.IOT.value,
             "level": level,
             "store_id": self.store_id,

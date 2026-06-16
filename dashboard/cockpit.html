@@ -1,0 +1,204 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>集团驾驶仓 · 冯校长火锅 · 智能运营</title>
+  <link rel="stylesheet" href="assets/theme.css" />
+  <style>
+    .cockpit-hero {
+      background: linear-gradient(135deg, #0f172a 0%, #1e3a5f 100%);
+      border-radius: 12px;
+      padding: 24px 28px;
+      margin-bottom: 20px;
+      border: 1px solid var(--border, #334155);
+    }
+    .cockpit-hero h2 { margin: 0 0 8px; font-size: 1.5rem; }
+    .cockpit-hero p { margin: 0; color: var(--muted); font-size: 0.9rem; }
+    .zone-cards { display: grid; grid-template-columns: repeat(auto-fill, minmax(240px, 1fr)); gap: 14px; }
+    .zone-card {
+      padding: 16px;
+      border-radius: 10px;
+      background: var(--card2, #1e293b);
+      border: 1px solid var(--border);
+      cursor: pointer;
+      transition: border-color 0.15s;
+    }
+    .zone-card:hover { border-color: var(--accent, #38bdf8); }
+    .zone-card .zone-name { font-weight: 600; margin-bottom: 8px; }
+    .zone-card .zone-meta { font-size: 0.8rem; color: var(--muted); }
+    .anomaly-row {
+      display: flex; justify-content: space-between; align-items: center;
+      padding: 10px 0; border-bottom: 1px solid var(--border);
+      font-size: 0.9rem;
+    }
+    .anomaly-row:last-child { border-bottom: none; }
+    .read-only-badge {
+      display: inline-block; font-size: 0.75rem; padding: 2px 8px;
+      border-radius: 4px; background: rgba(56,189,248,0.15); color: var(--accent);
+      margin-left: 8px;
+    }
+  </style>
+</head>
+<body>
+  <div class="app-shell">
+    <aside class="sidebar">
+      <div class="sidebar-brand"><h1>冯校长火锅</h1><p>集团 · 驾驶仓</p></div>
+      <a class="nav-item active" data-nav="cockpit" href="cockpit.html">驾驶仓</a>
+      <a class="nav-item" data-nav="regional" href="regional.html">区域 · 下钻</a>
+      <a class="nav-item" data-nav="report" href="report.html">运营日报</a>
+      <a class="nav-item" href="mobile/index.html">📱 手机版</a>
+    </aside>
+    <div class="main-wrap">
+      <header class="topbar">
+        <div class="topbar-left">
+          <h2>集团驾驶仓 <span class="read-only-badge">只读 · F-EXEC01</span></h2>
+          <div class="topbar-meta"><span id="conn-status">检测中</span> · 战略摘要 · 不替代 PMO 运营看板</div>
+        </div>
+        <div class="topbar-right">
+          <input class="hub-input" id="hub-url" type="text" />
+          <span class="chip" id="user-name">—</span>
+          <button class="btn btn-sm btn-ghost" id="btn-logout">退出</button>
+        </div>
+      </header>
+      <main class="content">
+        <div class="cockpit-hero">
+          <h2 id="hero-title">全国经营态势</h2>
+          <p id="hero-narrative">加载中…</p>
+        </div>
+
+        <div class="kpi-strip" id="rollup-kpi">
+          <div class="kpi-tile"><span class="cell-muted">接入门店</span><b id="kpi-stores">—</b></div>
+          <div class="kpi-tile"><span class="cell-muted">运营大区</span><b id="kpi-zones">—</b></div>
+          <div class="kpi-tile"><span class="cell-muted">健康门店</span><b id="kpi-ok" class="cell-ok">—</b></div>
+          <div class="kpi-tile"><span class="cell-muted">关注</span><b id="kpi-warn" class="cell-warn">—</b></div>
+          <div class="kpi-tile"><span class="cell-muted">异常店</span><b id="kpi-critical" class="cell-critical">—</b></div>
+          <div class="kpi-tile"><span class="cell-muted">严重告警</span><b id="kpi-alerts">—</b></div>
+          <div class="kpi-tile"><span class="cell-muted">均 SOP</span><b id="kpi-sop">—</b></div>
+        </div>
+
+        <div class="grid grid-2" style="margin:20px 0">
+          <div class="card">
+            <h3>大区态势 · 点击下钻</h3>
+            <div class="zone-cards" id="zone-cards"><p style="color:var(--muted)">加载中…</p></div>
+          </div>
+          <div class="card">
+            <h3>异常门店 Top · 需关注</h3>
+            <div id="anomaly-list"><p style="color:var(--muted)">加载中…</p></div>
+            <p style="margin-top:12px;font-size:0.8rem;color:var(--muted)">
+              <a href="regional.html?region_id=zone_east_china">进入区域总揽详细分析 →</a>
+            </p>
+          </div>
+        </div>
+
+        <div class="card">
+          <h3>全国门店一览</h3>
+          <div class="benchmark-wrap">
+            <table class="benchmark-table">
+              <thead>
+                <tr>
+                  <th>门店</th>
+                  <th>健康</th>
+                  <th>健康分</th>
+                  <th>日营收</th>
+                  <th>SOP</th>
+                  <th>严重告警</th>
+                </tr>
+              </thead>
+              <tbody id="stores-body"></tbody>
+            </table>
+          </div>
+        </div>
+      </main>
+    </div>
+  </div>
+  <script src="assets/core.js"></script>
+  <script>
+    const auth = HotpotApp.initShell("cockpit");
+    if (!auth) { /* redirect login */ }
+
+    function fmtPct(v) { return v != null ? v + "%" : "—"; }
+    function fmtMoney(v) { return v != null ? "¥" + Number(v).toLocaleString() : "—"; }
+    function shortName(name) { return (name || "").replace("冯校长火锅·", ""); }
+    function healthLabel(s) {
+      return s === "critical" ? "异常" : s === "warn" ? "关注" : "正常";
+    }
+
+    async function loadCockpit() {
+      const data = await HotpotApp.fetchNationalOverview();
+      const rollup = data.rollup || {};
+      document.getElementById("hero-title").textContent = data.region_name || "全国经营态势";
+      document.getElementById("hero-narrative").textContent = (data.narrative || []).join(" · ") || "—";
+
+      document.getElementById("kpi-stores").textContent = rollup.store_count ?? "—";
+      document.getElementById("kpi-zones").textContent = (data.zones || []).length;
+      document.getElementById("kpi-ok").textContent = rollup.ok_stores ?? "—";
+      document.getElementById("kpi-warn").textContent = rollup.warn_stores ?? "—";
+      document.getElementById("kpi-critical").textContent = rollup.critical_stores ?? "—";
+      document.getElementById("kpi-alerts").textContent = rollup.total_critical_alerts ?? "—";
+      document.getElementById("kpi-sop").textContent = fmtPct(rollup.avg_sop_compliance);
+
+      const zonesEl = document.getElementById("zone-cards");
+      zonesEl.innerHTML = "";
+      (data.zones || []).forEach((z) => {
+        const r = z.rollup || {};
+        const card = document.createElement("div");
+        card.className = "zone-card";
+        card.innerHTML = `
+          <div class="zone-name">${z.zone_name}</div>
+          <div class="zone-meta">
+            ${r.store_count ?? 0} 店 · 异常 ${r.critical_stores ?? 0} · 均 SOP ${fmtPct(r.avg_sop_compliance)}
+          </div>
+          <div class="zone-meta" style="margin-top:6px">状态 ${z.status || "—"} · 点击下钻</div>`;
+        card.onclick = () => {
+          window.location.href = `regional.html?region_id=${encodeURIComponent(z.zone_id)}`;
+        };
+        zonesEl.appendChild(card);
+      });
+      if (!(data.zones || []).length) {
+        zonesEl.innerHTML = '<p style="color:var(--muted)">暂无大区数据</p>';
+      }
+
+      const anomalyEl = document.getElementById("anomaly-list");
+      const anomalies = data.anomaly_stores || [];
+      if (!anomalies.length) {
+        anomalyEl.innerHTML = '<p style="color:var(--ok)">全国门店运营态势正常</p>';
+      } else {
+        anomalyEl.innerHTML = anomalies.slice(0, 8).map((a) => `
+          <div class="anomaly-row">
+            <span><strong>${shortName(a.store_name)}</strong>
+              <span class="cell-${a.health === "critical" ? "critical" : "warn"}">${healthLabel(a.health)}</span>
+            </span>
+            <button class="btn btn-sm btn-ghost" data-store="${a.store_id}" data-name="${a.store_name}">查看</button>
+          </div>`).join("");
+        anomalyEl.querySelectorAll("[data-store]").forEach((btn) => {
+          btn.onclick = () => {
+            HotpotApp.switchStore(btn.dataset.store, btn.dataset.name);
+            window.location.href = "home.html";
+          };
+        });
+      }
+
+      const tbody = document.getElementById("stores-body");
+      tbody.innerHTML = "";
+      (data.stores || []).forEach((s) => {
+        const m = s.metrics || {};
+        const h = s.health || {};
+        const tr = document.createElement("tr");
+        tr.innerHTML = `
+          <td>${shortName(s.store_name)}</td>
+          <td class="cell-${h.status === "ok" ? "ok" : h.status === "critical" ? "critical" : "warn"}">${healthLabel(h.status)}</td>
+          <td>${h.score ?? "—"}</td>
+          <td>${fmtMoney(m.daily_revenue)}</td>
+          <td>${fmtPct(m.sop_compliance_rate)}</td>
+          <td>${m.critical_alerts ?? 0}</td>`;
+        tbody.appendChild(tr);
+      });
+    }
+
+    loadCockpit().catch((e) => {
+      document.getElementById("hero-narrative").textContent = "加载失败: " + e.message;
+    });
+  </script>
+</body>
+</html>

@@ -1,0 +1,163 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>门店管理 · 运营后台</title>
+  <link rel="stylesheet" href="../assets/theme.css" />
+  <style>
+    .org-tree { font-size: 0.9rem; line-height: 1.8; margin-bottom: 20px; }
+    .org-tree ul { margin: 4px 0 4px 20px; }
+    table.admin-table { width: 100%; border-collapse: collapse; font-size: 0.9rem; }
+    table.admin-table th, table.admin-table td { padding: 10px 8px; border-bottom: 1px solid var(--border, #334155); text-align: left; }
+    .form-row { display: flex; gap: 10px; flex-wrap: wrap; margin-bottom: 16px; align-items: end; }
+    .form-row input, .form-row select { padding: 8px 10px; border-radius: 6px; border: 1px solid var(--border); background: var(--card2); color: inherit; }
+  </style>
+</head>
+<body>
+  <div class="app-shell">
+    <aside class="sidebar">
+      <div class="sidebar-brand"><h1>运营后台</h1><p>组织 · 门店</p></div>
+      <a class="nav-item" data-nav="admin" href="index.html">总览</a>
+      <a class="nav-item active" data-nav="admin_stores" href="stores.html">组织 · 门店</a>
+      <a class="nav-item" data-nav="admin_pipeline" href="pipeline.html">数据流 · 打桩</a>
+      <a class="nav-item" href="../regional.html">层级看板</a>
+    </aside>
+    <div class="main-wrap">
+      <header class="topbar">
+        <div class="topbar-left"><h2>组织与门店</h2><div class="topbar-meta">F-HQ08 · JSON 持久化 stub</div></div>
+        <div class="topbar-right">
+          <input class="hub-input" id="hub-url" type="text" />
+          <span class="chip" id="user-name">—</span>
+          <button class="btn btn-sm btn-ghost" id="btn-logout">退出</button>
+        </div>
+      </header>
+      <main class="content">
+        <div class="card">
+          <h3>组织树</h3>
+          <div class="org-tree" id="org-tree">加载中…</div>
+        </div>
+
+        <div class="card">
+          <h3>新增门店（打桩开户）</h3>
+          <div class="form-row">
+            <div><label>店名</label><br><input id="new-name" placeholder="冯校长火锅·XX店" style="min-width:200px" /></div>
+            <div><label>区域</label><br><select id="new-region"></select></div>
+            <div><label>城市</label><br><input id="new-city" placeholder="可选" /></div>
+            <div><label>状态</label><br>
+              <select id="new-status">
+                <option value="preparing">筹备中</option>
+                <option value="active">营业中</option>
+              </select>
+            </div>
+            <button class="btn" id="btn-create">创建并打桩</button>
+          </div>
+        </div>
+
+        <div class="card">
+          <h3>门店列表</h3>
+          <table class="admin-table">
+            <thead>
+              <tr><th>门店</th><th>区域</th><th>状态</th><th>数据</th><th>操作</th></tr>
+            </thead>
+            <tbody id="stores-tbody"></tbody>
+          </table>
+        </div>
+      </main>
+    </div>
+  </div>
+  <script src="../assets/core.js"></script>
+  <script>
+    HotpotApp.initAdminShell("admin_stores");
+    let orgTree = null;
+
+    function renderOrgTree(tree) {
+      const zones = tree.parent_regions || [];
+      const regions = tree.regions || [];
+      let html = `<strong>${tree.brand || "品牌"}</strong><ul>`;
+      zones.forEach((z) => {
+        const children = regions.filter((r) => r.parent_zone_id === z.zone_id);
+        html += `<li>🌐 ${z.zone_name} <em>(${z.status})</em><ul>`;
+        children.forEach((r) => {
+          const stores = (tree.pilot_stores || []).filter((s) => s.region_id === r.region_id || (r.store_ids || []).includes(s.store_id));
+          html += `<li>📍 ${r.region_name} · ${stores.length} 店 <em>(${r.status})</em>`;
+          if (stores.length) {
+            html += "<ul>" + stores.map((s) => `<li>🏪 ${s.store_name} <code>${s.store_id}</code></li>`).join("") + "</ul>";
+          }
+          html += "</li>";
+        });
+        html += "</ul></li>";
+      });
+      html += "</ul>";
+      document.getElementById("org-tree").innerHTML = html;
+
+      const sel = document.getElementById("new-region");
+      sel.innerHTML = regions
+        .filter((r) => r.status === "active" || r.status === "planned")
+        .map((r) => `<option value="${r.region_id}">${r.region_name}</option>`)
+        .join("");
+    }
+
+    async function loadStores() {
+      orgTree = await HotpotApp.fetchAdminOrgTree();
+      renderOrgTree(orgTree);
+      const data = await HotpotApp.fetchAdminStores();
+      const tbody = document.getElementById("stores-tbody");
+      tbody.innerHTML = "";
+      (data.stores || []).forEach((s) => {
+        const tr = document.createElement("tr");
+        tr.innerHTML = `
+          <td><strong>${s.store_name}</strong><br><code>${s.store_id}</code></td>
+          <td>${s.region_id || "—"}</td>
+          <td>
+            <select data-status="${s.store_id}">
+              <option value="preparing" ${s.status==="preparing"?"selected":""}>筹备中</option>
+              <option value="active" ${s.status==="active"?"selected":""}>营业中</option>
+              <option value="closed" ${s.status==="closed"?"selected":""}>停业</option>
+            </select>
+          </td>
+          <td>${s.has_data ? "有数据" : "空"} · ${s.pipeline_pct || 0}%</td>
+          <td>
+            <button class="btn btn-sm btn-ghost" data-drill="${s.store_id}">看板</button>
+            <button class="btn btn-sm" data-tick="${s.store_id}">打桩</button>
+          </td>`;
+        tbody.appendChild(tr);
+      });
+      tbody.querySelectorAll("[data-drill]").forEach((b) => {
+        b.onclick = () => {
+          const meta = (data.stores || []).find((x) => x.store_id === b.dataset.drill);
+          HotpotApp.switchStore(b.dataset.drill, meta?.store_name);
+          window.location.href = "../home.html";
+        };
+      });
+      tbody.querySelectorAll("[data-tick]").forEach((b) => {
+        b.onclick = async () => {
+          await HotpotApp.adminPipelineTick({ store_id: b.dataset.tick });
+          await loadStores();
+        };
+      });
+      tbody.querySelectorAll("select[data-status]").forEach((sel) => {
+        sel.onchange = async () => {
+          await HotpotApp.updateAdminStore(sel.dataset.status, { status: sel.value });
+          await loadStores();
+        };
+      });
+    }
+
+    document.getElementById("btn-create").onclick = async () => {
+      const name = document.getElementById("new-name").value.trim();
+      if (!name) return alert("请输入店名");
+      await HotpotApp.createAdminStore({
+        store_name: name,
+        region_id: document.getElementById("new-region").value,
+        city: document.getElementById("new-city").value,
+        status: document.getElementById("new-status").value,
+      });
+      document.getElementById("new-name").value = "";
+      await loadStores();
+    };
+
+    loadStores().catch((e) => alert(e.message));
+  </script>
+</body>
+</html>

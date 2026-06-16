@@ -3,28 +3,24 @@
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <title>区域对标 · 冯校长火锅 · 智能运营</title>
+  <title>区域总揽 · 冯校长火锅 · 智能运营</title>
   <link rel="stylesheet" href="assets/theme.css" />
 </head>
 <body>
   <div class="app-shell">
     <aside class="sidebar">
-      <div class="sidebar-brand"><h1>冯校长火锅</h1><p>台州区域 · 跨店对标</p></div>
-      <a class="nav-item" data-nav="home" href="home.html">首页概览</a>
-      <a class="nav-item" data-nav="tables" href="tables.html">前厅 · 桌态</a>
-      <a class="nav-item" data-nav="kitchen" href="kitchen.html">后厨 · IoT</a>
-      <a class="nav-item" data-nav="sop" href="sop.html">SOP 执行</a>
-      <a class="nav-item" data-nav="cost" href="cost.html">来料 · 成本</a>
+      <div class="sidebar-brand"><h1>冯校长火锅</h1><p>连锁 · 区域总揽</p></div>
+      <a class="nav-item active" data-nav="regional" href="regional.html">区域 · 总揽</a>
       <a class="nav-item" data-nav="alerts" href="alerts.html">告警中心</a>
       <a class="nav-item" data-nav="report" href="report.html">运营日报</a>
-      <a class="nav-item active" data-nav="regional" href="regional.html">区域 · 跨店对标</a>
+      <a class="nav-item" data-nav="system" href="system.html">系统状态</a>
       <a class="nav-item" href="mobile/index.html">📱 手机版</a>
     </aside>
     <div class="main-wrap">
       <header class="topbar">
         <div class="topbar-left">
-          <h2 id="store-name">台州区域</h2>
-          <div class="topbar-meta">玉环 + 椒江 · <span id="conn-status">检测中</span></div>
+          <h2 id="region-title">区域总揽</h2>
+          <div class="topbar-meta"><span id="parent-region">—</span> · <span id="conn-status">检测中</span></div>
         </div>
         <div class="topbar-right">
           <input class="hub-input" id="hub-url" type="text" />
@@ -33,23 +29,54 @@
         </div>
       </header>
       <main class="content">
-        <div class="mvp-banner">F-HQ01 跨店对标 · 区域督导视图 · 数据来自 Event Hub /benchmark</div>
+        <div class="mvp-banner">F-HQ06 区域总揽 · 华东大区 rollup · <code>/v1/region/overview?region_id=zone_east_china</code></div>
 
-        <div class="card narrative-card" id="narrative-box">
-          <h3>区域洞察（规则引擎）</h3>
-          <ul id="narrative-list"><li>加载中...</li></ul>
+        <div class="region-tabs" id="zone-tabs"></div>
+        <div class="region-tabs" id="region-tabs" style="margin-top:0"></div>
+
+        <div class="kpi-strip" id="rollup-kpi">
+          <div class="kpi-tile"><span class="cell-muted">接入门店</span><b id="kpi-stores">—</b></div>
+          <div class="kpi-tile"><span class="cell-muted">健康</span><b id="kpi-ok" class="cell-ok">—</b></div>
+          <div class="kpi-tile"><span class="cell-muted">关注</span><b id="kpi-warn" class="cell-warn">—</b></div>
+          <div class="kpi-tile"><span class="cell-muted">异常</span><b id="kpi-critical" class="cell-critical">—</b></div>
+          <div class="kpi-tile"><span class="cell-muted">严重告警</span><b id="kpi-alerts">—</b></div>
+          <div class="kpi-tile"><span class="cell-muted">均 SOP</span><b id="kpi-sop">—</b></div>
         </div>
 
-        <div class="card">
-          <h3>试点店 KPI 对比</h3>
+        <div class="card" id="child-region-panel" style="margin-bottom:20px;display:none">
+          <h3>子区域 rollup · 华东大区</h3>
+          <p style="font-size:0.8rem;color:var(--muted);margin-bottom:12px">点击下钻到区域视图</p>
+          <div class="child-region-grid" id="child-regions"></div>
+        </div>
+
+        <div class="grid grid-2" style="margin-bottom:20px">
+          <div class="card">
+            <h3>门店健康度矩阵 · F-HQ06</h3>
+            <p style="font-size:0.8rem;color:var(--muted);margin-bottom:12px">绿正常 · 黄关注 · 红异常 · 点击进入单店</p>
+            <div class="health-grid" id="health-matrix"><p style="color:var(--muted)">加载中…</p></div>
+          </div>
+          <div class="card">
+            <h3>异常门店清单 · F-HQ07</h3>
+            <div id="anomaly-list"><p style="color:var(--muted)">加载中…</p></div>
+          </div>
+        </div>
+
+        <div class="card narrative-card">
+          <h3>区域洞察</h3>
+          <ul id="narrative-list"><li>加载中…</li></ul>
+        </div>
+
+        <div class="card" style="margin-top:20px">
+          <h3>试点店 KPI 对比 · F-HQ01</h3>
           <div class="benchmark-wrap">
-            <table class="benchmark-table" id="benchmark-table">
+            <table class="benchmark-table">
               <thead>
                 <tr>
                   <th>门店</th>
+                  <th>健康分</th>
                   <th>日营收</th>
                   <th>翻台率</th>
-                  <th>SOP 合规</th>
+                  <th>SOP</th>
                   <th>来料偏差</th>
                   <th>严重告警</th>
                   <th>待清台</th>
@@ -61,19 +88,15 @@
           </div>
         </div>
 
-        <div class="grid" style="margin-top:20px">
-          <div class="card">
-            <h3>SOP 合规排名</h3>
-            <div id="rank-sop" class="rank-list">—</div>
-          </div>
-          <div class="card">
-            <h3>食安告警（越少越好）</h3>
-            <div id="rank-alert" class="rank-list">—</div>
-          </div>
-          <div class="card">
-            <h3>翻台压力</h3>
-            <div id="rank-clean" class="rank-list">—</div>
-          </div>
+        <div class="grid grid-2" style="margin-top:20px;grid-template-columns:repeat(3,1fr)">
+          <div class="card"><h3>SOP 合规排名</h3><div id="rank-sop" class="rank-list">—</div></div>
+          <div class="card"><h3>食安告警</h3><div id="rank-alert" class="rank-list">—</div></div>
+          <div class="card"><h3>翻台压力</h3><div id="rank-clean" class="rank-list">—</div></div>
+        </div>
+
+        <div class="card" style="margin-top:20px">
+          <h3>督导审计 · 两店聚合</h3>
+          <div id="audit-panels"></div>
         </div>
       </main>
     </div>
@@ -81,54 +104,196 @@
   <script src="assets/core.js"></script>
   <script>
     const auth = HotpotApp.initShell("regional");
-    if (auth) {
-      document.getElementById("store-name").textContent = "台州区域（玉环 + 椒江）";
+    let currentRegionId = new URLSearchParams(window.location.search).get("region_id") || "zone_east_china";
+
+    function fmtPct(v) { return v != null ? v + "%" : "—"; }
+    function fmtMoney(v) { return v != null ? "¥" + Number(v).toLocaleString() : "—"; }
+    function shortName(name) { return (name || "").replace("冯校长火锅·", ""); }
+
+    function renderZoneTabs(zones) {
+      const box = document.getElementById("zone-tabs");
+      box.innerHTML = "";
+      (zones || []).forEach((z) => {
+        const btn = document.createElement("button");
+        btn.type = "button";
+        btn.className = "region-tab zone-tab" + (z.zone_id === currentRegionId ? " active" : "");
+        btn.textContent = z.zone_name + ` · ${z.region_count || 0} 区域`;
+        btn.onclick = () => {
+          currentRegionId = z.zone_id;
+          history.replaceState(null, "", `?region_id=${z.zone_id}`);
+          refresh();
+        };
+        box.appendChild(btn);
+      });
     }
 
-    function fmtPct(v) {
-      return v != null ? v + "%" : "—";
+    function renderRegionTabs(regions, level) {
+      const box = document.getElementById("region-tabs");
+      box.innerHTML = "";
+      if (level !== "zone") return;
+      (regions || []).forEach((r) => {
+        const btn = document.createElement("button");
+        btn.type = "button";
+        const isActive = r.region_id === currentRegionId;
+        btn.className = "region-tab" + (isActive ? " active" : "") + (r.status === "planned" ? " planned" : "");
+        btn.textContent = r.region_name + (r.status === "planned" ? "（筹备）" : ` (${r.store_count})`);
+        if (r.status === "active") {
+          btn.onclick = () => {
+            currentRegionId = r.region_id;
+            history.replaceState(null, "", `?region_id=${r.region_id}`);
+            refresh();
+          };
+        }
+        box.appendChild(btn);
+      });
     }
-    function fmtMoney(v) {
-      return v != null ? "¥" + Number(v).toLocaleString() : "—";
+
+    function renderChildRegions(list) {
+      const panel = document.getElementById("child-region-panel");
+      const box = document.getElementById("child-regions");
+      if (!list?.length) {
+        panel.style.display = "none";
+        return;
+      }
+      panel.style.display = "";
+      box.innerHTML = "";
+      list.forEach((c) => {
+        const card = document.createElement("div");
+        const hs = c.health_status || "planned";
+        card.className = "child-region-card " + hs;
+        const ru = c.rollup || {};
+        card.innerHTML = `
+          <div style="display:flex;justify-content:space-between;align-items:flex-start">
+            <b>${c.region_name}</b>
+            <span class="cell-muted" style="font-size:0.75rem">${c.status === "planned" ? "筹备" : hs}</span>
+          </div>
+          <div style="font-size:0.82rem;margin-top:10px;color:var(--muted)">
+            接入 ${ru.store_count ?? c.connected_stores ?? 0} 店 ·
+            异常 ${ru.critical_stores ?? 0} · 关注 ${ru.warn_stores ?? 0}
+          </div>
+          <div style="font-size:0.82rem;margin-top:4px">均 SOP ${fmtPct(ru.avg_sop_compliance)} · 告警 ${ru.total_critical_alerts ?? 0}</div>`;
+        if (c.status === "active") {
+          card.onclick = () => {
+            currentRegionId = c.region_id;
+            history.replaceState(null, "", `?region_id=${c.region_id}`);
+            refresh();
+          };
+        }
+        box.appendChild(card);
+      });
+    }
+
+    function renderRollup(rollup) {
+      const r = rollup || {};
+      document.getElementById("kpi-stores").textContent = r.store_count ?? "—";
+      document.getElementById("kpi-ok").textContent = r.ok_stores ?? 0;
+      document.getElementById("kpi-warn").textContent = r.warn_stores ?? 0;
+      document.getElementById("kpi-critical").textContent = r.critical_stores ?? 0;
+      document.getElementById("kpi-alerts").textContent = r.total_critical_alerts ?? 0;
+      document.getElementById("kpi-sop").textContent = r.avg_sop_compliance != null ? r.avg_sop_compliance + "%" : "—";
+    }
+
+    function renderHealthMatrix(matrix, stores) {
+      const box = document.getElementById("health-matrix");
+      box.innerHTML = "";
+      if (!matrix?.length) {
+        box.innerHTML = "<p style='color:var(--muted)'>本区域暂无接入门店数据</p>";
+        return;
+      }
+      matrix.forEach((item) => {
+        const store = (stores || []).find((s) => s.store_id === item.store_id);
+        const card = document.createElement("div");
+        card.className = "health-card " + item.health;
+        card.innerHTML = `
+          <div style="display:flex;justify-content:space-between;align-items:flex-start">
+            <div><b>${shortName(item.store_name)}</b><div class="cell-muted" style="font-size:0.8rem">${item.city || ""}</div></div>
+            <div class="health-score">${item.score}</div>
+          </div>
+          <div style="font-size:0.78rem;color:var(--muted);margin-top:8px">${(item.reasons || []).join(" · ") || "运营正常"}</div>`;
+        card.onclick = () => {
+          if (store) HotpotApp.switchStore(store.store_id, store.store_name);
+        };
+        box.appendChild(card);
+      });
+    }
+
+    function renderAnomalies(list) {
+      const box = document.getElementById("anomaly-list");
+      if (!list?.length) {
+        box.innerHTML = "<p style='color:var(--ok)'>✓ 本区域无异常门店</p>";
+        return;
+      }
+      box.innerHTML = "";
+      list.forEach((a) => {
+        const div = document.createElement("div");
+        div.className = "anomaly-item";
+        const tag = a.health === "critical" ? "cell-critical" : "cell-warn";
+        div.innerHTML = `
+          <div style="display:flex;justify-content:space-between;gap:8px">
+            <b class="${tag}">${shortName(a.store_name)}</b>
+            <span>健康分 ${a.score}</span>
+          </div>
+          <div style="color:var(--muted);margin-top:4px">${(a.reasons || []).join("；")}</div>
+          <button class="btn btn-sm" style="margin-top:8px" data-sid="${a.store_id}" data-sname="${a.store_name}">进入处理</button>`;
+        box.appendChild(div);
+      });
+      box.querySelectorAll("button[data-sid]").forEach((btn) => {
+        btn.onclick = () => HotpotApp.switchStore(btn.dataset.sid, btn.dataset.sname);
+      });
     }
 
     function renderRankings(data) {
       const stores = data.stores || [];
-      const bySop = [...stores].sort(
-        (a, b) => (b.metrics.sop_compliance_rate || 0) - (a.metrics.sop_compliance_rate || 0)
-      );
-      document.getElementById("rank-sop").innerHTML = bySop
-        .map((s, i) => `<div class="rank-row"><span>#${i + 1} ${s.store_name.replace("冯校长火锅·", "")}</span><b>${fmtPct(s.metrics.sop_compliance_rate)}</b></div>`)
-        .join("");
-
-      const byAlert = [...stores].sort(
-        (a, b) => (a.metrics.critical_alerts || 0) - (b.metrics.critical_alerts || 0)
-      );
-      document.getElementById("rank-alert").innerHTML = byAlert
-        .map((s, i) => `<div class="rank-row"><span>#${i + 1} ${s.store_name.replace("冯校长火锅·", "")}</span><b>${s.metrics.critical_alerts ?? 0} 条</b></div>`)
-        .join("");
-
-      const byClean = [...stores].sort(
-        (a, b) => (b.metrics.need_clean || 0) - (a.metrics.need_clean || 0)
-      );
-      document.getElementById("rank-clean").innerHTML = byClean
-        .map((s, i) => `<div class="rank-row"><span>#${i + 1} ${s.store_name.replace("冯校长火锅·", "")}</span><b>${s.metrics.need_clean ?? 0} 桌</b></div>`)
-        .join("");
+      const bySop = [...stores].sort((a, b) => (b.metrics.sop_compliance_rate || 0) - (a.metrics.sop_compliance_rate || 0));
+      document.getElementById("rank-sop").innerHTML = bySop.map((s, i) =>
+        `<div class="rank-row"><span>#${i + 1} ${shortName(s.store_name)}</span><b>${fmtPct(s.metrics.sop_compliance_rate)}</b></div>`
+      ).join("") || "—";
+      const byAlert = [...stores].sort((a, b) => (a.metrics.critical_alerts || 0) - (b.metrics.critical_alerts || 0));
+      document.getElementById("rank-alert").innerHTML = byAlert.map((s, i) =>
+        `<div class="rank-row"><span>#${i + 1} ${shortName(s.store_name)}</span><b>${s.metrics.critical_alerts ?? 0} 条</b></div>`
+      ).join("") || "—";
+      const byClean = [...stores].sort((a, b) => (b.metrics.need_clean || 0) - (a.metrics.need_clean || 0));
+      document.getElementById("rank-clean").innerHTML = byClean.map((s, i) =>
+        `<div class="rank-row"><span>#${i + 1} ${shortName(s.store_name)}</span><b>${s.metrics.need_clean ?? 0} 桌</b></div>`
+      ).join("") || "—";
     }
 
     async function refresh() {
       try {
-        const data = await HotpotApp.fetchBenchmark();
+        const data = await HotpotApp.fetchRegionOverview(currentRegionId);
+        document.getElementById("region-title").textContent = data.region_name || "区域总揽";
+        const parentLabel = data.level === "zone"
+          ? `${data.region_name} · 全国连锁`
+          : (data.parent_region ? data.parent_region + " / " + data.region_name : data.region_name);
+        document.getElementById("parent-region").textContent = parentLabel;
+
+        renderZoneTabs(data.parent_regions);
+        renderRegionTabs(data.regions, data.level);
+        renderChildRegions(data.level === "zone" ? data.child_regions : []);
+        renderRollup(data.rollup);
+        renderHealthMatrix(data.health_matrix, data.stores);
+        renderAnomalies(data.anomaly_stores);
+
+        const ul = document.getElementById("narrative-list");
+        ul.innerHTML = "";
+        (data.narrative || []).forEach((line) => {
+          const li = document.createElement("li");
+          li.textContent = line;
+          ul.appendChild(li);
+        });
+
         const tbody = document.getElementById("benchmark-body");
         tbody.innerHTML = "";
         (data.stores || []).forEach((s) => {
           const m = s.metrics || {};
+          const h = s.health || {};
           const tr = document.createElement("tr");
           tr.innerHTML = `
-            <td><strong>${s.store_name.replace("冯校长火锅·", "")}</strong><div class="cell-muted">${s.city || ""}</div></td>
+            <td><strong>${shortName(s.store_name)}</strong><div class="cell-muted">${s.city || ""}</div></td>
+            <td class="${h.status === "critical" ? "cell-critical" : h.status === "warn" ? "cell-warn" : "cell-ok"}">${h.score ?? "—"}</td>
             <td>${fmtMoney(m.daily_revenue)}</td>
             <td>${m.turnover_rate ?? "—"}</td>
-            <td class="${(m.sop_compliance_rate || 0) >= 80 ? "cell-ok" : "cell-warn"}">${fmtPct(m.sop_compliance_rate)}</td>
+            <td>${fmtPct(m.sop_compliance_rate)}</td>
             <td>${fmtPct(m.cost_variance_pct)}</td>
             <td class="${(m.critical_alerts || 0) > 0 ? "cell-critical" : ""}">${m.critical_alerts ?? 0}</td>
             <td>${m.need_clean ?? 0}</td>
@@ -139,22 +304,41 @@
           btn.onclick = () => HotpotApp.switchStore(btn.dataset.storeId, btn.dataset.storeName);
         });
 
-        const ul = document.getElementById("narrative-list");
-        ul.innerHTML = "";
-        (data.narrative || []).forEach((line) => {
-          const li = document.createElement("li");
-          li.textContent = line;
-          ul.appendChild(li);
-        });
-        if (!data.narrative?.length) ul.innerHTML = "<li>暂无区域洞察</li>";
-
         renderRankings(data);
-        document.getElementById("conn-status").innerHTML = '<span class="status-dot online"></span>已连接 · ' + (data.generated_at || "").slice(11, 19);
+        document.getElementById("conn-status").innerHTML =
+          '<span class="status-dot online"></span>已连接 · ' + (data.generated_at || "").slice(11, 19);
+        await renderAuditPanels(data.stores || []);
       } catch (e) {
         document.getElementById("conn-status").innerHTML = '<span class="status-dot offline"></span>未连接';
         console.warn(e);
       }
     }
+
+    async function renderAuditPanels(stores) {
+      const box = document.getElementById("audit-panels");
+      box.innerHTML = "";
+      const targets = stores.length
+        ? stores.map((s) => ({ id: s.store_id, name: shortName(s.store_name) }))
+        : [{ id: "store_yuhuan", name: "玉环店" }, { id: "store_jiaojiang", name: "椒江店" }];
+      for (const st of targets) {
+        try {
+          const audit = await HotpotApp.fetchAuditForStore(st.id);
+          const card = document.createElement("div");
+          card.style.cssText = "border:1px solid var(--border);border-radius:8px;padding:12px;margin-bottom:12px";
+          card.innerHTML = `
+            <h4 style="margin:0 0 8px">${st.name}</h4>
+            <div style="display:grid;grid-template-columns:repeat(3,1fr);gap:8px;font-size:0.85rem">
+              <div>收货签字 <b>${audit.receiving_signature_count ?? 0}</b></div>
+              <div>SOP 工单 <b>${audit.sop_assignment_count ?? 0}</b></div>
+              <div>告警 Ack <b>${audit.alert_ack_count ?? 0}</b></div>
+            </div>`;
+          box.appendChild(card);
+        } catch (e) {
+          box.innerHTML += `<p style="color:var(--muted)">${st.name} 审计加载失败</p>`;
+        }
+      }
+    }
+
     refresh();
     setInterval(refresh, 10000);
   </script>
