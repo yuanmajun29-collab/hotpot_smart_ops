@@ -4,6 +4,16 @@
 
 ---
 
+## V1.4 · 2026-06-16
+
+| 变更 | 说明 |
+|------|------|
+| `architecture_design_phase1.md` V1.1 | 四产品面、rollup/Admin stub、实现矩阵、AR-401 结论 |
+| 新增 `ar401_review_outcome_20260616.md` | 文档层 **有条件通过** |
+| 对齐 | PRD V1.5 · api/data V1.1 · development_delivery_plan |
+
+---
+
 ## V1.3 · 2026-06-16
 
 | 变更 | 说明 |

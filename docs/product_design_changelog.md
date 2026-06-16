@@ -4,6 +4,16 @@
 
 ---
 
+## V1.7 · 2026-06-16
+
+| 变更 | 说明 |
+|------|------|
+| `product_design.md` V1.5 | §12.3 Won't Have 修订；§14~16 实现快照与 PM-401 结论 |
+| 新增 `pm401_review_outcome_20260616.md` | 规格层 **有条件通过** |
+| 对齐 | `architecture_design_phase1` V1.1 · `ar401_review_outcome_20260616.md` |
+
+---
+
 ## V1.6 · 2026-06-16
 
 | 变更 | 说明 |

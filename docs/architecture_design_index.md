@@ -4,7 +4,7 @@
 
 | 项目 | 内容 |
 |------|------|
-| 版本 | V1.4 |
+| 版本 | V1.5 |
 | 更新 | 2026-06-16 |
 | 前置 | 产品设计规格 OK · [product_design_index.md](product_design_index.md) |
 | 评审 | [architecture_review_checklist.md](architecture_review_checklist.md)（AR-401） |
@@ -73,7 +73,7 @@ flowchart TB
 |------|------|------|
 | **设计 vs 分期交付（总原则）** | [architecture_decisions.md ADR-013](architecture_decisions.md#adr-013设计先行实现与真数据接入分期) | product_design §2.1 |
 | **开发交付主计划** | [development_delivery_plan.md](development_delivery_plan.md) | 全文 · 同步机制 §2 |
-| **15 分钟 Phase 1 规格** | [architecture_design_phase1.md](architecture_design_phase1.md) | 全文 |
+| **15 分钟 Phase 1 规格** | [architecture_design_phase1.md](architecture_design_phase1.md) | **V1.1** 全文 |
 | **全国连锁层级 · 分阶段** | [architecture_hierarchy_phase_plan.md](architecture_hierarchy_phase_plan.md) | 全文 |
 | 30 分钟架构总览 | [design_dev_implementation_plan.md](design_dev_implementation_plan.md) | §1.1~1.2 目标与三层架构 |
 | 模块与数据流 | 同上 | §1.3 模块 · §1.2.3 六闭环 C-01~C06 |
@@ -90,6 +90,7 @@ flowchart TB
 | 硬件与现场 | [solution.md](solution.md) | §11 部署架构 |
 | **架构评审会议** | [architecture_review_checklist.md](architecture_review_checklist.md) | AR-401 |
 | 会后回填 | [architecture_review_outcome_template.md](architecture_review_outcome_template.md) | 通过/有条件/不通过 |
+| **AR-401 文档复核结论（6/16）** | [ar401_review_outcome_20260616.md](ar401_review_outcome_20260616.md) | 文档层有条件通过 · phase1 V1.1 |
 
 ---
 
@@ -219,6 +220,7 @@ flowchart TB
 | [ar401_meeting_invite_20260618.md](ar401_meeting_invite_20260618.md) | 会议邀请定稿 |
 | [ar401_meeting_agenda_20260618.html](ar401_meeting_agenda_20260618.html) | 可打印议程 |
 | [architecture_review_outcome_template.md](architecture_review_outcome_template.md) | 会后回填 |
+| [ar401_review_outcome_20260616.md](ar401_review_outcome_20260616.md) | AR-401 文档复核结论 |
 | [solution.md](solution.md) | 业务方案 · 技术全景 |
 | [development_delivery_plan.md](development_delivery_plan.md) | **主计划** · 同步 · HLD/LLD/DB · 测试回归 |
 | [design_dev_implementation_plan.md](design_dev_implementation_plan.md) | 长文架构 §1（演进参考） |

@@ -4,10 +4,10 @@
 
 | 项目 | 内容 |
 |------|------|
-| 文档版本 | V1.4 |
+| 文档版本 | V1.5 |
 | 文档类型 | 产品需求与设计规格 |
 | 上游 | [solution.md](solution.md)（解决方案） |
-| 下游 | [design_dev_implementation_plan.md](design_dev_implementation_plan.md) · [sprint_task_backlog.md](sprint_task_backlog.md) |
+| 下游 | [development_delivery_plan.md](development_delivery_plan.md) · [design_dev_implementation_plan.md](design_dev_implementation_plan.md) · [sprint_task_backlog.md](sprint_task_backlog.md) |
 | 文档索引 | [product_design_index.md](product_design_index.md) · [product_goal_card.md](product_goal_card.md) |
 | PoC / MVP UI | `dashboard/`（HTML 原型，见 [figma_component_spec.md §10](figma_component_spec.md#10-html-原型与-figma-对齐策略)） |
 | 更新日期 | 2026-06-16 |
@@ -32,6 +32,7 @@
 13. [与 PoC 看板的演进关系](#13-与-poc-看板的演进关系)
 14. [实现状态快照](#14-实现状态快照2026-06-15)
 15. [产品设计交付定义](#15-产品设计交付定义)
+16. [产品设计评审结论](#16-产品设计评审结论2026-06-16)
 
 ---
 
@@ -762,14 +763,14 @@ F-T04~T06, F-K05~K07, F-S06~S07, F-C05, F-R03~R04, F-P04, F-P07, F-H03~H04
 ### 12.3 Won't Have（Phase 1 不做）
 
 - 等位屏联动（F-T07）
-- **运营后台写操作**（F-HQ08~11 · Admin CRUD）→ Phase 2
-- **全国总揽**（F-HQ12）→ Phase 2
+- **运营后台写操作**（F-HQ08~11 生产级 Admin CRUD）→ Phase 2（P1 仅 v0.1 打桩只读/内存增改）
+- **全国总揽独立页**（F-HQ12 · `national.html`）→ Phase 2（P1 已有 F-EXEC01 驾驶仓 + `/v1/national/overview` API）
 - F-HQ02~05 配置/模型 OTA → Phase 2~3
 - 会员营销话术与会员自动化（F-SALES 规则版可进 Phase 2；会员画像/自动化延后 Phase 3）
 - 电视大屏
 - 独立原生 App
 
-> Phase 1 **已做**层级看板只读：F-HQ01、F-HQ06、F-HQ07（`regional.html`）。
+> Phase 1 **已做**观测面：F-HQ01、F-HQ06、F-HQ07（`regional.html`）、**F-EXEC01**（`cockpit.html`）。Admin v0.1 打桩见 [product_completeness_review.md](product_completeness_review.md)。
 
 ---
 
@@ -791,34 +792,50 @@ F-T04~T06, F-K05~K07, F-S06~S07, F-C05, F-R03~R04, F-P04, F-P07, F-H03~H04
 
 ---
 
-## 14. 实现状态快照（2026-06-15）
+**MVP 多页现状**（2026-06-16）：`regional.html` · `cockpit.html` · `admin/` · `login.html` · 七模块 · PDA · 双端口 nginx `:3000`/`:3001`
 
-> 详细勾选见 [phase1_mvp_acceptance_checklist.md](phase1_mvp_acceptance_checklist.md) · 目标差距见 [product_goal_card.md](product_goal_card.md)
+---
+
+## 14. 实现状态快照（2026-06-16）
+
+> 详细勾选见 [phase1_mvp_acceptance_checklist.md](phase1_mvp_acceptance_checklist.md) · 综观见 [product_overview.md](product_overview.md) · 开发计划见 [development_delivery_plan.md](development_delivery_plan.md)
 
 ### 14.1 Must Have 模块就绪度
 
 | 模块 | 功能 ID | 文档 | UI | API | 真数据 | UAT |
 |------|---------|:----:|:--:|:---:|:------:|:---:|
-| 首页 | F-H01~H02 | ✅ | ⚠️ | ⚠️ | ❌ | ❌ |
+| 首页 | F-H01~H02 | ✅ | ⚠️ | ✅ | ❌ | ❌ |
 | 桌态 | F-T01~T03 | ✅ | ✅ | ✅ | ❌ | ❌ |
 | 后厨 IoT | F-K01~K04 | ✅ | ⚠️ | ✅ | ❌ | ❌ |
 | SOP | F-S01~S05 | ✅ | ⚠️ | ✅ | ❌ | ❌ |
 | 成本 | F-C01~C04 | ✅ | ⚠️ | ✅ | ❌ | ❌ |
-| 告警 | F-A01~A04 | ✅ | ⚠️ | ⚠️ | ❌ | ❌ |
-| 日报 | F-R01~R02 | ✅ | ⚠️ | ⚠️ | ⚠️ | ❌ |
-| PDA | F-P01~P03,P05~P06 | ✅ | ⚠️ | ⚠️ | ❌ | ❌ |
-| 账号 | ACC-01~03 | ✅ | ✅ | ⚠️ | ⚠️ | ❌ |
+| 告警 | F-A01~A04 | ✅ | ⚠️ | ✅ | ❌ | ❌ |
+| 日报 | F-R01~R02 | ✅ | ⚠️ | ✅ | ⚠️ | ❌ |
+| PDA | F-P01~P03,P05~P06 | ✅ | ⚠️ | ✅ | ❌ | ❌ |
+| 账号 | ACC-01~03 | ✅ | ✅ | ✅ | ⚠️ | ❌ |
+| **层级看板** | F-HQ06/07 | ✅ | ✅ | ✅ | ⚠️ | ❌ |
+| **驾驶仓** | F-EXEC01 | ✅ | ✅ | ✅ | ⚠️ | ❌ |
+| **Admin 打桩** | F-HQ08~11 | ✅ | ⚠️ | ⚠️ | — | — |
 
-图例：✅ 通过 · ⚠️ 部分/mock · ❌ 未达 PRD
+图例：✅ 通过 · ⚠️ 部分/mock · ❌ 未达 PRD · — 非 P1 Go-Live 门槛
+
+### 14.2 扩展能力（非 P1 Go-Live 前置）
+
+| 能力 | Phase | 文档 | 代码 | 说明 |
+|------|-------|:----:|:----:|------|
+| F-TASK | P1.5 | ✅ | ⬜ | feature flag；详设完整 |
+| F-SALES / F-TRACE | P2 | ✅ | ⬜ | ADR-011/012 |
+| Admin DB CRUD | P2 | ✅ | ⬜ | DEV-501~506 |
 
 ### 14.2 产品设计阶段判定
 
 | 层级 | 状态 | 说明 |
 |------|------|------|
-| 规格（PRD/故事/追溯） | ✅ 完成 | 可支撑研发排期 |
-| 原型（HTML 7 模块+PDA+H5） | ✅ 完成 | 可概念测试 |
-| 视觉（Figma 18 Frame） | ⬜ 进行中 | HTML 先行，见 changelog D-001 |
-| 验证（评审+店长测试） | ⬜ 待执行 | PM-401/402 清单已备 |
+| 规格（PRD/层级/任务详设） | ✅ 完成 | V1.5 · 与架构 api/data 对齐 |
+| 文档层 PM-401 复核 | ✅ 完成 | [pm401_review_outcome_20260616.md](pm401_review_outcome_20260616.md) |
+| 原型（HTML 7 模块+PDA+层级+驾驶仓+Admin） | ✅ 完成 | 可概念测试 |
+| 视觉（Figma 18 Frame） | ⬜ 进行中 | HTML 先行 D-001 |
+| 正式 PM-401 会议 + 店长测试 | ⬜ 待执行 | 6/17 · 6/19~20 PM-402 |
 
 ---
 
@@ -838,8 +855,23 @@ Phase 1 **产品设计交付**包含以下产物（与 [product_design_index.md 
 | 评审 | 产品评审清单 | `product_review_checklist.md` |
 | 验证 | 概念测试记录模板 | `uat_concept_test_record.md` |
 | 变更 | 设计 Changelog | `product_design_changelog.md` |
+| 开发交付 | 同步机制 · HLD/LLD/测试 | [development_delivery_plan.md](development_delivery_plan.md) |
+| 评审结论 | PM-401 文档复核 | [pm401_review_outcome_20260616.md](pm401_review_outcome_20260616.md) |
 
-**签字门槛**：PM-401 评审通过 + PM-402 两店概念测试记录归档 + Must Have UAT 可勾选。
+**签字门槛**：PM-401 正式会议 + PM-402 两店概念测试 + Must Have UAT P0 真数据无 ❌。
+
+---
+
+## 16. 产品设计评审结论（2026-06-16）
+
+> 全文：[pm401_review_outcome_20260616.md](pm401_review_outcome_20260616.md)
+
+| 项 | 结论 |
+|----|------|
+| 规格层 | **有条件通过** — V1.3~V1.5 变更可支撑研发；与架构 100% 对齐 |
+| 原则 P1~P8 | 无重大异议 |
+| 待办 | 正式 PM-401 会议（6/17）· PM-402 店长测试 · BL 真数据 |
+| 架构同步 | [ar401_review_outcome_20260616.md](ar401_review_outcome_20260616.md) · `architecture_design_phase1` V1.1 |
 
 ---
 
@@ -874,8 +906,9 @@ Phase 1 **产品设计交付**包含以下产物（与 [product_design_index.md 
 | [product_review_checklist.md](product_review_checklist.md) | 产品评审（PM-401） |
 | [uat_concept_test_record.md](uat_concept_test_record.md) | 概念测试记录（PM-402） |
 | [product_design_changelog.md](product_design_changelog.md) | 设计变更日志 |
-| [design_dev_implementation_plan.md](design_dev_implementation_plan.md) | 技术+实施 · How to build |
+| [development_delivery_plan.md](development_delivery_plan.md) | 开发交付 · 同步 · 测试 |
 | [sprint_task_backlog.md](sprint_task_backlog.md) | 研发任务（DEV-xxx） |
+| [architecture_api_spec.md](architecture_api_spec.md) | API 契约（架构会签） |
 
 ---
 
@@ -883,8 +916,8 @@ Phase 1 **产品设计交付**包含以下产物（与 [product_design_index.md 
 
 | 版本 | 日期 | 说明 |
 |------|------|------|
-| V1.4 | 2026-06-16 | F-EXEC01 入 §5.9；F-HQ12/API 分工；§9.1 角色实现状态；与 api_spec 对齐 |
-| V1.3 | 2026-06-16 | §2 P8、§2.1 设计 vs 分期；F-TASK/F-SALES/F-TRACE |
+| V1.5 | 2026-06-16 | §14~16 刷新；§12.3 Won't Have 修订；PM-401 文档复核结论 |
+| V1.4 | 2026-06-16 | F-EXEC01；§9.1 角色实现状态 |
 | V1.1 | 2026-06-15 | §14~15 实现快照与交付定义；文档体系扩展 |
 | V1.0 | 2026-06-12 | 初版 PRD |
 

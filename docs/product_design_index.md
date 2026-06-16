@@ -4,7 +4,7 @@
 
 | 项目 | 内容 |
 |------|------|
-| 版本 | V1.3 |
+| 版本 | V1.4 |
 | 更新 | 2026-06-16 |
 | 维护人 | 产品 |
 
@@ -26,6 +26,7 @@
 | 企微/推送文案 | [push_notification_templates.md](push_notification_templates.md) | [product_design.md §8](product_design.md#8-告警与通知设计) |
 | 产品评审会议 | [product_review_checklist.md](product_review_checklist.md) | PRD §5 + §7 |
 | **PM-401 会后回填** | [pm401_review_outcome_template.md](pm401_review_outcome_template.md) | 通过/有条件通过 changelog+DoD |
+| **PM-401 文档复核结论（6/16）** | [pm401_review_outcome_20260616.md](pm401_review_outcome_20260616.md) | 规格层有条件通过 · PRD V1.5 |
 | 评审邀请模板 | [pm401_meeting_invite_template.md](pm401_meeting_invite_template.md) | 邮件/企微/会后跟进 |
 | **PM-401 定稿邀请（6/17）** | [pm401_meeting_invite_20260617.md](pm401_meeting_invite_20260617.md) | 已填日期与演示链接 |
 | **PM-401 议程（可打印 PDF）** | [pm401_meeting_agenda_20260617.html](pm401_meeting_agenda_20260617.html) | 浏览器 Ctrl+P 另存为 PDF |
@@ -98,7 +99,7 @@ Phase 1 **产品设计阶段**视为「完善」需同时满足：
 | 7 | MVP 验收勾选表 | ✅ | phase1_mvp_acceptance_checklist |
 | 8 | HTML 可交互原型（7 模块+PDA+H5） | ✅ | `dashboard/` |
 | 9 | Figma 高保真 18 Frame | ⬜ | figma_component_spec §4（**HTML 先行，见变更日志**） |
-| 10 | 产品评审签字 | ⬜ | product_review_checklist |
+| 10 | 产品评审签字 | ⚠️ | pm401_review_outcome_20260616（文档层有条件通过；正式 6/17） |
 | 11 | 试点店长概念测试记录 | ⬜ | uat_concept_test_record |
 | 12 | 推送模板定稿 | ✅ | push_notification_templates |
 
@@ -125,8 +126,8 @@ Phase 1 **产品设计阶段**视为「完善」需同时满足：
 
 | 文档 | 当前版本 |
 |------|----------|
-| product_design.md | V1.2 |
-| product_hierarchy_national_chain.md | V1.0 |
+| product_design.md | V1.5 |
+| product_hierarchy_national_chain.md | V1.2 |
 | product_overview.md | V1.0 |
 | product_completeness_review.md | V1.0 |
 | figma_component_spec.md | V1.1 |
