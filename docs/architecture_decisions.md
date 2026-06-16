@@ -4,7 +4,7 @@
 
 | 项目 | 内容 |
 |------|------|
-| 版本 | V1.1 |
+| 版本 | V1.2 |
 | 更新 | 2026-06-16 |
 
 ---
@@ -160,6 +160,36 @@
 | 权限 | `finance_audit` 只读成本、追溯、日报、审计；不可 ack/reassign/cancel |
 | 后果 | 降低迁移风险；P2 可先做查询 API，P3 再接 BI/数据湖 |
 | 关联 | ADR-002 · ADR-009 · ADR-010 |
+
+---
+
+## ADR-013：设计先行、实现与真数据接入分期
+
+| 项 | 内容 |
+|----|------|
+| 状态 | **已采纳** |
+| 日期 | 2026-06-16 |
+| 背景 | 全国连锁终局（solution.md）与 2 店试点（PRD Phase 1）并存；需避免「文档缩水」或「实现超前无规格」两种漂移 |
+| 决策 | **产品与架构按终局写全**（功能族 F-xxx、角色、ER、API、ADR、部署拓扑）；**软件实现**与**硬件/真数据接入**按 Phase 分期落地。三层轨道分离，不得混为一谈 |
+| 设计层 | PRD + 层级/任务/追溯详设 + `architecture_*` + ADR；允许规格超前于当前代码 |
+| 实现层 | P1 Must Have → P1.5（F-TASK kernel）→ P2（Admin CRUD、strict RBAC）→ P3；新能力默认 **feature flag**，未开启不算上线 |
+| 接入层 | mock / file / simulator → 单店真机（RTSP、MQTT、ERP/POS API）→ 多店规模化；打桩组件必须文档化**替换路径** |
+| 契约优先 | API、OpsEvent（ADR-002）、`store_id`/`data_scope`（ADR-009）先定契约；实现可返回 stub，UI 可先只读，但须预留扩展位 |
+| 打桩规范 | 每个 stub（如 `device_stub`、`iot_stub_bridge`）在架构映射表标明：输入源、输出事件类型、真源替换任务（DEV-xxx） |
+| 验收门禁 | Phase 1 仅以 [phase1_mvp_acceptance_checklist.md](phase1_mvp_acceptance_checklist.md) + PRD §12.1 为准；P1.5/P2 能力不得作为 IMP-402 前置，除非书面变更 |
+| 后果 | 对外统一口径：「方案是全的，试点是分步的」；评审时区分「设计完整性」与「当前 Phase 实现度」 |
+| 关联 | [product_design.md §2 P8](product_design.md#2-产品原则) · [architecture_design_index.md §1.1](architecture_design_index.md#11-设计--实现--接入三轨道) · [architecture_hierarchy_phase_plan.md §7](architecture_hierarchy_phase_plan.md#7-poc--目标态映射) |
+
+### ADR-013 分期矩阵（摘要）
+
+| 能力域 | 设计写全 | 实现 Phase | 真数据 Phase |
+|--------|----------|------------|--------------|
+| 单店七模块 F-H/T/K/S/C/A/R/P | ✅ | P1 | CV/IoT：mock→真机 |
+| 层级 + 驾驶仓 F-HQ06/07、F-EXEC01 | ✅ | P1 只读 v1 | Hub rollup |
+| 运营后台 F-HQ08~11 | ✅ | P2 DB + strict | — |
+| 任务督办 F-TASK | ✅ | P1.5 kernel | 事件驱动建单 |
+| 增收 F-SALES | ✅ | P2 rule-based | 桌态/POS 真信号 |
+| 追溯 F-TRACE | ✅ | P2 查询 API | 复用 OpsEvent |
 
 ---
 

@@ -4,8 +4,8 @@
 
 | 项目 | 内容 |
 |------|------|
-| 版本 | V1.1 |
-| 更新 | 2026-06-15 |
+| 版本 | V1.2 |
+| 更新 | 2026-06-16 |
 | 前置 | 产品设计规格 OK · [product_design_index.md](product_design_index.md) |
 | 评审 | [architecture_review_checklist.md](architecture_review_checklist.md)（AR-401） |
 | 会议 | [ar401_meeting_invite_20260618.md](ar401_meeting_invite_20260618.md) · **6/18 10:00** |
@@ -21,12 +21,45 @@
 | 评审 | PM-401 / PM-402 | **AR-401 架构评审** |
 | 产出 | F-xxx · US-xxx | 模块边界 · API/DB · 部署 · 差距关闭计划 |
 
+### 1.1 设计 · 实现 · 接入三轨道
+
+> **总原则**：[architecture_decisions.md ADR-013](architecture_decisions.md#adr-013设计先行实现与真数据接入分期) · 产品侧 [product_design.md §2.1](product_design.md#21-设计完整性-vs-分期交付)
+
+```mermaid
+flowchart TB
+    subgraph design [设计层 · 写全终局]
+        P[product_design + 层级/任务详设]
+        A[architecture_* + ADR]
+    end
+    subgraph impl [实现层 · 分期写代码]
+        I1[P1 Must Have]
+        I2[P1.5 / P2 feature flag]
+    end
+    subgraph data [接入层 · 分期换真源]
+        H1[mock / stub / simulator]
+        H2[RTSP · MQTT · ERP/POS API]
+    end
+    P --> I1
+    A --> I1
+    I1 --> H1
+    I2 --> H2
+```
+
+| 轨道 | 何时读 | 评审问什么 |
+|------|--------|------------|
+| 设计 | 立项、AR-401、新功能族 | 终局是否写清？API/事件契约是否预留？ |
+| 实现 | Sprint、UAT、Go-Live | 当前 Phase 交付物是否满足验收表？ |
+| 接入 | BL-01~04、现场部署 | stub 替换路径与 DEV 任务是否对齐？ |
+
+**禁止**：用「还在打桩」缩小产品设计范围；用「文档未写」为临时实现开绿灯。
+
 ---
 
 ## 2. 读什么、什么时候读
 
 | 场景 | 文档 | 章节 |
 |------|------|------|
+| **设计 vs 分期交付（总原则）** | [architecture_decisions.md ADR-013](architecture_decisions.md#adr-013设计先行实现与真数据接入分期) | product_design §2.1 |
 | **15 分钟 Phase 1 规格** | [architecture_design_phase1.md](architecture_design_phase1.md) | 全文 |
 | **全国连锁层级 · 分阶段** | [architecture_hierarchy_phase_plan.md](architecture_hierarchy_phase_plan.md) | 全文 |
 | 30 分钟架构总览 | [design_dev_implementation_plan.md](design_dev_implementation_plan.md) | §1.1~1.2 目标与三层架构 |
@@ -35,7 +68,7 @@
 | 数据模型 / 表结构 | [architecture_data_model_phase1.md](architecture_data_model_phase1.md) | OpsEvent · events 表 |
 | 部署拓扑 | [architecture_deployment_phase1.md](architecture_deployment_phase1.md) | docker · systemd · 两店 |
 | **业务/Admin 分离（nginx）** | [deploy/nginx/README.md](../deploy/nginx/README.md) | combined · 子域 · 双端口 |
-| 架构决策 ADR | [architecture_decisions.md](architecture_decisions.md) | ADR-001~008 |
+| 架构决策 ADR | [architecture_decisions.md](architecture_decisions.md) | ADR-001~013 |
 | 事件模型 / ER / 存储 | design_dev | §1.4 数据设计 |
 | 部署与安全 | design_dev | §1.5~1.6 |
 | PoC → 生产差距 | [poc_to_production_gap.md](poc_to_production_gap.md) | 全文 |
@@ -167,7 +200,7 @@ flowchart TB
 | [architecture_api_spec.md](architecture_api_spec.md) | REST API 目录与 /v1 规划 |
 | [architecture_data_model_phase1.md](architecture_data_model_phase1.md) | OpsEvent · 表结构 |
 | [architecture_deployment_phase1.md](architecture_deployment_phase1.md) | docker · systemd · 两店拓扑 |
-| [architecture_decisions.md](architecture_decisions.md) | ADR-001~008 |
+| [architecture_decisions.md](architecture_decisions.md) | ADR-001~013 |
 | [architecture_changelog.md](architecture_changelog.md) | 架构变更日志 |
 | [architecture_review_checklist.md](architecture_review_checklist.md) | AR-401 评审清单 |
 | [ar401_meeting_invite_20260618.md](ar401_meeting_invite_20260618.md) | 会议邀请定稿 |

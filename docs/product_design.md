@@ -4,7 +4,7 @@
 
 | 项目 | 内容 |
 |------|------|
-| 文档版本 | V1.2 |
+| 文档版本 | V1.3 |
 | 文档类型 | 产品需求与设计规格 |
 | 上游 | [solution.md](solution.md)（解决方案） |
 | 下游 | [design_dev_implementation_plan.md](design_dev_implementation_plan.md) · [sprint_task_backlog.md](sprint_task_backlog.md) |
@@ -83,6 +83,24 @@
 | P5 | **移动端优先于大屏** | 店长用手机；电视大屏 Phase 2 |
 | P6 | **加盟不能改总部标准** | SOP/阈值只读；仅 ack/签字 |
 | P7 | **隐私默认安全** | 不展示人脸；视频仅事件截图 |
+| P8 | **终局设计一次规划，交付按 Phase 切片** | 产品与架构文档按全国连锁终局写全（见 [solution.md](solution.md)）；代码与真机/真数据接入分期；打桩 ≠ 缩小产品范围（ADR-013） |
+
+### 2.1 设计完整性 vs 分期交付
+
+> 架构决策：[architecture_decisions.md ADR-013](architecture_decisions.md#adr-013设计先行实现与真数据接入分期)
+
+| 轨道 | 回答的问题 | 文档载体 | 当前 Phase |
+|------|------------|----------|------------|
+| **产品设计** | 用户要什么、全功能族与验收 | 本文 §5、层级/任务详设 | 规格写到 P3 |
+| **架构设计** | 怎么扩展、API/表/部署边界 | `architecture_*`、ADR | 规格写到 P3 |
+| **软件实现** | 当前迭代交付什么代码 | `dashboard/`、`cloud/`、sprint DEV-xxx | P1 → P1.5 → P2 |
+| **硬件/真数据** | 何时接 RTSP/MQTT/ERP/POS | `edge/`、集成桥、UAT BL-01~04 | mock → 单店真机 → 多店 |
+
+**治理规则**：
+
+1. 文档能力可超前于代码；代码新增能力不得无 PRD/ADR。
+2. 每个打桩须标明真源替换路径（见 [architecture_hierarchy_phase_plan.md §7](architecture_hierarchy_phase_plan.md#7-poc--目标态映射)）。
+3. Go-Live 只认 Phase 1 验收表；P1.5/P2 用 feature flag，未开启对外不算「已上线」。
 
 ---
 
@@ -846,6 +864,8 @@ Phase 1 **产品设计交付**包含以下产物（与 [product_design_index.md 
 
 | 版本 | 日期 | 说明 |
 |------|------|------|
+| V1.3 | 2026-06-16 | §2 P8 与 §2.1 设计 vs 分期交付；对齐 ADR-013 |
+| V1.2 | 2026-06-16 | 全国层级、Admin、F-TASK/F-SALES/F-TRACE |
 | V1.1 | 2026-06-15 | §14~15 实现快照与交付定义；文档体系扩展 |
 | V1.0 | 2026-06-12 | 初版 PRD |
 
