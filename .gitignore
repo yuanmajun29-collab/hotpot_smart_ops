@@ -12,7 +12,12 @@ demo/data/.pids/
 demo/data/hub.db
 demo/data/stores/*/edge_queue.db
 demo/data/alert_push.log
+demo/data/hub.log
+demo/data/dashboard.log
+demo/data/vlm.log
+demo/data/hub.db-journal
 demo/data/stores/*/live/vision_worker.log
+demo/data/stores/*/live/iot_stub.log
 demo/data/stores/*/live/*_result.json
 demo/data/stores/*/live/*_annotated.jpg
 demo/data/stores/*/live/daily_report.md
