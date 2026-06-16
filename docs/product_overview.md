@@ -6,7 +6,7 @@
 |------|------|
 | 版本 | V1.1 |
 | 定位 | 门店运营副驾驶 · 系统提醒 + 人确认 |
-| 详述 | [product_design.md](product_design.md) · [product_completeness_review.md](product_completeness_review.md) |
+| 文档 | [product_design.md](product_design.md) · [architecture_api_spec.md](architecture_api_spec.md) · [development_delivery_plan.md](development_delivery_plan.md) |
 
 ---
 

@@ -20,6 +20,7 @@
 | **第二篇 开发** | 谁开发、开发什么、怎么交付代码 | 研发、算法、测试、DevOps |
 | **产品规格** | 用户要什么、页面与功能 | 产品、设计、运营 → [product_design.md](product_design.md) |
 | **第三篇 实施** | 怎么装、怎么训、怎么验收、怎么运维 | PMO、区域运营、IT 实施、店长 |
+| **开发交付** | 产品↔架构同步、HLD/LLD/DB、测试回归 | → [development_delivery_plan.md](development_delivery_plan.md) |
 
 ---
 
