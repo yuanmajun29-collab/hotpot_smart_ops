@@ -11,7 +11,7 @@ from cloud.event_hub.auth import AuthContext, get_auth_context, AUTH_MODE
 router = APIRouter()
 
 
-@router.get("/benchmark")
+@router.get("/benchmark", deprecated=True)
 def benchmark(
     region_id: Optional[str] = Query(None),
     auth: AuthContext = Depends(get_auth_context),
@@ -20,6 +20,9 @@ def benchmark(
         if auth.auth_type != "anonymous":
             pass
     return runtime.hub.get_region_overview(region_id)
+
+
+router.add_api_route("/v1/benchmark", benchmark, methods=["GET"])
 
 
 @router.get("/v1/region/overview")

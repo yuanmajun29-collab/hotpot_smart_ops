@@ -48,6 +48,21 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
+_LEGACY_PATHS = {
+    "/summary", "/events", "/tables", "/sop", "/pos", "/erp", "/cost", "/iot",
+    "/stores", "/benchmark", "/sop/ask",
+    "/alerts/routes", "/alerts/push-log", "/alerts/acks", "/alerts/escalations",
+    "/alerts/test-push", "/alerts/ack",
+}
+
+
+@app.middleware("http")
+async def _mark_deprecated(request, call_next):
+    resp = await call_next(request)
+    if request.url.path in _LEGACY_PATHS:
+        resp.headers["Deprecation"] = "true"
+    return resp
+
 
 @app.on_event("startup")
 def startup() -> None:

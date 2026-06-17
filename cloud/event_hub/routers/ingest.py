@@ -17,7 +17,7 @@ from cloud.event_hub.routers._deps import resolve_store_id as _resolve_store_id
 router = APIRouter()
 
 
-@router.get("/summary")
+@router.get("/summary", deprecated=True)
 def summary(
     request: Request,
     store_id: Optional[str] = Query(None),
@@ -27,7 +27,7 @@ def summary(
     return runtime.hub.get_store(sid).get_summary()
 
 
-@router.get("/events")
+@router.get("/events", deprecated=True)
 def get_events(
     request: Request,
     store_id: Optional[str] = Query(None),
@@ -39,7 +39,7 @@ def get_events(
     return runtime.hub.get_store(sid).get_events(level, limit)
 
 
-@router.get("/tables")
+@router.get("/tables", deprecated=True)
 def get_tables(
     request: Request,
     store_id: Optional[str] = Query(None),
@@ -49,7 +49,7 @@ def get_tables(
     return list(runtime.hub.get_store(sid).table_states.values())
 
 
-@router.get("/sop")
+@router.get("/sop", deprecated=True)
 def get_sop(
     request: Request,
     store_id: Optional[str] = Query(None),
@@ -60,7 +60,7 @@ def get_sop(
     return store.sop_stats or {"store_id": sid, "results": []}
 
 
-@router.get("/pos")
+@router.get("/pos", deprecated=True)
 def get_pos(
     request: Request,
     store_id: Optional[str] = Query(None),
@@ -71,7 +71,7 @@ def get_pos(
     return store.pos_stats or {"store_id": sid}
 
 
-@router.get("/erp")
+@router.get("/erp", deprecated=True)
 def get_erp(
     request: Request,
     store_id: Optional[str] = Query(None),
@@ -82,7 +82,7 @@ def get_erp(
     return store.erp_stats or {"store_id": sid, "orders": []}
 
 
-@router.get("/cost")
+@router.get("/cost", deprecated=True)
 def get_cost(
     request: Request,
     store_id: Optional[str] = Query(None),
@@ -93,7 +93,7 @@ def get_cost(
     return store.cost_stats or {"store_id": sid, "items": []}
 
 
-@router.get("/iot")
+@router.get("/iot", deprecated=True)
 def get_iot(
     request: Request,
     store_id: Optional[str] = Query(None),
@@ -104,12 +104,12 @@ def get_iot(
     return store.iot_stats or {"store_id": sid, "stage_readings": {}}
 
 
-@router.get("/stores")
+@router.get("/stores", deprecated=True)
 def list_stores(auth: AuthContext = Depends(get_auth_context)) -> Dict[str, Any]:
     return {"stores": runtime.hub.list_stores()}
 
 
-@router.post("/events")
+@router.post("/events", deprecated=True)
 async def post_event(
     request: Request,
     store_id: Optional[str] = Query(None),
@@ -130,7 +130,7 @@ async def post_event(
     return event
 
 
-@router.post("/tables")
+@router.post("/tables", deprecated=True)
 async def post_tables(
     request: Request,
     store_id: Optional[str] = Query(None),
@@ -145,7 +145,7 @@ async def post_tables(
     return {"ok": True, "store_id": sid, "count": len(tables)}
 
 
-@router.post("/pos")
+@router.post("/pos", deprecated=True)
 async def post_pos(
     request: Request,
     store_id: Optional[str] = Query(None),
@@ -158,7 +158,7 @@ async def post_pos(
     return {"ok": True, "store_id": sid}
 
 
-@router.post("/sop")
+@router.post("/sop", deprecated=True)
 async def post_sop(
     request: Request,
     store_id: Optional[str] = Query(None),
@@ -171,7 +171,7 @@ async def post_sop(
     return {"ok": True, "store_id": sid, "compliance_rate": data.get("compliance_rate") if isinstance(data, dict) else None}
 
 
-@router.post("/cost")
+@router.post("/cost", deprecated=True)
 async def post_cost(
     request: Request,
     store_id: Optional[str] = Query(None),
@@ -184,7 +184,7 @@ async def post_cost(
     return {"ok": True, "store_id": sid, "variance_rate_pct": data.get("variance_rate_pct") if isinstance(data, dict) else None}
 
 
-@router.post("/iot")
+@router.post("/iot", deprecated=True)
 async def post_iot(
     request: Request,
     store_id: Optional[str] = Query(None),
@@ -199,7 +199,7 @@ async def post_iot(
 
 
 
-@router.post("/erp")
+@router.post("/erp", deprecated=True)
 async def post_erp(
     request: Request,
     store_id: Optional[str] = Query(None),
@@ -214,3 +214,22 @@ async def post_erp(
         "store_id": sid,
         "order_count": data.get("order_count") if isinstance(data, dict) else None,
     }
+
+
+# /v1 canonical aliases
+router.add_api_route("/v1/summary", summary, methods=["GET"])
+router.add_api_route("/v1/events", get_events, methods=["GET"])
+router.add_api_route("/v1/tables", get_tables, methods=["GET"])
+router.add_api_route("/v1/sop", get_sop, methods=["GET"])
+router.add_api_route("/v1/pos", get_pos, methods=["GET"])
+router.add_api_route("/v1/erp", get_erp, methods=["GET"])
+router.add_api_route("/v1/cost", get_cost, methods=["GET"])
+router.add_api_route("/v1/iot", get_iot, methods=["GET"])
+router.add_api_route("/v1/stores", list_stores, methods=["GET"])
+router.add_api_route("/v1/events", post_event, methods=["POST"])
+router.add_api_route("/v1/tables", post_tables, methods=["POST"])
+router.add_api_route("/v1/pos", post_pos, methods=["POST"])
+router.add_api_route("/v1/sop", post_sop, methods=["POST"])
+router.add_api_route("/v1/cost", post_cost, methods=["POST"])
+router.add_api_route("/v1/iot", post_iot, methods=["POST"])
+router.add_api_route("/v1/erp", post_erp, methods=["POST"])

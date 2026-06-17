@@ -88,7 +88,7 @@ def sop_assignment_status(
     return {"ok": True, "assignment": row}
 
 
-@router.post("/sop/ask")
+@router.post("/sop/ask", deprecated=True)
 def sop_ask(
     body: SopAskBody,
     auth: AuthContext = Depends(get_auth_context),
@@ -101,3 +101,6 @@ def sop_ask(
     else:
         result = agent.answer_rule(body.question, body.top_k)
     return result
+
+
+router.add_api_route("/v1/sop/ask", sop_ask, methods=["POST"])
