@@ -178,7 +178,7 @@ const HotpotApp = (() => {
     hubAckedIds.add(eventId);
     const auth = getAuth();
     try {
-      await fetch(`${hubUrl()}/alerts/ack`, {
+      await fetch(`${hubUrl()}/v1/alerts/ack`, {
         method: "POST",
         headers: authHeaders({ "Content-Type": "application/json" }),
         body: JSON.stringify({
@@ -286,7 +286,7 @@ const HotpotApp = (() => {
   }
 
   async function fetchSummary() {
-    const res = await fetch(`${hubUrl()}/summary?${storeQuery()}`, { headers: authHeaders() });
+    const res = await fetch(`${hubUrl()}/v1/summary?${storeQuery()}`, { headers: authHeaders() });
     if (!res.ok) throw new Error(res.statusText);
     return res.json();
   }
@@ -304,7 +304,7 @@ const HotpotApp = (() => {
   }
 
   async function askSop(question, backend = "rule") {
-    const res = await fetch(`${hubUrl()}/sop/ask`, {
+    const res = await fetch(`${hubUrl()}/v1/sop/ask`, {
       method: "POST",
       headers: authHeaders({ "Content-Type": "application/json" }),
       body: JSON.stringify({ question, backend, top_k: 3 }),
@@ -314,7 +314,7 @@ const HotpotApp = (() => {
   }
 
   async function fetchAlertPushes(limit = 20) {
-    const res = await fetch(`${hubUrl()}/alerts/push-log?${storeQuery(`limit=${limit}`)}`, {
+    const res = await fetch(`${hubUrl()}/v1/alerts/push-log?${storeQuery(`limit=${limit}`)}`, {
       headers: authHeaders(),
     });
     if (!res.ok) throw new Error(res.statusText);
@@ -322,25 +322,25 @@ const HotpotApp = (() => {
   }
 
   async function fetchAlertAcks() {
-    const res = await fetch(`${hubUrl()}/alerts/acks?${storeQuery()}`, { headers: authHeaders() });
+    const res = await fetch(`${hubUrl()}/v1/alerts/acks?${storeQuery()}`, { headers: authHeaders() });
     if (!res.ok) throw new Error(res.statusText);
     return res.json();
   }
 
   async function fetchEscalations() {
-    const res = await fetch(`${hubUrl()}/alerts/escalations?${storeQuery()}`, { headers: authHeaders() });
+    const res = await fetch(`${hubUrl()}/v1/alerts/escalations?${storeQuery()}`, { headers: authHeaders() });
     if (!res.ok) throw new Error(res.statusText);
     return res.json();
   }
 
   async function fetchEvents(limit = 30) {
-    const res = await fetch(`${hubUrl()}/events?${storeQuery(`limit=${limit}`)}`, { headers: authHeaders() });
+    const res = await fetch(`${hubUrl()}/v1/events?${storeQuery(`limit=${limit}`)}`, { headers: authHeaders() });
     if (!res.ok) throw new Error(res.statusText);
     return res.json();
   }
 
   async function fetchStores() {
-    const res = await fetch(`${hubUrl()}/stores`, { headers: authHeaders() });
+    const res = await fetch(`${hubUrl()}/v1/stores`, { headers: authHeaders() });
     if (!res.ok) throw new Error(res.statusText);
     return res.json();
   }
@@ -401,7 +401,7 @@ const HotpotApp = (() => {
   }
 
   async function fetchErp() {
-    const res = await fetch(`${hubUrl()}/erp?${storeQuery()}`, { headers: authHeaders() });
+    const res = await fetch(`${hubUrl()}/v1/erp?${storeQuery()}`, { headers: authHeaders() });
     if (!res.ok) throw new Error(res.statusText);
     return res.json();
   }
@@ -410,7 +410,7 @@ const HotpotApp = (() => {
     const q = targetStoreId
       ? `store_id=${encodeURIComponent(targetStoreId)}`
       : storeQuery();
-    const res = await fetch(`${hubUrl()}/alerts/routes?${q}`, { headers: authHeaders() });
+    const res = await fetch(`${hubUrl()}/v1/alerts/routes?${q}`, { headers: authHeaders() });
     if (!res.ok) throw new Error(res.statusText);
     return res.json();
   }
@@ -462,7 +462,7 @@ const HotpotApp = (() => {
   }
 
   async function fetchBenchmark() {
-    const res = await fetch(`${hubUrl()}/benchmark`, { headers: authHeaders() });
+    const res = await fetch(`${hubUrl()}/v1/benchmark`, { headers: authHeaders() });
     if (!res.ok) throw new Error(res.statusText);
     return res.json();
   }
