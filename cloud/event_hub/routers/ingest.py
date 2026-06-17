@@ -12,7 +12,7 @@ from cloud.event_hub.auth import (
     enforce_store_write,
     get_auth_context,
 )
-from cloud.event_hub.routers._deps import resolve_store_id as _resolve_store_id, SopAskBody
+from cloud.event_hub.routers._deps import resolve_store_id as _resolve_store_id
 
 router = APIRouter()
 
@@ -197,20 +197,6 @@ async def post_iot(
     summary = data.get("summary", {}) if isinstance(data, dict) else {}
     return {"ok": True, "store_id": sid, "iot_alert_count": summary.get("iot_alert_count")}
 
-
-@router.post("/sop/ask")
-def sop_ask(
-    body: SopAskBody,
-    auth: AuthContext = Depends(get_auth_context),
-) -> Dict[str, Any]:
-    from cloud.llm_report.sop_rag import create_sop_agent
-
-    agent = create_sop_agent(body.backend or "rule")
-    if hasattr(agent, "answer") and body.backend == "openai":
-        result = agent.answer(body.question, body.top_k)
-    else:
-        result = agent.answer_rule(body.question, body.top_k)
-    return result
 
 
 @router.post("/erp")
