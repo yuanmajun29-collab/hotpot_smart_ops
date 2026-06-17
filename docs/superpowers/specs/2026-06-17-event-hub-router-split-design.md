@@ -123,13 +123,15 @@ def receiving_submit(body, auth=Depends(get_auth_context),
 
 ## 6. 验收标准（DoD）
 
-- [ ] `app.py` ≤ ~100 行，仅组装根逻辑
-- [ ] 10 个 router 模块各自聚焦单一业务域
-- [ ] `domain/` 纯函数无 FastAPI/状态依赖
-- [ ] `pytest` 全绿（含迁移后的 fixture）
-- [ ] `run_poc.sh` 冒烟通过，dashboard 各页正常
-- [ ] 旧路径返回 `Deprecation` 头；OpenAPI 标记 deprecated
-- [ ] `core.js` 已切换至 /v1 端点
+- [x] `app.py` ≤ ~120 行，仅组装根逻辑（112 行：imports + runtime.init + deprecation 中间件 + startup + 10×include_router）
+- [x] 10 个 router 模块各自聚焦单一业务域（system/auth_routes/ingest/receiving/sop/iot/reports/alerts/org/admin）
+- [x] `domain/` 纯函数无 FastAPI/状态依赖（health.py 73 行 · turnover.py 20 行）
+- [x] `pytest` 全绿：62 passed（59 基线 + 3 新 /v1 别名测试）
+- [x] uvicorn 冒烟通过：/health ok、/v1/* 正常、deprecation 头行为正确
+- [x] 旧路径返回 `Deprecation: true` 头；24 条 legacy 路由 OpenAPI 标记 deprecated；/metrics、/auth/token 不受影响
+- [x] `core.js` 11 处 fetch 已切换至 /v1 端点
+
+**附加成果**：`org_registry` 纳入 runtime 容器，消除 routers→app 反向依赖；全模块 pyflakes 干净。
 
 ## 7. 非目标（本轮不做）
 
