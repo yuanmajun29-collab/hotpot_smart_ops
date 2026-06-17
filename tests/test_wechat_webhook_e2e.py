@@ -58,9 +58,13 @@ def client():
     from cloud.event_hub import app as hub_app_module
     from cloud.event_hub.db import create_hub_database
 
-    hub_app_module.db = create_hub_database(db_path)
-    hub_app_module.hub = hub_app_module.MultiTenantHub(on_persist=hub_app_module.db.on_persist)
-    hub_app_module.alert_gateway = hub_app_module.AlertGateway(db_path)
+    from cloud.event_hub import runtime
+    _db = create_hub_database(db_path)
+    runtime.init(
+        hub_app_module.MultiTenantHub(on_persist=_db.on_persist),
+        _db,
+        hub_app_module.AlertGateway(db_path),
+    )
 
     with TestClient(hub_app_module.app) as c:
         yield c
@@ -71,8 +75,9 @@ def test_critical_event_triggers_webhook_e2e(client):
     os.environ["HOTPOT_WECHAT_WEBHOOK_STORE_YUHUAN"] = webhook_url
     client.app.state  # ensure app loaded
     from cloud.event_hub import app as hub_app_module
+    from cloud.event_hub import runtime
 
-    hub_app_module.alert_gateway = hub_app_module.AlertGateway(
+    runtime.alert_gateway = hub_app_module.AlertGateway(
         Path(os.environ["HOTPOT_DB"])
     )
 
@@ -115,8 +120,9 @@ def test_warn_not_pushed_without_flag(client):
     os.environ["HOTPOT_WECHAT_WEBHOOK"] = webhook_url
     os.environ["HOTPOT_PUSH_WARN"] = "0"
     from cloud.event_hub import app as hub_app_module
+    from cloud.event_hub import runtime
 
-    hub_app_module.alert_gateway = hub_app_module.AlertGateway(
+    runtime.alert_gateway = hub_app_module.AlertGateway(
         Path(os.environ["HOTPOT_DB"])
     )
 
@@ -141,8 +147,9 @@ def test_alerts_routes_and_test_push(client):
     server, collector, webhook_url = _start_mock_webhook()
     os.environ["HOTPOT_WECHAT_WEBHOOK_STORE_JIAOJIANG"] = webhook_url
     from cloud.event_hub import app as hub_app_module
+    from cloud.event_hub import runtime
 
-    hub_app_module.alert_gateway = hub_app_module.AlertGateway(
+    runtime.alert_gateway = hub_app_module.AlertGateway(
         Path(os.environ["HOTPOT_DB"])
     )
 
