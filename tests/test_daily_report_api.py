@@ -23,9 +23,13 @@ def client():
     from cloud.event_hub import app as hub_app_module
     from cloud.event_hub.db import create_hub_database
 
-    hub_app_module.db = create_hub_database(db_path)
-    hub_app_module.hub = hub_app_module.MultiTenantHub(on_persist=hub_app_module.db.on_persist)
-    hub_app_module.alert_gateway = hub_app_module.AlertGateway(db_path)
+    from cloud.event_hub import runtime
+    _db = create_hub_database(db_path)
+    runtime.init(
+        hub_app_module.MultiTenantHub(on_persist=_db.on_persist),
+        _db,
+        hub_app_module.AlertGateway(db_path),
+    )
 
     with TestClient(hub_app_module.app) as c:
         yield c
@@ -101,8 +105,9 @@ def test_daily_report_push_webhook_e2e(client):
     os.environ["HOTPOT_WECHAT_WEBHOOK_STORE_YUHUAN"] = webhook_url
 
     from cloud.event_hub import app as hub_app_module
+    from cloud.event_hub import runtime
 
-    hub_app_module.alert_gateway = hub_app_module.AlertGateway(Path(os.environ["HOTPOT_DB"]))
+    runtime.alert_gateway = hub_app_module.AlertGateway(Path(os.environ["HOTPOT_DB"]))
 
     client.post(
         "/events?store_id=store_yuhuan",

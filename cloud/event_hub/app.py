@@ -3,56 +3,41 @@
 from __future__ import annotations
 
 import os
-import time
 from pathlib import Path
-from typing import Any, Dict, List, Optional
+from typing import Any, Dict, Optional
 
-_START_TIME = time.time()
-
-from fastapi import Depends, FastAPI, HTTPException, Query, Request
+from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
-from pydantic import BaseModel
 
-from cloud.event_hub.auth import (
-    AUTH_MODE,
-    AuthContext,
-    TokenRequest,
-    can_admin,
-    data_scope_for_role,
-    enforce_action,
-    enforce_admin,
-    enforce_store_read,
-    enforce_store_write,
-    get_auth_context,
-    login_user,
-)
 from cloud.alert_gateway.gateway import AlertGateway
-from cloud.event_hub.device_stub import (
-    get_pipeline_status,
-    run_subprocess_pipeline,
-    tick_all_stores_inprocess,
-    tick_store_inprocess,
-)
-from cloud.event_hub.org_registry import org_registry
 from cloud.event_hub.db import create_hub_database
-from cloud.event_hub.daily_report_store import daily_report_store
 from cloud.event_hub.daily_scheduler import DailyReportScheduler, generate_daily_report_for_store
-from cloud.event_hub.iot_readings_store import iot_readings_store
-from cloud.event_hub.receiving_store import new_batch_id, receiving_store, variance_pct
-from cloud.event_hub.sop_assign_store import sop_assign_store
-from cloud.event_hub.hub_core import DEFAULT_STORE_ID, MultiTenantHub, seed_from_directory
+from cloud.event_hub.hub_core import MultiTenantHub, seed_from_directory
 
 PROJECT_ROOT = Path(__file__).resolve().parents[2]
 DEFAULT_DB = PROJECT_ROOT / "demo" / "data" / "hub.db"
 DEFAULT_ALERT_DB = PROJECT_ROOT / "demo" / "data" / "hub_alerts.db"
 
+from cloud.event_hub import runtime
+
 _db_path = Path(os.environ.get("HOTPOT_DB", str(DEFAULT_DB)))
 _database_url = os.environ.get("HOTPOT_DATABASE_URL", "")
-db = create_hub_database(_db_path, _database_url)
 _alert_db_path = Path(os.environ.get("HOTPOT_ALERT_DB", str(_db_path if not _database_url else DEFAULT_ALERT_DB)))
-hub = MultiTenantHub(on_persist=db.on_persist)
-alert_gateway = AlertGateway(_alert_db_path)
+
+_db = create_hub_database(_db_path, _database_url)
+runtime.init(
+    MultiTenantHub(on_persist=_db.on_persist),
+    _db,
+    AlertGateway(_alert_db_path),
+)
 _daily_scheduler: Optional[DailyReportScheduler] = None
+
+
+def __getattr__(name: str):
+    """Delegate reads of hub/db/alert_gateway to runtime (test compat)."""
+    if name in ("hub", "db", "alert_gateway"):
+        return getattr(runtime, name)
+    raise AttributeError(f"module {__name__!r} has no attribute {name!r}")
 
 app = FastAPI(title="Hotpot Event Hub", version="2.0.0")
 app.add_middleware(
@@ -63,32 +48,31 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
+_LEGACY_PATHS = {
+    "/summary", "/events", "/tables", "/sop", "/pos", "/erp", "/cost", "/iot",
+    "/stores", "/benchmark", "/sop/ask",
+    "/alerts/routes", "/alerts/push-log", "/alerts/acks", "/alerts/escalations",
+    "/alerts/test-push", "/alerts/ack",
+}
 
-def _resolve_store_id(
-    store_id: Optional[str],
-    body: Any,
-    header_store: Optional[str],
-    auth: AuthContext,
-) -> str:
-    sid = header_store or store_id
-    if not sid and isinstance(body, dict):
-        sid = body.get("store_id")
-    if not sid and isinstance(body, list) and body and isinstance(body[0], dict):
-        sid = body[0].get("store_id")
-    sid = sid or DEFAULT_STORE_ID
-    enforce_store_read(auth, sid)
-    return sid
+
+@app.middleware("http")
+async def _mark_deprecated(request, call_next):
+    resp = await call_next(request)
+    if request.url.path in _LEGACY_PATHS:
+        resp.headers["Deprecation"] = "true"
+    return resp
 
 
 @app.on_event("startup")
 def startup() -> None:
-    org_registry.apply_to_hub(hub)
+    runtime.org_registry.apply_to_hub(runtime.hub)
     seed_dir = os.environ.get("HOTPOT_SEED_DIR", "")
-    if not db.is_empty():
-        db.hydrate_hub(hub)
-        print(f"[EventHub] Hydrated from {db.db_path}")
+    if not runtime.db.is_empty():
+        runtime.db.hydrate_hub(runtime.hub)
+        print(f"[EventHub] Hydrated from {runtime.db.db_path}")
     elif seed_dir:
-        n = seed_from_directory(hub, Path(seed_dir))
+        n = seed_from_directory(runtime.hub, Path(seed_dir))
         print(f"[EventHub] Seeded {n} store(s) from {seed_dir}")
     else:
         print("[EventHub] Started empty (no DB data, no seed dir)")
@@ -96,891 +80,33 @@ def startup() -> None:
     if os.environ.get("HOTPOT_DAILY_REPORT_SCHEDULER", "1") == "1":
 
         def _gen(sid: str, push: bool) -> Dict[str, Any]:
-            return generate_daily_report_for_store(hub, db, alert_gateway, sid, push=push)
+            return generate_daily_report_for_store(runtime.hub, runtime.db, runtime.alert_gateway, sid, push=push)
 
         global _daily_scheduler
         _daily_scheduler = DailyReportScheduler(_gen)
         _daily_scheduler.start()
 
 
-@app.get("/health")
-def health() -> Dict[str, Any]:
-    backend = "postgresql" if _database_url else "sqlite"
-    return {
-        "status": "ok",
-        "multi_tenant": True,
-        "engine": "fastapi",
-        "auth_mode": AUTH_MODE,
-        "persistent": True,
-        "alert_gateway": True,
-        "db_backend": backend,
-        "daily_report_scheduler": os.environ.get("HOTPOT_DAILY_REPORT_SCHEDULER", "1") == "1",
-        "uptime_sec": round(time.time() - _START_TIME, 1),
-    }
 
 
-@app.get("/metrics")
-def metrics(auth: AuthContext = Depends(get_auth_context)) -> Dict[str, Any]:
-    store_ids = sorted(set(hub._registry) | set(hub._stores))
-    total_events = 0
-    total_critical = 0
-    stores_with_data = 0
-    for sid in store_ids:
-        summary = hub.get_store(sid).get_summary()
-        if summary.get("total_events") or hub.get_store(sid).has_data():
-            stores_with_data += 1
-        total_events += summary.get("total_events", 0)
-        total_critical += (summary.get("by_level") or {}).get("critical", 0)
-    return {
-        "uptime_sec": round(time.time() - _START_TIME, 1),
-        "store_count": len(store_ids),
-        "stores_with_data": stores_with_data,
-        "total_events": total_events,
-        "total_critical": total_critical,
-        "db_path": str(getattr(db, "db_path", _db_path)),
-        "db_backend": "postgresql" if _database_url else "sqlite",
-        "auth_mode": AUTH_MODE,
-    }
-
-
-class SopAskBody(BaseModel):
-    question: str
-    backend: Optional[str] = "rule"
-    top_k: int = 3
-
-
-class AlertAckBody(BaseModel):
-    event_id: str
-    store_id: Optional[str] = None
-    ack_by: Optional[str] = "店长"
-    ack_note: Optional[str] = ""
-
-
-class SignatureInput(BaseModel):
-    role: str
-    signed_by: str
-
-
-class ReceivingSubmitBody(BaseModel):
-    batch_id: Optional[str] = None
-    store_id: Optional[str] = None
-    po_id: str
-    sku: str
-    weight_kg: float
-    po_weight_kg: Optional[float] = None
-    vlm_grade: Optional[str] = None
-    temp_c: Optional[float] = None
-    signatures: List[SignatureInput]
-
-
-class SopAssignBody(BaseModel):
-    store_id: Optional[str] = None
-    sop_id: str
-    sop_name: Optional[str] = None
-    assignee: str
-    due_at: Optional[str] = None
-    event_id: Optional[str] = None
-    note: Optional[str] = ""
-
-
-class SopAssignStatusBody(BaseModel):
-    status: str
-    store_id: Optional[str] = None
-
-
-class IotReadingInput(BaseModel):
-    sensor_id: str
-    sensor_type: str
-    value: float
-    unit: Optional[str] = ""
-    recorded_at: Optional[str] = None
-
-
-class IotReadingsBatchBody(BaseModel):
-    store_id: Optional[str] = None
-    readings: List[IotReadingInput]
-
-
-class DailyReportGenerateBody(BaseModel):
-    store_id: Optional[str] = None
-    push: bool = False
-    report_date: Optional[str] = None
-
-
-def _enforce_report_generate(auth: AuthContext) -> None:
-    enforce_action(auth, "report_generate")
-
-
-def _append_cost_item(store: Any, batch: Dict[str, Any], signatures: List[Dict[str, Any]]) -> None:
-    cost = dict(store.cost_stats or {"store_id": store.store_id, "items": []})
-    items = list(cost.get("items", []))
-    var = batch.get("variance_pct")
-    items.append(
-        {
-            "batch_id": batch["batch_id"],
-            "po_id": batch["po_id"],
-            "sku": batch["sku"],
-            "weight_kg": batch["weight_kg"],
-            "po_weight_kg": batch.get("po_weight_kg"),
-            "variance_pct": var,
-            "vlm_grade": batch.get("vlm_grade"),
-            "temp_c": batch.get("temp_c"),
-            "signatures": signatures,
-            "submitted_at": batch.get("created_at"),
-        }
-    )
-    cost["items"] = items
-    if var is not None:
-        shorts = [i for i in items if (i.get("variance_pct") or 0) < -3]
-        cost["short_weight_count"] = len(shorts)
-        cost["variance_rate_pct"] = var
-    store.set_cost_stats(cost)
-
-
-@app.post("/v1/receiving/submit")
-def receiving_submit(
-    body: ReceivingSubmitBody,
-    auth: AuthContext = Depends(get_auth_context),
-) -> Dict[str, Any]:
-    sid = body.store_id or auth.store_id or DEFAULT_STORE_ID
-    enforce_store_write(auth, sid)
-    enforce_action(auth, "receiving_submit")
-    store = hub.get_store(sid)
-
-    batch_id = body.batch_id or new_batch_id(sid)
-    var = variance_pct(body.weight_kg, body.po_weight_kg)
-    batch = {
-        "batch_id": batch_id,
-        "po_id": body.po_id,
-        "sku": body.sku,
-        "weight_kg": body.weight_kg,
-        "po_weight_kg": body.po_weight_kg,
-        "variance_pct": var,
-        "vlm_grade": body.vlm_grade,
-        "temp_c": body.temp_c,
-        "status": "submitted",
-    }
-    signatures = [s.model_dump() for s in body.signatures]
-
-    try:
-        result = receiving_store(db).submit(sid, batch, signatures)
-    except ValueError as exc:
-        raise HTTPException(status_code=400, detail=str(exc)) from exc
-
-    level = "warn" if var is not None and abs(var) > 3 else "info"
-    event = store.add_event(
-        {
-            "event_type": "receiving_submitted",
-            "source": "system",
-            "level": level,
-            "message": f"收货 {body.sku} {body.weight_kg}kg 已入库（{batch_id}）",
-            "metadata": {
-                "batch_id": batch_id,
-                "po_id": body.po_id,
-                "sku": body.sku,
-                "weight_kg": body.weight_kg,
-                "variance_pct": var,
-                "vlm_grade": body.vlm_grade,
-                "signatures": signatures,
-            },
-        }
-    )
-    _append_cost_item(store, {**batch, "created_at": result["created_at"]}, signatures)
-
-    return {
-        "ok": True,
-        "batch_id": batch_id,
-        "store_id": sid,
-        "variance_pct": var,
-        "event_id": event.get("event_id"),
-        "signatures": signatures,
-    }
-
-
-@app.get("/v1/receiving/batches")
-def receiving_batches(
-    request: Request,
-    store_id: Optional[str] = Query(None),
-    limit: int = Query(50, ge=1, le=200),
-    auth: AuthContext = Depends(get_auth_context),
-) -> Dict[str, Any]:
-    sid = _resolve_store_id(store_id, None, request.headers.get("X-Store-Id"), auth)
-    batches = receiving_store(db).list_batches(sid, limit=limit)
-    return {"store_id": sid, "batches": batches, "count": len(batches)}
-
-
-@app.get("/v1/audit/signatures")
-def audit_signatures(
-    request: Request,
-    store_id: Optional[str] = Query(None),
-    batch_id: Optional[str] = Query(None),
-    limit: int = Query(100, ge=1, le=500),
-    auth: AuthContext = Depends(get_auth_context),
-) -> Dict[str, Any]:
-    sid = _resolve_store_id(store_id, None, request.headers.get("X-Store-Id"), auth)
-    signatures = receiving_store(db).list_signatures(sid, batch_id=batch_id, limit=limit)
-    return {"store_id": sid, "signatures": signatures, "count": len(signatures)}
-
-
-@app.get("/v1/audit/acks")
-def audit_acks(
-    request: Request,
-    store_id: Optional[str] = Query(None),
-    limit: int = Query(50, ge=1, le=200),
-    auth: AuthContext = Depends(get_auth_context),
-) -> Dict[str, Any]:
-    sid = _resolve_store_id(store_id, None, request.headers.get("X-Store-Id"), auth)
-    acks = alert_gateway.list_acks(sid)
-    signatures = receiving_store(db).list_signatures(sid, limit=limit)
-    assignments = sop_assign_store(db).list_assignments(sid, limit=limit)
-    return {
-        "store_id": sid,
-        "alert_acks": acks,
-        "alert_ack_count": len(acks),
-        "receiving_signatures": signatures,
-        "receiving_signature_count": len(signatures),
-        "sop_assignments": assignments,
-        "sop_assignment_count": len(assignments),
-    }
-
-
-@app.post("/v1/sop/assign")
-def sop_assign(
-    body: SopAssignBody,
-    auth: AuthContext = Depends(get_auth_context),
-) -> Dict[str, Any]:
-    sid = body.store_id or auth.store_id or DEFAULT_STORE_ID
-    enforce_store_write(auth, sid)
-    enforce_action(auth, "sop_assign")
-    store = hub.get_store(sid)
-
-    assigned_by = auth.sub or auth.role or "店长"
-    row = sop_assign_store(db).create(
-        sid,
-        sop_id=body.sop_id,
-        sop_name=body.sop_name,
-        assignee=body.assignee,
-        assigned_by=assigned_by,
-        event_id=body.event_id,
-        note=body.note or "",
-        due_at=body.due_at,
-    )
-
-    event = store.add_event(
-        {
-            "event_type": "sop_assigned",
-            "source": "system",
-            "level": "info",
-            "message": f"SOP 已指派：{row['sop_name']} → {body.assignee}",
-            "metadata": {
-                "assignment_id": row["assignment_id"],
-                "sop_id": body.sop_id,
-                "assignee": body.assignee,
-                "assigned_by": assigned_by,
-            },
-        }
-    )
-
-    return {
-        "ok": True,
-        "assignment": row,
-        "event_id": event.get("event_id"),
-    }
-
-
-@app.get("/v1/sop/assignments")
-def sop_assignments(
-    request: Request,
-    store_id: Optional[str] = Query(None),
-    status: Optional[str] = Query(None),
-    limit: int = Query(50, ge=1, le=200),
-    auth: AuthContext = Depends(get_auth_context),
-) -> Dict[str, Any]:
-    sid = _resolve_store_id(store_id, None, request.headers.get("X-Store-Id"), auth)
-    items = sop_assign_store(db).list_assignments(sid, status=status, limit=limit)
-    return {"store_id": sid, "assignments": items, "count": len(items)}
-
-
-@app.put("/v1/sop/assignments/{assignment_id}/status")
-def sop_assignment_status(
-    assignment_id: str,
-    body: SopAssignStatusBody,
-    auth: AuthContext = Depends(get_auth_context),
-) -> Dict[str, Any]:
-    sid = body.store_id or auth.store_id or DEFAULT_STORE_ID
-    enforce_store_write(auth, sid)
-    try:
-        row = sop_assign_store(db).update_status(assignment_id, sid, body.status)
-    except ValueError as exc:
-        raise HTTPException(status_code=400, detail=str(exc)) from exc
-    if not row:
-        raise HTTPException(status_code=404, detail="工单不存在")
-    return {"ok": True, "assignment": row}
-
-
-@app.post("/v1/iot/readings/batch")
-def iot_readings_batch(
-    body: IotReadingsBatchBody,
-    auth: AuthContext = Depends(get_auth_context),
-) -> Dict[str, Any]:
-    sid = body.store_id or auth.store_id or DEFAULT_STORE_ID
-    enforce_store_write(auth, sid)
-    readings = [r.model_dump() for r in body.readings]
-    n = iot_readings_store(db).insert_batch(sid, readings)
-    return {"ok": True, "store_id": sid, "inserted": n}
-
-
-@app.get("/v1/iot/readings")
-def iot_readings_list(
-    request: Request,
-    store_id: Optional[str] = Query(None),
-    sensor_id: Optional[str] = Query(None),
-    hours: float = Query(24, ge=0.5, le=168),
-    limit: int = Query(500, ge=1, le=2000),
-    auth: AuthContext = Depends(get_auth_context),
-) -> Dict[str, Any]:
-    sid = _resolve_store_id(store_id, None, request.headers.get("X-Store-Id"), auth)
-    items = iot_readings_store(db).list_readings(
-        sid, sensor_id=sensor_id, hours=hours, limit=limit
-    )
-    return {"store_id": sid, "sensor_id": sensor_id, "hours": hours, "readings": items, "count": len(items)}
-
-
-@app.post("/v1/reports/daily/generate")
-def daily_report_generate(
-    body: DailyReportGenerateBody,
-    auth: AuthContext = Depends(get_auth_context),
-) -> Dict[str, Any]:
-    sid = body.store_id or auth.store_id or DEFAULT_STORE_ID
-    if sid == "*":
-        sid = DEFAULT_STORE_ID
-    enforce_store_read(auth, sid)
-    _enforce_report_generate(auth)
-    return generate_daily_report_for_store(
-        hub,
-        db,
-        alert_gateway,
-        sid,
-        push=body.push,
-        report_date=body.report_date,
-    )
-
-
-@app.get("/v1/reports/daily")
-def daily_report_list(
-    request: Request,
-    store_id: Optional[str] = Query(None),
-    report_date: Optional[str] = Query(None),
-    limit: int = Query(30, ge=1, le=90),
-    auth: AuthContext = Depends(get_auth_context),
-) -> Dict[str, Any]:
-    sid = _resolve_store_id(store_id, None, request.headers.get("X-Store-Id"), auth)
-    reports = daily_report_store(db).list_reports(sid, limit=limit, report_date=report_date)
-    return {"store_id": sid, "reports": reports, "count": len(reports)}
-
-
-@app.post("/auth/token")
-def auth_token(req: TokenRequest) -> Dict[str, Any]:
-    return login_user(req)
-
-
-@app.get("/stores")
-def list_stores(auth: AuthContext = Depends(get_auth_context)) -> Dict[str, Any]:
-    return {"stores": hub.list_stores()}
-
-
-@app.get("/benchmark")
-def benchmark(
-    region_id: Optional[str] = Query(None),
-    auth: AuthContext = Depends(get_auth_context),
-) -> Dict[str, Any]:
-    if auth.role not in ("区域督导", "总部PMO") and auth.store_id != "*" and AUTH_MODE != "demo":
-        if auth.auth_type != "anonymous":
-            pass
-    return hub.get_region_overview(region_id)
-
-
-@app.get("/v1/region/overview")
-def region_overview(
-    region_id: Optional[str] = Query(None, description="e.g. region_taizhou"),
-    auth: AuthContext = Depends(get_auth_context),
-) -> Dict[str, Any]:
-    """Regional rollup · health matrix · anomaly stores (F-HQ06/F-HQ07)."""
-    return hub.get_region_overview(region_id)
-
-
-class AdminStoreCreate(BaseModel):
-    store_name: str
-    region_id: str = "region_taizhou"
-    city: str = ""
-    store_type: str = "direct"
-    status: str = "preparing"
-
-
-class AdminStoreUpdate(BaseModel):
-    store_name: Optional[str] = None
-    city: Optional[str] = None
-    store_type: Optional[str] = None
-    status: Optional[str] = None
-    note: Optional[str] = None
-    region_id: Optional[str] = None
-
-
-class PipelineTickBody(BaseModel):
-    store_id: Optional[str] = None
-    mode: str = "inprocess"  # inprocess | subprocess
-    inject_anomaly: bool = False
-    hub_url: str = "http://127.0.0.1:8088"
-
-
-@app.get("/v1/auth/me")
-def auth_me(auth: AuthContext = Depends(get_auth_context)) -> Dict[str, Any]:
-    return {
-        "username": auth.sub,
-        "role": auth.role,
-        "store_id": auth.store_id,
-        "data_scope": data_scope_for_role(auth.role),
-        "can_admin": can_admin(auth),
-        "auth_mode": AUTH_MODE,
-    }
-
-
-@app.get("/v1/national/overview")
-def national_overview(auth: AuthContext = Depends(get_auth_context)) -> Dict[str, Any]:
-    """National rollup across all zones (F-HQ12)."""
-    if auth.role not in ("区域督导", "总部PMO", "总部 IT") and auth.store_id != "*":
-        if AUTH_MODE == "strict" and auth.auth_type != "anonymous":
-            pass
-    return hub.get_national_overview()
-
-
-@app.get("/v1/admin/org-tree")
-def admin_org_tree(auth: AuthContext = Depends(get_auth_context)) -> Dict[str, Any]:
-    enforce_admin(auth)
-    return org_registry.get_org_tree()
-
-
-@app.get("/v1/admin/stores")
-def admin_list_stores(auth: AuthContext = Depends(get_auth_context)) -> Dict[str, Any]:
-    enforce_admin(auth)
-    stores = org_registry.list_stores()
-    pipeline_by_id = {r["store_id"]: r for r in get_pipeline_status(hub)}
-    for s in stores:
-        sid = s.get("store_id")
-        if sid:
-            row = pipeline_by_id.get(sid, {})
-            s["has_data"] = hub.get_store(sid).has_data()
-            s["layers"] = row.get("layers", {})
-            s["pipeline_pct"] = row.get("pipeline_pct", 0)
-    return {"stores": stores, "count": len(stores)}
-
-
-@app.post("/v1/admin/stores")
-def admin_create_store(
-    body: AdminStoreCreate,
-    auth: AuthContext = Depends(get_auth_context),
-) -> Dict[str, Any]:
-    enforce_admin(auth)
-    try:
-        item = org_registry.create_store(
-            body.store_name,
-            body.region_id,
-            city=body.city,
-            store_type=body.store_type,
-            status=body.status,
-            actor=auth.sub,
-        )
-    except ValueError as exc:
-        raise HTTPException(status_code=400, detail=str(exc)) from exc
-    org_registry.apply_to_hub(hub)
-    tick_store_inprocess(hub, item["store_id"], item["store_name"])
-    return {"ok": True, "store": item}
-
-
-@app.put("/v1/admin/stores/{store_id}")
-def admin_update_store(
-    store_id: str,
-    body: AdminStoreUpdate,
-    auth: AuthContext = Depends(get_auth_context),
-) -> Dict[str, Any]:
-    enforce_admin(auth)
-    fields = body.model_dump(exclude_none=True)
-    try:
-        item = org_registry.update_store(store_id, actor=auth.sub, **fields)
-    except ValueError as exc:
-        raise HTTPException(status_code=404, detail=str(exc)) from exc
-    org_registry.apply_to_hub(hub)
-    return {"ok": True, "store": item}
-
-
-@app.get("/v1/admin/users")
-def admin_list_users(auth: AuthContext = Depends(get_auth_context)) -> Dict[str, Any]:
-    enforce_admin(auth)
-    from cloud.event_hub.auth import DEMO_USERS
-
-    users = []
-    for (username, _password), info in DEMO_USERS.items():
-        role = info["role"]
-        users.append(
-            {
-                "username": username,
-                "name": info["name"],
-                "role": role,
-                "store_id": info.get("store_id", "store_yuhuan"),
-                "data_scope": data_scope_for_role(role),
-                "source": "demo_stub",
-            }
-        )
-    return {"users": users, "count": len(users), "note": "Phase 2: 迁移至 users 表"}
-
-
-@app.get("/v1/admin/audit-logs")
-def admin_audit_logs(
-    limit: int = Query(50, ge=1, le=200),
-    auth: AuthContext = Depends(get_auth_context),
-) -> Dict[str, Any]:
-    enforce_admin(auth)
-    logs = org_registry.list_audit(limit=limit)
-    return {"logs": logs, "count": len(logs)}
-
-
-@app.get("/v1/admin/pipeline/status")
-def admin_pipeline_status(auth: AuthContext = Depends(get_auth_context)) -> Dict[str, Any]:
-    enforce_admin(auth)
-    rows = get_pipeline_status(hub)
-    total_ready = sum(r["ready_count"] for r in rows)
-    total_layers = sum(r["total_layers"] for r in rows) or 1
-    return {
-        "stores": rows,
-        "summary": {
-            "store_count": len(rows),
-            "avg_pipeline_pct": round(total_ready / total_layers * 100, 1),
-            "stub_mode": True,
-            "layers": ["vision", "iot", "pos", "sop", "erp", "cost", "events"],
-        },
-    }
-
-
-@app.post("/v1/admin/pipeline/tick")
-def admin_pipeline_tick(
-    body: PipelineTickBody,
-    auth: AuthContext = Depends(get_auth_context),
-) -> Dict[str, Any]:
-    enforce_admin(auth)
-    if body.store_id:
-        meta = hub._registry.get(body.store_id, {})
-        name = meta.get("store_name", body.store_id)
-        if body.mode == "subprocess":
-            result = run_subprocess_pipeline(
-                body.store_id, name, body.hub_url, inject_anomaly=body.inject_anomaly
-            )
-        else:
-            result = tick_store_inprocess(
-                hub, body.store_id, name, inject_anomaly=body.inject_anomaly
-            )
-        return {"ok": True, "results": [result]}
-    if body.mode == "subprocess":
-        results = []
-        for sid, meta in sorted(hub._registry.items()):
-            results.append(
-                run_subprocess_pipeline(
-                    sid, meta.get("store_name", sid), body.hub_url, inject_anomaly=body.inject_anomaly
-                )
-            )
-        return {"ok": all(r.get("ok", False) for r in results), "results": results}
-    results = tick_all_stores_inprocess(hub, inject_anomaly=body.inject_anomaly)
-    return {"ok": True, "results": results}
-
-
-@app.get("/summary")
-def summary(
-    request: Request,
-    store_id: Optional[str] = Query(None),
-    auth: AuthContext = Depends(get_auth_context),
-) -> Dict[str, Any]:
-    sid = _resolve_store_id(store_id, None, request.headers.get("x-store-id"), auth)
-    return hub.get_store(sid).get_summary()
-
-
-@app.get("/events")
-def get_events(
-    request: Request,
-    store_id: Optional[str] = Query(None),
-    level: Optional[str] = Query(None),
-    limit: int = Query(50),
-    auth: AuthContext = Depends(get_auth_context),
-) -> List[Dict[str, Any]]:
-    sid = _resolve_store_id(store_id, None, request.headers.get("X-Store-Id"), auth)
-    return hub.get_store(sid).get_events(level, limit)
-
-
-@app.get("/tables")
-def get_tables(
-    request: Request,
-    store_id: Optional[str] = Query(None),
-    auth: AuthContext = Depends(get_auth_context),
-) -> List[Dict[str, Any]]:
-    sid = _resolve_store_id(store_id, None, request.headers.get("X-Store-Id"), auth)
-    return list(hub.get_store(sid).table_states.values())
-
-
-@app.get("/sop")
-def get_sop(
-    request: Request,
-    store_id: Optional[str] = Query(None),
-    auth: AuthContext = Depends(get_auth_context),
-) -> Dict[str, Any]:
-    sid = _resolve_store_id(store_id, None, request.headers.get("X-Store-Id"), auth)
-    store = hub.get_store(sid)
-    return store.sop_stats or {"store_id": sid, "results": []}
-
-
-@app.get("/pos")
-def get_pos(
-    request: Request,
-    store_id: Optional[str] = Query(None),
-    auth: AuthContext = Depends(get_auth_context),
-) -> Dict[str, Any]:
-    sid = _resolve_store_id(store_id, None, request.headers.get("X-Store-Id"), auth)
-    store = hub.get_store(sid)
-    return store.pos_stats or {"store_id": sid}
-
-
-@app.get("/erp")
-def get_erp(
-    request: Request,
-    store_id: Optional[str] = Query(None),
-    auth: AuthContext = Depends(get_auth_context),
-) -> Dict[str, Any]:
-    sid = _resolve_store_id(store_id, None, request.headers.get("X-Store-Id"), auth)
-    store = hub.get_store(sid)
-    return store.erp_stats or {"store_id": sid, "orders": []}
-
-
-@app.post("/erp")
-async def post_erp(
-    request: Request,
-    store_id: Optional[str] = Query(None),
-    auth: AuthContext = Depends(get_auth_context),
-) -> Dict[str, Any]:
-    data = await request.json()
-    sid = _resolve_store_id(store_id, data, request.headers.get("X-Store-Id"), auth)
-    enforce_store_write(auth, sid)
-    hub.get_store(sid).set_erp_stats(data if isinstance(data, dict) else {})
-    return {
-        "ok": True,
-        "store_id": sid,
-        "order_count": data.get("order_count") if isinstance(data, dict) else None,
-    }
-
-
-@app.post("/sop/ask")
-def sop_ask(
-    body: SopAskBody,
-    auth: AuthContext = Depends(get_auth_context),
-) -> Dict[str, Any]:
-    from cloud.llm_report.sop_rag import create_sop_agent
-
-    agent = create_sop_agent(body.backend or "rule")
-    if hasattr(agent, "answer") and body.backend == "openai":
-        result = agent.answer(body.question, body.top_k)
-    else:
-        result = agent.answer_rule(body.question, body.top_k)
-    return result
-
-
-@app.get("/cost")
-def get_cost(
-    request: Request,
-    store_id: Optional[str] = Query(None),
-    auth: AuthContext = Depends(get_auth_context),
-) -> Dict[str, Any]:
-    sid = _resolve_store_id(store_id, None, request.headers.get("X-Store-Id"), auth)
-    store = hub.get_store(sid)
-    return store.cost_stats or {"store_id": sid, "items": []}
-
-
-@app.get("/iot")
-def get_iot(
-    request: Request,
-    store_id: Optional[str] = Query(None),
-    auth: AuthContext = Depends(get_auth_context),
-) -> Dict[str, Any]:
-    sid = _resolve_store_id(store_id, None, request.headers.get("X-Store-Id"), auth)
-    store = hub.get_store(sid)
-    return store.iot_stats or {"store_id": sid, "stage_readings": {}}
-
-
-@app.post("/events")
-async def post_event(
-    request: Request,
-    store_id: Optional[str] = Query(None),
-    auth: AuthContext = Depends(get_auth_context),
-) -> Dict[str, Any]:
-    data = await request.json()
-    sid = _resolve_store_id(store_id, data, request.headers.get("X-Store-Id"), auth)
-    enforce_store_write(auth, sid)
-    event = hub.get_store(sid).add_event(data if isinstance(data, dict) else {})
-    push = alert_gateway.handle_event(event, sid)
-    if push:
-        event = dict(event)
-        event["_alert_push"] = {
-            "pushed": True,
-            "channel": push.get("channel"),
-            "webhook_sent": push.get("webhook_sent", False),
-        }
-    return event
-
-
-@app.post("/tables")
-async def post_tables(
-    request: Request,
-    store_id: Optional[str] = Query(None),
-    auth: AuthContext = Depends(get_auth_context),
-) -> Dict[str, Any]:
-    data = await request.json()
-    sid = _resolve_store_id(store_id, data, request.headers.get("X-Store-Id"), auth)
-    enforce_store_write(auth, sid)
-    enforce_action(auth, "table_correct")
-    tables = data if isinstance(data, list) else data.get("tables", [])
-    hub.get_store(sid).set_table_states(tables)
-    return {"ok": True, "store_id": sid, "count": len(tables)}
-
-
-@app.post("/pos")
-async def post_pos(
-    request: Request,
-    store_id: Optional[str] = Query(None),
-    auth: AuthContext = Depends(get_auth_context),
-) -> Dict[str, Any]:
-    data = await request.json()
-    sid = _resolve_store_id(store_id, data, request.headers.get("X-Store-Id"), auth)
-    enforce_store_write(auth, sid)
-    hub.get_store(sid).set_pos_stats(data if isinstance(data, dict) else {})
-    return {"ok": True, "store_id": sid}
-
-
-@app.post("/sop")
-async def post_sop(
-    request: Request,
-    store_id: Optional[str] = Query(None),
-    auth: AuthContext = Depends(get_auth_context),
-) -> Dict[str, Any]:
-    data = await request.json()
-    sid = _resolve_store_id(store_id, data, request.headers.get("X-Store-Id"), auth)
-    enforce_store_write(auth, sid)
-    hub.get_store(sid).set_sop_stats(data if isinstance(data, dict) else {})
-    return {"ok": True, "store_id": sid, "compliance_rate": data.get("compliance_rate") if isinstance(data, dict) else None}
-
-
-@app.post("/cost")
-async def post_cost(
-    request: Request,
-    store_id: Optional[str] = Query(None),
-    auth: AuthContext = Depends(get_auth_context),
-) -> Dict[str, Any]:
-    data = await request.json()
-    sid = _resolve_store_id(store_id, data, request.headers.get("X-Store-Id"), auth)
-    enforce_store_write(auth, sid)
-    hub.get_store(sid).set_cost_stats(data if isinstance(data, dict) else {})
-    return {"ok": True, "store_id": sid, "variance_rate_pct": data.get("variance_rate_pct") if isinstance(data, dict) else None}
-
-
-@app.post("/iot")
-async def post_iot(
-    request: Request,
-    store_id: Optional[str] = Query(None),
-    auth: AuthContext = Depends(get_auth_context),
-) -> Dict[str, Any]:
-    data = await request.json()
-    sid = _resolve_store_id(store_id, data, request.headers.get("X-Store-Id"), auth)
-    enforce_store_write(auth, sid)
-    hub.get_store(sid).set_iot_stats(data if isinstance(data, dict) else {})
-    summary = data.get("summary", {}) if isinstance(data, dict) else {}
-    return {"ok": True, "store_id": sid, "iot_alert_count": summary.get("iot_alert_count")}
-
-
-@app.get("/alerts/routes")
-def alerts_routes(
-    request: Request,
-    store_id: Optional[str] = Query(None),
-    auth: AuthContext = Depends(get_auth_context),
-) -> Dict[str, Any]:
-    """Return per-store webhook config status (DEV-414). URLs are masked."""
-    if store_id:
-        sid = _resolve_store_id(store_id, None, request.headers.get("X-Store-Id"), auth)
-        return {"routes": [alert_gateway.route_status(sid)]}
-    store_ids = sorted(set(hub._registry) | set(hub._stores))
-    if not store_ids:
-        store_ids = ["store_yuhuan", "store_jiaojiang"]
-    return {"routes": [alert_gateway.route_status(sid) for sid in store_ids]}
-
-
-@app.post("/alerts/test-push")
-def alerts_test_push(
-    request: Request,
-    store_id: Optional[str] = Query(None),
-    auth: AuthContext = Depends(get_auth_context),
-) -> Dict[str, Any]:
-    """Send synthetic critical card to verify WeChat webhook (DEV-414 checklist)."""
-    sid = _resolve_store_id(store_id, None, request.headers.get("X-Store-Id"), auth)
-    enforce_store_write(auth, sid)
-    if AUTH_MODE != "demo" and auth.role not in ("店长", "区域督导"):
-        raise HTTPException(status_code=403, detail="无 webhook 测试权限")
-    return alert_gateway.send_test_push(sid)
-
-
-@app.get("/alerts/push-log")
-def alerts_push_log(
-    request: Request,
-    store_id: Optional[str] = Query(None),
-    limit: int = Query(20),
-    auth: AuthContext = Depends(get_auth_context),
-) -> Dict[str, Any]:
-    sid = _resolve_store_id(store_id, None, request.headers.get("X-Store-Id"), auth)
-    return {"store_id": sid, "pushes": alert_gateway.list_pushes(sid, limit)}
-
-
-@app.get("/alerts/acks")
-def alerts_acks(
-    request: Request,
-    store_id: Optional[str] = Query(None),
-    auth: AuthContext = Depends(get_auth_context),
-) -> Dict[str, Any]:
-    sid = _resolve_store_id(store_id, None, request.headers.get("X-Store-Id"), auth)
-    return {"store_id": sid, "acks": alert_gateway.list_acks(sid)}
-
-
-@app.post("/alerts/ack")
-def alerts_ack(
-    body: AlertAckBody,
-    auth: AuthContext = Depends(get_auth_context),
-) -> Dict[str, Any]:
-    sid = body.store_id or auth.store_id or DEFAULT_STORE_ID
-    enforce_store_write(auth, sid)
-    enforce_action(auth, "ack")
-    ack_by = body.ack_by or auth.sub or "店长"
-    return alert_gateway.ack(body.event_id, sid, ack_by, body.ack_note or "")
-
-
-@app.get("/alerts/escalations")
-def alerts_escalations(
-    request: Request,
-    store_id: Optional[str] = Query(None),
-    auth: AuthContext = Depends(get_auth_context),
-) -> Dict[str, Any]:
-    sid = _resolve_store_id(store_id, None, request.headers.get("X-Store-Id"), auth)
-    events = hub.get_store(sid).get_events("critical", 100)
-    return {"store_id": sid, **alert_gateway.count_escalations(sid, events)}
-
-
-@app.post("/seed")
-async def post_seed(
-    request: Request,
-    auth: AuthContext = Depends(get_auth_context),
-) -> Dict[str, Any]:
-    data = await request.json()
-    if AUTH_MODE == "strict" and auth.auth_type == "anonymous":
-        raise HTTPException(status_code=401, detail="Seed requires auth")
-    hub.apply_seed(data if isinstance(data, dict) else {})
-    return {"ok": True, "store_id": data.get("store_id", DEFAULT_STORE_ID) if isinstance(data, dict) else DEFAULT_STORE_ID}
+from cloud.event_hub.routers import system as _system_router
+from cloud.event_hub.routers import auth_routes as _auth_routes_router
+from cloud.event_hub.routers import ingest as _ingest_router
+from cloud.event_hub.routers import receiving as _receiving_router
+from cloud.event_hub.routers import sop as _sop_router
+from cloud.event_hub.routers import iot as _iot_router
+from cloud.event_hub.routers import reports as _reports_router
+from cloud.event_hub.routers import alerts as _alerts_router
+from cloud.event_hub.routers import org as _org_router
+from cloud.event_hub.routers import admin as _admin_router
+
+app.include_router(_system_router.router)
+app.include_router(_auth_routes_router.router)
+app.include_router(_ingest_router.router)
+app.include_router(_receiving_router.router)
+app.include_router(_sop_router.router)
+app.include_router(_iot_router.router)
+app.include_router(_reports_router.router)
+app.include_router(_alerts_router.router)
+app.include_router(_org_router.router)
+app.include_router(_admin_router.router)
