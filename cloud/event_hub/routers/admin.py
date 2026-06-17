@@ -1,12 +1,12 @@
 """Admin routes."""
 from __future__ import annotations
 
-from typing import Any, Dict, List, Optional
+from typing import Any, Dict
 
-from fastapi import APIRouter, Depends, HTTPException, Query, Request
+from fastapi import APIRouter, Depends, HTTPException, Query
 
 from cloud.event_hub import runtime
-from cloud.event_hub.auth import AuthContext, get_auth_context, enforce_admin, can_admin, data_scope_for_role, AUTH_MODE
+from cloud.event_hub.auth import AuthContext, get_auth_context, enforce_admin, data_scope_for_role
 from cloud.event_hub.device_stub import get_pipeline_status, run_subprocess_pipeline, tick_all_stores_inprocess, tick_store_inprocess
 from cloud.event_hub.routers._deps import AdminStoreCreate, AdminStoreUpdate, PipelineTickBody
 

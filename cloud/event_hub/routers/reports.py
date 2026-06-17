@@ -1,9 +1,9 @@
 """Reports routes."""
 from __future__ import annotations
 
-from typing import Any, Dict, List, Optional
+from typing import Any, Dict, Optional
 
-from fastapi import APIRouter, Depends, HTTPException, Query, Request
+from fastapi import APIRouter, Depends, Query, Request
 
 from cloud.event_hub import runtime
 from cloud.event_hub.auth import AuthContext, get_auth_context, enforce_store_read

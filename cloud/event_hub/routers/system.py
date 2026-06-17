@@ -3,13 +3,13 @@ from __future__ import annotations
 
 import os
 import time
-from typing import Any, Dict, Optional
+from typing import Any, Dict
 
 from fastapi import APIRouter, Depends, Request
 
 from cloud.event_hub import runtime
 from cloud.event_hub.auth import AUTH_MODE, AuthContext, get_auth_context
-from cloud.event_hub.hub_core import DEFAULT_STORE_ID, seed_from_directory
+from cloud.event_hub.hub_core import DEFAULT_STORE_ID
 
 router = APIRouter()
 

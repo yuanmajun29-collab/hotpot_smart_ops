@@ -8,7 +8,6 @@ from pydantic import BaseModel
 
 from cloud.event_hub.auth import AuthContext, enforce_store_read, enforce_action
 from cloud.event_hub.hub_core import DEFAULT_STORE_ID
-from cloud.event_hub import runtime
 
 
 def resolve_store_id(

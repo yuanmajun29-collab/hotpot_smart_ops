@@ -1,13 +1,13 @@
 """IoT routes."""
 from __future__ import annotations
 
-from typing import Any, Dict, List, Optional
+from typing import Any, Dict, Optional
 
 from fastapi import APIRouter, Depends, Query, Request
 
 from cloud.event_hub import runtime
 from cloud.event_hub.auth import AuthContext, get_auth_context, enforce_store_write
-from cloud.event_hub.routers._deps import resolve_store_id as _resolve_store_id, IotReadingsBatchBody, IotReadingInput
+from cloud.event_hub.routers._deps import resolve_store_id as _resolve_store_id, IotReadingsBatchBody
 from cloud.event_hub.iot_readings_store import iot_readings_store
 from cloud.event_hub.hub_core import DEFAULT_STORE_ID
 

@@ -3,57 +3,22 @@
 from __future__ import annotations
 
 import os
-import time
 from pathlib import Path
-from typing import Any, Dict, List, Optional
+from typing import Any, Dict, Optional
 
-_START_TIME = time.time()
-
-from fastapi import Depends, FastAPI, HTTPException, Query, Request
+from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
-from pydantic import BaseModel
 
-from cloud.event_hub.auth import (
-    AUTH_MODE,
-    AuthContext,
-    TokenRequest,
-    can_admin,
-    data_scope_for_role,
-    enforce_action,
-    enforce_admin,
-    enforce_store_read,
-    enforce_store_write,
-    get_auth_context,
-    login_user,
-)
 from cloud.alert_gateway.gateway import AlertGateway
-from cloud.event_hub.device_stub import (
-    get_pipeline_status,
-    run_subprocess_pipeline,
-    tick_all_stores_inprocess,
-    tick_store_inprocess,
-)
 from cloud.event_hub.db import create_hub_database
-from cloud.event_hub.daily_report_store import daily_report_store
 from cloud.event_hub.daily_scheduler import DailyReportScheduler, generate_daily_report_for_store
-from cloud.event_hub.iot_readings_store import iot_readings_store
-from cloud.event_hub.receiving_store import new_batch_id, receiving_store, variance_pct
-from cloud.event_hub.sop_assign_store import sop_assign_store
-from cloud.event_hub.hub_core import DEFAULT_STORE_ID, MultiTenantHub, seed_from_directory
+from cloud.event_hub.hub_core import MultiTenantHub, seed_from_directory
 
 PROJECT_ROOT = Path(__file__).resolve().parents[2]
 DEFAULT_DB = PROJECT_ROOT / "demo" / "data" / "hub.db"
 DEFAULT_ALERT_DB = PROJECT_ROOT / "demo" / "data" / "hub_alerts.db"
 
 from cloud.event_hub import runtime
-from cloud.event_hub.routers._deps import (
-    resolve_store_id as _resolve_store_id,
-    _enforce_report_generate,
-    _append_cost_item,
-    SopAskBody, AlertAckBody, SignatureInput, ReceivingSubmitBody,
-    SopAssignBody, SopAssignStatusBody, IotReadingInput, IotReadingsBatchBody,
-    DailyReportGenerateBody, AdminStoreCreate, AdminStoreUpdate, PipelineTickBody,
-)
 
 _db_path = Path(os.environ.get("HOTPOT_DB", str(DEFAULT_DB)))
 _database_url = os.environ.get("HOTPOT_DATABASE_URL", "")
