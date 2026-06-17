@@ -43,16 +43,29 @@ from cloud.event_hub.sop_assign_store import sop_assign_store
 from cloud.event_hub.hub_core import DEFAULT_STORE_ID, MultiTenantHub, seed_from_directory
 
 PROJECT_ROOT = Path(__file__).resolve().parents[2]
-DEFAULT_DB = PROJECT_ROOT / "demo" / "data" / "hub.db"
+DEFAULT_DB = PROJECT_ROOT / "demo" / "data" / "runtime.hub.db"
 DEFAULT_ALERT_DB = PROJECT_ROOT / "demo" / "data" / "hub_alerts.db"
+
+from cloud.event_hub import runtime
 
 _db_path = Path(os.environ.get("HOTPOT_DB", str(DEFAULT_DB)))
 _database_url = os.environ.get("HOTPOT_DATABASE_URL", "")
-db = create_hub_database(_db_path, _database_url)
 _alert_db_path = Path(os.environ.get("HOTPOT_ALERT_DB", str(_db_path if not _database_url else DEFAULT_ALERT_DB)))
-hub = MultiTenantHub(on_persist=db.on_persist)
-alert_gateway = AlertGateway(_alert_db_path)
+
+_db = create_hub_database(_db_path, _database_url)
+runtime.init(
+    MultiTenantHub(on_persist=_db.on_persist),
+    _db,
+    AlertGateway(_alert_db_path),
+)
 _daily_scheduler: Optional[DailyReportScheduler] = None
+
+
+def __getattr__(name: str):
+    """Delegate reads of runtime.hub/runtime.db/runtime.alert_gateway to runtime (test compat)."""
+    if name in ("hub", "db", "alert_gateway"):
+        return getattr(runtime, name)
+    raise AttributeError(f"module {__name__!r} has no attribute {name!r}")
 
 app = FastAPI(title="Hotpot Event Hub", version="2.0.0")
 app.add_middleware(
@@ -82,13 +95,13 @@ def _resolve_store_id(
 
 @app.on_event("startup")
 def startup() -> None:
-    org_registry.apply_to_hub(hub)
+    org_registry.apply_to_hub(runtime.hub)
     seed_dir = os.environ.get("HOTPOT_SEED_DIR", "")
-    if not db.is_empty():
-        db.hydrate_hub(hub)
-        print(f"[EventHub] Hydrated from {db.db_path}")
+    if not runtime.db.is_empty():
+        runtime.db.hydrate_hub(runtime.hub)
+        print(f"[EventHub] Hydrated from {runtime.db.db_path}")
     elif seed_dir:
-        n = seed_from_directory(hub, Path(seed_dir))
+        n = seed_from_directory(runtime.hub, Path(seed_dir))
         print(f"[EventHub] Seeded {n} store(s) from {seed_dir}")
     else:
         print("[EventHub] Started empty (no DB data, no seed dir)")
@@ -96,7 +109,7 @@ def startup() -> None:
     if os.environ.get("HOTPOT_DAILY_REPORT_SCHEDULER", "1") == "1":
 
         def _gen(sid: str, push: bool) -> Dict[str, Any]:
-            return generate_daily_report_for_store(hub, db, alert_gateway, sid, push=push)
+            return generate_daily_report_for_store(runtime.hub, runtime.db, runtime.alert_gateway, sid, push=push)
 
         global _daily_scheduler
         _daily_scheduler = DailyReportScheduler(_gen)
@@ -121,13 +134,13 @@ def health() -> Dict[str, Any]:
 
 @app.get("/metrics")
 def metrics(auth: AuthContext = Depends(get_auth_context)) -> Dict[str, Any]:
-    store_ids = sorted(set(hub._registry) | set(hub._stores))
+    store_ids = sorted(set(runtime.hub._registry) | set(runtime.hub._stores))
     total_events = 0
     total_critical = 0
     stores_with_data = 0
     for sid in store_ids:
-        summary = hub.get_store(sid).get_summary()
-        if summary.get("total_events") or hub.get_store(sid).has_data():
+        summary = runtime.hub.get_store(sid).get_summary()
+        if summary.get("total_events") or runtime.hub.get_store(sid).has_data():
             stores_with_data += 1
         total_events += summary.get("total_events", 0)
         total_critical += (summary.get("by_level") or {}).get("critical", 0)
@@ -137,7 +150,7 @@ def metrics(auth: AuthContext = Depends(get_auth_context)) -> Dict[str, Any]:
         "stores_with_data": stores_with_data,
         "total_events": total_events,
         "total_critical": total_critical,
-        "db_path": str(getattr(db, "db_path", _db_path)),
+        "db_path": str(getattr(runtime.db, "db_path", _db_path)),
         "db_backend": "postgresql" if _database_url else "sqlite",
         "auth_mode": AUTH_MODE,
     }
@@ -245,7 +258,7 @@ def receiving_submit(
     sid = body.store_id or auth.store_id or DEFAULT_STORE_ID
     enforce_store_write(auth, sid)
     enforce_action(auth, "receiving_submit")
-    store = hub.get_store(sid)
+    store = runtime.hub.get_store(sid)
 
     batch_id = body.batch_id or new_batch_id(sid)
     var = variance_pct(body.weight_kg, body.po_weight_kg)
@@ -263,7 +276,7 @@ def receiving_submit(
     signatures = [s.model_dump() for s in body.signatures]
 
     try:
-        result = receiving_store(db).submit(sid, batch, signatures)
+        result = receiving_store(runtime.db).submit(sid, batch, signatures)
     except ValueError as exc:
         raise HTTPException(status_code=400, detail=str(exc)) from exc
 
@@ -305,7 +318,7 @@ def receiving_batches(
     auth: AuthContext = Depends(get_auth_context),
 ) -> Dict[str, Any]:
     sid = _resolve_store_id(store_id, None, request.headers.get("X-Store-Id"), auth)
-    batches = receiving_store(db).list_batches(sid, limit=limit)
+    batches = receiving_store(runtime.db).list_batches(sid, limit=limit)
     return {"store_id": sid, "batches": batches, "count": len(batches)}
 
 
@@ -318,7 +331,7 @@ def audit_signatures(
     auth: AuthContext = Depends(get_auth_context),
 ) -> Dict[str, Any]:
     sid = _resolve_store_id(store_id, None, request.headers.get("X-Store-Id"), auth)
-    signatures = receiving_store(db).list_signatures(sid, batch_id=batch_id, limit=limit)
+    signatures = receiving_store(runtime.db).list_signatures(sid, batch_id=batch_id, limit=limit)
     return {"store_id": sid, "signatures": signatures, "count": len(signatures)}
 
 
@@ -330,9 +343,9 @@ def audit_acks(
     auth: AuthContext = Depends(get_auth_context),
 ) -> Dict[str, Any]:
     sid = _resolve_store_id(store_id, None, request.headers.get("X-Store-Id"), auth)
-    acks = alert_gateway.list_acks(sid)
-    signatures = receiving_store(db).list_signatures(sid, limit=limit)
-    assignments = sop_assign_store(db).list_assignments(sid, limit=limit)
+    acks = runtime.alert_gateway.list_acks(sid)
+    signatures = receiving_store(runtime.db).list_signatures(sid, limit=limit)
+    assignments = sop_assign_store(runtime.db).list_assignments(sid, limit=limit)
     return {
         "store_id": sid,
         "alert_acks": acks,
@@ -352,10 +365,10 @@ def sop_assign(
     sid = body.store_id or auth.store_id or DEFAULT_STORE_ID
     enforce_store_write(auth, sid)
     enforce_action(auth, "sop_assign")
-    store = hub.get_store(sid)
+    store = runtime.hub.get_store(sid)
 
     assigned_by = auth.sub or auth.role or "店长"
-    row = sop_assign_store(db).create(
+    row = sop_assign_store(runtime.db).create(
         sid,
         sop_id=body.sop_id,
         sop_name=body.sop_name,
@@ -397,7 +410,7 @@ def sop_assignments(
     auth: AuthContext = Depends(get_auth_context),
 ) -> Dict[str, Any]:
     sid = _resolve_store_id(store_id, None, request.headers.get("X-Store-Id"), auth)
-    items = sop_assign_store(db).list_assignments(sid, status=status, limit=limit)
+    items = sop_assign_store(runtime.db).list_assignments(sid, status=status, limit=limit)
     return {"store_id": sid, "assignments": items, "count": len(items)}
 
 
@@ -410,7 +423,7 @@ def sop_assignment_status(
     sid = body.store_id or auth.store_id or DEFAULT_STORE_ID
     enforce_store_write(auth, sid)
     try:
-        row = sop_assign_store(db).update_status(assignment_id, sid, body.status)
+        row = sop_assign_store(runtime.db).update_status(assignment_id, sid, body.status)
     except ValueError as exc:
         raise HTTPException(status_code=400, detail=str(exc)) from exc
     if not row:
@@ -426,7 +439,7 @@ def iot_readings_batch(
     sid = body.store_id or auth.store_id or DEFAULT_STORE_ID
     enforce_store_write(auth, sid)
     readings = [r.model_dump() for r in body.readings]
-    n = iot_readings_store(db).insert_batch(sid, readings)
+    n = iot_readings_store(runtime.db).insert_batch(sid, readings)
     return {"ok": True, "store_id": sid, "inserted": n}
 
 
@@ -440,7 +453,7 @@ def iot_readings_list(
     auth: AuthContext = Depends(get_auth_context),
 ) -> Dict[str, Any]:
     sid = _resolve_store_id(store_id, None, request.headers.get("X-Store-Id"), auth)
-    items = iot_readings_store(db).list_readings(
+    items = iot_readings_store(runtime.db).list_readings(
         sid, sensor_id=sensor_id, hours=hours, limit=limit
     )
     return {"store_id": sid, "sensor_id": sensor_id, "hours": hours, "readings": items, "count": len(items)}
@@ -457,9 +470,9 @@ def daily_report_generate(
     enforce_store_read(auth, sid)
     _enforce_report_generate(auth)
     return generate_daily_report_for_store(
-        hub,
-        db,
-        alert_gateway,
+        runtime.hub,
+        runtime.db,
+        runtime.alert_gateway,
         sid,
         push=body.push,
         report_date=body.report_date,
@@ -475,7 +488,7 @@ def daily_report_list(
     auth: AuthContext = Depends(get_auth_context),
 ) -> Dict[str, Any]:
     sid = _resolve_store_id(store_id, None, request.headers.get("X-Store-Id"), auth)
-    reports = daily_report_store(db).list_reports(sid, limit=limit, report_date=report_date)
+    reports = daily_report_store(runtime.db).list_reports(sid, limit=limit, report_date=report_date)
     return {"store_id": sid, "reports": reports, "count": len(reports)}
 
 
@@ -486,7 +499,7 @@ def auth_token(req: TokenRequest) -> Dict[str, Any]:
 
 @app.get("/stores")
 def list_stores(auth: AuthContext = Depends(get_auth_context)) -> Dict[str, Any]:
-    return {"stores": hub.list_stores()}
+    return {"stores": runtime.hub.list_stores()}
 
 
 @app.get("/benchmark")
@@ -497,7 +510,7 @@ def benchmark(
     if auth.role not in ("区域督导", "总部PMO") and auth.store_id != "*" and AUTH_MODE != "demo":
         if auth.auth_type != "anonymous":
             pass
-    return hub.get_region_overview(region_id)
+    return runtime.hub.get_region_overview(region_id)
 
 
 @app.get("/v1/region/overview")
@@ -506,7 +519,7 @@ def region_overview(
     auth: AuthContext = Depends(get_auth_context),
 ) -> Dict[str, Any]:
     """Regional rollup · health matrix · anomaly stores (F-HQ06/F-HQ07)."""
-    return hub.get_region_overview(region_id)
+    return runtime.hub.get_region_overview(region_id)
 
 
 class AdminStoreCreate(BaseModel):
@@ -551,7 +564,7 @@ def national_overview(auth: AuthContext = Depends(get_auth_context)) -> Dict[str
     if auth.role not in ("区域督导", "总部PMO", "总部 IT") and auth.store_id != "*":
         if AUTH_MODE == "strict" and auth.auth_type != "anonymous":
             pass
-    return hub.get_national_overview()
+    return runtime.hub.get_national_overview()
 
 
 @app.get("/v1/admin/org-tree")
@@ -564,12 +577,12 @@ def admin_org_tree(auth: AuthContext = Depends(get_auth_context)) -> Dict[str, A
 def admin_list_stores(auth: AuthContext = Depends(get_auth_context)) -> Dict[str, Any]:
     enforce_admin(auth)
     stores = org_registry.list_stores()
-    pipeline_by_id = {r["store_id"]: r for r in get_pipeline_status(hub)}
+    pipeline_by_id = {r["store_id"]: r for r in get_pipeline_status(runtime.hub)}
     for s in stores:
         sid = s.get("store_id")
         if sid:
             row = pipeline_by_id.get(sid, {})
-            s["has_data"] = hub.get_store(sid).has_data()
+            s["has_data"] = runtime.hub.get_store(sid).has_data()
             s["layers"] = row.get("layers", {})
             s["pipeline_pct"] = row.get("pipeline_pct", 0)
     return {"stores": stores, "count": len(stores)}
@@ -592,8 +605,8 @@ def admin_create_store(
         )
     except ValueError as exc:
         raise HTTPException(status_code=400, detail=str(exc)) from exc
-    org_registry.apply_to_hub(hub)
-    tick_store_inprocess(hub, item["store_id"], item["store_name"])
+    org_registry.apply_to_hub(runtime.hub)
+    tick_store_inprocess(runtime.hub, item["store_id"], item["store_name"])
     return {"ok": True, "store": item}
 
 
@@ -609,7 +622,7 @@ def admin_update_store(
         item = org_registry.update_store(store_id, actor=auth.sub, **fields)
     except ValueError as exc:
         raise HTTPException(status_code=404, detail=str(exc)) from exc
-    org_registry.apply_to_hub(hub)
+    org_registry.apply_to_hub(runtime.hub)
     return {"ok": True, "store": item}
 
 
@@ -647,7 +660,7 @@ def admin_audit_logs(
 @app.get("/v1/admin/pipeline/status")
 def admin_pipeline_status(auth: AuthContext = Depends(get_auth_context)) -> Dict[str, Any]:
     enforce_admin(auth)
-    rows = get_pipeline_status(hub)
+    rows = get_pipeline_status(runtime.hub)
     total_ready = sum(r["ready_count"] for r in rows)
     total_layers = sum(r["total_layers"] for r in rows) or 1
     return {
@@ -668,7 +681,7 @@ def admin_pipeline_tick(
 ) -> Dict[str, Any]:
     enforce_admin(auth)
     if body.store_id:
-        meta = hub._registry.get(body.store_id, {})
+        meta = runtime.hub._registry.get(body.store_id, {})
         name = meta.get("store_name", body.store_id)
         if body.mode == "subprocess":
             result = run_subprocess_pipeline(
@@ -676,19 +689,19 @@ def admin_pipeline_tick(
             )
         else:
             result = tick_store_inprocess(
-                hub, body.store_id, name, inject_anomaly=body.inject_anomaly
+                runtime.hub, body.store_id, name, inject_anomaly=body.inject_anomaly
             )
         return {"ok": True, "results": [result]}
     if body.mode == "subprocess":
         results = []
-        for sid, meta in sorted(hub._registry.items()):
+        for sid, meta in sorted(runtime.hub._registry.items()):
             results.append(
                 run_subprocess_pipeline(
                     sid, meta.get("store_name", sid), body.hub_url, inject_anomaly=body.inject_anomaly
                 )
             )
         return {"ok": all(r.get("ok", False) for r in results), "results": results}
-    results = tick_all_stores_inprocess(hub, inject_anomaly=body.inject_anomaly)
+    results = tick_all_stores_inprocess(runtime.hub, inject_anomaly=body.inject_anomaly)
     return {"ok": True, "results": results}
 
 
@@ -699,7 +712,7 @@ def summary(
     auth: AuthContext = Depends(get_auth_context),
 ) -> Dict[str, Any]:
     sid = _resolve_store_id(store_id, None, request.headers.get("x-store-id"), auth)
-    return hub.get_store(sid).get_summary()
+    return runtime.hub.get_store(sid).get_summary()
 
 
 @app.get("/events")
@@ -711,7 +724,7 @@ def get_events(
     auth: AuthContext = Depends(get_auth_context),
 ) -> List[Dict[str, Any]]:
     sid = _resolve_store_id(store_id, None, request.headers.get("X-Store-Id"), auth)
-    return hub.get_store(sid).get_events(level, limit)
+    return runtime.hub.get_store(sid).get_events(level, limit)
 
 
 @app.get("/tables")
@@ -721,7 +734,7 @@ def get_tables(
     auth: AuthContext = Depends(get_auth_context),
 ) -> List[Dict[str, Any]]:
     sid = _resolve_store_id(store_id, None, request.headers.get("X-Store-Id"), auth)
-    return list(hub.get_store(sid).table_states.values())
+    return list(runtime.hub.get_store(sid).table_states.values())
 
 
 @app.get("/sop")
@@ -731,7 +744,7 @@ def get_sop(
     auth: AuthContext = Depends(get_auth_context),
 ) -> Dict[str, Any]:
     sid = _resolve_store_id(store_id, None, request.headers.get("X-Store-Id"), auth)
-    store = hub.get_store(sid)
+    store = runtime.hub.get_store(sid)
     return store.sop_stats or {"store_id": sid, "results": []}
 
 
@@ -742,7 +755,7 @@ def get_pos(
     auth: AuthContext = Depends(get_auth_context),
 ) -> Dict[str, Any]:
     sid = _resolve_store_id(store_id, None, request.headers.get("X-Store-Id"), auth)
-    store = hub.get_store(sid)
+    store = runtime.hub.get_store(sid)
     return store.pos_stats or {"store_id": sid}
 
 
@@ -753,7 +766,7 @@ def get_erp(
     auth: AuthContext = Depends(get_auth_context),
 ) -> Dict[str, Any]:
     sid = _resolve_store_id(store_id, None, request.headers.get("X-Store-Id"), auth)
-    store = hub.get_store(sid)
+    store = runtime.hub.get_store(sid)
     return store.erp_stats or {"store_id": sid, "orders": []}
 
 
@@ -766,7 +779,7 @@ async def post_erp(
     data = await request.json()
     sid = _resolve_store_id(store_id, data, request.headers.get("X-Store-Id"), auth)
     enforce_store_write(auth, sid)
-    hub.get_store(sid).set_erp_stats(data if isinstance(data, dict) else {})
+    runtime.hub.get_store(sid).set_erp_stats(data if isinstance(data, dict) else {})
     return {
         "ok": True,
         "store_id": sid,
@@ -796,7 +809,7 @@ def get_cost(
     auth: AuthContext = Depends(get_auth_context),
 ) -> Dict[str, Any]:
     sid = _resolve_store_id(store_id, None, request.headers.get("X-Store-Id"), auth)
-    store = hub.get_store(sid)
+    store = runtime.hub.get_store(sid)
     return store.cost_stats or {"store_id": sid, "items": []}
 
 
@@ -807,7 +820,7 @@ def get_iot(
     auth: AuthContext = Depends(get_auth_context),
 ) -> Dict[str, Any]:
     sid = _resolve_store_id(store_id, None, request.headers.get("X-Store-Id"), auth)
-    store = hub.get_store(sid)
+    store = runtime.hub.get_store(sid)
     return store.iot_stats or {"store_id": sid, "stage_readings": {}}
 
 
@@ -820,8 +833,8 @@ async def post_event(
     data = await request.json()
     sid = _resolve_store_id(store_id, data, request.headers.get("X-Store-Id"), auth)
     enforce_store_write(auth, sid)
-    event = hub.get_store(sid).add_event(data if isinstance(data, dict) else {})
-    push = alert_gateway.handle_event(event, sid)
+    event = runtime.hub.get_store(sid).add_event(data if isinstance(data, dict) else {})
+    push = runtime.alert_gateway.handle_event(event, sid)
     if push:
         event = dict(event)
         event["_alert_push"] = {
@@ -843,7 +856,7 @@ async def post_tables(
     enforce_store_write(auth, sid)
     enforce_action(auth, "table_correct")
     tables = data if isinstance(data, list) else data.get("tables", [])
-    hub.get_store(sid).set_table_states(tables)
+    runtime.hub.get_store(sid).set_table_states(tables)
     return {"ok": True, "store_id": sid, "count": len(tables)}
 
 
@@ -856,7 +869,7 @@ async def post_pos(
     data = await request.json()
     sid = _resolve_store_id(store_id, data, request.headers.get("X-Store-Id"), auth)
     enforce_store_write(auth, sid)
-    hub.get_store(sid).set_pos_stats(data if isinstance(data, dict) else {})
+    runtime.hub.get_store(sid).set_pos_stats(data if isinstance(data, dict) else {})
     return {"ok": True, "store_id": sid}
 
 
@@ -869,7 +882,7 @@ async def post_sop(
     data = await request.json()
     sid = _resolve_store_id(store_id, data, request.headers.get("X-Store-Id"), auth)
     enforce_store_write(auth, sid)
-    hub.get_store(sid).set_sop_stats(data if isinstance(data, dict) else {})
+    runtime.hub.get_store(sid).set_sop_stats(data if isinstance(data, dict) else {})
     return {"ok": True, "store_id": sid, "compliance_rate": data.get("compliance_rate") if isinstance(data, dict) else None}
 
 
@@ -882,7 +895,7 @@ async def post_cost(
     data = await request.json()
     sid = _resolve_store_id(store_id, data, request.headers.get("X-Store-Id"), auth)
     enforce_store_write(auth, sid)
-    hub.get_store(sid).set_cost_stats(data if isinstance(data, dict) else {})
+    runtime.hub.get_store(sid).set_cost_stats(data if isinstance(data, dict) else {})
     return {"ok": True, "store_id": sid, "variance_rate_pct": data.get("variance_rate_pct") if isinstance(data, dict) else None}
 
 
@@ -895,7 +908,7 @@ async def post_iot(
     data = await request.json()
     sid = _resolve_store_id(store_id, data, request.headers.get("X-Store-Id"), auth)
     enforce_store_write(auth, sid)
-    hub.get_store(sid).set_iot_stats(data if isinstance(data, dict) else {})
+    runtime.hub.get_store(sid).set_iot_stats(data if isinstance(data, dict) else {})
     summary = data.get("summary", {}) if isinstance(data, dict) else {}
     return {"ok": True, "store_id": sid, "iot_alert_count": summary.get("iot_alert_count")}
 
@@ -909,11 +922,11 @@ def alerts_routes(
     """Return per-store webhook config status (DEV-414). URLs are masked."""
     if store_id:
         sid = _resolve_store_id(store_id, None, request.headers.get("X-Store-Id"), auth)
-        return {"routes": [alert_gateway.route_status(sid)]}
-    store_ids = sorted(set(hub._registry) | set(hub._stores))
+        return {"routes": [runtime.alert_gateway.route_status(sid)]}
+    store_ids = sorted(set(runtime.hub._registry) | set(runtime.hub._stores))
     if not store_ids:
         store_ids = ["store_yuhuan", "store_jiaojiang"]
-    return {"routes": [alert_gateway.route_status(sid) for sid in store_ids]}
+    return {"routes": [runtime.alert_gateway.route_status(sid) for sid in store_ids]}
 
 
 @app.post("/alerts/test-push")
@@ -927,7 +940,7 @@ def alerts_test_push(
     enforce_store_write(auth, sid)
     if AUTH_MODE != "demo" and auth.role not in ("店长", "区域督导"):
         raise HTTPException(status_code=403, detail="无 webhook 测试权限")
-    return alert_gateway.send_test_push(sid)
+    return runtime.alert_gateway.send_test_push(sid)
 
 
 @app.get("/alerts/push-log")
@@ -938,7 +951,7 @@ def alerts_push_log(
     auth: AuthContext = Depends(get_auth_context),
 ) -> Dict[str, Any]:
     sid = _resolve_store_id(store_id, None, request.headers.get("X-Store-Id"), auth)
-    return {"store_id": sid, "pushes": alert_gateway.list_pushes(sid, limit)}
+    return {"store_id": sid, "pushes": runtime.alert_gateway.list_pushes(sid, limit)}
 
 
 @app.get("/alerts/acks")
@@ -948,7 +961,7 @@ def alerts_acks(
     auth: AuthContext = Depends(get_auth_context),
 ) -> Dict[str, Any]:
     sid = _resolve_store_id(store_id, None, request.headers.get("X-Store-Id"), auth)
-    return {"store_id": sid, "acks": alert_gateway.list_acks(sid)}
+    return {"store_id": sid, "acks": runtime.alert_gateway.list_acks(sid)}
 
 
 @app.post("/alerts/ack")
@@ -960,7 +973,7 @@ def alerts_ack(
     enforce_store_write(auth, sid)
     enforce_action(auth, "ack")
     ack_by = body.ack_by or auth.sub or "店长"
-    return alert_gateway.ack(body.event_id, sid, ack_by, body.ack_note or "")
+    return runtime.alert_gateway.ack(body.event_id, sid, ack_by, body.ack_note or "")
 
 
 @app.get("/alerts/escalations")
@@ -970,8 +983,8 @@ def alerts_escalations(
     auth: AuthContext = Depends(get_auth_context),
 ) -> Dict[str, Any]:
     sid = _resolve_store_id(store_id, None, request.headers.get("X-Store-Id"), auth)
-    events = hub.get_store(sid).get_events("critical", 100)
-    return {"store_id": sid, **alert_gateway.count_escalations(sid, events)}
+    events = runtime.hub.get_store(sid).get_events("critical", 100)
+    return {"store_id": sid, **runtime.alert_gateway.count_escalations(sid, events)}
 
 
 @app.post("/seed")
@@ -982,5 +995,5 @@ async def post_seed(
     data = await request.json()
     if AUTH_MODE == "strict" and auth.auth_type == "anonymous":
         raise HTTPException(status_code=401, detail="Seed requires auth")
-    hub.apply_seed(data if isinstance(data, dict) else {})
+    runtime.hub.apply_seed(data if isinstance(data, dict) else {})
     return {"ok": True, "store_id": data.get("store_id", DEFAULT_STORE_ID) if isinstance(data, dict) else DEFAULT_STORE_ID}
