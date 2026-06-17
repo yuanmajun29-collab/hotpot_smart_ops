@@ -1,7 +1,8 @@
-"""Shared singleton container + FastAPI dependency providers.
+"""Shared singleton container with late binding.
 
-Routers depend on get_hub/get_db/get_alert_gateway (late binding) instead of
-importing module-level globals, so tests can swap instances via init().
+Routers reference `runtime.hub` / `runtime.db` / `runtime.alert_gateway` /
+`runtime.org_registry` directly at call time, so tests can swap instances via
+`init()` (and by assigning `runtime.org_registry`) without re-importing routers.
 """
 
 from __future__ import annotations
@@ -26,21 +27,3 @@ def init(hub_: "MultiTenantHub", db_: Any, alert_gateway_: "AlertGateway") -> No
     hub = hub_
     db = db_
     alert_gateway = alert_gateway_
-
-
-def get_hub() -> "MultiTenantHub":
-    if hub is None:
-        raise RuntimeError("runtime.hub not initialized")
-    return hub
-
-
-def get_db() -> Any:
-    if db is None:
-        raise RuntimeError("runtime.db not initialized")
-    return db
-
-
-def get_alert_gateway() -> "AlertGateway":
-    if alert_gateway is None:
-        raise RuntimeError("runtime.alert_gateway not initialized")
-    return alert_gateway
