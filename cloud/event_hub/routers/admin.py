@@ -7,10 +7,6 @@ from fastapi import APIRouter, Depends, HTTPException, Query, Request
 
 from cloud.event_hub import runtime
 from cloud.event_hub.auth import AuthContext, get_auth_context, enforce_admin, can_admin, data_scope_for_role, AUTH_MODE
-def _get_org_registry():
-    """Return the active org_registry, respecting test-time monkey-patching of cloud.event_hub.app."""
-    import cloud.event_hub.app as _app
-    return _app.org_registry
 from cloud.event_hub.device_stub import get_pipeline_status, run_subprocess_pipeline, tick_all_stores_inprocess, tick_store_inprocess
 from cloud.event_hub.routers._deps import AdminStoreCreate, AdminStoreUpdate, PipelineTickBody
 
@@ -20,13 +16,13 @@ router = APIRouter()
 @router.get("/v1/admin/org-tree")
 def admin_org_tree(auth: AuthContext = Depends(get_auth_context)) -> Dict[str, Any]:
     enforce_admin(auth)
-    return _get_org_registry().get_org_tree()
+    return runtime.org_registry.get_org_tree()
 
 
 @router.get("/v1/admin/stores")
 def admin_list_stores(auth: AuthContext = Depends(get_auth_context)) -> Dict[str, Any]:
     enforce_admin(auth)
-    stores = _get_org_registry().list_stores()
+    stores = runtime.org_registry.list_stores()
     pipeline_by_id = {r["store_id"]: r for r in get_pipeline_status(runtime.hub)}
     for s in stores:
         sid = s.get("store_id")
@@ -45,7 +41,7 @@ def admin_create_store(
 ) -> Dict[str, Any]:
     enforce_admin(auth)
     try:
-        item = _get_org_registry().create_store(
+        item = runtime.org_registry.create_store(
             body.store_name,
             body.region_id,
             city=body.city,
@@ -55,7 +51,7 @@ def admin_create_store(
         )
     except ValueError as exc:
         raise HTTPException(status_code=400, detail=str(exc)) from exc
-    _get_org_registry().apply_to_hub(runtime.hub)
+    runtime.org_registry.apply_to_hub(runtime.hub)
     tick_store_inprocess(runtime.hub, item["store_id"], item["store_name"])
     return {"ok": True, "store": item}
 
@@ -69,10 +65,10 @@ def admin_update_store(
     enforce_admin(auth)
     fields = body.model_dump(exclude_none=True)
     try:
-        item = _get_org_registry().update_store(store_id, actor=auth.sub, **fields)
+        item = runtime.org_registry.update_store(store_id, actor=auth.sub, **fields)
     except ValueError as exc:
         raise HTTPException(status_code=404, detail=str(exc)) from exc
-    _get_org_registry().apply_to_hub(runtime.hub)
+    runtime.org_registry.apply_to_hub(runtime.hub)
     return {"ok": True, "store": item}
 
 
@@ -103,7 +99,7 @@ def admin_audit_logs(
     auth: AuthContext = Depends(get_auth_context),
 ) -> Dict[str, Any]:
     enforce_admin(auth)
-    logs = _get_org_registry().list_audit(limit=limit)
+    logs = runtime.org_registry.list_audit(limit=limit)
     return {"logs": logs, "count": len(logs)}
 
 

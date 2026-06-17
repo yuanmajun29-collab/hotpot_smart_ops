@@ -16,6 +16,10 @@ hub: Optional["MultiTenantHub"] = None
 db: Any = None
 alert_gateway: Optional["AlertGateway"] = None
 
+# Org registry is a process-wide singleton; default to the canonical instance so
+# the app works without explicit injection. Tests override `runtime.org_registry`.
+from cloud.event_hub.org_registry import org_registry as org_registry  # noqa: E402
+
 
 def init(hub_: "MultiTenantHub", db_: Any, alert_gateway_: "AlertGateway") -> None:
     global hub, db, alert_gateway

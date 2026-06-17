@@ -33,7 +33,6 @@ from cloud.event_hub.device_stub import (
     tick_all_stores_inprocess,
     tick_store_inprocess,
 )
-from cloud.event_hub.org_registry import org_registry
 from cloud.event_hub.db import create_hub_database
 from cloud.event_hub.daily_report_store import daily_report_store
 from cloud.event_hub.daily_scheduler import DailyReportScheduler, generate_daily_report_for_store
@@ -87,7 +86,7 @@ app.add_middleware(
 
 @app.on_event("startup")
 def startup() -> None:
-    org_registry.apply_to_hub(runtime.hub)
+    runtime.org_registry.apply_to_hub(runtime.hub)
     seed_dir = os.environ.get("HOTPOT_SEED_DIR", "")
     if not runtime.db.is_empty():
         runtime.db.hydrate_hub(runtime.hub)

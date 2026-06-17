@@ -40,8 +40,8 @@ def client():
         _db,
         hub_app_module.AlertGateway(db_path),
     )
-    hub_app_module.org_registry = reg
-    reg.apply_to_hub(hub_app_module.hub)
+    runtime.org_registry = reg
+    reg.apply_to_hub(runtime.hub)
 
     with TestClient(hub_app_module.app) as c:
         yield c, registry_path
