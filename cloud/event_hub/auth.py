@@ -4,12 +4,21 @@ from __future__ import annotations
 
 import os
 from datetime import datetime, timedelta, timezone
-from typing import Any, Dict, List, Optional
+from typing import Any, Dict, Optional
 
 import jwt
 from fastapi import Depends, HTTPException, Request, status
 from fastapi.security import HTTPAuthorizationCredentials, HTTPBearer, APIKeyHeader
 from pydantic import BaseModel
+
+from cloud.event_hub.rbac import (
+    ROLE_ACTIONS,
+    data_scope_for_role,
+    role_can_action,
+    role_can_admin,
+    role_can_read_store,
+    role_can_write_store,
+)
 
 JWT_SECRET = os.environ.get("HOTPOT_JWT_SECRET", "hotpot-dev-secret-change-in-prod")
 JWT_ALG = "HS256"
@@ -21,19 +30,6 @@ DEFAULT_API_KEYS: Dict[str, str] = {
     "edge_yuhuan_dev_key": "store_yuhuan",
     "edge_jiaojiang_dev_key": "store_jiaojiang",
     "admin_seed_key": "*",
-}
-
-# Mirrors dashboard/assets/rbac.json actions (DEV-425/426)
-ROLE_ACTIONS: Dict[str, List[str]] = {
-    "店长": ["ack", "table_correct", "receiving_submit", "sop_assign", "report_generate"],
-    "前厅领班": ["ack", "table_correct"],
-    "厨师长": ["ack", "receiving_submit", "sop_assign"],
-    "收货员": ["receiving_submit"],
-    "区域督导": ["ack", "sop_assign", "report_generate"],
-    "总部PMO": ["report_generate", "sop_assign", "admin_write"],
-    "总部 IT": ["report_generate", "sop_assign", "admin_write"],
-    "集团决策者": [],
-    "edge": ["table_correct", "receiving_submit", "sop_assign"],
 }
 
 DEMO_USERS = {
@@ -54,7 +50,7 @@ class TokenRequest(BaseModel):
     username: str
     password: str = "demo"
     store_id: str = "store_yuhuan"
-    role: str = "店长"
+    role: Optional[str] = None
 
 
 class AuthContext(BaseModel):
@@ -64,16 +60,8 @@ class AuthContext(BaseModel):
     auth_type: str  # jwt | api_key | anonymous
 
 
-def data_scope_for_role(role: str) -> str:
-    if role in ("总部PMO", "总部 IT", "集团决策者"):
-        return "national"
-    if role == "区域督导":
-        return "region"
-    return "store"
-
-
 def can_admin(auth: AuthContext) -> bool:
-    return auth.role in ("总部PMO", "总部 IT")
+    return role_can_admin(auth.role)
 
 
 def enforce_admin(auth: AuthContext) -> None:
@@ -144,25 +132,13 @@ def resolve_api_key(key: Optional[str]) -> Optional[AuthContext]:
 
 
 def can_read_store(auth: AuthContext, store_id: str) -> bool:
-    if auth.store_id == "*":
-        return True
-    if auth.role in ("区域督导", "集团决策者"):
-        return True
-    return auth.store_id == store_id
+    return role_can_read_store(auth.role, auth.store_id, store_id)
 
 
 def can_write_store(auth: AuthContext, store_id: str) -> bool:
     if auth.auth_type == "api_key":
         return auth.store_id == "*" or auth.store_id == store_id
-    if auth.role == "集团决策者":
-        return False
-    if auth.role == "区域督导":
-        return True
-    if auth.role in ("店长", "厨师长", "前厅领班", "edge"):
-        return auth.store_id == "*" or auth.store_id == store_id
-    if auth.role == "收货员":
-        return auth.store_id == store_id
-    return False
+    return role_can_write_store(auth.role, auth.store_id, store_id)
 
 
 async def get_auth_context(
@@ -203,7 +179,7 @@ def can_action(auth: AuthContext, action: str) -> bool:
         return True
     if auth.auth_type == "api_key":
         return True
-    return action in ROLE_ACTIONS.get(auth.role, [])
+    return role_can_action(auth.role, action)
 
 
 def enforce_action(auth: AuthContext, action: str) -> None:

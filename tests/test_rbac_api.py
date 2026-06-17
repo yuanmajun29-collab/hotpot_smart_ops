@@ -43,6 +43,15 @@ def _auth(token: str) -> dict:
     return {"Authorization": f"Bearer {token}"}
 
 
+def test_login_without_role_uses_demo_user_role(strict_client):
+    r = strict_client.post(
+        "/auth/token",
+        json={"username": "lingban", "password": "demo", "store_id": "store_yuhuan"},
+    )
+    assert r.status_code == 200
+    assert r.json()["user"]["role"] == "前厅领班"
+
+
 def _receiving_body(**overrides):
     body = {
         "store_id": "store_yuhuan",
