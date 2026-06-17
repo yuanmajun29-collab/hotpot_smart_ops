@@ -43,7 +43,7 @@ from cloud.event_hub.sop_assign_store import sop_assign_store
 from cloud.event_hub.hub_core import DEFAULT_STORE_ID, MultiTenantHub, seed_from_directory
 
 PROJECT_ROOT = Path(__file__).resolve().parents[2]
-DEFAULT_DB = PROJECT_ROOT / "demo" / "data" / "runtime.hub.db"
+DEFAULT_DB = PROJECT_ROOT / "demo" / "data" / "hub.db"
 DEFAULT_ALERT_DB = PROJECT_ROOT / "demo" / "data" / "hub_alerts.db"
 
 from cloud.event_hub import runtime
@@ -62,7 +62,7 @@ _daily_scheduler: Optional[DailyReportScheduler] = None
 
 
 def __getattr__(name: str):
-    """Delegate reads of runtime.hub/runtime.db/runtime.alert_gateway to runtime (test compat)."""
+    """Delegate reads of hub/db/alert_gateway to runtime (test compat)."""
     if name in ("hub", "db", "alert_gateway"):
         return getattr(runtime, name)
     raise AttributeError(f"module {__name__!r} has no attribute {name!r}")
