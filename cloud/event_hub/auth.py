@@ -104,8 +104,10 @@ def login_user(req: TokenRequest) -> Dict[str, Any]:
     user = DEMO_USERS.get((req.username, req.password))
     if not user:
         raise HTTPException(status_code=401, detail="Invalid credentials")
+    if req.role and req.role != user["role"]:
+        raise HTTPException(status_code=403, detail="Role does not match account")
     store_id = user.get("store_id") or req.store_id
-    role = req.role or user["role"]
+    role = user["role"]
     if role == "区域督导":
         store_id = "*"
     if role in ("总部PMO", "总部 IT", "集团决策者"):

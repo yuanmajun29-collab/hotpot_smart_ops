@@ -136,9 +136,13 @@ const HotpotApp = (() => {
   }
 
   function logout() {
+    clearAuth();
+    window.location.href = loginPageUrl();
+  }
+
+  function clearAuth() {
     sessionStorage.removeItem(AUTH_KEY);
     clearAuthCookie();
-    window.location.href = loginPageUrl();
   }
 
   function requireAuth() {
@@ -822,6 +826,7 @@ const HotpotApp = (() => {
     adminOrigin,
     getAuth,
     setAuth,
+    clearAuth,
     logout,
     requireAuth,
     storeId,

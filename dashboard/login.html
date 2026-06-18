@@ -94,10 +94,7 @@
     document.getElementById("role").onchange = updateRoleUI;
     updateRoleUI();
 
-    if (HotpotApp.getAuth()) {
-      const a = HotpotApp.getAuth();
-      window.location.href = targetAfterLogin(preferMobile || isMobileUA(), a.role);
-    }
+    HotpotApp.clearAuth();
 
     function doLogin(mobile) {
       const storeEl = document.getElementById("store");
@@ -124,14 +121,7 @@
           window.location.href = targetAfterLogin(mobile, user.role || role);
         })
         .catch(() => {
-          const isRegional = role === "区域督导";
-          HotpotApp.setAuth({
-            name: username,
-            role,
-            storeName: isExec ? "集团总部" : isHQ ? "全国总部" : isRegional ? "台州区域" : storeName,
-            storeId: noStore || isRegional ? "*" : storeIdVal,
-          });
-          window.location.href = targetAfterLogin(mobile, role);
+          alert("登录失败：请确认账号、密码与角色匹配");
         });
     }
 
