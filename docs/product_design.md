@@ -669,7 +669,7 @@ Step 5/5  签字
 | 财务审计 `finance_audit` | — | ⬜ | ⬜ | P2 · DEV-530 |
 | 加盟业主 | — | ⬜ | ⬜ | P3 · F-EXEC02 |
 
-**角色计数口径**：当前实现 **8** 个 demo 角色（含集团决策者）；班组长/营销/财务为 PRD 规划角色；加盟业主为 P3。权限矩阵上表为 **目标态**；实现须与 [architecture_api_spec.md](architecture_api_spec.md) strict 模式及 DEV-503 同步。
+**角色计数口径**（2026-06-18 校准至 `cloud/event_hub/rbac.py`）：后端 `ROLE_POLICIES` 共 **9** 条 = **8 个人类角色**（店长/前厅领班/厨师长/收货员/区域督导/总部PMO/总部 IT/集团决策者）+ **1 个 `edge` API-Key 伪角色**；`DEMO_USERS` 提供 **7 个 demo 账号**（总部PMO 与总部 IT 共用策略，无独立 demo 账号）。班组长/营销/财务为 PRD 规划角色；加盟业主为 P3。权限矩阵上表为 **目标态**；后端策略以 `rbac.py` 为单一事实源，并由 `tests/test_rbac_policy.py` 校验与 `dashboard/assets/rbac.json` 对齐。
 
 ---
 

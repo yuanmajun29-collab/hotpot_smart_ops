@@ -51,10 +51,10 @@
 
 | 项 | 内容 |
 |----|------|
-| 状态 | **提议中**（AR-401 拍板） |
+| 状态 | **已采纳**（2026-06-18 已实现） |
 | 背景 | design_dev §1.4.4 目标 `/v1`；看板已对接 `/summary` |
-| 决策 | 现有路径不动；`receiving/submit`、`audit/*` 等新接口走 `/v1` |
-| 后果 | 下一 major 再统一迁移或双路由 |
+| 决策 | 全部 legacy 路径新增 `/v1` 同 handler 别名；旧路径标 `deprecated=True` 并回 `Deprecation: true` 头；`core.js` 已切 `/v1`。`/health` `/metrics` `/auth/token` 不在弃用集。 |
+| 后果 | 旧路径过渡期双活；下一 major 移除。共 24 别名 + 中间件。 |
 | 文档 | [architecture_api_spec.md](architecture_api_spec.md) |
 
 ---
