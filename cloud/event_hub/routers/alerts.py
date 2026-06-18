@@ -12,6 +12,7 @@ from cloud.event_hub.receiving_store import receiving_store
 from cloud.event_hub.sop_assign_store import sop_assign_store
 from cloud.event_hub.routers._deps import (
     resolve_store_id as _resolve_store_id,
+    readable_store_ids as _readable_store_ids,
     AlertAckBody,
 )
 
@@ -53,6 +54,7 @@ def alerts_routes(
     store_ids = sorted(set(runtime.hub._registry) | set(runtime.hub._stores))
     if not store_ids:
         store_ids = ["store_yuhuan", "store_jiaojiang"]
+    store_ids = _readable_store_ids(store_ids, auth)
     return {"routes": [runtime.alert_gateway.route_status(sid) for sid in store_ids]}
 
 

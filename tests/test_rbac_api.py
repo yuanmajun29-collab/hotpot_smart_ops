@@ -180,3 +180,45 @@ def test_table_correct_allowed_for_lingban(strict_client):
     assert got.status_code == 200
     states = {t["table_id"]: t["state"] for t in got.json()}
     assert states.get("T09") == "need_clean"
+
+
+def test_store_user_cannot_read_other_store_summary(strict_client):
+    token = _token(strict_client, "zhangdian", "店长", store_id="store_yuhuan")
+    r = strict_client.get("/v1/summary?store_id=store_jiaojiang", headers=_auth(token))
+    assert r.status_code == 403
+    assert "store_jiaojiang" in r.json()["detail"]
+
+
+def test_store_user_store_list_is_scoped(strict_client):
+    token = _token(strict_client, "zhangdian", "店长", store_id="store_yuhuan")
+    r = strict_client.get("/v1/stores", headers=_auth(token))
+    assert r.status_code == 200
+    ids = {s["store_id"] for s in r.json()["stores"]}
+    assert "store_yuhuan" in ids
+    assert "store_jiaojiang" not in ids
+
+
+def test_store_user_alert_routes_are_scoped(strict_client):
+    token = _token(strict_client, "zhangdian", "店长", store_id="store_yuhuan")
+    r = strict_client.get("/v1/alerts/routes", headers=_auth(token))
+    assert r.status_code == 200
+    ids = {route["store_id"] for route in r.json()["routes"]}
+    assert "store_yuhuan" in ids
+    assert "store_jiaojiang" not in ids
+
+
+def test_store_user_metrics_are_scoped(strict_client):
+    token = _token(strict_client, "zhangdian", "店长", store_id="store_yuhuan")
+    r = strict_client.get("/metrics", headers=_auth(token))
+    assert r.status_code == 200
+    assert r.json()["store_count"] == 1
+
+
+def test_store_user_forbidden_from_rollup_overviews(strict_client):
+    token = _token(strict_client, "zhangdian", "店长", store_id="store_yuhuan")
+    headers = _auth(token)
+
+    for path in ("/v1/region/overview", "/v1/national/overview", "/v1/benchmark"):
+        r = strict_client.get(path, headers=headers)
+        assert r.status_code == 403
+        assert "Rollup overview" in r.json()["detail"]

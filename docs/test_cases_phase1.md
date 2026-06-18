@@ -8,7 +8,7 @@
 | 日期 | 2026-06-18 |
 | 范围 | 7 业务模块 + F-TASK + PDA + 层级/驾驶仓 + Admin + 跨切面 |
 | 依据 | [product_design.md §5/§12](product_design.md) · [architecture_api_spec.md](architecture_api_spec.md) · [phase1_mvp_acceptance_checklist.md](phase1_mvp_acceptance_checklist.md) |
-| 自动化 | `tests/`（82 passed） |
+| 自动化 | `tests/`（93 passed） |
 | 归档 | V1.1 定稿基线 · 2026-06-18 · 已链入 [product_design_index](product_design_index.md) 与 README |
 
 ---
@@ -237,6 +237,8 @@
 | TC-SEC-10 | /v1 契约 | P1 | 接口 | — | `/v1/summary` vs `/summary` | 同 handler，响应体一致 | `test_v1_summary_alias_matches_legacy` |
 | TC-SEC-11 | /v1 契约 | P1 | 接口 | — | legacy 路径响应头 | `Deprecation: true` | `test_legacy_has_deprecation_header` |
 | TC-SEC-12 | /v1 契约 | P1 | 接口 | — | /v1 路径响应头 | 无 Deprecation 头 | `test_v1_has_no_deprecation_header` |
+| TC-SEC-13 | 鉴权 | P0 | 前端契约 | 登录页 | 演示身份登录 | 前端不发送客户端 role；成功后只使用服务端 `user.role` | `test_dashboard_login_does_not_send_client_chosen_role` / `test_dashboard_login_uses_server_role_after_success` |
+| TC-SEC-14 | 多租户 | P0 | 权限 | JWT token | 门店账号访问跨店读写/列表/metrics/rollup | 跨店读写 403；`/v1/stores`、`/v1/alerts/routes`、`/metrics` 仅本店；区域/全国 rollup 403 | `test_store_user_*` / `test_store_scoped_user_*`（9 条） |
 
 ---
 
@@ -258,7 +260,7 @@
 
 | 维度 | 已自动化 | 部分/桩 | 手工/UAT/待真数据 |
 |------|----------|---------|--------------------|
-| 接口（Hub REST） | 高（82 passed） | iot/cv summary 桩 | — |
+| 接口（Hub REST） | 高（93 passed） | iot/cv summary 桩 | — |
 | 权限 RBAC + 多租户 | ✅ 完整 | — | — |
 | /v1 契约 + 鉴权模式 | ✅ 完整 | — | — |
 | 功能（业务闭环） | 中 | CV/IoT/VLM mock | 真链路 BL-01~04 |
@@ -276,4 +278,4 @@
 - [phase1_mvp_acceptance_checklist.md](phase1_mvp_acceptance_checklist.md) — 验收勾选表（与本用例互补）
 - [architecture_api_spec.md](architecture_api_spec.md) — REST API 契约
 - [uat_concept_test_record.md](uat_concept_test_record.md) — PM-402 店长概念测试
-- `tests/` — 自动化套件（82 passed）
+- `tests/` — 自动化套件（93 passed）

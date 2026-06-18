@@ -6,7 +6,7 @@ from typing import Any, Dict, List, Optional
 
 from pydantic import BaseModel
 
-from cloud.event_hub.auth import AuthContext, enforce_store_read, enforce_action
+from cloud.event_hub.auth import AuthContext, can_read_store, enforce_store_read, enforce_action
 from cloud.event_hub.hub_core import DEFAULT_STORE_ID
 
 
@@ -24,6 +24,10 @@ def resolve_store_id(
     sid = sid or DEFAULT_STORE_ID
     enforce_store_read(auth, sid)
     return sid
+
+
+def readable_store_ids(store_ids: List[str], auth: AuthContext) -> List[str]:
+    return [sid for sid in store_ids if can_read_store(auth, sid)]
 
 
 def _enforce_report_generate(auth: AuthContext) -> None:

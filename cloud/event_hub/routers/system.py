@@ -10,6 +10,7 @@ from fastapi import APIRouter, Depends, Request
 from cloud.event_hub import runtime
 from cloud.event_hub.auth import AuthContext, auth_mode, get_auth_context
 from cloud.event_hub.hub_core import DEFAULT_STORE_ID
+from cloud.event_hub.routers._deps import readable_store_ids as _readable_store_ids
 
 router = APIRouter()
 
@@ -37,6 +38,7 @@ def health() -> Dict[str, Any]:
 def metrics(auth: AuthContext = Depends(get_auth_context)) -> Dict[str, Any]:
     _database_url = os.environ.get("HOTPOT_DATABASE_URL", "")
     store_ids = sorted(set(runtime.hub._registry) | set(runtime.hub._stores))
+    store_ids = _readable_store_ids(store_ids, auth)
     total_events = 0
     total_critical = 0
     stores_with_data = 0

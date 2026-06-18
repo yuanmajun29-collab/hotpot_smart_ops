@@ -13,6 +13,7 @@ from cloud.event_hub.auth import (
     get_auth_context,
 )
 from cloud.event_hub.routers._deps import resolve_store_id as _resolve_store_id
+from cloud.event_hub.routers._deps import readable_store_ids as _readable_store_ids
 
 router = APIRouter()
 
@@ -106,7 +107,10 @@ def get_iot(
 
 @router.get("/stores", deprecated=True)
 def list_stores(auth: AuthContext = Depends(get_auth_context)) -> Dict[str, Any]:
-    return {"stores": runtime.hub.list_stores()}
+    stores = runtime.hub.list_stores()
+    readable = set(_readable_store_ids([s.get("store_id", "") for s in stores], auth))
+    visible = [s for s in stores if s.get("store_id") in readable]
+    return {"stores": visible}
 
 
 @router.post("/events", deprecated=True)
