@@ -30,3 +30,14 @@ def test_role_data_scopes_cover_phase1_personas():
     assert data_scope_for_role("区域督导") == "region"
     assert data_scope_for_role("总部PMO") == "national"
     assert data_scope_for_role("集团决策者") == "national"
+
+
+def test_auth_mode_reads_env_at_call_time(monkeypatch):
+    """auth_mode() must reflect runtime env changes, not an import-time cache."""
+    from cloud.event_hub.auth import auth_mode
+
+    monkeypatch.setenv("HOTPOT_AUTH_MODE", "strict")
+    assert auth_mode() == "strict"
+
+    monkeypatch.delenv("HOTPOT_AUTH_MODE", raising=False)
+    assert auth_mode() == "demo"

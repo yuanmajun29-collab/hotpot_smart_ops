@@ -22,7 +22,6 @@ from cloud.event_hub.rbac import (
 JWT_SECRET = os.environ.get("HOTPOT_JWT_SECRET", "hotpot-dev-secret-change-in-prod")
 JWT_ALG = "HS256"
 JWT_EXPIRE_HOURS = int(os.environ.get("HOTPOT_JWT_HOURS", "24"))
-AUTH_MODE = os.environ.get("HOTPOT_AUTH_MODE", "demo")  # demo | strict
 
 # Edge API keys (store-scoped writes)
 DEFAULT_API_KEYS: Dict[str, str] = {
@@ -46,7 +45,8 @@ api_key_header = APIKeyHeader(name="X-Api-Key", auto_error=False)
 
 
 def auth_mode() -> str:
-    return os.environ.get("HOTPOT_AUTH_MODE", AUTH_MODE)
+    """Read the auth mode at call time so runtime env changes take effect."""
+    return os.environ.get("HOTPOT_AUTH_MODE", "demo")
 
 
 class TokenRequest(BaseModel):

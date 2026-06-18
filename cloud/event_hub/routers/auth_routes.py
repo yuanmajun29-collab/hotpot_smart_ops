@@ -6,9 +6,9 @@ from typing import Any, Dict
 from fastapi import APIRouter, Depends
 
 from cloud.event_hub.auth import (
-    AUTH_MODE,
     AuthContext,
     TokenRequest,
+    auth_mode,
     can_admin,
     data_scope_for_role,
     get_auth_context,
@@ -31,5 +31,5 @@ def auth_me(auth: AuthContext = Depends(get_auth_context)) -> Dict[str, Any]:
         "store_id": auth.store_id,
         "data_scope": data_scope_for_role(auth.role),
         "can_admin": can_admin(auth),
-        "auth_mode": AUTH_MODE,
+        "auth_mode": auth_mode(),
     }
