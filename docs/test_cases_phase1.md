@@ -8,7 +8,7 @@
 | 日期 | 2026-06-18 |
 | 范围 | 7 业务模块 + F-TASK + PDA + 层级/驾驶仓 + Admin + 跨切面 |
 | 依据 | [product_design.md §5/§12](product_design.md) · [architecture_api_spec.md](architecture_api_spec.md) · [phase1_mvp_acceptance_checklist.md](phase1_mvp_acceptance_checklist.md) |
-| 自动化 | `tests/`（66 passed @ `0500e77`） |
+| 自动化 | `tests/`（75 passed） |
 
 ---
 
@@ -77,7 +77,7 @@
 | TC-TBL-03 | F-T03 | P0 | 功能 | 多桌待清+已结 | `GET /v1/summary` 翻台建议 | Top5 优先清台列表，含理由（待清+POS 已结） | 🔶 `test_post_event_and_summary` |
 | TC-TBL-04 | F-T05 | P1 | 功能 | VLM 桩 | 查询清台就绪分 | 0~100 分 + 截图（Phase 1 mock） | 🔶 mock |
 | TC-TBL-05 | F-T06 | P1 | 权限 | 收货员 token | `POST /tables` 改桌态 | 403 `table_correct` 禁止 | `test_table_correct_forbidden_for_receiver` |
-| TC-TBL-06 | F-T06 | P1 | 功能 | 领班 token | `POST /tables` 纠正 | 200，写入 override + 审计事件 | 🔶 `test_post_event_and_summary` |
+| TC-TBL-06 | F-T06 | P1 | 功能 | 领班 token | `POST /v1/tables` 纠正 | 200，状态持久化（need_clean 生效） | `test_table_correct_allowed_for_lingban` |
 | TC-TBL-07 | F-T04/T07 | P1/P2 | UAT | — | 单桌详情/等位预测 | 状态时间线 / 等位预计 | ⬜ |
 
 ---
@@ -150,12 +150,12 @@
 
 | TC | 关联 F | 优 | 类型 | 前置 | 步骤 | 预期 | 自动化 |
 |----|--------|----|------|------|------|------|--------|
-| TC-ALT-01 | F-A01/A02 | P0 | 接口 | 有事件 | `GET /events?level=critical` | 按时间倒序，分级过滤 | `test_post_event_and_summary` |
+| TC-ALT-01 | F-A01/A02 | P0 | 接口 | 有事件 | `GET /v1/events?level=critical` | 按时间倒序，仅返回 critical | `test_events_level_filter_returns_only_critical` |
 | TC-ALT-02 | F-A03 | P0 | 权限 | 领班 ack / 收货员 ack | `POST /alerts/ack` | 领班 200 留痕；收货员 403 `ack` | `test_ack_allowed_for_lingban_forbidden_for_receiver` |
 | TC-ALT-03 | F-A04 | P0 | 接口 | webhook 配置 | critical 事件触发推送 | 30s 内企微 webhook 发送 | `test_critical_event_triggers_webhook_e2e` |
 | TC-ALT-04 | F-A04 | P0 | 接口 | — | `GET /alerts/routes` / `POST /alerts/test-push` | 路由状态（URL 脱敏）；测试推送成功 | `test_alerts_routes_and_test_push` |
 | TC-ALT-05 | F-A06 | P1 | 边界 | warn 级事件 | 无 push flag 的 warn | 不推送（仅 critical 推） | `test_warn_not_pushed_without_flag` |
-| TC-ALT-06 | F-A05 | P1 | 功能 | critical 30min 未 ack | 查升级 | 升级至区域 | 🔶 `test_audit_acks_*` 同源 |
+| TC-ALT-06 | F-A05 | P1 | 功能 | critical 30min 未 ack | `GET /v1/alerts/escalations` | 未 ack 老 critical 计入升级；新 critical 不计；ack 后清除 | `test_escalation_counts_unacked_old_critical` / `test_recent_critical_not_escalated` / `test_ack_clears_escalation` |
 | TC-ALT-07 | F-A04 | P0 | E2E | 日报推送链路 | 日报 critical 推送 | webhook E2E 成功 | `test_daily_report_push_webhook_e2e` |
 
 ---
@@ -213,8 +213,8 @@
 | TC-ADM-02 | F-HQ08 | P0 | 接口 | — | `GET /v1/admin/stores` / `/v1/admin/org-tree` | 门店列表 + 组织树（含 pipeline 状态） | `test_admin_stores_and_org_tree` |
 | TC-ADM-03 | F-HQ08 | P0 | 权限 | 店长 token | 访问 admin 接口 | 403 admin 禁止 | `test_admin_forbidden_for_store_manager` |
 | TC-ADM-04 | F-HQ08 | P0 | 权限 | 集团决策者 token | 访问 admin | 403（决策者非 admin） | `test_laoban_cannot_access_admin` |
-| TC-ADM-05 | F-HQ09 | P0 | 接口 | IT | `GET /v1/admin/users` | 用户列表 + scope | 🔶（demo 桩） |
-| TC-ADM-06 | F-HQ11 | P1 | 接口 | PMO | `GET /v1/admin/audit-logs` | 配置/权限变更留痕可检索 | 🔶 `test_admin_stores_and_org_tree` 同源 |
+| TC-ADM-05 | F-HQ09 | P0 | 接口 | PMO/IT | `GET /v1/admin/users` | 用户列表 + role + data_scope；店长越权 403 | `test_admin_users_list` / `test_admin_users_forbidden_for_store_manager` |
+| TC-ADM-06 | F-HQ11 | P1 | 接口 | PMO | 建店后 `GET /v1/admin/audit-logs` | 配置/权限变更留痕可检索，count 增长 | `test_admin_audit_logs_record_store_creation` |
 | TC-ADM-07 | F-HQ08 | P0 | 功能 | — | `POST /v1/admin/pipeline/tick` | 内存桩驱动 pipeline 推进 | `test_pipeline_tick_inprocess` |
 | TC-ADM-08 | F-HQ02~05 | P1/P2 | UAT | PMO/IT | SOP/阈值/供应商/模型 OTA | 版本/生效/回滚 | ⬜ P2~3 |
 
@@ -257,7 +257,7 @@
 
 | 维度 | 已自动化 | 部分/桩 | 手工/UAT/待真数据 |
 |------|----------|---------|--------------------|
-| 接口（Hub REST） | 高（66 passed） | iot/cv summary 桩 | — |
+| 接口（Hub REST） | 高（75 passed） | iot/cv summary 桩 | — |
 | 权限 RBAC + 多租户 | ✅ 完整 | — | — |
 | /v1 契约 + 鉴权模式 | ✅ 完整 | — | — |
 | 功能（业务闭环） | 中 | CV/IoT/VLM mock | 真链路 BL-01~04 |
@@ -275,4 +275,4 @@
 - [phase1_mvp_acceptance_checklist.md](phase1_mvp_acceptance_checklist.md) — 验收勾选表（与本用例互补）
 - [architecture_api_spec.md](architecture_api_spec.md) — REST API 契约
 - [uat_concept_test_record.md](uat_concept_test_record.md) — PM-402 店长概念测试
-- `tests/` — 自动化套件（66 passed @ `0500e77`）
+- `tests/` — 自动化套件（75 passed）

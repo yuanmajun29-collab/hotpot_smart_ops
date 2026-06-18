@@ -143,3 +143,47 @@ def test_admin_forbidden_for_store_manager(client):
     headers = {"Authorization": f"Bearer {token}"}
     r = c.get("/v1/admin/stores", headers=headers)
     assert r.status_code == 403
+
+
+def test_admin_users_list(client):
+    """F-HQ09: admin can list users with role + data_scope (demo stub)."""
+    c, _ = client
+    headers = {"Authorization": f"Bearer {_pmo_token(c)}"}
+    r = c.get("/v1/admin/users", headers=headers)
+    assert r.status_code == 200
+    body = r.json()
+    assert body["count"] == len(body["users"])
+    assert body["count"] >= 7
+    by_role = {u["username"]: u for u in body["users"]}
+    assert by_role["laoban"]["role"] == "集团决策者"
+    assert by_role["laoban"]["data_scope"] == "national"
+    assert by_role["zhangdian"]["data_scope"] == "store"
+
+
+def test_admin_users_forbidden_for_store_manager(client):
+    """F-HQ09 RBAC: a store manager cannot list users."""
+    c, _ = client
+    token = c.post(
+        "/auth/token", json={"username": "zhangdian", "password": "demo", "role": "店长"}
+    ).json()["access_token"]
+    r = c.get("/v1/admin/users", headers={"Authorization": f"Bearer {token}"})
+    assert r.status_code == 403
+
+
+def test_admin_audit_logs_record_store_creation(client):
+    """F-HQ11: creating a store produces a retrievable audit log entry."""
+    c, _ = client
+    headers = {"Authorization": f"Bearer {_pmo_token(c)}"}
+    before = c.get("/v1/admin/audit-logs", headers=headers).json()["count"]
+
+    c.post(
+        "/v1/admin/stores",
+        headers=headers,
+        json={"store_name": "冯校长火锅·审计店", "region_id": "region_taizhou", "status": "preparing"},
+    )
+
+    r = c.get("/v1/admin/audit-logs", headers=headers)
+    assert r.status_code == 200
+    body = r.json()
+    assert body["count"] == len(body["logs"])
+    assert body["count"] > before

@@ -55,6 +55,20 @@ def test_login_without_role_uses_demo_user_role(strict_client):
     assert r.json()["user"]["role"] == "前厅领班"
 
 
+def test_login_rejects_role_mismatch(strict_client):
+    r = strict_client.post(
+        "/auth/token",
+        json={
+            "username": "lingban",
+            "password": "demo",
+            "store_id": "store_yuhuan",
+            "role": "总部PMO",
+        },
+    )
+    assert r.status_code == 403
+    assert "Role does not match account" in r.json()["detail"]
+
+
 def _receiving_body(**overrides):
     body = {
         "store_id": "store_yuhuan",
@@ -149,3 +163,20 @@ def test_report_generate_forbidden_for_decision_maker(strict_client):
     )
     assert r.status_code == 403
     assert "report_generate" in r.json()["detail"]
+
+
+def test_table_correct_allowed_for_lingban(strict_client):
+    """F-T06: 前厅领班 has table_correct; manual correction succeeds and persists."""
+    token = _token(strict_client, "lingban", "前厅领班")
+    r = strict_client.post(
+        "/v1/tables?store_id=store_yuhuan",
+        json={"tables": [{"table_id": "T09", "state": "need_clean"}]},
+        headers=_auth(token),
+    )
+    assert r.status_code == 200, r.text
+    assert r.json()["ok"] is True
+
+    got = strict_client.get("/v1/tables?store_id=store_yuhuan", headers=_auth(token))
+    assert got.status_code == 200
+    states = {t["table_id"]: t["state"] for t in got.json()}
+    assert states.get("T09") == "need_clean"
