@@ -39,10 +39,10 @@
 
 | 项 | 内容 |
 |----|------|
-| 状态 | **已采纳**（待 AR-401 确认试点默认） |
+| 状态 | **已采纳**（2026-06-18 PK 收敛口径） |
 | 背景 | PoC 需零依赖启动；试点需重启不丢 |
-| 决策 | `HOTPOT_DATABASE_URL` 未设置 → SQLite；设置 → PostgreSQL 同 schema |
-| 后果 | docker `--profile postgres`；两店共库 tenant 隔离 |
+| 决策 | dev/demo：`HOTPOT_DATABASE_URL` 未设置 → SQLite。**staging / 试点 / UAT / Go-Live：必须设 `HOTPOT_DATABASE_URL` 走 PostgreSQL profile**，并纳入启动冒烟门禁（无则拒绝上线）。不强制本地默认 PG。 |
+| 后果 | docker `--profile postgres`；两店共库 tenant 隔离；试点部署清单须含 PG+env+health+backup 一键 profile（Codex 反提采纳） |
 | 代码 | `cloud/event_hub/db.py` factory |
 
 ---
@@ -101,10 +101,11 @@
 
 | 项 | 内容 |
 |----|------|
-| 状态 | **提议中** |
+| 状态 | **提议中 → 范围降级**（2026-06-18 PK 收敛） |
 | 背景 | 设计原则断网 24h |
 | 决策 | 边缘 `edge/queue/` SQLite 缓存 OpsEvent，恢复后 bulk POST Hub |
-| 后果 | DEV-105 实现与压测 |
+| 收敛口径 | **24h 断网容灾不作为 Phase 1 Go-Live 硬性验收**：除非 DEV-105 在本期完成最小 edge SQLite 队列 + replay + 压测，否则该能力降级为 **P1.5**。文档/NFR 不得标注为 Phase 1 已兑现。 |
+| 后果 | DEV-105 实现与压测（若纳入本期）；否则进入 P1.5 backlog |
 | 差距 | poc_to_production_gap §2 平台 |
 
 ---
@@ -214,3 +215,32 @@
 | 后果 | 1. 对 hotpot_smart_ops 当前 mock detector 的替换优先级无影响（YOLO 先行，VLM 层配置化） 2. VLM 模块预留 feature flag，默认 off 3. Phase 1 NFR 仍以 `<1s（边缘）` 为验收目标；YOLO-only 与 YOLO+VLM 的细分预算待本项目 benchmark 后再固化 |
 | 外部参考基准 | YOLOv8s: mAP 91.2%, 漏检 2.8%, 8ms；VLM-only: 漏检 6.5%, 320ms, 幻觉 4-8%；YOLO+VLM 融合: mAP 93.4%, 漏检 1.2%, 45ms。该组数据为 AOI 场景参考，需补来源与复现实验说明 |
 | 关联 | ADR-005 · `docs/architecture_design_phase1.md` §3 六业务闭环 · `edge/detector/hotpot_detector.py` · `cloud/vlm_review/` |
+
+
+---
+
+## ADR-015：Event Hub 架构治理（组装根 + Runtime DI + 路由边界 + 集中 RBAC）
+
+| 项 | 内容 |
+|----|------|
+| 状态 | **已采纳**（2026-06-18，补记两轮重构决策） |
+| 背景 | 2026-06-17~18 两轮重构（Claude router-split + Codex hardening）显著改变了 Event Hub 结构，但此前无 ADR 记录，违反 development_delivery_plan §2.3「代码路径与 ar401 映射一致」的治理要求。 |
+| 决策 | 1) **app.py 为组装根**（composition root）：仅 `runtime.init` + `lifespan` 启停 + `include_router`，不含路由逻辑。2) **单例经 `runtime.py` 容器延迟绑定**（hub/db/alert_gateway/org_registry），路由直接 `runtime.X` 访问；测试经 `runtime.init` 注入，禁止 routers→app 反向依赖。3) **路由按 10 业务域拆 `routers/*.py`**（system/auth/ingest/receiving/sop/iot/reports/alerts/org/admin），每域单一职责。4) **RBAC 集中于 `rbac.py`（RolePolicy）**，auth.py 委托，`test_rbac_policy` 守 backend↔`rbac.json` 对齐。5) **`/v1` 别名 + Deprecation 治理**（ADR-004）：legacy 同 handler 双挂、`deprecated=True`、中间件 `Deprecation` 头，显式 legacy 集合。6) **纯业务逻辑入 `domain/`**（health/turnover），无 FastAPI/状态依赖。 |
+| 后果 | app.py 986→112 行；可并行开发与独立测试；82 passed；pyflakes 干净。新增路由族须落到对应 `routers/*.py`，新权限改 `rbac.py` 单一源，新决策追加 ADR。 |
+| 关联 | ADR-004 · `cloud/event_hub/{app,runtime,rbac}.py` · `routers/` · `domain/` · `docs/superpowers/specs/2026-06-17-event-hub-router-split-design.md` |
+
+---
+
+## PK 收敛纪要（2026-06-18 · Claude × Codex）
+
+事实漂移修正（ADR-004 已采纳 / ar401 映射 / 角色计数）+ 设计判断收敛：
+
+| 点 | 收敛结论 |
+|----|---------|
+| A 持久化 | dev/demo SQLite；staging/试点/UAT/Go-Live 必须 PG profile + 冒烟门禁（ADR-003） |
+| B 离线 24h | 不作 Phase 1 Go-Live 硬验收；未实现+压测则降 P1.5（ADR-008） |
+| C F-TASK | Phase 1 仅 SOP-assign 兼容/审计适配；tasks/task_events/SLA 仍 P1.5 feature flag（ADR-010 不变） |
+| D NFR | `<1s 桌态` `<200ms P95` 为 **target**；Hub P95 可脚本实测，CV 真链路待 BL-01/DEV-408~410 benchmark |
+| E 架构 ADR | 补 **ADR-015**（本文） |
+
+**Codex 反提（已纳入待办）**：① 登录页角色选择应产品化「去权威化」——后端已是权威（`login_user` 角色绑定），登录页下拉仅提示，后续应移除客户端选角色；② strict 跨店隔离不宜等 P2，应提前到 Phase 1.x 启用 enforcement；③ mock/stub/real 须显式标注（已在 test_cases_phase1.md 图例落实）；④ 试点部署一键 profile（PG+env+health+backup）——并入 ADR-003 后果与部署清单。

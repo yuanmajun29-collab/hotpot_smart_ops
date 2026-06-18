@@ -134,11 +134,11 @@ PRD 映射见 api_spec §6；与产品对齐检查见 [architecture_design_index
 
 | 指标 | 目标 | 现状 |
 |------|------|------|
-| 桌态推理延迟 | <1s（边缘） | mock 即时；YOLO/VLM 真实链路待本项目 benchmark |
-| Hub API P95 | <200ms（摘要） | 单机可满足 |
+| 桌态推理延迟 | <1s（边缘）·**target** | mock 即时；真链路待 BL-01/DEV-408~410 benchmark，未实测 |
+| Hub API P95 | <200ms（摘要）·**target** | 单机经验值；待脚本压测实证（可本期补） |
 | critical 告警送达 | <30s 企微 | webhook 待店级 key |
 | VLM 层推理延迟 | 待实测后固化 | 按需 feature flag；默认 off；AOI 外部基准仅作参考 |
-| 断网边缘缓存 | 24h | DEV-105 待完善 |
+| 断网边缘缓存 | 24h·**P1.5（非 Phase1 硬验收）** | DEV-105 未实现；见 ADR-008 收敛口径 |
 | 多租户隔离 | store_id + data_scope | ⚠️ demo 宽松；P2 strict |
 | 试点可用性 | 99%（单机） | PoC 级 |
 
