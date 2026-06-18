@@ -35,6 +35,7 @@ curl http://127.0.0.1:8088/benchmark
 | 界面 | [figma_component_spec.md](docs/figma_component_spec.md) — 组件与 Frame |
 | 推送 | [push_notification_templates.md](docs/push_notification_templates.md) — 企微文案 |
 | 验收 | [phase1_mvp_acceptance_checklist.md](docs/phase1_mvp_acceptance_checklist.md) — MVP 勾选表 |
+| 测试 | [test_cases_phase1.md](docs/test_cases_phase1.md) — 全产品测试用例 + F-xxx 追溯（82 passed） |
 | 评审 | [product_review_checklist.md](docs/product_review_checklist.md) — PM-401 |
 | 评审结论回填 | [pm401_review_outcome_template.md](docs/pm401_review_outcome_template.md) — 通过/有条件通过 |
 | 邀请 | [pm401_meeting_invite_template.md](docs/pm401_meeting_invite_template.md) — 模板 |

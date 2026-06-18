@@ -4,11 +4,12 @@
 
 | 项目 | 内容 |
 |------|------|
-| 版本 | V1.0 |
+| 版本 | V1.1（定稿归档） |
 | 日期 | 2026-06-18 |
 | 范围 | 7 业务模块 + F-TASK + PDA + 层级/驾驶仓 + Admin + 跨切面 |
 | 依据 | [product_design.md §5/§12](product_design.md) · [architecture_api_spec.md](architecture_api_spec.md) · [phase1_mvp_acceptance_checklist.md](phase1_mvp_acceptance_checklist.md) |
-| 自动化 | `tests/`（75 passed） |
+| 自动化 | `tests/`（82 passed） |
+| 归档 | V1.1 定稿基线 · 2026-06-18 · 已链入 [product_design_index](product_design_index.md) 与 README |
 
 ---
 
@@ -62,7 +63,7 @@
 | TC-HOME-01 | F-H01 | P0 | 接口 | Hub 启动 | `GET /health` | 200；`status=ok`，含 multi_tenant/engine/db_backend/auth_mode/uptime | `test_health` |
 | TC-HOME-02 | F-H01 | P0 | 接口 | 已鉴权 | `GET /metrics` | 200；store_count、stores_with_data、total_events、total_critical | `test_metrics` |
 | TC-HOME-03 | F-H02 | P0 | 功能 | 门店有事件 | `GET /v1/summary?store_id=store_yuhuan` | 返回 KPI：严重告警数/待清台/SOP 率/成本偏差 | `test_post_event_and_summary` |
-| TC-HOME-04 | F-H02 | P0 | 边界 | 新建空门店 | `GET /v1/summary` 空店 | total_events=0，KPI 归零不报错 | `test_benchmark_empty` 同源 |
+| TC-HOME-04 | F-H02 | P0 | 边界 | 新建空门店 | `GET /v1/summary` 空店 | total_events=0，KPI 归零不报错 | `test_empty_store_summary_is_zero` |
 | TC-HOME-05 | F-H03 | P1 | UAT | 登录看板 | 点 6 宫格快捷入口 | 跳转桌态/SOP/成本/IoT/告警/日报 | ⬜ |
 | TC-HOME-06 | F-H04 | P1 | 功能 | 有午/晚市数据 | 切换 noon/evening | 数据按班次过滤 | ⬜ |
 
@@ -72,9 +73,9 @@
 
 | TC | 关联 F | 优 | 类型 | 前置 | 步骤 | 预期 | 自动化 |
 |----|--------|----|------|------|------|------|--------|
-| TC-TBL-01 | F-T01 | P0 | 功能 | 已写入桌态事件 | `GET /v1/tables` | 返回各桌四态（空/用餐/待清/待结）+ 颜色映射 | `test_post_event_and_summary` |
+| TC-TBL-01 | F-T01 | P0 | 功能 | 已写入桌态 | `GET /v1/tables` | 返回各桌状态（need_clean/checkout 等）回读一致 | `test_get_tables_returns_states` |
 | TC-TBL-02 | F-T02 | P0 | UAT | 看板打开 | 等待 ≤5s | 桌态轮询刷新（≤5s） | ⬜ mock |
-| TC-TBL-03 | F-T03 | P0 | 功能 | 多桌待清+已结 | `GET /v1/summary` 翻台建议 | Top5 优先清台列表，含理由（待清+POS 已结） | 🔶 `test_post_event_and_summary` |
+| TC-TBL-03 | F-T03 | P0 | 功能 | 多桌不同态 | turnover_suggestions 排序 | 优先级 need_clean>checkout>empty，dining 排除，动作文案正确 | `test_turnover_priority_ordering_and_actions` / `test_turnover_same_priority_sorted_by_table_id` |
 | TC-TBL-04 | F-T05 | P1 | 功能 | VLM 桩 | 查询清台就绪分 | 0~100 分 + 截图（Phase 1 mock） | 🔶 mock |
 | TC-TBL-05 | F-T06 | P1 | 权限 | 收货员 token | `POST /tables` 改桌态 | 403 `table_correct` 禁止 | `test_table_correct_forbidden_for_receiver` |
 | TC-TBL-06 | F-T06 | P1 | 功能 | 领班 token | `POST /v1/tables` 纠正 | 200，状态持久化（need_clean 生效） | `test_table_correct_allowed_for_lingban` |
@@ -100,7 +101,7 @@
 
 | TC | 关联 F | 优 | 类型 | 前置 | 步骤 | 预期 | 自动化 |
 |----|--------|----|------|------|------|------|--------|
-| TC-SOP-01 | F-S01~S03 | P0 | 功能 | SOP 信号已 seed | `GET /v1/sop` | 7 套 SOP 卡片 + 检查点 + 合规率 | 🔶 mock |
+| TC-SOP-01 | F-S01~S03 | P0 | 功能 | 已写入 SOP 统计 | `GET /v1/sop` | 合规率回读一致（7 卡片/截图仍 mock） | 🔶 `test_get_sop_returns_compliance` |
 | TC-SOP-02 | F-S04 | P0 | 接口 | 有违规项 | `POST /v1/sop/assign` 指派整改 | 200，生成 assignment + sop_assigned 事件 | `test_sop_assign_create_and_list` |
 | TC-SOP-03 | F-S06 | P1 | 接口 | 已指派 | `PUT /v1/sop/assignments/{id}/status` | 状态流转 pending→处理→复核 | `test_sop_assign_status_update` |
 | TC-SOP-04 | F-S04 | P0 | 权限 | 前厅领班 token | `POST /v1/sop/assign` | 403 `sop_assign` 禁止 | `test_sop_assign_forbidden_for_lingban` |
@@ -127,7 +128,7 @@
 
 | TC | 关联 F | 优 | 类型 | 前置 | 步骤 | 预期 | 自动化 |
 |----|--------|----|------|------|------|------|--------|
-| TC-COST-01 | F-C01 | P0 | 功能 | 已收货 | `GET /v1/cost` / summary | 当日来料批次：SKU/重量/偏差 | `test_receiving_updates_cost_snapshot` |
+| TC-COST-01 | F-C01 | P0 | 功能 | 已写入成本 | `GET /v1/cost` | 来料批次 items 回读（SKU/偏差） | `test_get_cost_returns_items` / `test_receiving_updates_cost_snapshot` |
 | TC-COST-02 | F-C02 | P0 | 边界 | 短重 >3% | 提交偏差批次 | variance_pct 计算正确，>3% 标 warn | `test_receiving_submit_success`（variance） |
 | TC-COST-03 | F-C03 | P0 | 功能 | VLM 桩 | 外观分级 | A/B/C/D 等级 + 截图 | `test_quality_grade_rule` |
 | TC-COST-04 | F-C04 | P0 | 功能 | 低等级批次 | 拒收建议 | LLM/规则一句拒收理由 | `test_review_rule` |
@@ -257,7 +258,7 @@
 
 | 维度 | 已自动化 | 部分/桩 | 手工/UAT/待真数据 |
 |------|----------|---------|--------------------|
-| 接口（Hub REST） | 高（75 passed） | iot/cv summary 桩 | — |
+| 接口（Hub REST） | 高（82 passed） | iot/cv summary 桩 | — |
 | 权限 RBAC + 多租户 | ✅ 完整 | — | — |
 | /v1 契约 + 鉴权模式 | ✅ 完整 | — | — |
 | 功能（业务闭环） | 中 | CV/IoT/VLM mock | 真链路 BL-01~04 |
@@ -275,4 +276,4 @@
 - [phase1_mvp_acceptance_checklist.md](phase1_mvp_acceptance_checklist.md) — 验收勾选表（与本用例互补）
 - [architecture_api_spec.md](architecture_api_spec.md) — REST API 契约
 - [uat_concept_test_record.md](uat_concept_test_record.md) — PM-402 店长概念测试
-- `tests/` — 自动化套件（75 passed）
+- `tests/` — 自动化套件（82 passed）
