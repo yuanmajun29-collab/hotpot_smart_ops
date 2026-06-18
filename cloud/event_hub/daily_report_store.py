@@ -70,8 +70,6 @@ class DailyReportStore:
         *,
         pushed: bool = False,
     ) -> Dict[str, Any]:
-        import json
-
         rid = report_id_for(store_id, report_date)
         now = utc_now_iso()
         with self._lock:
