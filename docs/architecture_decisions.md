@@ -63,10 +63,12 @@
 
 | 项 | 内容 |
 |----|------|
-| 状态 | **提议中** |
+| 状态 | **已采纳** |
+| 日期 | 2026-06-17（补充外部参考基准，待本项目验证） |
 | 背景 | mock 便于 CI；试点需真实 CV |
 | 决策 | 生产 `HOTPOT_DETECTOR_BACKEND=yolo`；CI/培训 `mock` |
 | 后果 | DEV-410 切换 + 准确率报告 |
+| 参考基准 | 工业 AOI 场景（PCB 焊点/18 类缺陷/0.1mm 级）报告显示 YOLOv8s、VLM-only、YOLO+VLM 融合各有延迟/漏检差异；该数据仅作为外部参考，不等同于餐饮桌态/后厨场景实测。见 ADR-014 |
 | 代码 | `edge/detector/hotpot_detector.py` |
 
 ---
@@ -198,3 +200,17 @@
 1. 新 ADR 追加本文，状态：提议中 → 已采纳 / 已废弃  
 2. AR-401 / Sprint Review 可晋升「提议中」→「已采纳」  
 3. 重大变更同步 [architecture_changelog.md](architecture_changelog.md)
+
+---
+
+## ADR-014：YOLO+VLM 三级过滤架构外部基准参考
+
+| 项 | 内容 |
+|----|------|
+| 状态 | **提议中** |
+| 日期 | 2026-06-17 |
+| 背景 | hotpot_smart_ops 采用三级过滤（YOLO→sVLM→VLM+LLM），但当前仓库尚未沉淀餐饮桌态/后厨场景的真实数据集、标注集和边缘硬件 benchmark。工业 AOI 项目（PCB 焊点检测，12,000 训练集/3,000 测试集/18 类缺陷/0.1mm 级）可作为工程选型参考，但不可直接外推为本项目验收指标 |
+| 决策 | 继续保持 YOLO-first、VLM feature flag 的技术路线：YOLO 负责一级快速筛选（结构化检测），sVLM/VLM 负责二级语义判断，LLM 负责三级综合决策。是否晋升为已采纳，需补齐本项目样本集、Jetson/边缘设备实测、误报/漏报验收阈值 |
+| 后果 | 1. 对 hotpot_smart_ops 当前 mock detector 的替换优先级无影响（YOLO 先行，VLM 层配置化） 2. VLM 模块预留 feature flag，默认 off 3. Phase 1 NFR 仍以 `<1s（边缘）` 为验收目标；YOLO-only 与 YOLO+VLM 的细分预算待本项目 benchmark 后再固化 |
+| 外部参考基准 | YOLOv8s: mAP 91.2%, 漏检 2.8%, 8ms；VLM-only: 漏检 6.5%, 320ms, 幻觉 4-8%；YOLO+VLM 融合: mAP 93.4%, 漏检 1.2%, 45ms。该组数据为 AOI 场景参考，需补来源与复现实验说明 |
+| 关联 | ADR-005 · `docs/architecture_design_phase1.md` §3 六业务闭环 · `edge/detector/hotpot_detector.py` · `cloud/vlm_review/` |

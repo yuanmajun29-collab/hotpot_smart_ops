@@ -5,7 +5,6 @@ from __future__ import annotations
 import json
 import os
 import threading
-import time
 from datetime import datetime
 from pathlib import Path
 from typing import Any, Callable, Dict, List, Optional
@@ -72,8 +71,10 @@ class DailyReportScheduler:
             flush=True,
         )
 
-    def stop(self) -> None:
+    def stop(self, timeout: float = 2.0) -> None:
         self._stop.set()
+        if self._thread and self._thread.is_alive():
+            self._thread.join(timeout=timeout)
 
     def _loop(self) -> None:
         while not self._stop.is_set():

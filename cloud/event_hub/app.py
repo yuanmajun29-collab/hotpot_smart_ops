@@ -3,8 +3,9 @@
 from __future__ import annotations
 
 import os
+from contextlib import asynccontextmanager
 from pathlib import Path
-from typing import Any, Dict, Optional
+from typing import Any, AsyncIterator, Dict, Optional
 
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
@@ -39,7 +40,45 @@ def __getattr__(name: str):
         return getattr(runtime, name)
     raise AttributeError(f"module {__name__!r} has no attribute {name!r}")
 
-app = FastAPI(title="Hotpot Event Hub", version="2.0.0")
+def startup() -> None:
+    runtime.org_registry.apply_to_hub(runtime.hub)
+    seed_dir = os.environ.get("HOTPOT_SEED_DIR", "")
+    if not runtime.db.is_empty():
+        runtime.db.hydrate_hub(runtime.hub)
+        print(f"[EventHub] Hydrated from {runtime.db.db_path}")
+    elif seed_dir:
+        n = seed_from_directory(runtime.hub, Path(seed_dir))
+        print(f"[EventHub] Seeded {n} store(s) from {seed_dir}")
+    else:
+        print("[EventHub] Started empty (no DB data, no seed dir)")
+
+    if os.environ.get("HOTPOT_DAILY_REPORT_SCHEDULER", "1") == "1":
+
+        def _gen(sid: str, push: bool) -> Dict[str, Any]:
+            return generate_daily_report_for_store(runtime.hub, runtime.db, runtime.alert_gateway, sid, push=push)
+
+        global _daily_scheduler
+        _daily_scheduler = DailyReportScheduler(_gen)
+        _daily_scheduler.start()
+
+
+def shutdown() -> None:
+    global _daily_scheduler
+    if _daily_scheduler is not None:
+        _daily_scheduler.stop()
+        _daily_scheduler = None
+
+
+@asynccontextmanager
+async def lifespan(_: FastAPI) -> AsyncIterator[None]:
+    startup()
+    try:
+        yield
+    finally:
+        shutdown()
+
+
+app = FastAPI(title="Hotpot Event Hub", version="2.0.0", lifespan=lifespan)
 app.add_middleware(
     CORSMiddleware,
     allow_origins=["*"],
@@ -62,30 +101,6 @@ async def _mark_deprecated(request, call_next):
     if request.url.path in _LEGACY_PATHS:
         resp.headers["Deprecation"] = "true"
     return resp
-
-
-@app.on_event("startup")
-def startup() -> None:
-    runtime.org_registry.apply_to_hub(runtime.hub)
-    seed_dir = os.environ.get("HOTPOT_SEED_DIR", "")
-    if not runtime.db.is_empty():
-        runtime.db.hydrate_hub(runtime.hub)
-        print(f"[EventHub] Hydrated from {runtime.db.db_path}")
-    elif seed_dir:
-        n = seed_from_directory(runtime.hub, Path(seed_dir))
-        print(f"[EventHub] Seeded {n} store(s) from {seed_dir}")
-    else:
-        print("[EventHub] Started empty (no DB data, no seed dir)")
-
-    if os.environ.get("HOTPOT_DAILY_REPORT_SCHEDULER", "1") == "1":
-
-        def _gen(sid: str, push: bool) -> Dict[str, Any]:
-            return generate_daily_report_for_store(runtime.hub, runtime.db, runtime.alert_gateway, sid, push=push)
-
-        global _daily_scheduler
-        _daily_scheduler = DailyReportScheduler(_gen)
-        _daily_scheduler.start()
-
 
 
 

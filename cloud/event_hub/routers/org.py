@@ -6,7 +6,7 @@ from typing import Any, Dict, Optional
 from fastapi import APIRouter, Depends, Query
 
 from cloud.event_hub import runtime
-from cloud.event_hub.auth import AuthContext, get_auth_context, AUTH_MODE
+from cloud.event_hub.auth import AuthContext, auth_mode, get_auth_context
 
 router = APIRouter()
 
@@ -16,7 +16,7 @@ def benchmark(
     region_id: Optional[str] = Query(None),
     auth: AuthContext = Depends(get_auth_context),
 ) -> Dict[str, Any]:
-    if auth.role not in ("区域督导", "总部PMO") and auth.store_id != "*" and AUTH_MODE != "demo":
+    if auth.role not in ("区域督导", "总部PMO") and auth.store_id != "*" and auth_mode() != "demo":
         if auth.auth_type != "anonymous":
             pass
     return runtime.hub.get_region_overview(region_id)
@@ -38,6 +38,6 @@ def region_overview(
 def national_overview(auth: AuthContext = Depends(get_auth_context)) -> Dict[str, Any]:
     """National rollup across all zones (F-HQ12)."""
     if auth.role not in ("区域督导", "总部PMO", "总部 IT") and auth.store_id != "*":
-        if AUTH_MODE == "strict" and auth.auth_type != "anonymous":
+        if auth_mode() == "strict" and auth.auth_type != "anonymous":
             pass
     return runtime.hub.get_national_overview()

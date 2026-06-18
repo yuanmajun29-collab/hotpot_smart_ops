@@ -2,7 +2,6 @@
 
 from __future__ import annotations
 
-import os
 import tempfile
 from pathlib import Path
 
@@ -11,20 +10,24 @@ from fastapi.testclient import TestClient
 
 
 @pytest.fixture()
-def strict_client():
+def strict_client(monkeypatch):
     tmp = tempfile.mkdtemp()
     db_path = Path(tmp) / "test_hub.db"
-    os.environ["HOTPOT_DB"] = str(db_path)
-    os.environ["HOTPOT_AUTH_MODE"] = "strict"
-    os.environ.pop("HOTPOT_SEED_DIR", None)
-    os.environ.pop("HOTPOT_DATABASE_URL", None)
+    monkeypatch.setenv("HOTPOT_DB", str(db_path))
+    monkeypatch.setenv("HOTPOT_AUTH_MODE", "strict")
+    monkeypatch.delenv("HOTPOT_SEED_DIR", raising=False)
+    monkeypatch.delenv("HOTPOT_DATABASE_URL", raising=False)
 
     from cloud.event_hub import app as hub_app_module
     from cloud.event_hub.db import create_hub_database
+    from cloud.event_hub import runtime
 
-    hub_app_module.db = create_hub_database(db_path)
-    hub_app_module.hub = hub_app_module.MultiTenantHub(on_persist=hub_app_module.db.on_persist)
-    hub_app_module.alert_gateway = hub_app_module.AlertGateway(db_path)
+    db = create_hub_database(db_path)
+    runtime.init(
+        hub_app_module.MultiTenantHub(on_persist=db.on_persist),
+        db,
+        hub_app_module.AlertGateway(db_path),
+    )
 
     with TestClient(hub_app_module.app) as c:
         yield c
@@ -41,6 +44,15 @@ def _token(client: TestClient, username: str, role: str, store_id: str = "store_
 
 def _auth(token: str) -> dict:
     return {"Authorization": f"Bearer {token}"}
+
+
+def test_login_without_role_uses_demo_user_role(strict_client):
+    r = strict_client.post(
+        "/auth/token",
+        json={"username": "lingban", "password": "demo", "store_id": "store_yuhuan"},
+    )
+    assert r.status_code == 200
+    assert r.json()["user"]["role"] == "前厅领班"
 
 
 def _receiving_body(**overrides):

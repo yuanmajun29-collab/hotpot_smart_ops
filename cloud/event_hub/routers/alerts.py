@@ -6,7 +6,7 @@ from typing import Any, Dict, Optional
 from fastapi import APIRouter, Depends, HTTPException, Query, Request
 
 from cloud.event_hub import runtime
-from cloud.event_hub.auth import AuthContext, get_auth_context, enforce_store_write, enforce_action, AUTH_MODE
+from cloud.event_hub.auth import AuthContext, get_auth_context, enforce_store_write, enforce_action, auth_mode
 from cloud.event_hub.hub_core import DEFAULT_STORE_ID
 from cloud.event_hub.receiving_store import receiving_store
 from cloud.event_hub.sop_assign_store import sop_assign_store
@@ -65,7 +65,7 @@ def alerts_test_push(
     """Send synthetic critical card to verify WeChat webhook (DEV-414 checklist)."""
     sid = _resolve_store_id(store_id, None, request.headers.get("X-Store-Id"), auth)
     enforce_store_write(auth, sid)
-    if AUTH_MODE != "demo" and auth.role not in ("店长", "区域督导"):
+    if auth_mode() != "demo" and auth.role not in ("店长", "区域督导"):
         raise HTTPException(status_code=403, detail="无 webhook 测试权限")
     return runtime.alert_gateway.send_test_push(sid)
 
