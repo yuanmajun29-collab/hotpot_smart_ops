@@ -13,24 +13,21 @@
       <p class="subtitle">智能运营 · Phase 1 MVP（玉环 / 椒江）</p>
       <form id="login-form">
         <div class="form-group">
-          <label>账号</label>
-          <input type="text" id="username" value="zhangdian" required />
-        </div>
-        <div class="form-group">
-          <label>密码</label>
-          <input type="password" id="password" value="demo" required />
-        </div>
-        <div class="form-group">
-          <label>角色</label>
+          <label>演示身份（账号与角色绑定）</label>
           <select id="role">
-            <option value="店长">店长</option>
-            <option value="前厅领班">前厅领班</option>
-            <option value="厨师长">厨师长</option>
-            <option value="收货员">收货员</option>
-            <option value="区域督导">区域督导</option>
-            <option value="总部PMO">总部 PMO</option>
-            <option value="集团决策者">集团决策者（老板）</option>
+            <option value="店长">店长 · zhangdian</option>
+            <option value="前厅领班">前厅领班 · lingban</option>
+            <option value="厨师长">厨师长 · chushi</option>
+            <option value="收货员">收货员 · shouhuo</option>
+            <option value="区域督导">区域督导 · quyududao</option>
+            <option value="总部PMO">总部 PMO · zongbu</option>
+            <option value="集团决策者">集团决策者（老板）· laoban</option>
           </select>
+          <p id="account-hint" style="margin:6px 0 0;font-size:0.78rem;color:var(--muted);">
+            登录账号：<code id="account-name">zhangdian</code> · 角色由服务端按账号判定
+          </p>
+          <input type="hidden" id="username" value="zhangdian" />
+          <input type="hidden" id="password" value="demo" />
         </div>
         <div class="form-group" id="store-group">
           <label>门店</label>
@@ -43,7 +40,7 @@
         <button type="button" class="btn btn-block btn-ghost" id="btn-mobile" style="margin-top:10px">进入手机版 H5</button>
       </form>
       <p style="margin-top:16px;font-size:0.8rem;color:var(--muted);text-align:center;">
-        演示任意密码 · <a href="poc.html">旧版 PoC</a> · <a href="login.html?mobile=1">手机登录</a>
+        演示账号密码 demo · 角色由服务端判定 · <a href="poc.html">旧版 PoC</a> · <a href="login.html?mobile=1">手机登录</a>
       </p>
     </div>
   </div>
@@ -68,6 +65,18 @@
       return role === "总部PMO" || role === "总部 IT";
     }
 
+    // Demo persona -> account. Picking a persona selects an account; the backend
+    // is the sole authority on what role that account actually has.
+    const ROLE_ACCOUNT = {
+      "店长": "zhangdian",
+      "前厅领班": "lingban",
+      "厨师长": "chushi",
+      "收货员": "shouhuo",
+      "区域督导": "quyududao",
+      "总部PMO": "zongbu",
+      "集团决策者": "laoban",
+    };
+
     function updateRoleUI() {
       const role = document.getElementById("role").value;
       const noStore = isNoStoreRole(role);
@@ -76,6 +85,11 @@
       if (role === "集团决策者") btn.textContent = "进入集团驾驶仓";
       else if (isHQRole(role)) btn.textContent = "进入运营后台";
       else btn.textContent = "进入桌面看板";
+      // Persona is an account: bind the demo username so the client never picks a
+      // role independent of its account. The server remains the role authority.
+      const account = ROLE_ACCOUNT[role] || "zhangdian";
+      document.getElementById("username").value = account;
+      document.getElementById("account-name").textContent = account;
     }
 
     const params = new URLSearchParams(location.search);
@@ -98,30 +112,32 @@
 
     function doLogin(mobile) {
       const storeEl = document.getElementById("store");
-      const role = document.getElementById("role").value;
       const username = document.getElementById("username").value || "zhangdian";
       const password = document.getElementById("password").value || "demo";
-      const isHQ = isHQRole(role);
-      const isExec = role === "集团决策者";
-      const noStore = isNoStoreRole(role);
-      const storeName = isExec ? "集团总部" : isHQ ? "全国总部" : storeEl.value;
-      const storeIdVal = noStore ? "store_yuhuan" : (storeEl.selectedOptions[0]?.dataset.storeId || "store_yuhuan");
+      const selectedStoreName = storeEl.value;
+      const selectedStoreId = storeEl.selectedOptions[0]?.dataset.storeId || "store_yuhuan";
 
-      HotpotApp.hubLogin(username, password, storeIdVal, role)
+      // Do NOT send a client-chosen role: the backend derives the role from the
+      // account, so the role shown after login always reflects real authority.
+      HotpotApp.hubLogin(username, password, selectedStoreId)
         .then((tok) => {
-          const isRegional = role === "区域督导";
           const user = tok.user || {};
+          const role = user.role; // server is authoritative
+          const isExec = role === "集团决策者";
+          const isHQ = isHQRole(role);
+          const isRegional = role === "区域督导";
+          const noStore = isNoStoreRole(role);
           HotpotApp.setAuth({
             name: user.name || username,
-            role: user.role || role,
-            storeName: isExec ? "集团总部" : isHQ ? "全国总部" : isRegional ? "台州区域" : storeName,
-            storeId: noStore || isRegional ? "*" : storeIdVal,
+            role,
+            storeName: isExec ? "集团总部" : isHQ ? "全国总部" : isRegional ? "台州区域" : selectedStoreName,
+            storeId: noStore || isRegional ? "*" : (user.store_id && user.store_id !== "*" ? user.store_id : selectedStoreId),
             token: tok.access_token,
           });
-          window.location.href = targetAfterLogin(mobile, user.role || role);
+          window.location.href = targetAfterLogin(mobile, role);
         })
         .catch(() => {
-          alert("登录失败：请确认账号、密码与角色匹配");
+          alert("登录失败：请确认账号与密码");
         });
     }
 

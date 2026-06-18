@@ -265,16 +265,18 @@ const HotpotApp = (() => {
     return getAuth()?.storeId || "store_yuhuan";
   }
 
-  async function hubLogin(username, password, storeIdVal, role) {
+  async function hubLogin(username, password, storeIdVal) {
+    // Role is server-authoritative: the frontend login flow only submits account
+    // credentials, and the backend derives the role from the bound account.
+    const payload = {
+      username: username || "zhangdian",
+      password: password || "demo",
+      store_id: storeIdVal || "store_yuhuan",
+    };
     const res = await fetch(`${hubUrl()}/auth/token`, {
       method: "POST",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({
-        username: username || "zhangdian",
-        password: password || "demo",
-        store_id: storeIdVal || "store_yuhuan",
-        role: role || "店长",
-      }),
+      body: JSON.stringify(payload),
     });
     if (!res.ok) throw new Error("Hub 登录失败: " + res.statusText);
     return res.json();
