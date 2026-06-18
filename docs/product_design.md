@@ -4,14 +4,15 @@
 
 | 项目 | 内容 |
 |------|------|
-| 文档版本 | V1.5 |
+| 文档版本 | V1.6 |
 | 文档类型 | 产品需求与设计规格 |
 | 上游 | [solution.md](solution.md)（解决方案） |
 | 下游 | [development_delivery_plan.md](development_delivery_plan.md) · [design_dev_implementation_plan.md](design_dev_implementation_plan.md) · [sprint_task_backlog.md](sprint_task_backlog.md) |
 | 文档索引 | [product_design_index.md](product_design_index.md) · [product_goal_card.md](product_goal_card.md) |
 | PoC / MVP UI | `dashboard/`（HTML 原型，见 [figma_component_spec.md §10](figma_component_spec.md#10-html-原型与-figma-对齐策略)） |
-| 更新日期 | 2026-06-16 |
+| 更新日期 | 2026-06-19 |
 | 全国连锁层级 | [product_hierarchy_national_chain.md](product_hierarchy_national_chain.md) |
+| 创业切入口 | [kitchen_loss_prediction_wedge_plan.md](kitchen_loss_prediction_wedge_plan.md) — 以后厨损耗预测先证明 ROI |
 
 ---
 
@@ -47,7 +48,7 @@
 | 我们做 | 我们不做（Phase 1） |
 |--------|---------------------|
 | 运营监测、告警、日报、SOP 数字化 | 替 POS 收银、替 ERP 下单 |
-| 翻台/清台/来料 **建议** | 自动扣款、自动退货（仅建议+工单） |
+| 翻台/清台/来料/损耗 **建议** | 自动扣款、自动退货（仅建议+工单） |
 | 食安与成本 **数据闭环** | 人脸识别、个体追踪 |
 | 总部标准下发与跨店对标 | 完整 HR/排班系统 |
 
@@ -60,6 +61,21 @@
 | 提升 SOP 执行率 | SOP 页 + 班次报告 | 违规 30min 内有人 ack |
 | 缩短决策时间 | LLM 日报 + 告警推送 | 日报阅读率 >80% |
 | 可复制到加盟 | 预配置 + 只读总部配置 | 加盟店零配置部署 |
+
+### 1.3.1 创业切入口（Phase 1 聚焦）
+
+外部创业讨论的最终聚焦是：**先从最痛、最容易量化 ROI 的后厨损耗预测切入**。因此 Phase 1 的叙事从“五项目标并列”调整为“一条主路径 + 多模块支撑”：
+
+> **主路径：后厨损耗预测闭环** = ERP/POS/采购单基线 + PDA 收货/称重/签字 + IoT 冷链/门磁 + 成本页归因 + 告警/SOP/日报闭环。
+
+| 层级 | 说明 |
+|------|------|
+| 主战场 | 后厨损耗：短重、质差、超温、临期、备货过量、异常耗用 |
+| 第一 ROI | 可归因损耗金额、损耗率、预测命中率、行动闭环率 |
+| 支撑模块 | SOP 用于整改，告警用于提醒，日报用于复盘，层级看板用于跨店复制 |
+| 后续扩展 | 翻台效率、SOP 合规、增收推销、供应商 KPI 按阶段逐个突破 |
+
+详见 [后厨损耗预测切入计划](kitchen_loss_prediction_wedge_plan.md)。
 
 ### 1.4 产品价值主张（按角色）
 
@@ -336,9 +352,13 @@ stateDiagram-v2
 | F-C03 | VLM 品质等级 | P0 | 作为收货员，外观等级要记录 | A/B/C/D + 截图 |
 | F-C04 | 拒收建议 | P0 | 作为厨师长，系统建议拒收我要看理由 | LLM 一句说明 |
 | F-C05 | 出成率 | P1 | 作为厨师长，改刀损耗要量化 | 领料秤 vs 出成秤 |
-| F-C06 | 供应商累计 KPI | P2 | 作为 PMO，我要排名 | 区域/全国榜单 |
+| F-C06 | 后厨损耗风险 TopN | P1 | 作为厨师长，我想提前知道哪些 SKU/批次可能造成损耗 | 临期/超温/短重/异常耗用 TopN，含建议动作 |
+| F-C07 | 损耗预测闭环 | P1.5 | 作为店长，我想知道预测是否被处理并减少损耗 | 风险→动作→结果在日报中可追踪 |
+| F-C08 | 供应商累计 KPI | P2 | 作为 PMO，我要排名 | 区域/全国榜单 |
 
 **PoC 已有**：F-C01~C02 摘要（cost-summary + cost-list）
+
+**创业切入优先级**：F-C01~C04 + F-P01~P06 + F-K01~K03 是 P1A“损耗可见”主线；F-C06 是 P1B“损耗预测”主线；F-C07 与 F-TASK/SOP 指派衔接，作为 P1C/P1.5 行动闭环。
 
 ### 5.5.1 模块：增收/推销（F-SALES · Phase 2）
 
@@ -504,7 +524,7 @@ stateDiagram-v2
 | 筹备区域 | `status=planned`，仅展示标签，无门店矩阵 |
 | 下钻 | 任意门店卡片/按钮 → `switchStore` → 单店看板 |
 
-**演示账号**：`quyududao` / `zongbu`，密码 `demo`，角色选「区域督导」或「总部 PMO」。
+**演示账号**：`quyududao`（区域督导）/ `zongbu`（总部 PMO），密码 `demo`。登录页选「演示身份」即绑定对应账号，**角色由服务端按账号判定**（前端不再传 role；账号与所选身份不符返回 403）。
 
 ### 6.5 运营后台 IA（F-HQ08~11 · Phase 2）
 
@@ -730,6 +750,8 @@ timeline
 |------|------|----------|----------|
 | **V0.1 PoC** | 已完成 | 单页看板 | 方案验证 |
 | **V1.0 试点** | +12 周 | 分模块看板 + PDA + 推送 | 玉环 + 椒江 2 店可用 |
+| **V1.0A 损耗可见** | +2~4 周 | 后厨损耗归因、短重/超温/异常批次、估算金额 | 先证明 ROI |
+| **V1.0B 损耗预测** | +4~6 周 | 损耗风险 TopN + 建议动作 | 厨师长可提前干预 |
 | **V1.1/P1.5 任务内核** | +2~3 周 | F-TASK kernel + SOP 兼容 | 不抢占 BL-01~08，feature flag |
 | **V1.5 区域** | +4 月 | 跨店 + OTA + 工单 | 20 店复制 |
 | **V2.0 全国** | +6 月 | 中台 + 加盟简版 | 50+ 店 |
@@ -746,7 +768,7 @@ timeline
 | 桌态 | F-T01~T03 |
 | 后厨 IoT | F-K01~K04 |
 | SOP | F-S01~S05 |
-| 成本 | F-C01~C04 |
+| 成本/损耗 | F-C01~C04（P1A） · F-C06（P1B 规划） |
 | 告警 | F-A01~A04 |
 | 日报 | F-R01~R02 |
 | PDA | F-P01~P03, P05~P06 |
@@ -754,7 +776,7 @@ timeline
 
 ### 12.2 Should Have
 
-F-T04~T06, F-K05~K07, F-S06~S07, F-C05, F-R03~R04, F-P04, F-P07, F-H03~H04
+F-T04~T06, F-K05~K07, F-S06~S07, F-C05~C07, F-R03~R04, F-P04, F-P07, F-H03~H04
 
 **P1.5 Should Have**：F-TASK01~04（轻量任务内核、SOP 兼容、SLA 派生标记、任务事件审计）。
 

@@ -4,8 +4,8 @@
 
 | 项目 | 内容 |
 |------|------|
-| 版本 | V1.5 |
-| 更新 | 2026-06-16 |
+| 版本 | V1.6 |
+| 更新 | 2026-06-19 |
 | 前置 | 产品设计规格 OK · [product_design_index.md](product_design_index.md) |
 | 评审 | [architecture_review_checklist.md](architecture_review_checklist.md)（AR-401） |
 | 会议 | [ar401_meeting_invite_20260618.md](ar401_meeting_invite_20260618.md) · **6/18 10:00** |
@@ -57,13 +57,14 @@ flowchart TB
 
 | 检查项 | 产品文档 | 架构文档 | 状态 |
 |--------|----------|----------|------|
-| 功能 ID 完整 | `product_design.md` §5 | `architecture_api_spec.md` §6 | ✅ V1.1 |
+| 功能 ID 完整 | `product_design.md` §5 | `architecture_api_spec.md` §6 | ✅ V1.2 |
 | 全国层级 | `product_hierarchy_national_chain.md` | `architecture_hierarchy_phase_plan.md` | ✅ |
 | F-EXEC01 vs F-HQ12 | 驾驶仓 P1 · national UI P2 | API 双挂 §2.7 | ✅ |
 | F-TASK | §5.4.1 · task 详设 | api §3 · data §5.4~5.5 | ✅ |
 | DEV 编号 | `sprint_task_backlog` §12.1 | hierarchy §8 · task §13 | ✅ |
 | 角色目标态 | PRD §9 + §9.1 | DEV-503/528~530 | ✅ |
-| ADR | product §2.1 P8 | ADR-001~013 | ✅ |
+| ADR | product §2.1 P8 | ADR-001~016 | ✅ |
+| 后厨损耗预测切入口 | PRD §1.3.1 · F-C06~07 | ADR-016 · phase1 C-05 lead loop | ✅ |
 
 ---
 
@@ -73,15 +74,16 @@ flowchart TB
 |------|------|------|
 | **设计 vs 分期交付（总原则）** | [architecture_decisions.md ADR-013](architecture_decisions.md#adr-013设计先行实现与真数据接入分期) | product_design §2.1 |
 | **开发交付主计划** | [development_delivery_plan.md](development_delivery_plan.md) | 全文 · 同步机制 §2 |
-| **15 分钟 Phase 1 规格** | [architecture_design_phase1.md](architecture_design_phase1.md) | **V1.1** 全文 |
+| **15 分钟 Phase 1 规格** | [architecture_design_phase1.md](architecture_design_phase1.md) | **V1.2** 全文 |
+| **后厨损耗预测 lead loop** | [kitchen_loss_prediction_wedge_plan.md](kitchen_loss_prediction_wedge_plan.md) | P1A/P1B/P1C |
 | **全国连锁层级 · 分阶段** | [architecture_hierarchy_phase_plan.md](architecture_hierarchy_phase_plan.md) | 全文 |
 | 30 分钟架构总览 | [design_dev_implementation_plan.md](design_dev_implementation_plan.md) | §1.1~1.2 目标与三层架构 |
 | 模块与数据流 | 同上 | §1.3 模块 · §1.2.3 六闭环 C-01~C06 |
-| REST API 目录 | [architecture_api_spec.md](architecture_api_spec.md) | **V1.1** 全量 · PRD 主映射 §6 |
-| 数据模型 / 表结构 | [architecture_data_model_phase1.md](architecture_data_model_phase1.md) | **V1.1** OpsEvent · tasks · 组织 · 追溯 |
+| REST API 目录 | [architecture_api_spec.md](architecture_api_spec.md) | **V1.2** 全量 · PRD 主映射 §6 |
+| 数据模型 / 表结构 | [architecture_data_model_phase1.md](architecture_data_model_phase1.md) | **V1.2** OpsEvent · tasks · 组织 · 追溯 · loss features |
 | 部署拓扑 | [architecture_deployment_phase1.md](architecture_deployment_phase1.md) | docker · systemd · 两店 |
 | **业务/Admin 分离（nginx）** | [deploy/nginx/README.md](../deploy/nginx/README.md) | combined · 子域 · 双端口 |
-| 架构决策 ADR | [architecture_decisions.md](architecture_decisions.md) | ADR-001~013 |
+| 架构决策 ADR | [architecture_decisions.md](architecture_decisions.md) | ADR-001~016 |
 | 事件模型 / ER / 存储 | design_dev | §1.4 数据设计 |
 | 部署与安全 | design_dev | §1.5~1.6 |
 | PoC → 生产差距 | [poc_to_production_gap.md](poc_to_production_gap.md) | 全文 |
@@ -211,10 +213,11 @@ flowchart TB
 |------|------|
 | **architecture_design_index.md** | 本索引 · DoD · BL 映射 |
 | [architecture_design_phase1.md](architecture_design_phase1.md) | Phase 1 架构规格（可读主文档） |
-| [architecture_api_spec.md](architecture_api_spec.md) | REST API V1.1 · PRD 主映射 §6 |
-| [architecture_data_model_phase1.md](architecture_data_model_phase1.md) | 数据模型 V1.1 · OpsEvent · tasks · 组织 |
+| [kitchen_loss_prediction_wedge_plan.md](kitchen_loss_prediction_wedge_plan.md) | 创业切入口：后厨损耗预测 lead loop |
+| [architecture_api_spec.md](architecture_api_spec.md) | REST API V1.2 · PRD 主映射 §6 |
+| [architecture_data_model_phase1.md](architecture_data_model_phase1.md) | 数据模型 V1.2 · OpsEvent · tasks · 组织 · loss features |
 | [architecture_deployment_phase1.md](architecture_deployment_phase1.md) | docker · systemd · 两店拓扑 |
-| [architecture_decisions.md](architecture_decisions.md) | ADR-001~013 |
+| [architecture_decisions.md](architecture_decisions.md) | ADR-001~016 |
 | [architecture_changelog.md](architecture_changelog.md) | 架构变更日志 |
 | [architecture_review_checklist.md](architecture_review_checklist.md) | AR-401 评审清单 |
 | [ar401_meeting_invite_20260618.md](ar401_meeting_invite_20260618.md) | 会议邀请定稿 |

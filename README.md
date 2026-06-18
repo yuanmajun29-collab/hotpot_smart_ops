@@ -30,7 +30,8 @@ curl http://127.0.0.1:8088/benchmark
 | 类型 | 文档 |
 |------|------|
 | 目标 | [product_goal_card.md](docs/product_goal_card.md) — 一页目标卡 |
-| PRD | [product_design.md](docs/product_design.md) — 产品设计规格 V1.1 |
+| 切入口 | [kitchen_loss_prediction_wedge_plan.md](docs/kitchen_loss_prediction_wedge_plan.md) — 后厨损耗预测先证明 ROI |
+| PRD | [product_design.md](docs/product_design.md) — 产品设计规格 V1.6 |
 | 故事 | [user_story_map.md](docs/user_story_map.md) — 用户故事地图 |
 | 界面 | [figma_component_spec.md](docs/figma_component_spec.md) — 组件与 Frame |
 | 推送 | [push_notification_templates.md](docs/push_notification_templates.md) — 企微文案 |
@@ -56,7 +57,7 @@ curl http://127.0.0.1:8088/benchmark
 | [architecture_api_spec.md](docs/architecture_api_spec.md) | REST API + /v1 规划 |
 | [architecture_data_model_phase1.md](docs/architecture_data_model_phase1.md) | OpsEvent · 表结构 |
 | [architecture_deployment_phase1.md](docs/architecture_deployment_phase1.md) | docker · systemd · 两店 |
-| [architecture_decisions.md](docs/architecture_decisions.md) | ADR-001~008 |
+| [architecture_decisions.md](docs/architecture_decisions.md) | ADR-001~016 |
 | [architecture_review_checklist.md](docs/architecture_review_checklist.md) | AR-401 评审清单 |
 | [ar401_code_directory_mapping.md](docs/ar401_code_directory_mapping.md) | **会前必读** · 代码目录映射 |
 | [ar401_meeting_invite_20260618.md](docs/ar401_meeting_invite_20260618.md) | **6/18 10:00** 邀请定稿 |

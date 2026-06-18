@@ -4,6 +4,17 @@
 
 ---
 
+## V1.8 · 2026-06-19
+
+| 变更 | 说明 |
+|------|------|
+| 新增 `kitchen_loss_prediction_wedge_plan.md` | 在全局运营副驾驶不变前提下，Phase 1 创业切入口收束为“后厨损耗预测闭环” |
+| `product_design.md` V1.6 | 新增 §1.3.1；F-C06/F-C07；路线图拆 P1A 损耗可见、P1B 损耗预测、P1C 行动闭环 |
+| `product_goal_card.md` V1.1 | 北极星调整为可归因后厨损耗闭环率；目标 2 明确为 Phase 1 主切入口 |
+| 对齐 | `architecture_design_phase1` C-05 lead loop · `development_delivery_plan` P1A/P1B/P1C · ADR-016 |
+
+---
+
 ## V1.7 · 2026-06-16
 
 | 变更 | 说明 |

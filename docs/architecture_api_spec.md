@@ -4,10 +4,10 @@
 
 | 项目 | 内容 |
 |------|------|
-| 版本 | V1.1 |
+| 版本 | V1.2 |
 | 服务 | `cloud/event_hub/app.py` |
 | Base URL | `http://<host>:8088` |
-| 鉴权 | `Authorization: Bearer <jwt>` · 边缘 `X-API-Key` · demo 模式宽松 |
+| 鉴权 | `Authorization: Bearer <jwt>` · 边缘 `X-API-Key`。登录**服务端权威**（账号→角色，前端不可选角色）；`auth_mode` demo 仅放宽**匿名**请求，**已认证用户跨店读写一律 403（Phase 1，非 P2）**。 |
 | 对齐 | [product_design.md §5](product_design.md#5-功能规格feature-prd) · [architecture_hierarchy_phase_plan.md §3](architecture_hierarchy_phase_plan.md#3-api-分层) |
 
 ---
@@ -29,11 +29,13 @@
 | 方法 | 路径 | 说明 | PRD | 状态 |
 |------|------|------|-----|:----:|
 | GET | `/health` | 健康检查、db_backend | F-H01 | ✅ |
-| GET | `/metrics` | 运行指标 | F-H01 | ✅ |
+| GET | `/metrics` | 运行指标（按可读门店聚合） | F-H01 | ✅ |
 | POST | `/auth/token` | 登录换 Token | — | ✅ |
 | GET | `/v1/auth/me` | 当前用户 + role + data_scope + can_admin | F-HQ10 | ✅ demo |
-| GET | `/stores` | 门店列表 | — | ✅ |
+| GET | `/stores`（=`/v1/stores`） | 门店列表（**按 data_scope 过滤**：店级仅见本店，区域/全国见范围内） | — | ✅ |
 | POST | `/seed` | 灌演示数据 | — | ✅ dev |
+
+> **认证与授权（Phase 1 现状）**：① 登录 `/auth/token` 由后端按账号判定角色，客户端传入与账号不符的 `role` 返回 403（`login_user`）；前端登录链路已无 role 入口（`hubLogin(username,password,storeId)`）。② `auth_mode`（`HOTPOT_AUTH_MODE`）运行时读取：`demo` 仅对**匿名**请求放行，`strict` 要求全程鉴权。③ **跨店隔离为 Phase 1 不变量**：已认证 store-scoped 用户（`store_id≠*`）读/写他店 403（`enforce_store_read/write`），仅匿名 demo 与 region/national scope 例外；`/v1/stores`、`/v1/alerts/routes`、`/metrics` 按可读门店过滤，区域/全国 rollup 对店级账号 403。回归见 `tests/test_store_isolation.py`、`tests/test_dashboard_auth_contract.py`。
 
 ### 2.2 读模型（门店看板）
 
@@ -65,7 +67,7 @@
 | 方法 | 路径 | 说明 | PRD | 状态 |
 |------|------|------|-----|:----:|
 | GET | `/alerts/push-log` | 企微推送日志 | F-A04 | ✅ |
-| GET | `/alerts/routes` | webhook 配置状态（脱敏） | DEV-414 | ✅ |
+| GET | `/alerts/routes` | webhook 配置状态（脱敏，**按可读门店过滤**） | DEV-414 | ✅ |
 | POST | `/alerts/test-push` | 发送测试卡片 | DEV-414 | ✅ |
 | GET | `/alerts/acks` | ack 列表 | F-A03 | ✅ |
 | POST | `/alerts/ack` | 确认告警 | F-A03 | ✅ |
@@ -100,8 +102,8 @@
 | 方法 | 路径 | 说明 | PRD | Phase | 状态 |
 |------|------|------|-----|-------|:----:|
 | GET | `/benchmark` | 区域对标（兼容别名） | F-HQ01 | 1 | ✅ |
-| GET | `/v1/region/overview` | 区域/大区总揽 `?region_id=` | F-HQ06/07 | 1 | ✅ |
-| GET | `/v1/national/overview` | 全国 rollup KPI + 异常店 | **F-EXEC01** · F-HQ12 | 1 API / 2 UI | ✅ |
+| GET | `/v1/region/overview` | 区域/大区总揽 `?region_id=`（**店级账号 403**，需 region/national scope） | F-HQ06/07 | 1 | ✅ |
+| GET | `/v1/national/overview` | 全国 rollup KPI + 异常店（**店级账号 403**，需 region/national scope） | **F-EXEC01** · F-HQ12 | 1 API / 2 UI | ✅ |
 
 **F-EXEC01 vs F-HQ12**：
 
@@ -132,7 +134,25 @@
 
 ---
 
-## 3. Phase 1.5 规划 API（F-TASK · feature flag）
+## 3. Phase 1.x / 1.5 规划 API（LOSS + F-TASK）
+
+### 3.1 后厨损耗风险（P1B 规划 · LOSS）
+
+| 方法 | 路径 | 说明 | PRD | Phase |
+|------|------|------|-----|-------|
+| GET | `/v1/cost/loss-risk` | 损耗风险 TopN：SKU/批次/金额/原因/建议动作 | F-C06 | 1.x |
+
+请求参数：
+
+| 参数 | 说明 |
+|------|------|
+| `store_id` | 店级查询；受 `data_scope` 约束 |
+| `date` | 业务日期，默认今日 |
+| `limit` | TopN 条数，默认 10 |
+
+响应字段：`sku`、`batch_id`、`risk_score`、`estimated_loss_amount`、`reason`、`suggested_action`、`ref_type/ref_id`。P1B 先基于规则 baseline 与 snapshots/OpsEvent；P1C 接 `/v1/sop/assign` 或后续 F-TASK。
+
+### 3.2 Phase 1.5 规划 API（F-TASK · feature flag）
 
 > 详设：[task_supervision_engine_design.md §8](task_supervision_engine_design.md#8-api-设计v1tasks) · DEV-520~524
 
@@ -176,7 +196,7 @@
 | GET/POST/PUT | `/v1/sales/rules` | F-SALES 规则版话术/触发 | F-SALES01~03 | DEV-529 |
 | GET | `/v1/trace/{trace_id}` | 追溯链查询 | F-TRACE01~02 | DEV-530 |
 
-**鉴权（Phase 2 strict）**：`HOTPOT_AUTH_MODE=strict`；JWT `data_scope` + `scope_ids[]`；写操作需对应 `admin:*` / `sales:rule:write` / `trace:read`。
+**鉴权分期**：基础 **store-scope 跨店隔离与 rollup scope 已在 Phase 1 强制**（见 §2.1 认证与授权）。**Phase 2 strict** 追加：`HOTPOT_AUTH_MODE=strict` 全程鉴权、JWT `scope_ids[]` 多店范围、细粒度写权限 `admin:*` / `sales:rule:write` / `trace:read`。
 
 ---
 
@@ -231,6 +251,7 @@
 | F-K01~04 | `/iot`, `/events`, `/v1/iot/readings*` | 1 |
 | F-S01~05 | `/sop`, `/sop/ask`, `/v1/sop/assign*` | 1 |
 | F-C01~04 | `/cost`, `/erp`, VLM `/review`, `/v1/receiving/*` | 1 |
+| F-C06~07 | `/v1/cost/loss-risk`（规划） + `/v1/sop/assign*` | 1.1/1.5 |
 | F-A01~04 | `/events`, `/alerts/*`, `/v1/audit/acks` | 1 |
 | F-R01~02 | `/v1/reports/daily*` | 1 |
 | F-P01~06 | `/erp`, `/v1/receiving/*` | 1 |
@@ -256,5 +277,6 @@
 
 | 版本 | 日期 | 说明 |
 |------|------|------|
+| V1.2 | 2026-06-19 | 新增后厨损耗风险规划接口 `/v1/cost/loss-risk`；同步 Phase 1 权限隔离现状 |
 | V1.1 | 2026-06-16 | 与 PRD/层级计划对齐：已实现 API 归档、F-EXEC01/F-HQ12 双挂、Admin stub、P1.5 tasks、P2 sales/trace |
 | V1.0 | 2026-06-15 | Phase 1 初版 |

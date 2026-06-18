@@ -4,6 +4,17 @@
 
 ---
 
+## V1.5 · 2026-06-19
+
+| 变更 | 说明 |
+|------|------|
+| `architecture_design_phase1.md` V1.2 | C-05 从“来料成本”升级为“来料成本 / 损耗预测 lead loop”，新增 loss-risk 规划接口与可解释性 NFR |
+| `architecture_api_spec.md` | PRD 主映射新增 F-C06~07 → 规划 `/v1/cost/loss-risk` + `/v1/sop/assign*` |
+| `architecture_data_model_phase1.md` | 新增 P1B 损耗预测规划实体，强调先复用 snapshots/OpsEvent、再落 `loss_features/loss_predictions` |
+| `architecture_decisions.md` | 新增 ADR-016：Phase 1 创业切入口以后厨损耗预测为 lead loop |
+
+---
+
 ## V1.4 · 2026-06-16
 
 | 变更 | 说明 |

@@ -4,8 +4,8 @@
 
 | 项目 | 内容 |
 |------|------|
-| 版本 | V1.0 |
-| 更新 | 2026-06-16 |
+| 版本 | V1.1 |
+| 更新 | 2026-06-19 |
 | 读者 | 产品 · 架构 · 研发 · 测试 · PMO |
 | 原则 | [ADR-013](architecture_decisions.md#adr-013设计先行实现与真数据接入分期) — 设计写全，落地分期 |
 | 关联 | [product_design_index.md](product_design_index.md) · [architecture_design_index.md](architecture_design_index.md) · [sprint_task_backlog.md](sprint_task_backlog.md) |
@@ -125,7 +125,7 @@ gantt
 
 ### 3.2 Phase 1 · 试点 Go-Live（当前焦点）
 
-**目标**：玉环 + 椒江 2 店，执行看板 + 层级 + 驾驶仓 v1 可 UAT；**不以 Admin DB、F-TASK 为前置**。
+**目标**：玉环 + 椒江 2 店，执行看板 + 层级 + 驾驶仓 v1 可 UAT；**不以 Admin DB、F-TASK 为前置**。创业切入口收束为“后厨损耗预测闭环”：先打穿成本/来料/IoT/PDA，再扩展其他场景。
 
 | 泳道 | Epic | 关键 DEV | 设计产物 | 测试 |
 |------|------|----------|----------|------|
@@ -137,6 +137,16 @@ gantt
 | 实施 | EPIC-5 | IMP-401~402 | deployment_phase1 | acceptance §2 |
 
 **Go-Live 门槛**：[phase1_mvp_acceptance_checklist.md](phase1_mvp_acceptance_checklist.md) P0 行「文档+UI+API」✅，「真数据+UAT」无 ❌。
+
+### 3.2.1 后厨损耗预测切入口（P1A → P1B → P1C）
+
+| 阶段 | DEV 重点 | 范围 | 不做 |
+|------|----------|------|------|
+| **P1A 损耗可见** | DEV-416~420 + ERP/POS bridge | 收货批次、短重/超温/质差、估算损耗金额、签字责任链 | 复杂预测模型 |
+| **P1B 损耗预测** | LOSS-401~403（新增 backlog） | 规则 baseline：临期、超温、短重、异常耗用 TopN；规划 `/v1/cost/loss-risk` | 自动扣款/退货 |
+| **P1C 行动闭环** | DEV-421 + P1.5 F-TASK | 风险一键生成 SOP 指派/复称/优先消耗，日报追踪结果 | 大而全工作流中台 |
+
+**实施原则**：P1A/P1B 先复用 `receiving_*`、`iot_readings`、`store_snapshots.cost`、OpsEvent，不急于新增大表；若 P1B 验证有效，再在 data_model 中补 `loss_features` / `loss_predictions`。
 
 ### 3.3 Phase 1.5 · F-TASK（feature flag）
 
@@ -315,6 +325,7 @@ flowchart TB
 | **MR 门禁** | `pytest tests/ -q` | 全绿 |
 | **发版前** | pytest + `bash scripts/run_e2e_stub_flow.sh` | 无失败 |
 | **Go-Live 前** | acceptance §2 P0 人工勾 + BL 专项现场 | 真数据列 ✅ |
+| **损耗预测 P1B 前** | loss-risk 样本回放 + 厨师长 UAT | TopN 有原因、可执行、可人工确认 |
 | **Phase 切换** | 跑 §1.2 对齐 7 项 + api_spec §6  diff | 无 orphan API |
 | **Admin P2 后** | strict 模式 + 跨店 403 用例 | RBAC 矩阵 |
 

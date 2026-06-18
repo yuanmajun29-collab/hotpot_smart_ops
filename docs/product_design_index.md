@@ -4,8 +4,8 @@
 
 | 项目 | 内容 |
 |------|------|
-| 版本 | V1.4 |
-| 更新 | 2026-06-16 |
+| 版本 | V1.5 |
+| 更新 | 2026-06-19 |
 | 维护人 | 产品 |
 
 ---
@@ -16,6 +16,7 @@
 |------|----------|------|
 | 立项 / 决策层汇报 | [executive_summary_onepager.md](executive_summary_onepager.md) | [solution.md §1](solution.md#1-执行摘要) |
 | 对齐产品目标（5 分钟） | [product_goal_card.md](product_goal_card.md) | [product_design.md §1](product_design.md#1-产品定位与目标) |
+| **创业切入口 / 后厨损耗预测** | [kitchen_loss_prediction_wedge_plan.md](kitchen_loss_prediction_wedge_plan.md) | PRD §1.3.1 · architecture phase1 C-05 |
 | **设计 vs 分期交付（总原则）** | [product_design.md §2.1](product_design.md#21-设计完整性-vs-分期交付) | [ADR-013](architecture_decisions.md#adr-013设计先行实现与真数据接入分期) |
 | **产品综观（决策层 / 新人 onboarding）** | [product_overview.md](product_overview.md) | 本文 |
 | 功能范围与验收标准 | [product_design.md §5、§12](product_design.md#5-功能规格feature-prd) | [phase1_mvp_acceptance_checklist.md](phase1_mvp_acceptance_checklist.md) |
@@ -39,7 +40,7 @@
 | 研发排期与阻塞项 | [sprint_task_backlog.md §6.1](sprint_task_backlog.md#61-uat-go-live-阻塞专项dev-408) | [poc_to_production_gap.md](poc_to_production_gap.md) |
 | **产品与架构对齐检查** | [architecture_design_index.md §1.2](architecture_design_index.md#12-产品--架构-对齐检查评审用) | api_spec §6 |
 | **架构设计评审** | [architecture_design_index.md](architecture_design_index.md) | [architecture_review_checklist.md](architecture_review_checklist.md) AR-401 |
-| **API 与 PRD 映射** | [architecture_api_spec.md §6](architecture_api_spec.md#6-与产品功能追溯主映射) | data_model V1.1 |
+| **API 与 PRD 映射** | [architecture_api_spec.md §6](architecture_api_spec.md#6-与产品功能追溯主映射) | api V1.2 · data_model V1.2 |
 | 现场部署 | [pilot_deployment_checklist_direct.md](pilot_deployment_checklist_direct.md) | [design_dev_implementation_plan.md](design_dev_implementation_plan.md) |
 
 ---
@@ -127,13 +128,14 @@ Phase 1 **产品设计阶段**视为「完善」需同时满足：
 
 | 文档 | 当前版本 |
 |------|----------|
-| product_design.md | V1.5 |
+| product_design.md | V1.6 |
+| kitchen_loss_prediction_wedge_plan.md | V1.0 |
 | product_hierarchy_national_chain.md | V1.2 |
 | product_overview.md | V1.0 |
 | product_completeness_review.md | V1.0 |
 | figma_component_spec.md | V1.1 |
 | user_story_map.md | V1.1（§8 US 状态） |
-| product_goal_card.md | V1.0 |
+| product_goal_card.md | V1.1 |
 | phase1_mvp_acceptance_checklist.md | V1.1 |
 
 ---

@@ -4,9 +4,9 @@
 
 | 项目 | 内容 |
 |------|------|
-| 版本 | V1.1 |
+| 版本 | V1.2 |
 | 代码 | `shared/schemas.py` · `cloud/event_hub/db.py` · `pg_db.py` |
-| 更新 | 2026-06-16 |
+| 更新 | 2026-06-19 |
 | 对齐 | [architecture_api_spec.md](architecture_api_spec.md) · [task_supervision_engine_design.md](task_supervision_engine_design.md) |
 
 ---
@@ -176,6 +176,27 @@
 | to_status | 可选 |
 | note | reason、reassign sla_policy 等 |
 | ts | ISO8601 |
+
+---
+
+### 5.6 loss_features / loss_predictions（P1B 规划 · LOSS-401~403）
+
+> 说明：P1A/P1B 初期优先复用 `receiving_batches`、`iot_readings`、`store_snapshots.cost` 与 OpsEvent，不急于新增大表；当样本回放与厨师长 UAT 证明有效后，再落下列表结构。
+
+| 表 | 用途 | Phase |
+|----|------|-------|
+| `loss_features` | SKU/批次/班次维度风险特征：短重、超温、临期、异常耗用、备货偏差 | P1B |
+| `loss_predictions` | 风险 TopN 输出：risk_score、reason、suggested_action、人工确认结果 | P1B/P1C |
+
+关键字段：
+
+| 字段 | 位置 | 说明 |
+|------|------|------|
+| `ref_type` / `ref_id` | 两表 | 关联 receiving_batch、iot_reading、pos/erp snapshot 或 OpsEvent |
+| `risk_score` | loss_predictions | 0~1；规则 baseline 或模型输出 |
+| `reason` | loss_predictions | 必填；短重/超温/临期/异常耗用等可解释原因 |
+| `suggested_action` | loss_predictions | 复称、优先消耗、退货留证、SOP 整改 |
+| `confirmed_by` / `confirmed_result` | loss_predictions | 厨师长确认，用于预测命中率与闭环率 |
 
 ---
 

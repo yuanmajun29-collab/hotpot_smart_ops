@@ -4,28 +4,29 @@
 
 | 项目 | 内容 |
 |------|------|
-| 版本 | V1.1 |
+| 版本 | V1.2 |
 | 范围 | L1 边缘 + L2 Hub + 观测面/管控面分离（L3 Admin 生产级 Phase 2） |
 | 关联 | [development_delivery_plan.md](development_delivery_plan.md) · [product_design.md §12](product_design.md#12-phase-1-mvp-范围) |
 | 索引 | [architecture_design_index.md](architecture_design_index.md) |
 | 评审 | [ar401_review_outcome_20260616.md](ar401_review_outcome_20260616.md) |
-| 更新 | 2026-06-16 |
+| 更新 | 2026-06-19 |
 
 ---
 
 ## 1. 架构目标（Phase 1）
 
-在 **2 家直营试点店** 验证可复制技术栈，支撑 [product_goal_card.md](product_goal_card.md) 五项目标：
+在 **2 家直营试点店** 验证可复制技术栈。全局仍支撑 [product_goal_card.md](product_goal_card.md) 五项目标，但 Phase 1 创业切入口收束为 **后厨损耗预测闭环**：
 
 | 目标 | 架构抓手 |
 |------|----------|
+| 后厨损耗预测（主线） | ERP/POS/receiving/IoT → loss feature baseline → 成本页/告警/SOP/日报 |
 | 翻台效率 | L1 CV 桌态 + L2 POS 集成 + Hub 翻台建议 |
 | 降损耗 | L1 IoT 秤 + L2 ERP/成本分析 |
 | SOP 执行 | L2 SOP Engine + 调度器 + `/v1/sop/assign` |
 | 缩短决策 | L2 AlertGateway + LLM 日报 + 层级/驾驶仓 rollup |
 | 可复制 | 店级 config + systemd/docker + org_registry 打桩 |
 
-**非目标（Phase 1）**：K8s 多区域、总部 ModelHub/ConfigHub 生产级、TimescaleDB 全量、strict RBAC 入库、F-TASK 生产默认开启。
+**非目标（Phase 1）**：K8s 多区域、总部 ModelHub/ConfigHub 生产级、TimescaleDB 全量、总部 RBAC 入库/Admin CRUD、F-TASK 生产默认开启。
 
 **设计原则**：[ADR-013](architecture_decisions.md#adr-013设计先行实现与真数据接入分期) — 架构文档写全终局，实现与真数据分期。
 
@@ -114,8 +115,10 @@ flowchart TB
 | C-02 | 后厨合规 | CV+IoT→`/events`→AlertGateway | `/alerts/*` | ❌ mock |
 | C-03 | 食材全链路 | IoT→`/v1/iot/readings` | POST batch | ⚠️ stub |
 | C-04 | SOP | signals→engine→`/sop` assign | `/v1/sop/assign*` | ⚠️ seed |
-| C-05 | 来料成本 | ERP+秤→receiving | `/v1/receiving/*` | ⚠️ bridge |
+| **C-05** | **来料成本 / 损耗预测（lead loop）** | ERP/POS 基线 + PDA/秤/VLM + IoT 风险 → loss risk | `/v1/receiving/*` · `/cost` · 规划 `/v1/cost/loss-risk` | ⚠️ bridge |
 | C-06 | 日报 | scheduler→daily_reports | `/v1/reports/daily*` | ✅ API |
+
+**Lead loop 说明**：C-05 是 Phase 1A/P1B 的优先闭环，先输出“可归因损耗金额 + 风险 TopN + 建议动作”。C-01/C-02/C-04/C-06 保持，但作为损耗闭环的支撑场景逐步接入。
 
 ---
 
@@ -138,8 +141,9 @@ PRD 映射见 api_spec §6；与产品对齐检查见 [architecture_design_index
 | Hub API P95 | <200ms（摘要）·**target** | 单机经验值；待脚本压测实证（可本期补） |
 | critical 告警送达 | <30s 企微 | webhook 待店级 key |
 | VLM 层推理延迟 | 待实测后固化 | 按需 feature flag；默认 off；AOI 外部基准仅作参考 |
+| 损耗预测可解释性 | TopN 风险必须给出原因 | P1B 先用规则 baseline：短重、超温、临期、异常耗用；模型化后仍保留 reason |
 | 断网边缘缓存 | 24h·**P1.5（非 Phase1 硬验收）** | DEV-105 未实现；见 ADR-008 收敛口径 |
-| 多租户隔离 | store_id + data_scope | ⚠️ demo 宽松；P2 strict |
+| 多租户隔离 | store_id + data_scope | Phase 1 已强制已认证用户跨店 403；匿名 demo 便利例外；P2 入库/细粒度权限 |
 | 试点可用性 | 99%（单机） | PoC 级 |
 
 ---

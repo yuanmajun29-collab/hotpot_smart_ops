@@ -4,7 +4,7 @@
 
 | 项目 | 内容 |
 |------|------|
-| 版本 | V1.3 |
+| 版本 | V1.5 |
 | 周期 | 12 周（4 Sprint × 3 周） |
 | 总工时 | 约 **420 人日**（含缓冲 15%） |
 | 关联 | [product_design.md](product_design.md) · [user_story_map.md](user_story_map.md) · [design_dev_implementation_plan.md](design_dev_implementation_plan.md) |
@@ -520,9 +520,22 @@ IMP-402 Go-Live验收,Task,EPIC-5试点实施,0,P0,impl,Sprint 4,10项P0,4周KPI
 | DEV-420~422 | S4 | F-S04,F-S05,F-A03 | US-032, US-033, US-061 | Web/SOP, Web/Alerts |
 | DEV-423~424 | S3~S4 | F-R01 | US-063 | Web/Report, Push/DailyReport |
 | DEV-425~426 | S4 | — | US-071 | Web/Login |
+| LOSS-401~403 | P1.x | F-C06~C07 | US-040, US-050~053 | Web/Cost, Web/Report |
 | PM-401~402 | S4 | MVP P0 | — | — |
 
 完整 PRD 列表见 [product_design.md §5](product_design.md#5-功能规格feature-prd) · 用户故事见 [user_story_map.md §4](user_story_map.md#4-release-1-用户故事详表可进-jiralinear) · UAT 阻塞见 [§6.1](#61-uat-go-live-阻塞专项dev-408)
+
+---
+
+## 12.0 Phase 1.x · 后厨损耗预测切入口（LOSS-401~403）
+
+> 规格：[kitchen_loss_prediction_wedge_plan.md](kitchen_loss_prediction_wedge_plan.md) · PRD F-C06~07 · ADR-016。该切片不推翻 Sprint 1~4；它把 DEV-416~420、DEV-411~413、DEV-304/305 的产出串成“先证明 ROI”的主路径。
+
+| ID | 阶段 | 任务 | PRD | 预估 | 验收 |
+|----|------|------|-----|------|------|
+| **LOSS-401** | P1B | 损耗风险规则 baseline：短重、超温、临期、异常耗用 TopN | F-C06 | 4d | 每条风险有 SKU/批次/金额/原因/建议动作 |
+| **LOSS-402** | P1B | 规划并实现 `/v1/cost/loss-risk` 只读 API（先 snapshot，后 feature table） | F-C06 | 3d | 店级账号仅看本店；region/national 可 rollup；返回 reason |
+| **LOSS-403** | P1C | 风险 → SOP/复称/优先消耗动作闭环，日报追踪结果 | F-C07 | 5d | 风险可人工确认，动作完成后计入闭环率 |
 
 ---
 
@@ -590,6 +603,7 @@ IMP-402 Go-Live验收,Task,EPIC-5试点实施,0,P0,impl,Sprint 4,10项P0,4周KPI
 
 | 版本 | 日期 | 说明 |
 |------|------|------|
+| V1.5 | 2026-06-19 | 新增 §12.0 LOSS-401~403：后厨损耗预测 P1B/P1C 切片 |
 | V1.4 | 2026-06-16 | §12.1.1 F-TASK DEV-520~528；§12.1.2 DEV-529/530；DEV-504 注明 API 已有 |
 | V1.3 | 2026-06-16 | 新增 §12.1 Phase 2 EPIC-7（DEV-501~506 全国连锁 Admin） |
 | V1.2 | 2026-06-15 | 新增 §6.1 UAT Go-Live 阻塞专项 DEV-408~426 + PM-401/402 |

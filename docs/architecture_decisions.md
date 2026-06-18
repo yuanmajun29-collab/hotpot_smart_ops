@@ -232,6 +232,20 @@
 
 ---
 
+## ADR-016：Phase 1 创业切入口以后厨损耗预测为 lead loop
+
+| 项 | 内容 |
+|----|------|
+| 状态 | **已采纳**（2026-06-19） |
+| 背景 | 外部创业讨论将产品聚焦到“最痛、最可量化 ROI 的后厨损耗预测”。现有全局设计覆盖翻台、后厨、SOP、成本、告警、日报、层级，但 Phase 1 若五线并进，试点价值叙事会分散。 |
+| 决策 | **全局定位不变**：仍是连锁火锅门店运营副驾驶。**Phase 1 市场切入口收束为一条主路径**：ERP/POS/采购单基线 + PDA 收货/称重/签字 + IoT 冷链/门磁 + 成本页归因 + 告警/SOP/日报闭环，先证明后厨损耗 ROI。架构上将 C-05 从“来料成本”升级为“来料成本 / 损耗预测 lead loop”，规划 `/v1/cost/loss-risk`，但 P1A/P1B 先复用现有 receiving、iot、cost snapshot 与 OpsEvent。 |
+| 分期 | P1A 损耗可见：短重/超温/质差/金额/责任链；P1B 损耗预测：规则 baseline TopN，必须有 reason；P1C 行动闭环：复称/优先消耗/退货留证/SOP 整改接 `/v1/sop/assign`，后续接 F-TASK；P2 多店对标；P3 订货/备货优化。 |
+| 边界 | 只做预测、建议、排序、归因、人工确认；不做自动扣款、自动退货，不用黑盒模型替代厨师长判断。 |
+| 后果 | 产品北极星调整为“可归因后厨损耗闭环率”；PRD 新增 F-C06/F-C07；delivery plan 新增 LOSS-401~403；NFR 增加 TopN 可解释性。翻台/SOP/告警/日报不删除，作为损耗闭环支撑场景逐步接入。 |
+| 关联 | [kitchen_loss_prediction_wedge_plan.md](kitchen_loss_prediction_wedge_plan.md) · [product_design.md §1.3.1](product_design.md#131-创业切入口phase-1-聚焦) · [architecture_design_phase1.md](architecture_design_phase1.md) C-05 · [development_delivery_plan.md §3.2.1](development_delivery_plan.md#321-后厨损耗预测切入口p1a--p1b--p1c) |
+
+---
+
 ## PK 收敛纪要（2026-06-18 · Claude × Codex）
 
 事实漂移修正（ADR-004 已采纳 / ar401 映射 / 角色计数）+ 设计判断收敛：
