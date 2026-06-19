@@ -46,13 +46,17 @@ def test_compute_loss_risk_ranks_and_explains():
             {"batch_id": "B3", "sku": "黄喉", "variance_pct": 0.0, "vlm_grade": "C", "temp_c": -8.0},
         ]
     }
-    risks = compute_loss_risk(cost, top_n=5)
+    risks = compute_loss_risk(cost, limit=5)
     # B2 is clean -> excluded; B1 (short + grade D) outranks B3 (grade C + temp)
     ids = [r["batch_id"] for r in risks]
     assert ids == ["B1", "B3"]
     assert "短重" in risks[0]["reason"] and "品质等级 D" in risks[0]["reason"]
     assert risks[0]["suggested_action"]
     assert risks[0]["risk_score"] >= risks[1]["risk_score"]
+    # contract fields (architecture_api_spec §3)
+    assert risks[0]["ref_type"] == "receiving_batch"
+    assert risks[0]["ref_id"] == "B1"
+    assert "estimated_loss_amount" in risks[0]
 
 
 def test_compute_loss_risk_empty():
@@ -70,13 +74,17 @@ def test_loss_risk_endpoint_reads_cost_snapshot(client):
             {"batch_id": "B2", "sku": "鸭肠", "variance_pct": -0.5, "vlm_grade": "A"},
         ]},
     )
-    r = client.get(f"/v1/cost/loss-risk?store_id={STORE}")
+    r = client.get(f"/v1/cost/loss-risk?store_id={STORE}&limit=10")
     assert r.status_code == 200
     body = r.json()
     assert body["store_id"] == STORE
     assert body["baseline"] == "rule"
     assert body["count"] == 1
-    assert body["risks"][0]["sku"] == "毛肚"
+    top = body["risks"][0]
+    assert top["sku"] == "毛肚"
+    assert top["ref_type"] == "receiving_batch" and top["ref_id"] == "B1"
+    assert "estimated_loss_amount" in top
+    assert "estimated_loss_amount_total" in body
 
 
 def test_loss_risk_store_scoped(client):

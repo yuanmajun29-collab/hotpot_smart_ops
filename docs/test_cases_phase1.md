@@ -43,7 +43,7 @@
 | 厨房 IoT | F-K01~K07 | TC-KIT-* | iot readings / 门磁规则 | 🔶 |
 | SOP | F-S01~S08 | TC-SOP-* | sop assign / RAG | 🔶 |
 | 任务 Task | F-TASK01~04 | TC-TASK-* | （兼容写入）sop assign | 🔶 |
-| 成本 Cost | F-C01~C06 | TC-COST-* | receiving cost / VLM grade / 拒收 | 🔶 |
+| 成本 Cost | F-C01~C08 | TC-COST-* | receiving cost / VLM grade / 拒收 / loss-risk(LOSS-402) | 🔶 |
 | 推销 Sales | F-SALES01~03 | TC-SALE-* | — | ⬜ P2 |
 | 告警 Alerts | F-A01~A06 | TC-ALT-* | ack / webhook / 静默 | 🔶 |
 | 日报 Report | F-R01~R05 | TC-RPT-* | 生成/列表/推送 | 🔶 |
@@ -124,7 +124,7 @@
 
 ---
 
-## 8. 成本 Cost（F-C01~C06）
+## 8. 成本 Cost（F-C01~C08）
 
 | TC | 关联 F | 优 | 类型 | 前置 | 步骤 | 预期 | 自动化 |
 |----|--------|----|------|------|------|------|--------|
@@ -134,7 +134,9 @@
 | TC-COST-03b | F-C03/F-C06 | P0 | 功能 | 已写入成本 | 师傅手动打分入库 → `GET /v1/cost/loss-risk` | MVP 手动品质作输入，TopN 损耗风险含 risk_score/reason/动作 | `test_loss_risk_endpoint_reads_cost_snapshot` / `test_compute_loss_risk_ranks_and_explains` |
 | TC-COST-04 | F-C04 | P0 | 功能 | 低等级批次 | 拒收建议 | LLM/规则一句拒收理由 | `test_review_rule` |
 | TC-COST-05 | F-C05 | P1 | 功能 | 领料/出成秤 | 出成率 | 改刀损耗量化 | ⬜ |
-| TC-COST-06 | F-C06 | P2 | UAT | PMO | 供应商累计 KPI | 区域/全国榜单 | ⬜ P2 |
+| TC-COST-06 | F-C08 | P2 | UAT | PMO | 供应商累计 KPI | 区域/全国榜单 | ⬜ P2 |
+| TC-COST-07 | F-C06 | P1 | 接口 | 已写入成本 | `GET /v1/cost/loss-risk?limit=10` | TopN 损耗风险，含 risk_score/estimated_loss_amount/reason/suggested_action/ref_type/ref_id（LOSS-402 规则桩） | `test_loss_risk_endpoint_reads_cost_snapshot` |
+| TC-COST-08 | F-C06 | P0 | 权限 | 店级 token | 跨店 `GET /v1/cost/loss-risk` | 403（沿用跨店隔离） | `test_loss_risk_store_scoped` |
 
 ---
 
