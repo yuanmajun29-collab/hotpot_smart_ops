@@ -109,7 +109,7 @@ Phase 1 北极星建议从“有效告警处理率”调整为：
 | **W1** | 蹲点采数据（不写代码） | 拍废料桶 ≥100 张；切配师傅手工台账（切了/扔了/来料品质好-中-差，连记 7 天）；导出过去一月每日桌数+外卖量 | 对齐 `demo/data/`（`pos_stats.json`、`erp_po_orders.json`、`incoming_materials.json`、`ingredient_lifecycle_iot.json`）字段，作为 `loss_features` 真值种子 | Excel：日期/预订桌数/实际消耗/丢弃量/来料品质评分 |
 | **W2** | 云端 API 验证预测逻辑（先不碰盒子） | 用 W1 数据写 Prompt，调用 DeepSeek/通义千问 API：输入「近 7 天消耗 + 今日预订 + 天气」→ 输出「今晚建议备货量」；与店长拍脑袋对比，误差稳定 <10% 即方向成立 | 复用 `cloud/llm_report/report_agent.py` 的 `OpenAIReportAgent` 模式新增 forecast prompt；`cloud/cost_control/analyzer.py` 出规则 baseline；对应规划接口 `/v1/cost/loss-risk`（见 §3 P1B） | 备货建议 vs 店长经验的命中率对比表（go/no-go 闸） |
 | **W3** | 边缘盒子选型与部署 | 选型决策（见下方硬件表）；开发机优先生态 | `edge/detector/`（YOLO/RKNN）、`edge/rknn_deploy/`、ADR-005（生产 yolo）、ADR-014（YOLO→sVLM→VLM 三级过滤） | 跑通全链路的开发盒子 |
-| **W4** | 搭「每日备货预测推送」Demo | 废料桶摄像头→VLM 识别废料种类/份量；LLM 读 VLM+收银数据出预测；微信群机器人**每天 15:00** 推送「今晚毛肚建议备 15 份，雨天 +10%」；亲戚免费试用一周，只问「下月收 1500 你还用吗」 | VLM：`cloud/vlm_review/`（`/quality-grade` 扩展为废料识别）；LLM：`cloud/llm_report/`；推送：`cloud/alert_gateway/`（企微 webhook）+ `cloud/event_hub/daily_scheduler.py`（`HOTPOT_DAILY_REPORT_HOUR=15` 即可改 22:00→15:00） | 每日自动推送 Demo + 单店付费意向（pay-test） |
+| **W4** | 搭「每日备货预测推送」Demo | 废料桶摄像头→VLM 识别废料种类/份量；LLM 读 VLM+收银数据出预测；微信群机器人**每天 15:00** 推送「今晚毛肚建议备 15 份，雨天 +10%」；亲戚免费试用一周，只问「下月收 1500 你还用吗」 | VLM：`cloud/vlm_review/`（`/quality-grade` 扩展为废料识别）；LLM：`cloud/llm_report/`；推送：`cloud/alert_gateway/`（企微 webhook）+ `cloud/event_hub/daily_scheduler.py`（**当前单时段单任务，仅 `HOTPOT_DAILY_REPORT_HOUR` 临时演示改 15:00**；三时段需 schedule profiles 扩展，见 ADR 收敛纪要） | 每日自动推送 Demo + 单店付费意向（pay-test） |
 
 ### 7.1 硬件选型决策（与 ADR-005 / ADR-014 一致）
 
@@ -160,15 +160,15 @@ Phase 1 北极星建议从“有效告警处理率”调整为：
 | 层 | 职责（外部讨论） | 本仓库切入点 |
 |----|------------------|--------------|
 | L1 数据采集 | VLM 把切配台/废料桶画面翻译成结构化日志（`{时间,食材,动作,预估份量}`）；MVP 阶段可由手工台账/手动打分替代 | `cloud/vlm_review/`（废料/份量识别）；W1 手工台账过渡 |
-| L2 特征工程 | 边缘时序对齐：VLM 输出 + 预订桌数 + 入座率 + 天气 + 节假日/活动 | `cloud/cost_control/analyzer.py` + `demo/data/*`（pos/erp/iot） |
-| L3 预测决策 | LLM 少样本时序预测，输出**带理由**的备货建议（非黑盒数字） | `cloud/llm_report/report_agent.py`（forecast prompt）；规划 `/v1/cost/loss-risk` |
+| L2 特征工程 | 边缘时序对齐：VLM 输出 + 预订桌数 + 入座率 + 天气 + 节假日/活动。**先做 snapshot/JSON feature_builder + 测试，暂不建 `loss_features/loss_predictions` 表**（pay-test 通过或需跨天回放再落表） | `cloud/cost_control/analyzer.py`（仅够 P1A）+ `demo/data/*` |
+| L3 预测决策 | LLM 少样本时序预测，输出**带理由**的备货建议（非黑盒数字）。**规则 baseline 已落桩 LOSS-402**：`GET /v1/cost/loss-risk` → TopN risk_score/reason/suggested_action | `routers/cost.py` + `domain/loss_risk.py`（已实现）；`cloud/llm_report/report_agent.py`（forecast prompt 待接） |
 | L4 闭环反馈 | 次日 VLM/台账验证实际浪费，误差回喂 LLM 自动修正系数 | `daily_scheduler` 调度 + 成本页/日报归因（§2 闭环） |
 
 ### 8.5 交付形态（三时段推送 → daily_scheduler 多时段）
 
 | 时段 | 内容 | 渠道 | 切入点 |
 |------|------|------|--------|
-| 每日 15:00 | 今晚建议备货（毛肚 15 / 鸭肠 10 / 黄喉 8）+ 理由摘要 + 品质提醒 | 后厨打印机 / 企微 | `daily_scheduler`（`HOTPOT_DAILY_REPORT_HOUR=15`）+ `alert_gateway` |
+| 每日 15:00 | 今晚建议备货（毛肚 15 / 鸭肠 10 / 黄喉 8）+ 理由摘要 + 品质提醒 | 后厨打印机 / 企微 | `daily_scheduler`（**需扩 schedule profiles**，现单时段）+ `alert_gateway` |
 | 每日 22:00 | 今日损耗报告（浪费份数、损耗率、环比） | 老板微信/钉钉 | 现有日报（F-R01）聚焦损耗口径 |
 | 每周一 09:00 | 损耗趋势周报（雨天上调 12%、周五提前切配等） | 邮箱 LLM 周报 | LLM 周报扩展（P1.5） |
 

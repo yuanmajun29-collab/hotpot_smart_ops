@@ -8,7 +8,7 @@
 | 日期 | 2026-06-18 |
 | 范围 | 7 业务模块 + F-TASK + PDA + 层级/驾驶仓 + Admin + 跨切面 |
 | 依据 | [product_design.md §5/§12](product_design.md) · [architecture_api_spec.md](architecture_api_spec.md) · [phase1_mvp_acceptance_checklist.md](phase1_mvp_acceptance_checklist.md) |
-| 自动化 | `tests/`（93 passed） |
+| 自动化 | `tests/`（97 passed） |
 | 归档 | V1.1 定稿基线 · 2026-06-18 · 已链入 [product_design_index](product_design_index.md) 与 README |
 
 ---
@@ -130,7 +130,8 @@
 |----|--------|----|------|------|------|------|--------|
 | TC-COST-01 | F-C01 | P0 | 功能 | 已写入成本 | `GET /v1/cost` | 来料批次 items 回读（SKU/偏差） | `test_get_cost_returns_items` / `test_receiving_updates_cost_snapshot` |
 | TC-COST-02 | F-C02 | P0 | 边界 | 短重 >3% | 提交偏差批次 | variance_pct 计算正确，>3% 标 warn | `test_receiving_submit_success`（variance） |
-| TC-COST-03 | F-C03 | P0 | 功能 | VLM 桩 | 外观分级 | A/B/C/D 等级 + 截图 | `test_quality_grade_rule` |
+| TC-COST-03 | F-C03 | P0 | 功能 | VLM 桩 | 外观分级 | A/B/C/D 等级 + 截图（二期 VLM 自动验货） | `test_quality_grade_rule` |
+| TC-COST-03b | F-C03/F-C06 | P0 | 功能 | 已写入成本 | 师傅手动打分入库 → `GET /v1/cost/loss-risk` | MVP 手动品质作输入，TopN 损耗风险含 risk_score/reason/动作 | `test_loss_risk_endpoint_reads_cost_snapshot` / `test_compute_loss_risk_ranks_and_explains` |
 | TC-COST-04 | F-C04 | P0 | 功能 | 低等级批次 | 拒收建议 | LLM/规则一句拒收理由 | `test_review_rule` |
 | TC-COST-05 | F-C05 | P1 | 功能 | 领料/出成秤 | 出成率 | 改刀损耗量化 | ⬜ |
 | TC-COST-06 | F-C06 | P2 | UAT | PMO | 供应商累计 KPI | 区域/全国榜单 | ⬜ P2 |
@@ -260,7 +261,7 @@
 
 | 维度 | 已自动化 | 部分/桩 | 手工/UAT/待真数据 |
 |------|----------|---------|--------------------|
-| 接口（Hub REST） | 高（93 passed） | iot/cv summary 桩 | — |
+| 接口（Hub REST） | 高（97 passed） | iot/cv summary 桩 | — |
 | 权限 RBAC + 多租户 | ✅ 完整 | — | — |
 | /v1 契约 + 鉴权模式 | ✅ 完整 | — | — |
 | 功能（业务闭环） | 中 | CV/IoT/VLM mock | 真链路 BL-01~04 |
@@ -278,4 +279,4 @@
 - [phase1_mvp_acceptance_checklist.md](phase1_mvp_acceptance_checklist.md) — 验收勾选表（与本用例互补）
 - [architecture_api_spec.md](architecture_api_spec.md) — REST API 契约
 - [uat_concept_test_record.md](uat_concept_test_record.md) — PM-402 店长概念测试
-- `tests/` — 自动化套件（93 passed）
+- `tests/` — 自动化套件（97 passed）

@@ -114,6 +114,7 @@ from cloud.event_hub.routers import reports as _reports_router
 from cloud.event_hub.routers import alerts as _alerts_router
 from cloud.event_hub.routers import org as _org_router
 from cloud.event_hub.routers import admin as _admin_router
+from cloud.event_hub.routers import cost as _cost_router
 
 app.include_router(_system_router.router)
 app.include_router(_auth_routes_router.router)
@@ -125,3 +126,4 @@ app.include_router(_reports_router.router)
 app.include_router(_alerts_router.router)
 app.include_router(_org_router.router)
 app.include_router(_admin_router.router)
+app.include_router(_cost_router.router)

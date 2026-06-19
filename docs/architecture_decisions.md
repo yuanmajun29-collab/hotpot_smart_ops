@@ -227,7 +227,7 @@
 | 状态 | **已采纳**（2026-06-18，补记两轮重构决策） |
 | 背景 | 2026-06-17~18 两轮重构（Claude router-split + Codex hardening）显著改变了 Event Hub 结构，但此前无 ADR 记录，违反 development_delivery_plan §2.3「代码路径与 ar401 映射一致」的治理要求。 |
 | 决策 | 1) **app.py 为组装根**（composition root）：仅 `runtime.init` + `lifespan` 启停 + `include_router`，不含路由逻辑。2) **单例经 `runtime.py` 容器延迟绑定**（hub/db/alert_gateway/org_registry），路由直接 `runtime.X` 访问；测试经 `runtime.init` 注入，禁止 routers→app 反向依赖。3) **路由按 10 业务域拆 `routers/*.py`**（system/auth/ingest/receiving/sop/iot/reports/alerts/org/admin），每域单一职责。4) **RBAC 集中于 `rbac.py`（RolePolicy）**，auth.py 委托，`test_rbac_policy` 守 backend↔`rbac.json` 对齐。5) **`/v1` 别名 + Deprecation 治理**（ADR-004）：legacy 同 handler 双挂、`deprecated=True`、中间件 `Deprecation` 头，显式 legacy 集合。6) **纯业务逻辑入 `domain/`**（health/turnover），无 FastAPI/状态依赖。 |
-| 后果 | app.py 986→112 行；可并行开发与独立测试；93 passed；pyflakes 干净。新增路由族须落到对应 `routers/*.py`，新权限改 `rbac.py` 单一源，新决策追加 ADR。 |
+| 后果 | app.py 986→112 行；可并行开发与独立测试；97 passed；pyflakes 干净。新增路由族须落到对应 `routers/*.py`，新权限改 `rbac.py` 单一源，新决策追加 ADR。 |
 | 关联 | ADR-004 · `cloud/event_hub/{app,runtime,rbac}.py` · `routers/` · `domain/` · `docs/superpowers/specs/2026-06-17-event-hub-router-split-design.md` |
 
 ---
@@ -259,3 +259,46 @@
 | E 架构 ADR | 补 **ADR-015**（本文） |
 
 **Codex 反提（已纳入待办）**：① 登录页角色选择应产品化「去权威化」——后端已是权威（`login_user` 角色绑定），登录页下拉仅提示，后续应移除客户端选角色；② strict 跨店隔离不宜等 P2 → **已落实**：已认证用户跨店读/写 403 在 Phase 1（含 demo）即生效，`tests/test_store_isolation.py` 固化（见 ADR-009 隔离不变量）；③ mock/stub/real 须显式标注（已在 test_cases_phase1.md 图例落实）；④ 试点部署一键 profile（PG+env+health+backup）——并入 ADR-003 后果与部署清单。
+
+---
+
+## ADR-017：边缘 AI 硬件分期 Profile（Jetson 开发机 → RK3588 量产）
+
+| 项 | 内容 |
+|----|------|
+| 状态 | **已采纳**（2026-06-19 · wedge PK 收敛） |
+| 背景 | 创业切入需在边缘跑 VLM+LLM；外部讨论给出云 API 原型 → Jetson 全栈验证 → RK3588 量产的硬件分期，需固化为决策并明确 Phase 1 承诺边界 |
+| 决策 | 三段硬件 profile：① **原型**：旧安卓/PC + 云 API（通义千问/DeepSeek），仅验证预测逻辑；② **开发机**：Jetson Orin Nano 8GB（40 TOPS），跑全栈 `Qwen2.5-VL-3B` + `Qwen2.5-3B-Instruct`（llama.cpp/INT4，VLM+LLM 同驻需 ≥16GB 理想 32GB），用于跑通链路；③ **量产**：RK3588（6 TOPS NPU，RKNN 工具链），YOLO-first 降成本，与 ADR-005/ADR-014 一致 |
+| 边界 | **VLM/LLM 本地常驻列为「实验验证」而非 Phase 1 承诺**；Phase 1 边缘检测仍以 YOLO-first（ADR-005）为准，VLM 经 feature flag（ADR-014）；推理延迟目标 ≤3s、盒子稳定性优先于模型"智商" |
+| 后果 | `edge/detector`（YOLO/RKNN）与 `edge/rknn_deploy` 复用；新增模型量化与 Jetson 部署脚本为 P1B 实验项；不在硬件 All in，签首付费客户后再批量 |
+| 关联 | ADR-005 · ADR-014 · `edge/` · [kitchen_loss_prediction_wedge_plan.md §7.1/§8.6](kitchen_loss_prediction_wedge_plan.md) |
+
+---
+
+## ADR-018：行业模板与边缘 Profile（Industry Template / Edge Profile）
+
+| 项 | 内容 |
+|----|------|
+| 状态 | **提议中**（2026-06-19 · 先定契约，代码不抢 Phase 1） |
+| 背景 | 双线商业化（运营商渠道 + 餐饮产品化）要求把单一火锅多店能力抽象为「行业智能体模板 + 按客户参数实例化」，现有 `store`/`org_registry` 多租户只支撑火锅多门店，不足以承载跨行业模板 |
+| 决策 | 定义模板与实例契约（先文档、后实现）：`template_id`、`vertical`（hotpot/园区/机房…）、`config schema`（阈值/特征/推送时段）、`feature_flags`、`OTA package`（模型+规则下发）、`客户实例边界`（tenant ↔ template ↔ store/site）。运营商场景的盒子定位「本地预处理（降带宽/云存储）+ 行业模板」 |
+| 边界 | Phase 1 **不实现**模板引擎；仅冻结契约，避免后续返工。多租户隔离不变量（ADR-009）在引入 template/tenant 维度时必须保持 |
+| 后果 | 后续 P2+ 新增 `templates/instances` 模型与 OTA 通道；`store scope` 升级为 `tenant × template × site` scope |
+| 关联 | ADR-009（data_scope）· ADR-015（治理）· [kitchen_loss_prediction_wedge_plan.md §8.2](kitchen_loss_prediction_wedge_plan.md) |
+
+---
+
+## Wedge PK 收敛纪要（2026-06-19 · Claude × Codex）
+
+针对创业切入融合（DeepSeek 完整会话）的 PK，收敛如下：
+
+| 点 | 收敛结论 | 落地 |
+|----|---------|------|
+| /v1/cost/loss-risk | **本期落最小只读桩**（不停在文档） | ✅ **LOSS-402 已实现**：`routers/cost.py` + `domain/loss_risk.py` 规则 baseline（TopN risk_score/reason/suggested_action，store-scoped），`tests/test_loss_risk.py` 4 passed |
+| daily_scheduler 多时段 | 现为**单时段单任务**；三时段（15:00 备货/22:00 损耗/周一周报）需 **schedule profiles**，非简单改 `HOTPOT_DAILY_REPORT_HOUR` | wedge §7/§8 措辞已修正为「单时段临时演示」 |
+| L2 特征工程 | `cost_control/analyzer.py` 仅够 P1A 来料异常；先做 **snapshot/JSON feature_builder + 测试**，暂不建 `loss_features/loss_predictions` 表，pay-test 通过或需跨天回放再落表 | wedge §8.4 已注明 |
+| VLM 废料识别 | 现仅 `review/quality-grade/table-clean-ready`；废料识别需新增 `/waste-estimate`；MVP 先用手动 3 按钮+台账，不阻塞 loss-risk | wedge §8.3 已注明 |
+| 硬件分期 | 补 **ADR-017**（VLM/LLM 本地常驻为实验，非 P1 承诺） | ✅ 本文 |
+| 运营商/模板化 | 补 **ADR-018**（template_id/vertical/config/flags/OTA/实例边界，先定契约） | ✅ 本文 |
+
+**Codex 反提（已落实）**：F-C03 手动打分降级同步至 `phase1_mvp_acceptance_checklist.md` 与 `test_cases_phase1.md`；LOSS-402 已从「下一步」提前实现为只读桩。
