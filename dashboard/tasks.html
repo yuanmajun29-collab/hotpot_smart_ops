@@ -1,0 +1,217 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>任务督办中心 · 冯校长火锅智能运营</title>
+  <link rel="stylesheet" href="assets/theme.css" />
+  <style>
+    .task-toolbar{display:flex;flex-wrap:wrap;gap:8px;align-items:center;margin:12px 0}
+    .filter-chip{padding:5px 12px;border:1px solid var(--border);border-radius:999px;background:var(--card);
+      color:var(--muted);cursor:pointer;font-size:13px;user-select:none}
+    .filter-chip.active{background:var(--brand);border-color:var(--brand);color:#fff}
+    .task-row{display:grid;grid-template-columns:1fr auto;gap:10px;align-items:start;
+      padding:14px 16px;border:1px solid var(--border);border-radius:var(--r-md,12px);
+      background:var(--card);margin-bottom:10px}
+    .task-row.overdue{border-color:var(--accent);box-shadow:inset 3px 0 0 var(--accent)}
+    .task-main h4{margin:0 0 6px;font-size:15px}
+    .task-meta{display:flex;flex-wrap:wrap;gap:6px;align-items:center;font-size:12px;color:var(--muted)}
+    .task-meta .chip{padding:2px 8px;border-radius:6px;background:var(--brand-soft,rgba(226,97,58,.12));color:var(--text)}
+    .st{padding:2px 9px;border-radius:6px;font-size:12px;font-weight:600}
+    .st-pending{background:rgba(127,176,206,.16);color:var(--info)}
+    .st-in_progress{background:var(--warn-soft,rgba(230,169,62,.16));color:var(--warn)}
+    .st-submitted{background:rgba(226,97,58,.16);color:var(--brand)}
+    .st-closed{background:rgba(86,184,132,.16);color:var(--ok)}
+    .st-cancelled{background:rgba(178,162,148,.16);color:var(--muted)}
+    .ov-tag{color:var(--accent);font-weight:700}
+    .task-actions{display:flex;flex-direction:column;gap:6px;min-width:84px}
+    .task-actions .btn{padding:5px 10px;font-size:12px}
+    .btn.ghost{background:transparent;border:1px solid var(--border);color:var(--muted)}
+    .kpi-strip{display:flex;gap:12px;flex-wrap:wrap;margin:6px 0 4px}
+    .kpi-strip .card{flex:1;min-width:120px;padding:12px 16px}
+    dialog.tk{border:1px solid var(--border);border-radius:var(--r-lg,16px);background:var(--card);color:var(--text);
+      padding:0;width:min(440px,92vw)}
+    dialog.tk::backdrop{background:rgba(0,0,0,.5)}
+    .tk-body{padding:18px 20px;display:flex;flex-direction:column;gap:10px}
+    .tk-body label{font-size:12px;color:var(--muted);display:block;margin-bottom:3px}
+    .tk-body input,.tk-body select,.tk-body textarea{width:100%;padding:8px 10px;border:1px solid var(--border);
+      border-radius:8px;background:var(--bg);color:var(--text);font:inherit;box-sizing:border-box}
+    .tk-foot{display:flex;justify-content:flex-end;gap:8px;padding:12px 20px;border-top:1px solid var(--border)}
+  </style>
+</head>
+<body>
+  <div class="layout">
+    <aside class="sidebar">
+      <div class="sidebar-brand"><h1>冯校长火锅</h1><p>智能运营 · MVP</p></div>
+      <a class="nav-item" data-nav="home" href="home.html">首页概览</a>
+      <a class="nav-item" data-nav="tables" href="tables.html">前厅 · 桌态</a>
+      <a class="nav-item" data-nav="kitchen" href="kitchen.html">后厨 · IoT</a>
+      <a class="nav-item" data-nav="sop" href="sop.html">SOP 执行</a>
+      <a class="nav-item active" data-nav="tasks" href="tasks.html">任务督办中心</a>
+      <a class="nav-item" data-nav="cost" href="cost.html">来料 · 成本</a>
+      <a class="nav-item" data-nav="alerts" href="alerts.html">告警中心 <span class="nav-badge" id="nav-badge" style="display:none">0</span></a>
+      <a class="nav-item" data-nav="report" href="report.html">运营日报</a>
+      <a class="nav-item" data-nav="pda" href="pda/receiving.html">收货 PDA</a>
+    </aside>
+
+    <main class="main">
+      <header class="topbar">
+        <div><h2 style="margin:0">任务督办中心</h2>
+          <p class="sub" style="margin:2px 0 0;color:var(--muted);font-size:13px">派办 → 认领 → 执行 → 回执 → 复核</p></div>
+        <div class="topbar-right">
+          <button class="btn" id="btn-new" style="display:none">＋ 新建任务</button>
+        </div>
+      </header>
+
+      <section class="kpi-strip" id="kpi"></section>
+
+      <div class="task-toolbar" id="filters">
+        <span class="filter-chip active" data-f="">全部</span>
+        <span class="filter-chip" data-f="pending">待处理</span>
+        <span class="filter-chip" data-f="in_progress">处理中</span>
+        <span class="filter-chip" data-f="submitted">待复核</span>
+        <span class="filter-chip" data-f="closed">已闭环</span>
+        <span class="filter-chip" data-f="__overdue">仅超时</span>
+      </div>
+
+      <section id="list"><div class="sk-line"></div><div class="sk-line"></div><div class="sk-line"></div></section>
+    </main>
+  </div>
+
+  <dialog class="tk" id="dlg">
+    <div class="tk-body">
+      <h3 style="margin:0 0 4px">新建任务</h3>
+      <div><label>类型</label>
+        <select id="f-type">
+          <option value="adhoc">临时任务</option>
+          <option value="sop_violation">SOP 整改</option>
+          <option value="cleaning">清台/保洁</option>
+          <option value="receiving_exception">来料异常</option>
+          <option value="safety_alert">安全处置</option>
+        </select></div>
+      <div><label>标题</label><input id="f-title" placeholder="例：B3 桌待清" /></div>
+      <div style="display:flex;gap:10px">
+        <div style="flex:1"><label>优先级</label>
+          <select id="f-prio"><option>P2</option><option selected>P1</option><option>P0</option></select></div>
+        <div style="flex:1"><label>责任人（可空→待派办）</label><input id="f-assignee" placeholder="工号/角色" /></div>
+      </div>
+      <div><label>说明</label><textarea id="f-detail" rows="2"></textarea></div>
+    </div>
+    <div class="tk-foot">
+      <button class="btn ghost" id="dlg-cancel">取消</button>
+      <button class="btn" id="dlg-ok">创建</button>
+    </div>
+  </dialog>
+
+  <script src="assets/core.js"></script>
+  <script>
+    const A = window.HotpotApp;
+    let curFilter = "";
+    const STATUS_LABEL = {pending:"待处理",in_progress:"处理中",submitted:"待复核",closed:"已闭环",cancelled:"已取消"};
+    const TYPE_LABEL = {adhoc:"临时",sop_violation:"SOP整改",cleaning:"清台",receiving_exception:"来料异常",
+      safety_alert:"安全",iot_anomaly:"IoT",inspection:"巡检"};
+    const esc = s => String(s ?? "").replace(/[&<>"]/g, c => ({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;"}[c]));
+
+    // 各状态可做的动作 → 所需权限
+    const ACTIONS = {
+      pending:    [["accept","认领","task_ack"],["start","开始","task_ack"],["reassign","改派","task_reassign"],["cancel","取消","task_cancel"]],
+      in_progress:[["submit","回执","task_ack"],["reassign","改派","task_reassign"],["cancel","取消","task_cancel"]],
+      submitted:  [["verify","复核通过","task_verify"],["reject","驳回","task_verify"],["cancel","取消","task_cancel"]],
+      closed:     [["reopen","重开","task_reopen"]],
+      cancelled:  [],
+    };
+
+    async function api(path, opts={}) {
+      const res = await fetch(`${A.hubUrl()}${path}`, {headers:A.authHeaders({"Content-Type":"application/json"}), ...opts});
+      if (!res.ok) { const t = await res.text(); throw new Error(`${res.status} ${t}`); }
+      return res.json();
+    }
+
+    function renderKpi(tasks) {
+      const c = s => tasks.filter(t=>t.status===s).length;
+      const od = tasks.filter(t=>t.is_overdue).length;
+      document.getElementById("kpi").innerHTML = `
+        <div class="card"><div class="stat">${c("pending")}</div><div class="muted">待处理</div></div>
+        <div class="card"><div class="stat">${c("in_progress")}</div><div class="muted">处理中</div></div>
+        <div class="card"><div class="stat">${c("submitted")}</div><div class="muted">待复核</div></div>
+        <div class="card"><div class="stat ${od?"critical":""}">${od}</div><div class="muted">超时</div></div>`;
+    }
+
+    function rowHtml(t) {
+      const acts = (ACTIONS[t.status]||[]).filter(([,,perm]) => A.canAction ? A.canAction(perm) : true)
+        .map(([a,label]) => `<button class="btn ${a==="cancel"||a==="reject"?"ghost":""}" data-act="${a}" data-id="${esc(t.task_id)}">${label}</button>`).join("");
+      const due = t.due_at ? `<span class="${t.is_overdue?"ov-tag":""}">截止 ${esc(String(t.due_at).slice(5,16).replace("T"," "))}${t.is_overdue?" · 超时":""}</span>` : "";
+      const triage = t.assignee_status==="needs_triage" ? `<span class="chip" style="color:var(--warn)">待派办</span>` : "";
+      return `<div class="task-row ${t.is_overdue?"overdue":""}">
+        <div class="task-main">
+          <h4>${esc(t.title||t.task_id)}</h4>
+          <div class="task-meta">
+            <span class="st st-${t.status}">${STATUS_LABEL[t.status]||t.status}</span>
+            <span class="chip">${TYPE_LABEL[t.task_type]||t.task_type}</span>
+            <span class="chip">${esc(t.priority)}</span>
+            ${t.assignee_id?`<span>责任人 ${esc(t.assignee_id)}</span>`:""} ${triage}
+            ${due}
+          </div>
+        </div>
+        <div class="task-actions">${acts||""}</div>
+      </div>`;
+    }
+
+    async function load() {
+      const list = document.getElementById("list");
+      try {
+        const q = curFilter==="__overdue" ? "overdue=true" : (curFilter?`status=${curFilter}`:"");
+        const data = await api(`/v1/tasks${q?"?"+q:""}`);
+        // KPI 用全量算
+        const all = curFilter ? (await api("/v1/tasks")).tasks : data.tasks;
+        renderKpi(all);
+        const tasks = data.tasks;
+        list.innerHTML = tasks.length ? tasks.map(rowHtml).join("")
+          : `<div class="empty-state"><div class="es-ic">✓</div><p>暂无任务</p></div>`;
+        list.querySelectorAll("button[data-act]").forEach(b => b.onclick = () => doAction(b.dataset.id, b.dataset.act));
+      } catch (e) {
+        list.innerHTML = `<div class="empty-state"><div class="es-ic">!</div><p>加载失败：${esc(e.message)}</p></div>`;
+      }
+    }
+
+    async function doAction(id, act) {
+      let body = {};
+      if (act==="reassign") { const who = prompt("改派给（工号/角色）："); if(!who) return;
+        body = {assignee_id:who, sla_policy:"keep_original_due_at"}; }
+      if (act==="reject"||act==="cancel"||act==="reopen") { const r = prompt("原因（必填）："); if(!r) return; body = {reason:r}; }
+      try { await api(`/v1/tasks/${encodeURIComponent(id)}/${act}`, {method:"POST", body:JSON.stringify(body)}); load(); }
+      catch (e) { alert("操作失败：" + e.message); }
+    }
+
+    function wireFilters() {
+      document.querySelectorAll(".filter-chip").forEach(ch => ch.onclick = () => {
+        document.querySelectorAll(".filter-chip").forEach(x=>x.classList.remove("active"));
+        ch.classList.add("active"); curFilter = ch.dataset.f; load();
+      });
+    }
+
+    function wireNew() {
+      const btn = document.getElementById("btn-new"), dlg = document.getElementById("dlg");
+      if (A.canAction && !A.canAction("task_create")) return;
+      btn.style.display = "";
+      btn.onclick = () => dlg.showModal();
+      document.getElementById("dlg-cancel").onclick = () => dlg.close();
+      document.getElementById("dlg-ok").onclick = async () => {
+        const payload = {
+          task_type: document.getElementById("f-type").value,
+          title: document.getElementById("f-title").value.trim(),
+          priority: document.getElementById("f-prio").value,
+          assignee_id: document.getElementById("f-assignee").value.trim() || null,
+          detail: document.getElementById("f-detail").value.trim(),
+        };
+        if (!payload.title) { alert("请填写标题"); return; }
+        try { await api("/v1/tasks", {method:"POST", body:JSON.stringify(payload)}); dlg.close(); load(); }
+        catch (e) { alert("创建失败：" + e.message); }
+      };
+    }
+
+    A.initShell("tasks");
+    wireFilters(); wireNew(); load();
+  </script>
+</body>
+</html>
