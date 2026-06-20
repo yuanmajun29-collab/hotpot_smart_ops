@@ -115,8 +115,8 @@ gantt
     BL-01~08 UAT 阻塞清零     :p1bl, 2026-06-16, 21d
     PM-402 店长概念测试       :p1uat, 2026-06-19, 14d
     IMP-402 Go-Live           :p1go, 2026-07-07, 7d
-    section P1.5 任务内核
-    DEV-520~524 F-TASK flag   :p15, after p1go, 21d
+    section P1.x 已实现任务内核
+    DEV-520~526 F-TASK kernel :p15, 2026-06-20, 7d
     section P2 20 店
     DEV-501~506 Admin EPIC-7  :p2admin, after p1go, 70d
     DEV-529~530 SALES TRACE     :p2ext, after p2admin, 21d
@@ -144,11 +144,11 @@ gantt
 |------|----------|------|------|
 | **P1A 损耗可见** | DEV-416~420 + ERP/POS bridge | 收货批次、短重/超温/质差、估算损耗金额、签字责任链 | 复杂预测模型 |
 | **P1B 损耗预测** | LOSS-401~403（新增 backlog） | 规则 baseline：临期、超温、短重、异常耗用 TopN；规划 `/v1/cost/loss-risk` | 自动扣款/退货 |
-| **P1C 行动闭环** | DEV-421 + P1.5 F-TASK | 风险一键生成 SOP 指派/复称/优先消耗，日报追踪结果 | 大而全工作流中台 |
+| **P1C 行动闭环** | DEV-421 + F-TASK Phase 1.x | 风险一键生成 SOP 指派/复称/优先消耗，日报追踪结果 | 大而全工作流中台 |
 
 **实施原则**：P1A/P1B 先复用 `receiving_*`、`iot_readings`、`store_snapshots.cost`、OpsEvent，不急于新增大表；若 P1B 验证有效，再在 data_model 中补 `loss_features` / `loss_predictions`。
 
-### 3.3 Phase 1.5 · F-TASK（feature flag）
+### 3.3 Phase 1.x · F-TASK（已实现内核 · 非 Go-Live 前置）
 
 | 项 | 内容 |
 |----|------|
@@ -157,9 +157,9 @@ gantt
 | HLD | 本文 §4.3 |
 | DB | data_model §5.4~5.5 `tasks` / `task_events` |
 | API | api_spec §3 |
-| DEV | DEV-520~524（内核）；525~528（P2 增强） |
-| 测试 | 新增 `test_tasks_api.py` · SOP 兼容回归 `test_sop_assign_api.py` |
-| 门禁 | `HOTPOT_TASK_ENGINE=0` 时 UAT 主流程不变 |
+| DEV | DEV-520~526 已落地（内核/自动生单/UI/企微卡片）；527~528（P2 增强） |
+| 测试 | `test_task_engine.py` · `test_task_factory.py` · `test_task_push.py` · `test_sop_assign_api.py` · `test_dashboard_auth_contract.py` |
+| 门禁 | 非 IMP-402 Go-Live 硬前置；试点可只验损耗主线，任务中心作为行动闭环增强项单独签收 |
 
 ### 3.4 Phase 2 · 20 店 + 运营后台
 
@@ -316,7 +316,7 @@ flowchart TB
 | POS/ERP | test_pos_bridge.py · test_erp_bridge.py | F-T03 · F-C* |
 | VLM/RAG | test_vlm_api.py · test_sop_rag.py | F-C03 · F-S07 |
 
-**P1.5 待增**：`test_tasks_api.py`（状态机 409、SOP 兼容双写）。
+**F-TASK 已增**：`test_task_engine.py`、`test_task_factory.py`、`test_task_push.py` 覆盖状态机、自动生单、企微督办与 SOP 兼容。
 
 ### 7.3 回归策略
 
@@ -359,7 +359,7 @@ flowchart TB
 | W3 | 驾驶仓/层级 UAT 支持 | 无新 ADR 除非 scope 变 | BL-05~07 审计/RBAC/日报 | e2e + pytest 全绿 |
 | W4 | IMP-402 签字 | deployment 两店 staging | Go-Live 分支 tag | 回归包 + 店长复测 |
 
-**P1.5 启动条件**：BL-01~08 清零 **且** PM 书面批准；DEV-520 分支 + `HOTPOT_TASK_ENGINE=1` staging 验证。
+**Phase 1.x 任务中心验收条件**：不阻塞 BL-01~08 与 IMP-402；若纳入试点签收，需单独完成 `/v1/tasks` API、任务中心 UI、企微督办、RBAC 与跨店隔离回归。
 
 ---
 

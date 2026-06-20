@@ -40,15 +40,23 @@
           <h3>当日来料批次 · 短重&gt;3% 标红</h3>
           <ul class="list-plain" id="cost-list"></ul>
         </div>
+        <div class="card" style="margin-top:16px">
+          <h3>后厨损耗风险 TopN · 规则 baseline</h3>
+          <ul class="list-plain" id="loss-risk-list"></ul>
+        </div>
       </main>
     </div>
   </div>
   <script src="assets/core.js"></script>
   <script>
     HotpotApp.initShell("cost");
+    const esc = s => String(s ?? "").replace(/[&<>"]/g, c => ({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;"}[c]));
     async function refresh() {
       try {
-        const data = await HotpotApp.fetchSummary();
+        const [data, loss] = await Promise.all([
+          HotpotApp.fetchSummary(),
+          HotpotApp.fetchLossRisk(5),
+        ]);
         const cost = data.cost_stats || {};
         document.getElementById("po-total").textContent = "¥" + (cost.total_po_amount || 0).toLocaleString();
         document.getElementById("act-total").textContent = "¥" + (cost.total_actual_amount || 0).toLocaleString();
@@ -62,13 +70,25 @@
           const bad = Math.abs(item.variance_pct || 0) > 3;
           const flag = item.action === "reject" ? "拒收" : item.action === "negotiate" ? "议价" : "入库";
           const grade = item.quality_grade ? ` · VLM ${item.quality_grade}级` : "";
-          li.innerHTML = `<span style="${bad ? "color:var(--accent)" : ""}"><b>${item.sku}</b> (${item.supplier}) 偏差 ${item.variance_pct}%${grade} → ${flag}</span>`;
+          li.innerHTML = `<span style="${bad ? "color:var(--accent)" : ""}"><b>${esc(item.sku)}</b> (${esc(item.supplier)}) 偏差 ${esc(item.variance_pct)}%${esc(grade)} → ${esc(flag)}</span>`;
           if (item.action === "reject") {
             li.innerHTML += `<br><small style="color:var(--muted)">拒收建议：短重/品质不达标，建议扣重结算</small>`;
           }
           ul.appendChild(li);
         });
         if (!ul.children.length) ul.innerHTML = "<div class='empty-state'><span class='es-ic'>\u2696</span>暂无来料对账数据<br><small>收货 PDA 验收后将同步至此</small></div>";
+        const riskList = document.getElementById("loss-risk-list");
+        riskList.innerHTML = "";
+        (loss.risks || []).forEach((risk) => {
+          const li = document.createElement("li");
+          const amount = risk.estimated_loss_amount ? ` · 预估损耗 ¥${risk.estimated_loss_amount.toLocaleString()}` : "";
+          li.innerHTML = `<b>${esc(risk.sku || risk.batch_id)}</b> <span style="color:var(--accent)">风险 ${esc(risk.risk_score)}</span>${esc(amount)}<br>
+            <small style="color:var(--muted)">原因：${esc(risk.reason || "规则命中")} · 建议：${esc(risk.suggested_action || "人工复核")}</small>`;
+          riskList.appendChild(li);
+        });
+        if (!riskList.children.length) {
+          riskList.innerHTML = "<div class='empty-state'><span class='es-ic'>✓</span>暂无高风险损耗项<br><small>短重、低等级、超温会进入此列表</small></div>";
+        }
       } catch (e) { console.warn(e); }
     }
     refresh();

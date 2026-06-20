@@ -141,7 +141,11 @@ python3 scripts/edge_health.py --store-id store_yuhuan --hub-url http://127.0.0.
 | 变量 | 说明 | 示例 |
 |------|------|------|
 | `HOTPOT_DATABASE_URL` | PG 连接串 | `postgresql://hotpot:***@localhost:5432/hotpot_ops` |
-| `HOTPOT_AUTH_MODE` | demo / strict | `demo` |
+| `HOTPOT_ENV` | dev / staging / pilot / production；pilot+ 启用安全启动门禁 | `pilot` |
+| `HOTPOT_AUTH_MODE` | demo / strict；pilot+ 必须 strict | `strict` |
+| `HOTPOT_JWT_SECRET` | JWT 密钥；pilot+ 必须 32+ 字符且不可用默认/占位 | `***` |
+| `HOTPOT_CORS_ORIGINS` | 允许的 dashboard origin；pilot+ 禁止 `*` | `https://ops.example.com` |
+| `HOTPOT_EDGE_API_KEYS` | 逗号分隔 `key:store_id`；pilot+ 必须替换 demo key | `edge_x:store_yuhuan` |
 | `HOTPOT_WECHAT_WEBHOOK` | 企微机器人 | `https://qyapi.weixin.qq.com/...` |
 | `HOTPOT_PUSH_WARN` | warn 是否推手机 | `0` |
 | `HOTPOT_DETECTOR_BACKEND` | mock/yolo/rknn | `yolo` |

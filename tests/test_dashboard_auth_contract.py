@@ -24,3 +24,25 @@ def test_dashboard_login_uses_server_role_after_success():
     assert "const role = user.role; // server is authoritative" in login_html
     assert "user.role || role" not in login_html
     assert "role: user.role || role" not in login_html
+
+
+def test_task_dashboard_actions_use_authenticated_role_for_rbac():
+    tasks_html = (PROJECT_ROOT / "dashboard" / "tasks.html").read_text(encoding="utf-8")
+
+    assert "const currentRole = () => A.getAuth()?.role;" in tasks_html
+    assert "A.canAction(currentRole(), action)" in tasks_html
+    assert "A.canAction(perm)" not in tasks_html
+    assert 'A.canAction("task_create")' not in tasks_html
+
+
+def test_dashboard_cost_wedge_consumes_loss_risk_api():
+    core_js = (PROJECT_ROOT / "dashboard" / "assets" / "core.js").read_text(encoding="utf-8")
+    home_html = (PROJECT_ROOT / "dashboard" / "home.html").read_text(encoding="utf-8")
+    cost_html = (PROJECT_ROOT / "dashboard" / "cost.html").read_text(encoding="utf-8")
+
+    assert "async function fetchLossRisk" in core_js
+    assert "/v1/cost/loss-risk" in core_js
+    assert "HotpotApp.fetchLossRisk(3)" in home_html
+    assert "损耗风险" in home_html
+    assert "HotpotApp.fetchLossRisk(5)" in cost_html
+    assert "后厨损耗风险 TopN" in cost_html

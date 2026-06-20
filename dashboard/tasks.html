@@ -111,6 +111,8 @@
     const TYPE_LABEL = {adhoc:"临时",sop_violation:"SOP整改",cleaning:"清台",receiving_exception:"来料异常",
       safety_alert:"安全",iot_anomaly:"IoT",inspection:"巡检"};
     const esc = s => String(s ?? "").replace(/[&<>"]/g, c => ({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;"}[c]));
+    const currentRole = () => A.getAuth()?.role;
+    const canTaskAction = action => A.canAction ? A.canAction(currentRole(), action) : true;
 
     // 各状态可做的动作 → 所需权限
     const ACTIONS = {
@@ -138,7 +140,7 @@
     }
 
     function rowHtml(t) {
-      const acts = (ACTIONS[t.status]||[]).filter(([,,perm]) => A.canAction ? A.canAction(perm) : true)
+      const acts = (ACTIONS[t.status]||[]).filter(([,,perm]) => canTaskAction(perm))
         .map(([a,label]) => `<button class="btn ${a==="cancel"||a==="reject"?"ghost":""}" data-act="${a}" data-id="${esc(t.task_id)}">${label}</button>`).join("");
       const due = t.due_at ? `<span class="${t.is_overdue?"ov-tag":""}">截止 ${esc(String(t.due_at).slice(5,16).replace("T"," "))}${t.is_overdue?" · 超时":""}</span>` : "";
       const triage = t.assignee_status==="needs_triage" ? `<span class="chip" style="color:var(--warn)">待派办</span>` : "";
@@ -192,7 +194,7 @@
 
     function wireNew() {
       const btn = document.getElementById("btn-new"), dlg = document.getElementById("dlg");
-      if (A.canAction && !A.canAction("task_create")) return;
+      if (!canTaskAction("task_create")) return;
       btn.style.display = "";
       btn.onclick = () => dlg.showModal();
       document.getElementById("dlg-cancel").onclick = () => dlg.close();

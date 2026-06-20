@@ -19,7 +19,8 @@ from cloud.event_hub.rbac import (
     role_can_write_store,
 )
 
-JWT_SECRET = os.environ.get("HOTPOT_JWT_SECRET", "hotpot-dev-secret-change-in-prod")
+DEFAULT_JWT_SECRET = "hotpot-dev-secret-change-in-prod"
+JWT_SECRET = os.environ.get("HOTPOT_JWT_SECRET", DEFAULT_JWT_SECRET)
 JWT_ALG = "HS256"
 JWT_EXPIRE_HOURS = int(os.environ.get("HOTPOT_JWT_HOURS", "24"))
 
@@ -52,6 +53,28 @@ api_key_header = APIKeyHeader(name="X-Api-Key", auto_error=False)
 def auth_mode() -> str:
     """Read the auth mode at call time so runtime env changes take effect."""
     return os.environ.get("HOTPOT_AUTH_MODE", "demo")
+
+
+def configured_api_keys() -> Dict[str, str]:
+    """Return API key -> store bindings.
+
+    HOTPOT_EDGE_API_KEYS accepts comma-separated "key:store_id" pairs, for
+    example: "edge-prod-a:store_yuhuan,edge-prod-b:store_jiaojiang".
+    Demo/dev keeps the checked-in defaults when the env var is absent.
+    """
+    raw = os.environ.get("HOTPOT_EDGE_API_KEYS", "").strip()
+    if not raw:
+        return DEFAULT_API_KEYS
+    keys: Dict[str, str] = {}
+    for item in raw.split(","):
+        pair = item.strip()
+        if not pair:
+            continue
+        key, sep, store_id = pair.partition(":")
+        if not sep or not key.strip() or not store_id.strip():
+            raise ValueError("HOTPOT_EDGE_API_KEYS must use comma-separated key:store_id pairs")
+        keys[key.strip()] = store_id.strip()
+    return keys
 
 
 class TokenRequest(BaseModel):
@@ -135,7 +158,7 @@ def login_user(req: TokenRequest) -> Dict[str, Any]:
 def resolve_api_key(key: Optional[str]) -> Optional[AuthContext]:
     if not key:
         return None
-    store_id = DEFAULT_API_KEYS.get(key)
+    store_id = configured_api_keys().get(key)
     if not store_id:
         return None
     return AuthContext(sub="edge", role="edge", store_id=store_id, auth_type="api_key")

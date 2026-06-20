@@ -297,6 +297,14 @@ const HotpotApp = (() => {
     return res.json();
   }
 
+  async function fetchLossRisk(limit = 5) {
+    const res = await fetch(`${hubUrl()}/v1/cost/loss-risk?${storeQuery(`limit=${limit}`)}`, {
+      headers: authHeaders(),
+    });
+    if (!res.ok) throw new Error(res.statusText);
+    return res.json();
+  }
+
   async function fetchHealth() {
     const res = await fetch(`${hubUrl()}/health`);
     if (!res.ok) throw new Error(res.statusText);
@@ -899,6 +907,7 @@ const HotpotApp = (() => {
     storeId,
     hubLogin,
     fetchSummary,
+    fetchLossRisk,
     fetchHealth,
     fetchMetrics,
     askSop,

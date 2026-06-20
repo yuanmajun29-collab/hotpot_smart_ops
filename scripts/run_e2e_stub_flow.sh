@@ -16,7 +16,23 @@ echo "=============================================="
 
 echo ""
 echo "[1/4] Health check..."
-curl -sf "$HUB_URL/health" | python3 -m json.tool | head -5
+HEALTH_JSON="$(curl -fsS "$HUB_URL/health" 2>/tmp/hotpot_e2e_health.err || true)"
+if ! python3 - "$HEALTH_JSON" <<'PY' >/tmp/hotpot_e2e_health_pretty 2>/dev/null
+import json
+import sys
+
+json.loads(sys.argv[1])
+PY
+then
+  echo "[FAIL] Hub health check did not return JSON from $HUB_URL/health" >&2
+  if [ -s /tmp/hotpot_e2e_health.err ]; then
+    sed 's/^/  curl: /' /tmp/hotpot_e2e_health.err >&2
+  fi
+  echo "Start Hub first, for example:" >&2
+  echo "  python3 cloud/event_hub/server.py --host 127.0.0.1 --port 8088 --seed-dir demo/data/stores" >&2
+  exit 1
+fi
+python3 -m json.tool <<<"$HEALTH_JSON" | head -5
 
 echo ""
 echo "[2/4] Login as 总部 PMO..."

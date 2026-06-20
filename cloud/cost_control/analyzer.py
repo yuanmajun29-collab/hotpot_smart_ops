@@ -283,7 +283,7 @@ def main() -> None:
             method="POST",
         )
         urllib.request.urlopen(stats_req, timeout=5)
-        print(f"[OK] Posted cost analysis to hub", file=sys.stderr)
+        print("[OK] Posted cost analysis to hub", file=sys.stderr)
 
 
 if __name__ == "__main__":

@@ -8,9 +8,14 @@ Type=simple
 User=hotpot
 Group=hotpot
 WorkingDirectory=/opt/hotpot_smart_ops
-Environment=HOTPOT_AUTH_MODE=demo
+Environment=HOTPOT_ENV=pilot
+Environment=HOTPOT_AUTH_MODE=strict
+Environment=HOTPOT_CORS_ORIGINS=https://ops.example.com
+# Override with a real secret and per-store API keys before enabling the service.
+Environment=HOTPOT_JWT_SECRET=CHANGE_ME_MIN_32_CHARS
+Environment=HOTPOT_EDGE_API_KEYS=edge_prod_yuhuan:store_yuhuan,edge_prod_jiaojiang:store_jiaojiang
 Environment=PYTHONUNBUFFERED=1
-ExecStart=/usr/bin/python3 cloud/event_hub/server.py --host 0.0.0.0 --port 8088 --seed-dir demo/data/stores
+ExecStart=/usr/bin/python3 cloud/event_hub/server.py --host 0.0.0.0 --port 8088 --auth-mode strict --seed-dir demo/data/stores
 Restart=on-failure
 RestartSec=5
 StandardOutput=journal

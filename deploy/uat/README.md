@@ -49,10 +49,10 @@ warn 级默认不推手机；开启：`export HOTPOT_PUSH_WARN=1`
 |------|------|------|
 | 看板/PDA | `POST /auth/token` → JWT | 登录页自动换取 Bearer Token |
 | 边缘盒 | `X-Api-Key` | 见各店 `config.json` 的 `edge_api_key` |
-| 演示模式 | `HOTPOT_AUTH_MODE=demo` | 读接口可匿名（默认） |
-| 生产模式 | `HOTPOT_AUTH_MODE=strict` | 全部接口需 JWT 或 API Key |
+| 演示模式 | `HOTPOT_ENV=dev` + `HOTPOT_AUTH_MODE=demo` | 读接口可匿名，仅本机/概念演示 |
+| 生产/试点模式 | `HOTPOT_ENV=pilot` + `HOTPOT_AUTH_MODE=strict` | 全部接口需 JWT 或 API Key；启动时强制校验 PG、CORS、JWT secret、edge keys |
 
-边缘 API Key（演示）：
+边缘 API Key（演示，pilot+ 必须用 `HOTPOT_EDGE_API_KEYS` 替换）：
 - 玉环：`edge_yuhuan_dev_key`
 - 椒江：`edge_jiaojiang_dev_key`
 

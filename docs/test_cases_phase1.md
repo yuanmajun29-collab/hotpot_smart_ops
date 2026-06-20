@@ -8,7 +8,7 @@
 | 日期 | 2026-06-18 |
 | 范围 | 7 业务模块 + F-TASK + PDA + 层级/驾驶仓 + Admin + 跨切面 |
 | 依据 | [product_design.md §5/§12](product_design.md) · [architecture_api_spec.md](architecture_api_spec.md) · [phase1_mvp_acceptance_checklist.md](phase1_mvp_acceptance_checklist.md) |
-| 自动化 | `tests/`（97 passed） |
+| 自动化 | `tests/`（128 passed） |
 | 归档 | V1.1 定稿基线 · 2026-06-18 · 已链入 [product_design_index](product_design_index.md) 与 README |
 
 ---
@@ -112,14 +112,14 @@
 
 ---
 
-## 7. 任务 Task（F-TASK01~04 · P1.5）
+## 7. 任务 Task（F-TASK01~04 · Phase 1.x）
 
 | TC | 关联 F | 优 | 类型 | 前置 | 步骤 | 预期 | 自动化 |
 |----|--------|----|------|------|------|------|--------|
-| TC-TASK-01 | F-TASK01 | P1.5 | 功能 | feature flag on | 创建统一任务 | 支持 pending/in_progress/submitted/closed/cancelled | ⬜ P1.5 |
-| TC-TASK-02 | F-TASK02 | P1.5 | 功能 | 任务带 due_at | 计算 SLA | overdue/escalated 派生标记（非主状态） | ⬜ P1.5 |
-| TC-TASK-03 | F-TASK03 | P1.5 | 接口 | 任务流转 | 查 task_events | 记录 create/submit/reopen/cancel/reassign | ⬜ P1.5 |
-| TC-TASK-04 | F-TASK04 | P1.5 | 接口 | — | `POST /v1/sop/assign` | 兼容写入 tasks，旧 SOP 指派不断链 | 🔶 `test_sop_assign_create_and_list` |
+| TC-TASK-01 | F-TASK01 | P1.x | 功能 | 店级 token | 创建统一任务 | 支持 pending/in_progress/submitted/closed/cancelled | ✅ `test_api_create_and_list` / `test_happy_path_pending_to_closed` |
+| TC-TASK-02 | F-TASK02 | P1.x | 功能 | 任务带 due_at | 计算 SLA | overdue 派生标记（非主状态），周期升级 dedup token 可重推 | ✅ `test_overdue_is_derived` / `test_dedup_token_allows_periodic_re_push` |
+| TC-TASK-03 | F-TASK03 | P1.x | 接口 | 任务流转 | 查 task_events | 记录 create/submit/reopen/cancel/reassign | ✅ `test_reassign_requires_sla_policy_and_logs` / `test_reopen_returns_to_pending` |
+| TC-TASK-04 | F-TASK04 | P1.x | 接口 | — | `POST /v1/sop/assign` | 兼容写入 tasks，旧 SOP 指派不断链 | ✅ `test_sop_assign_create_and_list` / `test_sop_assign_spawns_task` |
 | TC-TASK-TR1 | F-TRACE01~02 | P2 | 功能 | — | 按 ref_type/ref_id/trace_id 追溯 | 串联 OpsEvent/tasks/签字/日报 | ⬜ P2 |
 
 ---
@@ -263,7 +263,7 @@
 
 | 维度 | 已自动化 | 部分/桩 | 手工/UAT/待真数据 |
 |------|----------|---------|--------------------|
-| 接口（Hub REST） | 高（97 passed） | iot/cv summary 桩 | — |
+| 接口（Hub REST） | 高（128 passed） | iot/cv summary 桩 | — |
 | 权限 RBAC + 多租户 | ✅ 完整 | — | — |
 | /v1 契约 + 鉴权模式 | ✅ 完整 | — | — |
 | 功能（业务闭环） | 中 | CV/IoT/VLM mock | 真链路 BL-01~04 |
@@ -281,4 +281,4 @@
 - [phase1_mvp_acceptance_checklist.md](phase1_mvp_acceptance_checklist.md) — 验收勾选表（与本用例互补）
 - [architecture_api_spec.md](architecture_api_spec.md) — REST API 契约
 - [uat_concept_test_record.md](uat_concept_test_record.md) — PM-402 店长概念测试
-- `tests/` — 自动化套件（97 passed）
+- `tests/` — 自动化套件（128 passed）
