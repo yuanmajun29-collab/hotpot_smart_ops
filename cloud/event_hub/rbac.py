@@ -12,6 +12,7 @@ from typing import Dict, Tuple
 
 STORE_SCOPE = "store"
 REGION_SCOPE = "region"
+ZONE_SCOPE = "zone"
 NATIONAL_SCOPE = "national"
 
 WRITE_NONE = "none"
@@ -31,7 +32,8 @@ class RolePolicy:
 
 ROLE_POLICIES: Dict[str, RolePolicy] = {
     "店长": RolePolicy(
-        actions=("ack", "table_correct", "receiving_submit", "sop_assign", "report_generate"),
+        actions=("ack", "table_correct", "receiving_submit", "sop_assign", "report_generate",
+                 "task_create", "task_ack", "task_reassign", "task_verify", "task_cancel"),
         write_scope=WRITE_OWN_OR_ALL,
     ),
     "前厅领班": RolePolicy(
@@ -47,13 +49,15 @@ ROLE_POLICIES: Dict[str, RolePolicy] = {
         write_scope=WRITE_OWN,
     ),
     "区域督导": RolePolicy(
-        actions=("ack", "sop_assign", "report_generate"),
+        actions=("ack", "sop_assign", "report_generate",
+                 "task_create", "task_reassign", "task_verify", "task_reopen", "task_cancel"),
         data_scope=REGION_SCOPE,
         read_all_stores=True,
         write_scope=WRITE_ALL,
     ),
     "总部PMO": RolePolicy(
-        actions=("report_generate", "sop_assign", "admin_write"),
+        actions=("report_generate", "sop_assign", "admin_write",
+                 "task_create", "task_verify", "task_reopen"),
         data_scope=NATIONAL_SCOPE,
         can_admin=True,
     ),
@@ -66,6 +70,33 @@ ROLE_POLICIES: Dict[str, RolePolicy] = {
         actions=(),
         data_scope=NATIONAL_SCOPE,
         read_all_stores=True,
+    ),
+    "班组长": RolePolicy(
+        # 本店·本班组执行督办；权限 < 店长：可任务 ack/reassign、桌态纠正；不可收货提交/admin 写
+        actions=("ack", "table_correct", "task_ack", "task_reassign"),
+        data_scope=STORE_SCOPE,
+        write_scope=WRITE_OWN,
+    ),
+    "大区运营": RolePolicy(
+        # 大区级跨店对标 + 任务交办；不写门店运营数据
+        actions=("report_generate", "task_create", "task_verify"),
+        data_scope=ZONE_SCOPE,
+        read_all_stores=True,
+        write_scope=WRITE_NONE,
+    ),
+    "营销运营": RolePolicy(
+        # 仅写 F-SALES 规则/话术；不碰 SOP/阈值/用户；不参与任务 ack/复核；不写门店运营数据
+        actions=("sales_config",),
+        data_scope=NATIONAL_SCOPE,
+        read_all_stores=True,
+        write_scope=WRITE_NONE,
+    ),
+    "财务审计": RolePolicy(
+        # 成本/追溯/日报/审计只读；不可 ack/reassign/cancel/任何写
+        actions=(),
+        data_scope=NATIONAL_SCOPE,
+        read_all_stores=True,
+        write_scope=WRITE_NONE,
     ),
     "edge": RolePolicy(
         actions=("table_correct", "receiving_submit", "sop_assign"),

@@ -38,6 +38,11 @@ DEMO_USERS = {
     ("quyududao", "demo"): {"role": "区域督导", "name": "区域督导", "store_id": "*"},
     ("zongbu", "demo"): {"role": "总部PMO", "name": "总部PMO", "store_id": "*"},
     ("laoban", "demo"): {"role": "集团决策者", "name": "冯老板", "store_id": "*"},
+    ("banzu", "demo"): {"role": "班组长", "name": "孙班组长"},
+    ("daqu", "demo"): {"role": "大区运营", "name": "钱大区", "store_id": "*"},
+    ("zongbuit", "demo"): {"role": "总部 IT", "name": "郑IT", "store_id": "*"},
+    ("yingxiao", "demo"): {"role": "营销运营", "name": "周营销", "store_id": "*"},
+    ("caiwu", "demo"): {"role": "财务审计", "name": "吴财审", "store_id": "*"},
 }
 
 bearer_scheme = HTTPBearer(auto_error=False)
@@ -110,7 +115,7 @@ def login_user(req: TokenRequest) -> Dict[str, Any]:
     role = user["role"]
     if role == "区域督导":
         store_id = "*"
-    if role in ("总部PMO", "总部 IT", "集团决策者"):
+    if role in ("总部PMO", "总部 IT", "集团决策者", "大区运营", "营销运营", "财务审计"):
         store_id = "*"
     token = create_access_token(req.username, role, store_id)
     return {
