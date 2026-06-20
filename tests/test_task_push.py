@@ -50,6 +50,23 @@ def test_escalation_level_at_least_warn(gw):
     assert r["level"] == "warn"  # info upgraded to warn for escalations
 
 
+def test_dedup_token_allows_periodic_re_push(gw):
+    # same (task, kind) but a new round token re-pushes with refreshed minutes
+    a = gw.push_task_card(_TASK, "store_yuhuan", "done_overdue", overdue_minutes=42, dedup_token="r1")
+    b = gw.push_task_card(_TASK, "store_yuhuan", "done_overdue", overdue_minutes=42, dedup_token="r1")
+    c = gw.push_task_card(_TASK, "store_yuhuan", "done_overdue", overdue_minutes=90, dedup_token="r2")
+    assert a["pushed"] is True and b["pushed"] is False  # same round deduped
+    assert c["pushed"] is True  # next round re-pushes
+    assert "已逾期：90 分钟" in c["card"]["body"]
+
+
+def test_card_uses_group_when_no_assignee(gw):
+    grp = {k: v for k, v in _TASK.items() if k != "assignee_id"}
+    grp["assignee_group"] = "前厅班组"
+    c = gw.format_task_card(grp, "store_yuhuan", "dispatch")
+    assert "责任人：前厅班组" in c["body"]  # group shown, not 待派办
+
+
 # ---- wiring: create_task triggers dispatch push -----------------------------
 
 @pytest.fixture()
@@ -84,3 +101,17 @@ def test_create_task_triggers_dispatch_push(client):
     assert r.json()["dispatch_pushed"] is True
     pushes = runtime.alert_gateway.list_pushes("store_yuhuan")
     assert any("待清台" in p.get("title", "") for p in pushes)
+
+
+def test_create_task_survives_push_failure(client, monkeypatch):
+    from cloud.event_hub import runtime
+
+    def _boom(*a, **k):
+        raise RuntimeError("webhook down")
+
+    monkeypatch.setattr(runtime.alert_gateway, "push_task_card", _boom)
+    h = _tok(client, "zhangdian", "店长")
+    r = client.post("/v1/tasks", json={"task_type": "cleaning", "title": "B5 待清台",
+                    "priority": "P1", "assignee_id": "banzu"}, headers=h)
+    assert r.status_code == 200, r.text  # build not blocked by push failure
+    assert r.json()["dispatch_pushed"] is False

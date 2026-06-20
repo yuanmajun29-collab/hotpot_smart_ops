@@ -65,8 +65,9 @@ def create_task(body: TaskCreateBody, auth: AuthContext = Depends(get_auth_conte
     try:
         if runtime.alert_gateway is not None:
             pushed = runtime.alert_gateway.push_task_card(row, sid, "dispatch").get("pushed", False)
-    except Exception:  # noqa: BLE001 - 推送失败不应阻断建单
+    except Exception as exc:  # noqa: BLE001 - 推送失败不应阻断建单
         pushed = False
+        print(f"[EventHub] WARN: task dispatch push failed for {row.get('task_id')}@{sid}: {exc}")
     return {"ok": True, "task": row, "dispatch_pushed": pushed}
 
 

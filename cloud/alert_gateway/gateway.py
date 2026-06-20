@@ -276,7 +276,7 @@ class AlertGateway:
         route = self._store_route(store_id)
         title = task.get("title") or task.get("task_id") or "任务"
         prio = task.get("priority", "P1")
-        assignee = task.get("assignee_id") or "待派办"
+        assignee = task.get("assignee_id") or task.get("assignee_group") or "待派办"
         dash = str(route.get("dashboard_url") or "").replace("alerts.html", "tasks.html") or \
             "http://127.0.0.1:3000/tasks.html"
         lines = [
@@ -294,16 +294,27 @@ class AlertGateway:
         return {"title": f"【{meta['tag']}·{prio}】{title}", "body": body, "markdown": body}
 
     def push_task_card(self, task: Dict[str, Any], store_id: str, kind: str,
-                       *, sla: str = "", overdue_minutes: Optional[int] = None) -> Dict[str, Any]:
-        """Push a task督办 card. Idempotent per (task_id, kind) via a synthetic event_id."""
+                       *, sla: str = "", overdue_minutes: Optional[int] = None,
+                       dedup_token: Optional[str] = None) -> Dict[str, Any]:
+        """Push a task督办 card.
+
+        Idempotent per (task_id, kind, dedup_token) via a synthetic event_id.
+        ``dispatch`` leaves ``dedup_token`` None so a task is announced once. For
+        recurring escalations the scheduler passes a per-round token (e.g. an
+        hour bucket or escalation seq) so each round re-pushes with refreshed
+        overdue_minutes instead of being silently deduped forever.
+        """
         card = self.format_task_card(task, store_id, kind, sla=sla, overdue_minutes=overdue_minutes)
         level = self._PRIO_LEVEL.get(task.get("priority", "P1"), "warn")
         # escalations are at least warn so they always surface
         if kind in ("accept_overdue", "done_overdue") and level == "info":
             level = "warn"
         route = self._store_route(store_id)
+        event_id = f"task:{task.get('task_id')}:{kind}"
+        if dedup_token:
+            event_id += f":{dedup_token}"
         pseudo = {
-            "event_id": f"task:{task.get('task_id')}:{kind}",
+            "event_id": event_id,
             "level": level,
             "event_type": f"task_{kind}",
             "message": card["body"],
