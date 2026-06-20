@@ -1,0 +1,149 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>设计规范 · 冯校长火锅智能运营</title>
+  <link rel="stylesheet" href="assets/theme.css" />
+  <style>
+    body { background: var(--bg); color: var(--text); font-family: "PingFang SC","Segoe UI",system-ui,sans-serif; margin: 0; }
+    .sg-wrap { max-width: 1080px; margin: 0 auto; padding: 40px 28px 80px; }
+    .sg-head { display: flex; align-items: center; gap: 16px; margin-bottom: 8px; }
+    .sg-seal { width: 56px; height: 56px; border-radius: 16px; background: linear-gradient(150deg,var(--brand),var(--brand-2));
+      display: flex; align-items: center; justify-content: center; font-family: "STSong","Songti SC",serif; font-size: 32px; color: #fff; font-weight: 700;
+      box-shadow: 0 4px 14px rgba(200,67,31,.35); }
+    .sg-title { font-family: "STSong","Songti SC","Noto Serif SC",serif; font-size: 1.8rem; letter-spacing: .04em; }
+    .sg-title small { display: block; font-family: inherit; font-size: .72rem; letter-spacing: .14em; color: var(--faint); margin-top: 4px; font-weight: 400; }
+    .sg-lede { color: var(--muted); font-size: .92rem; line-height: 1.7; max-width: 680px; margin: 16px 0 44px; }
+    .sg-sec { margin-bottom: 52px; }
+    .sg-sec > h2 { font-size: 1.05rem; font-weight: 700; padding-bottom: 10px; border-bottom: 1px solid var(--border); margin-bottom: 22px; display: flex; align-items: center; gap: 10px; }
+    .sg-sec > h2 .n { width: 24px; height: 24px; border-radius: 7px; background: var(--brand-soft); color: var(--brand); font-size: .8rem; display: flex; align-items: center; justify-content: center; font-weight: 700; }
+    .sw-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(150px,1fr)); gap: 14px; }
+    .sw { border-radius: var(--r-md); overflow: hidden; border: 1px solid var(--border); }
+    .sw .chip-c { height: 64px; }
+    .sw .meta { padding: 9px 11px; background: var(--card); }
+    .sw .meta b { font-size: .82rem; display: block; }
+    .sw .meta code { font-size: .68rem; color: var(--faint); font-family: "SF Mono",ui-monospace,monospace; }
+    .type-row { display: flex; align-items: baseline; gap: 18px; padding: 13px 0; border-bottom: 1px solid var(--border); }
+    .type-row .lab { width: 120px; flex-shrink: 0; font-size: .72rem; color: var(--faint); }
+    .type-row .lab code { display: block; margin-top: 3px; }
+    .demo-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 18px; }
+    @media (max-width: 760px) { .demo-grid { grid-template-columns: 1fr; } }
+    .demo-box { background: var(--card); border: 1px solid var(--border); border-radius: var(--r-md); padding: 20px; }
+    .demo-box > .dh { font-size: .72rem; color: var(--faint); letter-spacing: .08em; text-transform: uppercase; margin-bottom: 14px; }
+    .row { display: flex; gap: 10px; flex-wrap: wrap; align-items: center; }
+    .icon-cell { display: flex; flex-direction: column; align-items: center; gap: 7px; }
+    .icon-cell .ic { width: 42px; height: 42px; border-radius: 11px; background: var(--brand-soft); display: flex; align-items: center; justify-content: center; }
+    .icon-cell .ic svg { width: 20px; height: 20px; stroke: var(--brand); fill: none; }
+    .icon-cell span { font-size: .68rem; color: var(--muted); }
+  </style>
+</head>
+<body>
+  <div class="sg-wrap">
+    <div class="sg-head">
+      <div class="sg-seal">馮</div>
+      <div class="sg-title">冯校长火锅 · 设计规范<small>SMART OPS DESIGN SYSTEM · v1</small></div>
+    </div>
+    <p class="sg-lede">本页是看板视觉系统的唯一对齐基准，直接引用线上 <code>assets/theme.css</code> 渲染 ——
+      改 token 即改本页。新增页面/组件时，颜色、字阶、圆角、组件样式一律取自此处，勿自造。</p>
+
+    <!-- 色彩 -->
+    <section class="sg-sec">
+      <h2><span class="n">1</span>色彩</h2>
+      <div class="dh" style="font-size:.72rem;color:var(--faint);letter-spacing:.08em;margin-bottom:12px">表面 · 暖中性</div>
+      <div class="sw-grid" id="sw-surface"></div>
+      <div class="dh" style="font-size:.72rem;color:var(--faint);letter-spacing:.08em;margin:22px 0 12px">品牌 · 语义</div>
+      <div class="sw-grid" id="sw-brand"></div>
+      <p style="font-size:.82rem;color:var(--muted);margin-top:16px;line-height:1.7">
+        <b style="color:var(--brand)">ember 品牌色</b>仅用于 logo / 主操作 / 选中态；
+        <b style="color:var(--accent)">严重红</b>仅用于 critical 告警，与品牌橙刻意区分；
+        语义色（警告/正常/信息）各自独立，不混用。</p>
+    </section>
+
+    <!-- 字体 -->
+    <section class="sg-sec">
+      <h2><span class="n">2</span>字体与字阶</h2>
+      <div class="type-row"><div class="lab">字标<code>STSong 700</code></div><div style="font-family:'STSong','Songti SC',serif;font-size:1.8rem;font-weight:700">冯校长火锅</div></div>
+      <div class="type-row"><div class="lab">页面标题<code>1.15rem / 700</code></div><div style="font-size:1.15rem;font-weight:700">集团驾驶仓</div></div>
+      <div class="type-row"><div class="lab">卡片标题<code>0.8rem / upper</code></div><div style="font-size:.8rem;font-weight:600;text-transform:uppercase;letter-spacing:.05em;color:var(--muted)">实时事件流</div></div>
+      <div class="type-row"><div class="lab">KPI 数字<code>2rem / tabular</code></div><div style="font-size:2rem;font-weight:700;font-variant-numeric:tabular-nums">92%</div></div>
+      <div class="type-row"><div class="lab">正文<code>0.9rem / 400</code></div><div style="font-size:.9rem">冷藏库温度 6.2°C 超标</div></div>
+      <div class="type-row"><div class="lab">次级 meta<code>0.76rem</code></div><div style="font-size:.76rem;color:var(--muted)">IoT · cold_storage_1 · 12:31</div></div>
+    </section>
+
+    <!-- 圆角 -->
+    <section class="sg-sec">
+      <h2><span class="n">3</span>圆角阶梯</h2>
+      <div class="row">
+        <div style="text-align:center"><div style="width:90px;height:64px;background:var(--card);border:1px solid var(--border);border-radius:var(--r-sm)"></div><code style="font-size:.7rem;color:var(--faint)">--r-sm 8px</code></div>
+        <div style="text-align:center"><div style="width:90px;height:64px;background:var(--card);border:1px solid var(--border);border-radius:var(--r-md)"></div><code style="font-size:.7rem;color:var(--faint)">--r-md 12px</code></div>
+        <div style="text-align:center"><div style="width:90px;height:64px;background:var(--card);border:1px solid var(--border);border-radius:var(--r-lg)"></div><code style="font-size:.7rem;color:var(--faint)">--r-lg 16px</code></div>
+      </div>
+    </section>
+
+    <!-- 图标 -->
+    <section class="sg-sec">
+      <h2><span class="n">4</span>图标系统 · Lucide 线性（1.9 描边）</h2>
+      <div class="row" id="icon-set" style="gap:18px"></div>
+    </section>
+
+    <!-- 组件 -->
+    <section class="sg-sec">
+      <h2><span class="n">5</span>组件</h2>
+      <div class="demo-grid">
+        <div class="demo-box">
+          <div class="dh">按钮 / 胶囊</div>
+          <div class="row" style="margin-bottom:14px">
+            <button class="btn btn-sm">主操作</button>
+            <button class="btn btn-sm btn-ghost">次操作</button>
+          </div>
+          <div class="row"><span class="chip">门店切换 ▾</span><span class="lvl critical">严重</span><span class="lvl warn">警告</span><span class="lvl info">信息</span></div>
+        </div>
+        <div class="demo-box">
+          <div class="dh">KPI 卡 · 严重自动升主卡</div>
+          <div class="kpi-strip" style="display:grid;grid-template-columns:1fr 1fr;gap:10px">
+            <div class="card" style="padding:14px"><h3 style="margin-bottom:8px">严重告警</h3><div class="stat critical">2</div></div>
+            <div class="card" style="padding:14px"><h3 style="margin-bottom:8px">SOP 合规</h3><div class="stat ok">92%</div></div>
+          </div>
+        </div>
+        <div class="demo-box">
+          <div class="dh">告警事件卡</div>
+          <div class="event critical"><div class="ev-ti"><strong>冷链告警</strong><span class="lvl critical">严重</span></div><div class="ev-msg">冷藏库温度 6.2°C 超标</div><div class="event-meta">IoT · 12:31</div></div>
+        </div>
+        <div class="demo-box">
+          <div class="dh">空状态 / 骨架</div>
+          <div class="empty-state" style="padding:14px"><span class="es-ic">✓</span>本班无违规项</div>
+          <div class="sk-line w80"></div><div class="sk-line w60"></div>
+        </div>
+      </div>
+    </section>
+  </div>
+
+  <script>
+    const surface = [["--bg","底"],["--card","卡片"],["--card2","抬升层"],["--border","描边"],["--text","文字"],["--muted","次级"],["--faint","最弱"]];
+    const brand = [["--brand","品牌 ember"],["--brand-2","深 ember"],["--accent","严重"],["--warn","警告"],["--ok","正常"],["--info","信息"],["--dining","用餐中"]];
+    const cs = getComputedStyle(document.documentElement);
+    function fill(id, list) {
+      document.getElementById(id).innerHTML = list.map(([v,n]) => {
+        const hex = cs.getPropertyValue(v).trim();
+        return `<div class="sw"><div class="chip-c" style="background:${hex}"></div><div class="meta"><b>${n}</b><code>${hex} · ${v}</code></div></div>`;
+      }).join("");
+    }
+    fill("sw-surface", surface); fill("sw-brand", brand);
+
+    const ICONS = {
+      "首页":'<path d="M3 9.5 12 3l9 6.5V20a1 1 0 0 1-1 1h-5v-7H9v7H4a1 1 0 0 1-1-1z"/>',
+      "桌态":'<path d="M3 3h7v7H3z"/><path d="M14 3h7v7h-7z"/><path d="M14 14h7v7h-7z"/><path d="M3 14h7v7H3z"/>',
+      "后厨":'<path d="M14 4.5V14a4 4 0 1 1-4 0V4.5a2 2 0 0 1 4 0Z"/>',
+      "SOP":'<path d="M9 4H7a2 2 0 0 0-2 2v13a2 2 0 0 0 2 2h10a2 2 0 0 0 2-2V6a2 2 0 0 0-2-2h-2"/><path d="M9 3h6v3H9z"/><path d="m9 14 2 2 4-4"/>',
+      "成本":'<path d="M12 3v18"/><path d="M5 7h14"/><path d="m7 7-4 8h8z"/><path d="m17 7-4 8h8z"/><path d="M8 21h8"/>',
+      "告警":'<path d="M6 8a6 6 0 0 1 12 0c0 6 3 8 3 8H3s3-2 3-8"/><path d="M10.5 21a1.8 1.8 0 0 0 3 0"/>',
+      "日报":'<path d="M14 3H7a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h10a2 2 0 0 0 2-2V8z"/><path d="M14 3v5h5"/><path d="M9 13h6"/><path d="M9 17h6"/>',
+      "收货":'<path d="M4 7V5a1 1 0 0 1 1-1h2"/><path d="M17 4h2a1 1 0 0 1 1 1v2"/><path d="M20 17v2a1 1 0 0 1-1 1h-2"/><path d="M7 20H5a1 1 0 0 1-1-1v-2"/><path d="M4 12h16"/>',
+    };
+    document.getElementById("icon-set").innerHTML = Object.entries(ICONS).map(([n,p]) =>
+      `<div class="icon-cell"><div class="ic"><svg viewBox="0 0 24 24" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round">${p}</svg></div><span>${n}</span></div>`
+    ).join("");
+  </script>
+</body>
+</html>
