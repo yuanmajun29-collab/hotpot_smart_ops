@@ -4,8 +4,8 @@
 
 | 项目 | 内容 |
 |------|------|
-| 版本 | V1.2 |
-| 更新 | 2026-06-16 |
+| 版本 | V1.3 |
+| 更新 | 2026-06-21 |
 
 ---
 
@@ -268,7 +268,7 @@
 |----|------|
 | 状态 | **已采纳**（2026-06-19 · wedge PK 收敛） |
 | 背景 | 创业切入需在边缘跑 VLM+LLM；外部讨论给出云 API 原型 → Jetson 全栈验证 → RK3588 量产的硬件分期，需固化为决策并明确 Phase 1 承诺边界 |
-| 决策 | 三段硬件 profile：① **原型**：旧安卓/PC + 云 API（通义千问/DeepSeek），仅验证预测逻辑；② **开发机**：Jetson Orin Nano 8GB（40 TOPS），跑全栈 `Qwen2.5-VL-3B` + `Qwen2.5-3B-Instruct`（llama.cpp/INT4，VLM+LLM 同驻需 ≥16GB 理想 32GB），用于跑通链路；③ **量产**：RK3588（6 TOPS NPU，RKNN 工具链），YOLO-first 降成本，与 ADR-005/ADR-014 一致 |
+| 决策 | 三段硬件 profile：① **原型**：旧安卓/PC + 云 API（通义千问/DeepSeek），仅验证预测逻辑；② **开发机**：Jetson Orin Nano Super 8GB（官方 Super profile：67 INT8 TOPS），跑全栈 `Qwen2.5-VL-3B` + `Qwen2.5-3B-Instruct`（llama.cpp/INT4，VLM+LLM 同驻需 ≥16GB 理想 32GB），用于跑通链路；③ **量产**：RK3588（6 TOPS NPU，RKNN 工具链），YOLO-first 降成本，与 ADR-005/ADR-014 一致 |
 | 边界 | **VLM/LLM 本地常驻列为「实验验证」而非 Phase 1 承诺**；Phase 1 边缘检测仍以 YOLO-first（ADR-005）为准，VLM 经 feature flag（ADR-014）；推理延迟目标 ≤3s、盒子稳定性优先于模型"智商" |
 | 后果 | `edge/detector`（YOLO/RKNN）与 `edge/rknn_deploy` 复用；新增模型量化与 Jetson 部署脚本为 P1B 实验项；不在硬件 All in，签首付费客户后再批量 |
 | 关联 | ADR-005 · ADR-014 · `edge/` · [kitchen_loss_prediction_wedge_plan.md §7.1/§8.6](kitchen_loss_prediction_wedge_plan.md) |
@@ -302,3 +302,18 @@
 | 运营商/模板化 | 补 **ADR-018**（template_id/vertical/config/flags/OTA/实例边界，先定契约） | ✅ 本文 |
 
 **Codex 反提（已落实）**：F-C03 手动打分降级同步至 `phase1_mvp_acceptance_checklist.md` 与 `test_cases_phase1.md`；LOSS-402 已从「下一步」提前实现为只读桩。
+
+---
+
+## ADR-019：后厨损耗预算/预测真实设备接入 Profile
+
+| 项 | 内容 |
+|----|------|
+| 状态 | **提议中**（2026-06-21 · 试点执行方案） |
+| 背景 | `/v1/cost/loss-risk` 已落规则 baseline，但创业主线要证明真实 ROI，必须从 mock/stub 走向真实设备数据。若一次性采购全量硬件（RFID、改刀双秤、全后厨 VLM 摄像头、本地常驻大模型），会抬高现场复杂度和现金压力。 |
+| 决策 | 真实设备接入采用 **P1A 最小强证据 Profile**：收货秤 + 探针温度 + 冷藏/冷冻温湿度 + 冷库门磁 + PDA + 1~2 路关键摄像头 + RK3588 边缘盒 + 工业 IoT 网关。协议层统一为 `sensor_id + stage + type + value + unit + ts + raw.protocol` 事件，先进入 snapshot feature builder；pay-test 通过或跨天回放需要时，再落 `loss_features/loss_predictions` 表。 |
+| 硬件 | 延续 ADR-017：Jetson Orin Nano Super 8GB 用于 VLM/LLM 开发验证；试点/量产默认 RK3588 16GB 工业边缘盒。工业网关需支持 RS232/RS485、Modbus RTU、标准 MQTT/HTTP；摄像头仅做留证与二期 VLM 输入，不作为 P1A 主证据。 |
+| 分期 | P0 数据基线；P1A 真设备收货/冷链接入；P1B 损耗预算/预测 feature snapshot；P1C 风险转任务/SOP/日报闭环；P2 双店复制与模板化。 |
+| 边界 | P1A 不采购 RFID 全追溯、全量 VLM 摄像头、改刀双秤；不承诺本地 VLM/LLM 常驻；设备数据作为证据与建议，自动扣款/自动退货仍禁止。 |
+| 后果 | 新增方案文档 `kitchen_loss_real_device_solution.md`；后续任务以 LOSS-501~508 管理。现场验收从“页面能演示”升级为“真实设备在线率、读数延迟、数据完整率、闭环损耗金额”四类指标。 |
+| 关联 | ADR-016 · ADR-017 · ADR-018 · [kitchen_loss_real_device_solution.md](kitchen_loss_real_device_solution.md) · `shared/iot_sensors.py` · `edge/iot_mock/mqtt_bridge.py` · `cloud/event_hub/routers/cost.py` |

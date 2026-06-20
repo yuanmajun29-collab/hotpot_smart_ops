@@ -4,8 +4,8 @@
 
 | 项目 | 内容 |
 |------|------|
-| 版本 | V1.5 |
-| 更新 | 2026-06-19 |
+| 版本 | V1.6 |
+| 更新 | 2026-06-21 |
 | 维护人 | 产品 |
 
 ---
@@ -17,6 +17,7 @@
 | 立项 / 决策层汇报 | [executive_summary_onepager.md](executive_summary_onepager.md) | [solution.md §1](solution.md#1-执行摘要) |
 | 对齐产品目标（5 分钟） | [product_goal_card.md](product_goal_card.md) | [product_design.md §1](product_design.md#1-产品定位与目标) |
 | **创业切入口 / 后厨损耗预测** | [kitchen_loss_prediction_wedge_plan.md](kitchen_loss_prediction_wedge_plan.md) | PRD §1.3.1 · architecture phase1 C-05 |
+| **真实设备接入 / 损耗预算落地** | [kitchen_loss_real_device_solution.md](kitchen_loss_real_device_solution.md) | ADR-019 · 采购/接线/开发/验收 |
 | **设计 vs 分期交付（总原则）** | [product_design.md §2.1](product_design.md#21-设计完整性-vs-分期交付) | [ADR-013](architecture_decisions.md#adr-013设计先行实现与真数据接入分期) |
 | **产品综观（决策层 / 新人 onboarding）** | [product_overview.md](product_overview.md) | 本文 |
 | 功能范围与验收标准 | [product_design.md §5、§12](product_design.md#5-功能规格feature-prd) | [phase1_mvp_acceptance_checklist.md](phase1_mvp_acceptance_checklist.md) |

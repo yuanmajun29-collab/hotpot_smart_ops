@@ -115,7 +115,7 @@ Phase 1 北极星建议从“有效告警处理率”调整为：
 
 | 阶段 | 选型 | 理由 |
 |------|------|------|
-| 开发/验证（第一台） | **NVIDIA Jetson Orin Nano 8GB**（≈¥2200-2600，40 TOPS） | 原生跑 Qwen2.5-VL-3B + Llama 3.2 3B，JetPack/CUDA/TensorRT 生态成熟，8GB 统一内存可同时常驻 3B VLM + 3B LLM，省模型适配成本；第一台是「开发机」跑通全链路 |
+| 开发/验证（第一台） | **NVIDIA Jetson Orin Nano Super 8GB**（官方 Super profile：67 INT8 TOPS） | 原生跑 Qwen2.5-VL-3B + Llama 3.2 3B，JetPack/CUDA/TensorRT 生态成熟；第一台是「开发机」跑通全链路，VLM+LLM 同驻仍以实验验证为边界 |
 | 批量部署 | **瑞芯微 RK3588**（≈¥800-1000，6 TOPS NPU） | 成本效率（FPS/¥）显著更高，适合验证成功后规模铺店；经 RKNN 工具链转模型。本仓库 `edge/rknn_deploy/` 已就绪 |
 
 > 这与 ADR-005「生产默认 yolo，dev 可 mock」、ADR-014「YOLO-only on Jetson，VLM feature flag」一致：**开发期 Jetson 跑全栈（YOLO+VLM+LLM）验证，批量期 RK3588 跑 YOLO-first 降成本**。
@@ -175,7 +175,7 @@ Phase 1 北极星建议从“有效告警处理率”调整为：
 ### 8.6 模型与硬件选型补充（与 §7.1 一致）
 
 - VLM：`Qwen2.5-VL-3B` / `MiniCPM-V-2.6`（量化版）；LLM：`Qwen2.5-3B-Instruct` / `Phi-3.5-mini`；推理 `llama.cpp` / INT4 量化；VLM+LLM 同时常驻需 ≥16GB（理想 32GB）统一内存。
-- 阶段：原型（旧安卓 + 云 API）→ 开发机 Jetson Orin Nano 8GB（跑全栈验证）→ 批量 RK3588（YOLO-first 降成本）。
+- 阶段：原型（旧安卓 + 云 API）→ 开发机 Jetson Orin Nano Super 8GB（跑全栈验证）→ 批量 RK3588（YOLO-first 降成本）。
 - 核心竞争力：**第一反应速度 ≤3s** 与**盒子稳定性（插上就忘）**优先于模型"智商"。
 
 ### 8.7 验证闸（北极星的商业版）
