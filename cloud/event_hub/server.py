@@ -20,7 +20,11 @@ def main() -> None:
     parser.add_argument("--seed-dir", default="", help="Seed stores on startup if DB empty")
     parser.add_argument("--db", default="", help="SQLite path (default demo/data/hub.db)")
     parser.add_argument("--legacy", action="store_true", help="Use legacy http.server")
-    parser.add_argument("--auth-mode", choices=("demo", "strict"), default="demo")
+    parser.add_argument(
+        "--auth-mode",
+        choices=("demo", "strict"),
+        default=os.environ.get("HOTPOT_AUTH_MODE", "demo"),
+    )
     args = parser.parse_args()
 
     if args.db:

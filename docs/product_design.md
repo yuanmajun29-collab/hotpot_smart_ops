@@ -328,18 +328,18 @@ stateDiagram-v2
 
 **PoC 已有**：F-S01~S04 列表（sop-list + sop-rate）
 
-### 5.4.1 模块：任务督办引擎（F-TASK · P1.5）
+### 5.4.1 模块：任务督办引擎（F-TASK · Phase 1.x 已实现内核）
 
-> 详设：[task_supervision_engine_design.md](task_supervision_engine_design.md)。F-TASK 是轻量任务内核，不是 Phase 1 完整 L3 工作流中台。
+> 详设：[task_supervision_engine_design.md](task_supervision_engine_design.md)。F-TASK 是轻量任务内核，不是完整 L3 工作流中台；当前分支已落地任务状态机、`/v1/tasks`、任务中心 UI 与企微督办卡片，但不作为 IMP-402 Go-Live 硬门槛。
 
 | ID | 功能 | 优先级 | 用户故事 | 验收标准 |
 |----|------|--------|----------|----------|
-| F-TASK01 | 统一任务表 | P1.5 | 作为店长，我想把 SOP/告警/来料异常统一收口 | tasks 支持 `pending/in_progress/submitted/closed/cancelled` |
-| F-TASK02 | SLA 派生标记 | P1.5 | 作为督导，我想看哪些任务逾期或升级 | `overdue/escalated` 由 `due_at` 和规则计算，不作为主状态 |
-| F-TASK03 | 任务事件审计 | P1.5 | 作为督导，我要追溯谁转派、谁重开 | `task_events` 记录 create/submit/reopen/cancel/reassign |
-| F-TASK04 | SOP 指派兼容 | P1.5 | 作为研发，我要旧 SOP 指派不断链 | `/v1/sop/assign` 兼容写入 tasks |
+| F-TASK01 | 统一任务表 | P1.x | 作为店长，我想把 SOP/告警/来料异常统一收口 | tasks 支持 `pending/in_progress/submitted/closed/cancelled` |
+| F-TASK02 | SLA 派生标记 | P1.x | 作为督导，我想看哪些任务逾期或升级 | `overdue` 由 `due_at` 派生，周期升级调度接 P2 |
+| F-TASK03 | 任务事件审计 | P1.x | 作为督导，我要追溯谁转派、谁重开 | `task_events` 记录 create/submit/reopen/cancel/reassign |
+| F-TASK04 | SOP 指派兼容 | P1.x | 作为研发，我要旧 SOP 指派不断链 | `/v1/sop/assign` 兼容路径保留，任务中心可承接闭环 |
 
-**P1.5 边界**：仅做轻量 kernel + SOP 兼容 + 最小 UI；feature flag 上线。不得抢占 BL-01~08 的算法、边缘、IoT、PDA、RBAC 资源；除非缩小为 DEV-421 替代项，否则不作为 IMP-402 Go-Live 前置。
+**Phase 1.x 边界**：仅做轻量 kernel + SOP/告警/来料异常收口 + 最小 UI + 企微督办卡片；不得抢占 BL-01~08 的算法、边缘、IoT、PDA 资源；不作为 IMP-402 Go-Live 硬前置，若纳入试点需单独验收。
 
 ---
 

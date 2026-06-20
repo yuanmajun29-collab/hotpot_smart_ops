@@ -140,7 +140,7 @@
 
 | 方法 | 路径 | 说明 | PRD | Phase |
 |------|------|------|-----|-------|
-| GET | `/v1/cost/loss-risk` | 损耗风险 TopN：SKU/批次/金额/原因/建议动作 | F-C06 | 1.x |
+| GET | `/v1/cost/loss-risk` | 损耗风险 TopN：SKU/批次/金额/原因/建议动作 | F-C06 | ✅ 1.x 已实现 |
 
 请求参数：
 
@@ -152,23 +152,23 @@
 
 响应字段：`sku`、`batch_id`、`risk_score`、`estimated_loss_amount`、`reason`、`suggested_action`、`ref_type/ref_id`。P1B 先基于规则 baseline 与 snapshots/OpsEvent；P1C 接 `/v1/sop/assign` 或后续 F-TASK。
 
-### 3.2 Phase 1.5 规划 API（F-TASK · feature flag）
+### 3.2 Phase 1.x 已实现 API（F-TASK · 非 Go-Live 硬前置）
 
 > 详设：[task_supervision_engine_design.md §8](task_supervision_engine_design.md#8-api-设计v1tasks) · DEV-520~524
 
 | 方法 | 路径 | 说明 | PRD | Phase |
 |------|------|------|-----|-------|
-| POST | `/v1/tasks` | 创建任务 | F-TASK01 | 1.5 |
-| GET | `/v1/tasks` | 列表 `?status=&type=&assignee=&overdue=` | F-TASK01 | 1.5 |
-| GET | `/v1/tasks/{id}` | 详情 + task_events 时间线 | F-TASK03 | 1.5 |
-| POST | `/v1/tasks/{id}/assign` | 派办 | F-TASK01 | 1.5 |
-| POST | `/v1/tasks/{id}/accept` | 认领（写 event，不改主状态） | F-TASK01 | 1.5 |
-| POST | `/v1/tasks/{id}/start` | pending → in_progress | F-TASK01 | 1.5 |
-| POST | `/v1/tasks/{id}/submit` | 提交回执 | F-TASK01 | 1.5 |
-| POST | `/v1/tasks/{id}/verify` | 复核关闭 | F-TASK01 | 1.5 |
-| POST | `/v1/tasks/{id}/cancel` | 取消 | F-TASK03 | 1.5 |
-| POST | `/v1/tasks/{id}/reopen` | 重开（须 reason） | F-TASK03 | 1.5 |
-| POST | `/v1/tasks/{id}/reassign` | 转派 + `sla_policy` | F-TASK03 | 1.5 |
+| POST | `/v1/tasks` | 创建任务 | F-TASK01 | ✅ 1.x |
+| GET | `/v1/tasks` | 列表 `?status=&type=&assignee=&overdue=` | F-TASK01 | ✅ 1.x |
+| GET | `/v1/tasks/{id}` | 详情 + task_events 时间线 | F-TASK03 | ✅ 1.x |
+| POST | `/v1/tasks/{id}/assign` | 派办 | F-TASK01 | ✅ 1.x |
+| POST | `/v1/tasks/{id}/accept` | 认领（写 event，不改主状态） | F-TASK01 | ✅ 1.x |
+| POST | `/v1/tasks/{id}/start` | pending → in_progress | F-TASK01 | ✅ 1.x |
+| POST | `/v1/tasks/{id}/submit` | 提交回执 | F-TASK01 | ✅ 1.x |
+| POST | `/v1/tasks/{id}/verify` | 复核关闭 | F-TASK01 | ✅ 1.x |
+| POST | `/v1/tasks/{id}/cancel` | 取消 | F-TASK03 | ✅ 1.x |
+| POST | `/v1/tasks/{id}/reopen` | 重开（须 reason） | F-TASK03 | ✅ 1.x |
+| POST | `/v1/tasks/{id}/reassign` | 转派 + `sla_policy` | F-TASK03 | ✅ 1.x |
 | GET | `/v1/region/tasks/overview` | 区域任务 rollup | F-TASK12 | 2 |
 
 `overdue` / `escalated` 为查询派生标记，非主状态（ADR-010）。

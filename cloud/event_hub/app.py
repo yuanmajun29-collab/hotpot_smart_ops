@@ -11,6 +11,7 @@ from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 
 from cloud.alert_gateway.gateway import AlertGateway
+from cloud.event_hub.auth import DEFAULT_JWT_SECRET
 from cloud.event_hub.db import create_hub_database
 from cloud.event_hub.daily_scheduler import DailyReportScheduler, generate_daily_report_for_store
 from cloud.event_hub.hub_core import MultiTenantHub, seed_from_directory
@@ -32,6 +33,7 @@ runtime.init(
     AlertGateway(_alert_db_path),
 )
 _daily_scheduler: Optional[DailyReportScheduler] = None
+_STRICT_DEPLOY_PROFILES = {"staging", "pilot", "uat", "production", "prod"}
 
 
 def __getattr__(name: str):
@@ -40,7 +42,44 @@ def __getattr__(name: str):
         return getattr(runtime, name)
     raise AttributeError(f"module {__name__!r} has no attribute {name!r}")
 
+
+def deployment_profile() -> str:
+    return os.environ.get("HOTPOT_ENV", os.environ.get("HOTPOT_DEPLOYMENT_PROFILE", "dev")).lower()
+
+
+def cors_origins() -> list[str]:
+    raw = os.environ.get("HOTPOT_CORS_ORIGINS", "").strip()
+    if raw:
+        return [origin.strip() for origin in raw.split(",") if origin.strip()]
+    if deployment_profile() in _STRICT_DEPLOY_PROFILES:
+        return []
+    return ["*"]
+
+
+def validate_deployment_profile() -> None:
+    profile = deployment_profile()
+    if profile not in _STRICT_DEPLOY_PROFILES:
+        return
+
+    origins = cors_origins()
+    errors = []
+    if os.environ.get("HOTPOT_AUTH_MODE") != "strict":
+        errors.append("HOTPOT_AUTH_MODE must be strict")
+    jwt_secret = os.environ.get("HOTPOT_JWT_SECRET", DEFAULT_JWT_SECRET)
+    if jwt_secret == DEFAULT_JWT_SECRET or "CHANGE_ME" in jwt_secret or len(jwt_secret) < 32:
+        errors.append("HOTPOT_JWT_SECRET must be a real secret (32+ chars, not demo/placeholder)")
+    if not os.environ.get("HOTPOT_DATABASE_URL"):
+        errors.append("HOTPOT_DATABASE_URL must be set for PostgreSQL")
+    if not origins or "*" in origins:
+        errors.append("HOTPOT_CORS_ORIGINS must be an explicit comma-separated allowlist")
+    if not os.environ.get("HOTPOT_EDGE_API_KEYS"):
+        errors.append("HOTPOT_EDGE_API_KEYS must replace demo edge keys")
+    if errors:
+        raise RuntimeError(f"Unsafe {profile} deployment profile: " + "; ".join(errors))
+
+
 def startup() -> None:
+    validate_deployment_profile()
     runtime.org_registry.apply_to_hub(runtime.hub)
     seed_dir = os.environ.get("HOTPOT_SEED_DIR", "")
     if not runtime.db.is_empty():
@@ -81,7 +120,7 @@ async def lifespan(_: FastAPI) -> AsyncIterator[None]:
 app = FastAPI(title="Hotpot Event Hub", version="2.0.0", lifespan=lifespan)
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["*"],
+    allow_origins=cors_origins(),
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],
@@ -115,6 +154,7 @@ from cloud.event_hub.routers import alerts as _alerts_router
 from cloud.event_hub.routers import org as _org_router
 from cloud.event_hub.routers import admin as _admin_router
 from cloud.event_hub.routers import cost as _cost_router
+from cloud.event_hub.routers import tasks as _tasks_router
 
 app.include_router(_system_router.router)
 app.include_router(_auth_routes_router.router)
@@ -127,3 +167,4 @@ app.include_router(_alerts_router.router)
 app.include_router(_org_router.router)
 app.include_router(_admin_router.router)
 app.include_router(_cost_router.router)
+app.include_router(_tasks_router.router)

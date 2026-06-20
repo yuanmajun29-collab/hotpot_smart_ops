@@ -261,6 +261,83 @@ class AlertGateway:
         with PUSH_LOG_FILE.open("a", encoding="utf-8") as f:
             f.write(line + "\n")
 
+    # ---- 任务督办企微推送（DEV-526 / ADR-010）------------------------------
+
+    _TASK_KIND = {
+        "dispatch":       {"tag": "任务", "lead": "新任务派办，请尽快认领"},
+        "accept_overdue": {"tag": "督办", "lead": "派办后超时未认领，已升级"},
+        "done_overdue":   {"tag": "超时", "lead": "任务已逾期未闭环，已升级"},
+    }
+    _PRIO_LEVEL = {"P0": "critical", "P1": "warn", "P2": "info"}
+
+    def format_task_card(self, task: Dict[str, Any], store_id: str, kind: str,
+                         *, sla: str = "", overdue_minutes: Optional[int] = None) -> Dict[str, str]:
+        meta = self._TASK_KIND.get(kind, self._TASK_KIND["dispatch"])
+        route = self._store_route(store_id)
+        title = task.get("title") or task.get("task_id") or "任务"
+        prio = task.get("priority", "P1")
+        assignee = task.get("assignee_id") or task.get("assignee_group") or "待派办"
+        dash = str(route.get("dashboard_url") or "").replace("alerts.html", "tasks.html") or \
+            "http://127.0.0.1:3000/tasks.html"
+        lines = [
+            f"【{meta['tag']}·{prio}】{title}",
+            f"门店：{route.get('store_name', store_id)}",
+            f"责任人：{assignee}",
+            meta["lead"],
+        ]
+        if kind == "accept_overdue" and sla:
+            lines.append(f"认领时限：{sla}")
+        if kind == "done_overdue" and overdue_minutes is not None:
+            lines.append(f"已逾期：{overdue_minutes} 分钟")
+        lines.append(f"👉 打开任务中心：{dash}?store_id={store_id}")
+        body = "\n".join(lines)
+        return {"title": f"【{meta['tag']}·{prio}】{title}", "body": body, "markdown": body}
+
+    def push_task_card(self, task: Dict[str, Any], store_id: str, kind: str,
+                       *, sla: str = "", overdue_minutes: Optional[int] = None,
+                       dedup_token: Optional[str] = None) -> Dict[str, Any]:
+        """Push a task督办 card.
+
+        Idempotent per (task_id, kind, dedup_token) via a synthetic event_id.
+        ``dispatch`` leaves ``dedup_token`` None so a task is announced once. For
+        recurring escalations the scheduler passes a per-round token (e.g. an
+        hour bucket or escalation seq) so each round re-pushes with refreshed
+        overdue_minutes instead of being silently deduped forever.
+        """
+        card = self.format_task_card(task, store_id, kind, sla=sla, overdue_minutes=overdue_minutes)
+        level = self._PRIO_LEVEL.get(task.get("priority", "P1"), "warn")
+        # escalations are at least warn so they always surface
+        if kind in ("accept_overdue", "done_overdue") and level == "info":
+            level = "warn"
+        route = self._store_route(store_id)
+        event_id = f"task:{task.get('task_id')}:{kind}"
+        if dedup_token:
+            event_id += f":{dedup_token}"
+        pseudo = {
+            "event_id": event_id,
+            "level": level,
+            "event_type": f"task_{kind}",
+            "message": card["body"],
+            "timestamp": utc_now_iso(),
+        }
+        result = {
+            "task_id": task.get("task_id"),
+            "kind": kind,
+            "store_id": store_id,
+            "level": level,
+            "channel": "wechat_work",
+            "recipients": route.get("recipients", []),
+            "card": card,
+            "pushed": False,
+            "webhook_sent": False,
+        }
+        if self._record_push(pseudo, store_id, card):
+            self._append_file_log(card, store_id, pseudo)
+            result["pushed"] = True
+            if route.get("webhook_url"):
+                result["webhook_sent"] = self._post_webhook(route["webhook_url"], card)
+        return result
+
     def send_test_push(self, store_id: str) -> Dict[str, Any]:
         """Send a synthetic critical card to verify webhook (DEV-414 checklist)."""
         event = {
@@ -379,7 +456,7 @@ class AlertGateway:
             f"· SOP：合规 {sop_rate}%",
             f"· 来料：偏差 {cost_var}%",
             f"· 安全：严重告警 {critical} 条（已处理 {acked_critical}）",
-            f"👉 查看完整日报",
+            "👉 查看完整日报",
             report_url,
         ]
         markdown = (

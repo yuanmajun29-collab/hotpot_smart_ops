@@ -128,13 +128,13 @@
 
 | 项 | 内容 |
 |----|------|
-| 状态 | **提议中** |
+| 状态 | **已采纳 / Phase 1.x 内核已实现** |
 | 日期 | 2026-06-16 |
 | 背景 | SOP 指派、告警 ack、来料异常、翻台督促分散，组织执行缺少统一闭环 |
-| 决策 | P1.5 新增 `tasks` + `task_events` 轻量任务内核；`overdue/escalated` 作为 SLA 派生标记，不作为主状态；`sop_assignments` 迁移为兼容视图/写入路径 |
+| 决策 | Phase 1.x 新增 `tasks` + `task_events` 轻量任务内核；`overdue/escalated` 作为 SLA 派生标记，不作为主状态；`sop_assignments` 保持兼容写入路径；当前分支已落地 `/v1/tasks`、`task_store.py`、`task_factory.py`、`dashboard/tasks.html` 与企微督办卡片。 |
 | 权限 | `reopen` 仅店长/督导/PMO 且必须 reason；`cancel` 未 closed 前由创建人/店长/督导执行，closed 后仅 admin override；`reassign` 必须写 task_event 和 `sla_policy` |
 | SLA | `reassign` 必须显式选择 `reset_from_reassign` 或 `keep_original_due_at`，禁止隐式重置 |
-| 后果 | 可替代 DEV-421；不抢占 BL-01~08；不开启 feature flag 时旧 SOP 指派行为不变 |
+| 后果 | 可替代 DEV-421 并承接后厨损耗行动闭环；不作为 IMP-402 Go-Live 硬门槛；P2 继续补区域 rollup、SLA 调度器接线与配置化。 |
 | 关联 | [task_supervision_engine_design.md](task_supervision_engine_design.md) · ADR-009 |
 
 ---
@@ -227,7 +227,7 @@
 | 状态 | **已采纳**（2026-06-18，补记两轮重构决策） |
 | 背景 | 2026-06-17~18 两轮重构（Claude router-split + Codex hardening）显著改变了 Event Hub 结构，但此前无 ADR 记录，违反 development_delivery_plan §2.3「代码路径与 ar401 映射一致」的治理要求。 |
 | 决策 | 1) **app.py 为组装根**（composition root）：仅 `runtime.init` + `lifespan` 启停 + `include_router`，不含路由逻辑。2) **单例经 `runtime.py` 容器延迟绑定**（hub/db/alert_gateway/org_registry），路由直接 `runtime.X` 访问；测试经 `runtime.init` 注入，禁止 routers→app 反向依赖。3) **路由按 10 业务域拆 `routers/*.py`**（system/auth/ingest/receiving/sop/iot/reports/alerts/org/admin），每域单一职责。4) **RBAC 集中于 `rbac.py`（RolePolicy）**，auth.py 委托，`test_rbac_policy` 守 backend↔`rbac.json` 对齐。5) **`/v1` 别名 + Deprecation 治理**（ADR-004）：legacy 同 handler 双挂、`deprecated=True`、中间件 `Deprecation` 头，显式 legacy 集合。6) **纯业务逻辑入 `domain/`**（health/turnover），无 FastAPI/状态依赖。 |
-| 后果 | app.py 986→112 行；可并行开发与独立测试；97 passed；pyflakes 干净。新增路由族须落到对应 `routers/*.py`，新权限改 `rbac.py` 单一源，新决策追加 ADR。 |
+| 后果 | app.py 986→170 行（新增安全 profile 门禁后仍保持组装根职责）；可并行开发与独立测试；128 passed；pyflakes 干净。新增路由族须落到对应 `routers/*.py`，新权限改 `rbac.py` 单一源，新决策追加 ADR。 |
 | 关联 | ADR-004 · `cloud/event_hub/{app,runtime,rbac}.py` · `routers/` · `domain/` · `docs/superpowers/specs/2026-06-17-event-hub-router-split-design.md` |
 
 ---
@@ -254,7 +254,7 @@
 |----|---------|
 | A 持久化 | dev/demo SQLite；staging/试点/UAT/Go-Live 必须 PG profile + 冒烟门禁（ADR-003） |
 | B 离线 24h | 不作 Phase 1 Go-Live 硬验收；未实现+压测则降 P1.5（ADR-008） |
-| C F-TASK | Phase 1 仅 SOP-assign 兼容/审计适配；tasks/task_events/SLA 仍 P1.5 feature flag（ADR-010 不变） |
+| C F-TASK | 已从“仅规划/flag”收敛为 **Phase 1.x 已实现内核**：`/v1/tasks`、状态机、任务中心、企微督办卡片已落地；仍非 IMP-402 Go-Live 硬门槛，区域 rollup/SLA 调度接线留 P2。 |
 | D NFR | `<1s 桌态` `<200ms P95` 为 **target**；Hub P95 可脚本实测，CV 真链路待 BL-01/DEV-408~410 benchmark |
 | E 架构 ADR | 补 **ADR-015**（本文） |
 

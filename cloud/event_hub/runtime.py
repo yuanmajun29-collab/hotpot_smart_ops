@@ -19,7 +19,9 @@ alert_gateway: Optional["AlertGateway"] = None
 
 # Org registry is a process-wide singleton; default to the canonical instance so
 # the app works without explicit injection. Tests override `runtime.org_registry`.
-from cloud.event_hub.org_registry import org_registry as org_registry  # noqa: E402,F401
+from cloud.event_hub import org_registry as _org_registry_module  # noqa: E402
+
+org_registry = _org_registry_module.org_registry
 
 
 def init(hub_: "MultiTenantHub", db_: Any, alert_gateway_: "AlertGateway") -> None:

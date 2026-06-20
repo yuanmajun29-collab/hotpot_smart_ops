@@ -41,3 +41,40 @@ def test_auth_mode_reads_env_at_call_time(monkeypatch):
 
     monkeypatch.delenv("HOTPOT_AUTH_MODE", raising=False)
     assert auth_mode() == "demo"
+
+
+def test_strict_deployment_profile_rejects_demo_defaults(monkeypatch):
+    from cloud.event_hub.app import validate_deployment_profile
+
+    monkeypatch.setenv("HOTPOT_ENV", "pilot")
+    monkeypatch.setenv("HOTPOT_AUTH_MODE", "demo")
+    monkeypatch.delenv("HOTPOT_JWT_SECRET", raising=False)
+    monkeypatch.delenv("HOTPOT_DATABASE_URL", raising=False)
+    monkeypatch.delenv("HOTPOT_CORS_ORIGINS", raising=False)
+    monkeypatch.delenv("HOTPOT_EDGE_API_KEYS", raising=False)
+
+    try:
+        validate_deployment_profile()
+    except RuntimeError as exc:
+        msg = str(exc)
+    else:
+        raise AssertionError("pilot profile must reject demo defaults")
+
+    assert "HOTPOT_AUTH_MODE must be strict" in msg
+    assert "HOTPOT_JWT_SECRET must be a real secret" in msg
+    assert "HOTPOT_DATABASE_URL must be set" in msg
+    assert "HOTPOT_CORS_ORIGINS must be an explicit" in msg
+    assert "HOTPOT_EDGE_API_KEYS must replace" in msg
+
+
+def test_strict_deployment_profile_accepts_explicit_pilot_env(monkeypatch):
+    from cloud.event_hub.app import validate_deployment_profile
+
+    monkeypatch.setenv("HOTPOT_ENV", "pilot")
+    monkeypatch.setenv("HOTPOT_AUTH_MODE", "strict")
+    monkeypatch.setenv("HOTPOT_JWT_SECRET", "pilot-secret-not-the-demo-default")
+    monkeypatch.setenv("HOTPOT_DATABASE_URL", "postgresql://hotpot:secret@db:5432/hotpot")
+    monkeypatch.setenv("HOTPOT_CORS_ORIGINS", "https://pilot.example.com")
+    monkeypatch.setenv("HOTPOT_EDGE_API_KEYS", "edge-prod-a:store_yuhuan")
+
+    validate_deployment_profile()

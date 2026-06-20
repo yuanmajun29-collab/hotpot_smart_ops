@@ -2,7 +2,6 @@
 
 from __future__ import annotations
 
-import json
 import os
 import tempfile
 from pathlib import Path
@@ -44,8 +43,6 @@ def test_get_pos_empty(hub_client):
 
 
 def test_pos_sync_sim():
-    from cloud.integrations.pos_bridge import sync_pos
-
     tmp = tempfile.mkdtemp()
     db_path = Path(tmp) / "hub.db"
     os.environ["HOTPOT_DB"] = str(db_path)

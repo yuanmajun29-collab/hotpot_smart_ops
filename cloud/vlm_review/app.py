@@ -7,7 +7,7 @@ import json
 import os
 import urllib.request
 from pathlib import Path
-from typing import Any, Dict, List, Optional
+from typing import Any, Dict, Optional
 
 from fastapi import FastAPI
 from pydantic import BaseModel, Field
