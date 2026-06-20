@@ -13,6 +13,7 @@ from cloud.event_hub.daily_report_store import SQLITE_DAILY_REPORTS_SCHEMA
 from cloud.event_hub.iot_readings_store import SQLITE_IOT_READINGS_SCHEMA
 from cloud.event_hub.receiving_store import SQLITE_RECEIVING_SCHEMA
 from cloud.event_hub.sop_assign_store import SQLITE_SOP_ASSIGN_SCHEMA
+from cloud.event_hub.task_store import SQLITE_TASKS_SCHEMA
 
 MAX_EVENTS_PER_STORE = 500
 
@@ -68,6 +69,7 @@ class HubDatabase:
                     """
                     + SQLITE_RECEIVING_SCHEMA
                     + SQLITE_SOP_ASSIGN_SCHEMA
+                    + SQLITE_TASKS_SCHEMA
                     + SQLITE_IOT_READINGS_SCHEMA
                     + SQLITE_DAILY_REPORTS_SCHEMA
                 )
