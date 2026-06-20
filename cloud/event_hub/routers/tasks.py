@@ -60,7 +60,14 @@ def create_task(body: TaskCreateBody, auth: AuthContext = Depends(get_auth_conte
         assignee_id=body.assignee_id, assignee_group=body.assignee_group,
         detail=body.detail, due_at=body.due_at,
     )
-    return {"ok": True, "task": row}
+    # 派单推送（DEV-526，best-effort）：新任务即时推给责任人/班组
+    pushed = False
+    try:
+        if runtime.alert_gateway is not None:
+            pushed = runtime.alert_gateway.push_task_card(row, sid, "dispatch").get("pushed", False)
+    except Exception:  # noqa: BLE001 - 推送失败不应阻断建单
+        pushed = False
+    return {"ok": True, "task": row, "dispatch_pushed": pushed}
 
 
 class TaskIngestBody(BaseModel):
