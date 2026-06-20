@@ -456,7 +456,7 @@ class AlertGateway:
             f"· SOP：合规 {sop_rate}%",
             f"· 来料：偏差 {cost_var}%",
             f"· 安全：严重告警 {critical} 条（已处理 {acked_critical}）",
-            f"👉 查看完整日报",
+            "👉 查看完整日报",
             report_url,
         ]
         markdown = (
