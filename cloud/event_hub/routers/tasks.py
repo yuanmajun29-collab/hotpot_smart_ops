@@ -63,6 +63,23 @@ def create_task(body: TaskCreateBody, auth: AuthContext = Depends(get_auth_conte
     return {"ok": True, "task": row}
 
 
+class TaskIngestBody(BaseModel):
+    store_id: Optional[str] = None
+    event: Dict[str, Any]
+
+
+@router.post("/v1/tasks/ingest")
+def ingest_event(body: TaskIngestBody, auth: AuthContext = Depends(get_auth_context)) -> Dict[str, Any]:
+    """收口入口：把告警/清台/IoT/SOP 事件经 task_factory 幂等转工单（DEV-522）。"""
+    from cloud.event_hub import task_factory
+
+    sid = body.store_id or auth.store_id or DEFAULT_STORE_ID
+    enforce_store_write(auth, sid)
+    enforce_action(auth, "task_create")
+    task = task_factory.spawn_task_for_event(runtime.db, sid, body.event)
+    return {"ok": True, "spawned": bool(task), "task": task}
+
+
 @router.get("/v1/tasks")
 def list_tasks(
     request: Request,

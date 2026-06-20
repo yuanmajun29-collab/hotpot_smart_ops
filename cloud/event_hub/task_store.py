@@ -156,6 +156,17 @@ class TaskStore:
 
     # ---- create ------------------------------------------------------------
 
+    def get_by_source(self, source_id: str, store_id: str) -> Optional[Dict[str, Any]]:
+        with self._lock:
+            conn = self._connect()
+            try:
+                row = self._exec(
+                    conn, "SELECT * FROM tasks WHERE source_id=? AND store_id=?",
+                    (source_id, store_id), fetch="one")
+            finally:
+                conn.close()
+        return self._decorate(row)
+
     def create(
         self,
         store_id: str,
@@ -173,14 +184,20 @@ class TaskStore:
         due_at: Optional[str] = None,
         sla_policy: str = "keep_original_due_at",
         task_id: Optional[str] = None,
+        source_id: Optional[str] = None,
     ) -> Dict[str, Any]:
         if sla_policy not in SLA_POLICIES:
             raise TaskError(f"unknown sla_policy: {sla_policy}")
+        # idempotent: a given source_id maps to exactly one task
+        if source_id:
+            existing = self.get_by_source(source_id, store_id)
+            if existing:
+                return existing
         tid = task_id or new_task_id(store_id)
         now = utc_now_iso()
         assignee_status = "assigned" if assignee_id else "needs_triage"
         row = {
-            "task_id": tid, "source_id": None, "store_id": store_id, "task_type": task_type,
+            "task_id": tid, "source_id": source_id, "store_id": store_id, "task_type": task_type,
             "priority": priority, "status": "pending", "source": source,
             "ref_type": ref_type, "ref_id": ref_id, "assignee_id": assignee_id,
             "assignee_status": assignee_status, "assignee_group": assignee_group,

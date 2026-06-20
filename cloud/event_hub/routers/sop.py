@@ -9,6 +9,7 @@ from cloud.event_hub import runtime
 from cloud.event_hub.auth import AuthContext, get_auth_context, enforce_store_write, enforce_action
 from cloud.event_hub.routers._deps import resolve_store_id as _resolve_store_id, SopAssignBody, SopAssignStatusBody, SopAskBody
 from cloud.event_hub.sop_assign_store import sop_assign_store
+from cloud.event_hub import task_factory
 from cloud.event_hub.hub_core import DEFAULT_STORE_ID
 
 router = APIRouter()
@@ -51,10 +52,22 @@ def sop_assign(
         }
     )
 
+    # 收口 F-S04：SOP 指派同时在任务引擎建工单（DEV-522，幂等，best-effort）
+    task = None
+    try:
+        task = task_factory.spawn_sop_violation(
+            runtime.db, sid,
+            sop_id=body.sop_id, sop_name=row["sop_name"],
+            assignee=body.assignee, event_id=row["assignment_id"],
+        )
+    except Exception:  # noqa: BLE001 - 自动生单失败不应阻断指派
+        task = None
+
     return {
         "ok": True,
         "assignment": row,
         "event_id": event.get("event_id"),
+        "task_id": task.get("task_id") if task else None,
     }
 
 
