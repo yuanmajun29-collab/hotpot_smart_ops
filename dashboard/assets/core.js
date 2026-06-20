@@ -558,6 +558,7 @@ const HotpotApp = (() => {
     document.querySelectorAll(".nav-item[data-nav]").forEach((el) => {
       if (el.dataset.nav === activeNav) el.classList.add("active");
     });
+    decorateSidebar();
     const userEl = document.getElementById("user-name");
     if (userEl) userEl.textContent = auth.name + "（" + auth.role + "）";
     const logoutBtn = document.getElementById("btn-logout");
@@ -566,6 +567,8 @@ const HotpotApp = (() => {
     if (hubInput) {
       hubInput.value = hubUrl();
       hubInput.onchange = () => setHubUrl(hubInput.value);
+      const dbg = new URLSearchParams(window.location.search).get("debug") === "1";
+      if (!dbg) hubInput.classList.add("debug-hidden");
     }
     return auth;
   }
@@ -702,7 +705,10 @@ const HotpotApp = (() => {
       const isAckedFlag = isAcked(id);
       const div = document.createElement("div");
       div.className = "event " + (ev.level || "info") + (isAckedFlag ? " acked" : "");
-      div.innerHTML = `<strong>${ev.event_type}</strong> · ${ev.message}
+      const lvl = ev.level || "info";
+      const lvlLabel = lvl === "critical" ? "严重" : lvl === "warn" ? "警告" : "信息";
+      div.innerHTML = `<div class="ev-ti"><strong>${ev.event_type}</strong><span class="lvl ${lvl}">${lvlLabel}</span></div>
+        <div class="ev-msg">${ev.message}</div>
         <div class="event-meta">${ev.source} · ${ev.timestamp || ""}${isAckedFlag ? " · 已确认" : ""}</div>`;
       if (showAck && !isAckedFlag && ev.level !== "info" && onAck) {
         const auth = getAuth();
@@ -770,6 +776,58 @@ const HotpotApp = (() => {
     return auth;
   }
 
+  const NAV_ICONS = {
+    home: '<path d="M3 9.5 12 3l9 6.5V20a1 1 0 0 1-1 1h-5v-7H9v7H4a1 1 0 0 1-1-1z"/>',
+    tables: '<path d="M3 3h7v7H3z"/><path d="M14 3h7v7h-7z"/><path d="M14 14h7v7h-7z"/><path d="M3 14h7v7H3z"/>',
+    kitchen: '<path d="M14 4.5V14a4 4 0 1 1-4 0V4.5a2 2 0 0 1 4 0Z"/>',
+    sop: '<path d="M9 4H7a2 2 0 0 0-2 2v13a2 2 0 0 0 2 2h10a2 2 0 0 0 2-2V6a2 2 0 0 0-2-2h-2"/><path d="M9 3h6v3H9z"/><path d="m9 14 2 2 4-4"/>',
+    cost: '<path d="M12 3v18"/><path d="M5 7h14"/><path d="m7 7-4 8h8z"/><path d="m17 7-4 8h8z"/><path d="M8 21h8"/>',
+    alerts: '<path d="M6 8a6 6 0 0 1 12 0c0 6 3 8 3 8H3s3-2 3-8"/><path d="M10.5 21a1.8 1.8 0 0 0 3 0"/>',
+    report: '<path d="M14 3H7a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h10a2 2 0 0 0 2-2V8z"/><path d="M14 3v5h5"/><path d="M9 13h6"/><path d="M9 17h6"/>',
+    pda: '<path d="M4 7V5a1 1 0 0 1 1-1h2"/><path d="M17 4h2a1 1 0 0 1 1 1v2"/><path d="M20 17v2a1 1 0 0 1-1 1h-2"/><path d="M7 20H5a1 1 0 0 1-1-1v-2"/><path d="M4 12h16"/>',
+    regional: '<path d="M12 21s-7-5.5-7-11a7 7 0 0 1 14 0c0 5.5-7 11-7 11z"/><circle cx="12" cy="10" r="2.4"/>',
+    cockpit: '<circle cx="12" cy="12" r="9"/><path d="M12 12 8.5 8.5"/><circle cx="12" cy="12" r="1.6"/>',
+    system: '<circle cx="12" cy="12" r="3"/><path d="M19.4 13a1.7 1.7 0 0 0 .3 1.9l.1.1a2 2 0 1 1-2.8 2.8l-.1-.1a1.7 1.7 0 0 0-2.9 1.2V21a2 2 0 0 1-4 0v-.2A1.7 1.7 0 0 0 7 19.4l-.1.1a2 2 0 1 1-2.8-2.8l.1-.1A1.7 1.7 0 0 0 3 13.6H3a2 2 0 0 1 0-4h.2A1.7 1.7 0 0 0 4.6 7l-.1-.1a2 2 0 1 1 2.8-2.8l.1.1A1.7 1.7 0 0 0 10 3.6V3a2 2 0 0 1 4 0v.2a1.7 1.7 0 0 0 2.9 1.2l.1-.1a2 2 0 1 1 2.8 2.8l-.1.1a1.7 1.7 0 0 0-.3 1.9z"/>',
+  };
+
+  function showOfflineBar() {
+    if (document.querySelector(".offline-bar")) return;
+    const content = document.querySelector(".content");
+    if (!content) return;
+    const bar = document.createElement("div");
+    bar.className = "offline-bar";
+    bar.innerHTML =
+      '<span>\u26A0 \u672A\u8FDE\u63A5\u5230\u8FD0\u8425 Hub \u2014\u2014 \u5F53\u524D\u4E3A\u5360\u4F4D\u6570\u636E\uFF0C\u8BF7\u786E\u8BA4 Event Hub \u5DF2\u542F\u52A8</span>' +
+      '<button class="btn btn-sm" onclick="location.reload()">\u91CD\u8BD5</button>';
+    content.insertBefore(bar, content.firstChild);
+  }
+  function hideOfflineBar() {
+    const b = document.querySelector(".offline-bar");
+    if (b) b.remove();
+  }
+
+  function decorateSidebar() {
+    const brand = document.querySelector(".sidebar-brand");
+    if (brand && !brand.querySelector(".brand-seal")) {
+      const txt = document.createElement("div");
+      while (brand.firstChild) txt.appendChild(brand.firstChild);
+      const seal = document.createElement("div");
+      seal.className = "brand-seal";
+      seal.textContent = "\u99AE";
+      brand.appendChild(seal);
+      brand.appendChild(txt);
+    }
+    document.querySelectorAll(".nav-item[data-nav]").forEach((el) => {
+      if (el.querySelector(".nav-ic")) return;
+      const p = NAV_ICONS[el.dataset.nav];
+      if (!p) return;
+      el.insertAdjacentHTML(
+        "afterbegin",
+        '<svg class="nav-ic" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round">' + p + "</svg>"
+      );
+    });
+  }
+
   function initShell(activeNav) {
     const auth = requireAuth();
     if (!auth) return null;
@@ -779,6 +837,7 @@ const HotpotApp = (() => {
     });
 
     enhanceSidebar(activeNav, auth);
+    decorateSidebar();
     injectStoreSwitcher(auth);
     loadRbac().then(() => applyRbac(auth, activeNav));
 
@@ -795,18 +854,24 @@ const HotpotApp = (() => {
     if (hubInput) {
       hubInput.value = hubUrl();
       hubInput.onchange = () => setHubUrl(hubInput.value);
+      // 调试控件默认隐藏，?debug=1 显示
+      const dbg = new URLSearchParams(window.location.search).get("debug") === "1";
+      if (!dbg) hubInput.classList.add("debug-hidden");
     }
 
+    document.body.classList.add("is-loading");
     const connEl = document.getElementById("conn-status");
-    if (connEl) {
-      fetchSummary()
-        .then(() => {
-          connEl.innerHTML = '<span class="status-dot online"></span>已连接';
-        })
-        .catch((e) => {
-          connEl.innerHTML = '<span class="status-dot offline"></span>未连接';
-        });
-    }
+    fetchSummary()
+      .then(() => {
+        document.body.classList.remove("is-loading");
+        hideOfflineBar();
+        if (connEl) connEl.innerHTML = '<span class="status-dot online"></span>\u5DF2\u8FDE\u63A5';
+      })
+      .catch(() => {
+        document.body.classList.remove("is-loading");
+        showOfflineBar();
+        if (connEl) connEl.innerHTML = '<span class="status-dot offline"></span>\u672A\u8FDE\u63A5';
+      });
 
     return auth;
   }

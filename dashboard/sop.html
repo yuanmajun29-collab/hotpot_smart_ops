@@ -21,7 +21,7 @@
     </aside>
     <div class="main-wrap">
       <header class="topbar">
-        <div class="topbar-left"><h2 id="store-name">—</h2><div class="topbar-meta">午市班次 · F-S01~S05</div></div>
+        <div class="topbar-left"><h2 id="store-name">—</h2><div class="topbar-meta">午市班次</div></div>
         <div class="topbar-right">
           <input class="hub-input" id="hub-url" type="text" />
           <span class="chip" id="user-name">—</span>
@@ -39,12 +39,12 @@
           <div id="sop-list"></div>
         </div>
         <div class="card">
-          <h3>违规待整改 · F-S04</h3>
+          <h3>违规待整改</h3>
           <div id="violations"></div>
           <div id="assignments" style="margin-top:16px"></div>
         </div>
         <div class="card" style="margin-top:20px">
-          <h3>SOP 智能问答 · DEV-303</h3>
+          <h3>SOP 智能问答</h3>
           <p style="font-size:0.85rem;color:var(--muted);margin-bottom:12px">基于总部 SOP 知识库，输入问题获取执行要点</p>
           <div style="display:flex;gap:8px;margin-bottom:12px">
             <input id="sop-q" type="text" placeholder="例如：来料收货 RFID 怎么扫？" style="flex:1;padding:10px;border:1px solid var(--border);border-radius:8px" />
@@ -87,13 +87,13 @@
           };
           list.appendChild(div);
         });
-        if (!list.children.length) list.innerHTML = "<p style='color:var(--muted)'>暂无 SOP 数据，请先运行 PoC</p>";
+        if (!list.children.length) list.innerHTML = "<div class='empty-state'><span class='es-ic'>\u2713</span>本班尚无 SOP 检查记录<br><small>运行 PoC 后将在此展示各项检查结果</small></div>";
 
         const viol = document.getElementById("violations");
         viol.innerHTML = "";
         const failed = (sop.results || []).filter((r) => r.status === "failed");
         if (!failed.length) {
-          viol.innerHTML = "<p style='color:var(--muted)'>本班无违规项</p>";
+          viol.innerHTML = "<div class='empty-state'><span class='es-ic'>\u2713</span>本班无违规项<br><small>所有 SOP 检查项均达标</small></div>";
         } else {
           failed.forEach((r) => {
             const div = document.createElement("div");

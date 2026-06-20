@@ -21,7 +21,7 @@
     </aside>
     <div class="main-wrap">
       <header class="topbar">
-        <div class="topbar-left"><h2 id="store-name">—</h2><div class="topbar-meta">来料对账 · F-C01~C04</div></div>
+        <div class="topbar-left"><h2 id="store-name">—</h2><div class="topbar-meta">来料对账 · 当日批次</div></div>
         <div class="topbar-right">
           <a class="btn btn-sm" href="pda/receiving.html">+ 收货验收</a>
           <input class="hub-input" id="hub-url" type="text" />
@@ -68,7 +68,7 @@
           }
           ul.appendChild(li);
         });
-        if (!ul.children.length) ul.innerHTML = "<li>暂无来料数据</li>";
+        if (!ul.children.length) ul.innerHTML = "<div class='empty-state'><span class='es-ic'>\u2696</span>暂无来料对账数据<br><small>收货 PDA 验收后将同步至此</small></div>";
       } catch (e) { console.warn(e); }
     }
     refresh();

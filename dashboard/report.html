@@ -21,7 +21,7 @@
     </aside>
     <div class="main-wrap">
       <header class="topbar">
-        <div class="topbar-left"><h2 id="store-name">—</h2><div class="topbar-meta">LLM 运营日报 · F-R01~R02 · 22:00 自动</div></div>
+        <div class="topbar-left"><h2 id="store-name">—</h2><div class="topbar-meta">LLM 运营日报 · 每日 22:00 自动生成</div></div>
         <div class="topbar-right">
           <button class="btn btn-sm" id="btn-gen">生成日报</button>
           <button class="btn btn-sm btn-ghost" id="btn-push">推送企微</button>
@@ -37,7 +37,7 @@
             <ul class="list-plain" id="history"><li style="color:var(--muted)">加载中...</li></ul>
           </div>
           <div class="card">
-            <h3>推送预览（企微卡片 · DEV-424）</h3>
+            <h3>推送预览（企微卡片）</h3>
             <div id="push-preview" style="background:#0d1117;border:1px solid var(--border);border-radius:8px;padding:14px;font-size:0.85rem;color:var(--muted)">
               生成并推送后显示预览
             </div>
@@ -104,7 +104,7 @@
           li.appendChild(a);
           ul.appendChild(li);
         });
-        if (!ul.children.length) ul.innerHTML = "<li style='color:var(--muted)'>暂无历史，点击生成</li>";
+        if (!ul.children.length) ul.innerHTML = "<div class='empty-state'><span class='es-ic'>\u270E</span>暂无历史日报<br><small>点击右上「生成日报」创建当日报告</small></div>";
       } catch (e) {
         ul.innerHTML = "<li style='color:var(--muted)'>加载失败</li>";
       }
