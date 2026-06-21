@@ -44,6 +44,10 @@
           <h3>后厨损耗风险 TopN · 规则 baseline</h3>
           <ul class="list-plain" id="loss-risk-list"></ul>
         </div>
+        <div class="card" style="margin-top:16px">
+          <h3>今日备货建议 <span id="budget-source" class="pill" style="font-size:12px"></span></h3>
+          <ul class="list-plain" id="loss-budget-list"></ul>
+        </div>
       </main>
     </div>
   </div>
@@ -53,9 +57,10 @@
     const esc = s => String(s ?? "").replace(/[&<>"]/g, c => ({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;"}[c]));
     async function refresh() {
       try {
-        const [data, loss] = await Promise.all([
+        const [data, loss, budget] = await Promise.all([
           HotpotApp.fetchSummary(),
           HotpotApp.fetchLossRisk(5),
+          HotpotApp.fetchLossBudget(5),
         ]);
         const cost = data.cost_stats || {};
         document.getElementById("po-total").textContent = "¥" + (cost.total_po_amount || 0).toLocaleString();
@@ -88,6 +93,23 @@
         });
         if (!riskList.children.length) {
           riskList.innerHTML = "<div class='empty-state'><span class='es-ic'>✓</span>暂无高风险损耗项<br><small>短重、低等级、超温会进入此列表</small></div>";
+        }
+        const srcEl = document.getElementById("budget-source");
+        srcEl.textContent = budget.source === "rule+llm" ? "规则+LLM" : "规则";
+        const budgetList = document.getElementById("loss-budget-list");
+        budgetList.innerHTML = "";
+        (budget.items || []).forEach((it) => {
+          const li = document.createElement("li");
+          const qty = it.forecast_qty != null
+            ? `建议备货 <b style="color:var(--accent)">${esc(it.forecast_qty)}${esc(it.forecast_unit || "份")}</b>`
+            : "建议备货 <span style='color:var(--muted)'>待定</span>";
+          const amount = it.budget_loss_amount ? ` · 预算损耗 ¥${it.budget_loss_amount.toLocaleString()}` : "";
+          li.innerHTML = `<b>${esc(it.sku || it.ref_id)}</b> · ${qty}${esc(amount)}<br>
+            <small style="color:var(--muted)">理由：${esc(it.reason || "规则命中")} · 动作：${esc(it.suggested_action || "人工复核")}</small>`;
+          budgetList.appendChild(li);
+        });
+        if (!budgetList.children.length) {
+          budgetList.innerHTML = "<div class='empty-state'><span class='es-ic'>📦</span>暂无备货建议<br><small>15:00 自动推送今晚备货预算</small></div>";
         }
       } catch (e) { console.warn(e); }
     }
