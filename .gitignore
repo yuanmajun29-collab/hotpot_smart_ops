@@ -20,5 +20,6 @@ demo/data/stores/*/live/erp_receiving.json
 demo/data/stores/*/live/pos_result.json
 demo/data/stores/*/live/erp_result.json
 .pytest_cache/
+.iot_buffer/
 datasets/
 runs/

@@ -87,3 +87,40 @@ def test_bridge_forward_buffers_on_hub_failure_and_replays(tmp_path):
     assert n == 1
     assert len(bridge.buffer) == 0
     assert fake.posted == [ev]
+
+
+def test_bridge_buffers_when_hub_returns_false_without_exception(tmp_path):
+    from edge.iot_mock.mqtt_bridge import MqttHubBridge
+    bridge = MqttHubBridge("store_yuhuan", "http://x", "mqtt://x", {"sensors": []},
+                           buffer_path=tmp_path / "b.jsonl")
+
+    class FakeHub:
+        def __init__(self):
+            self.posted = []
+
+        def try_post_event(self, ev):
+            return False
+
+        def post_event(self, ev):
+            self.posted.append(ev)
+            return True
+
+    fake = FakeHub()
+    bridge.hub = fake
+    ev = {"event_type": "iot_temperature_reading", "value": 7}
+    bridge._forward(ev)
+    assert len(bridge.buffer) == 1
+    assert fake.posted == []
+
+
+def test_edge_hub_try_post_event_does_not_enqueue(tmp_path):
+    from shared.hub_client import EdgeHubClient
+
+    client = EdgeHubClient(
+        "http://127.0.0.1:9",
+        "store_yuhuan",
+        queue_db=tmp_path / "edge_queue.db",
+    )
+    ok = client.try_post_event({"event_type": "iot_temperature_reading"})
+    assert ok is False
+    assert client.pending_count() == 0

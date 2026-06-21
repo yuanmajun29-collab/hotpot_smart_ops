@@ -90,8 +90,10 @@ class MqttHubBridge:
 
     def _try_post(self, event: Dict[str, Any]) -> bool:
         try:
-            self.hub.post_event(event)
-            return True
+            if hasattr(self.hub, "try_post_event"):
+                return bool(self.hub.try_post_event(event))
+            result = self.hub.post_event(event)
+            return True if result is None else bool(result)
         except Exception:
             return False
 
