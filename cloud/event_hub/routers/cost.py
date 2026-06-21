@@ -21,6 +21,7 @@ from cloud.event_hub.auth import (
 from cloud.event_hub.domain.loss_risk import compute_loss_risk
 from cloud.event_hub.domain.loss_budget import compute_loss_budget
 from cloud.event_hub.hub_core import DEFAULT_STORE_ID
+from cloud.llm_report.forecast_agent import make_forecast_agent
 from cloud.event_hub.routers._deps import resolve_store_id as _resolve_store_id
 from cloud.event_hub.task_store import task_store, TaskError
 from shared.schemas import utc_now_iso
@@ -107,17 +108,23 @@ def cost_loss_budget(
 ) -> Dict[str, Any]:
     """损耗预算（LOSS-505）— 只读，在 loss-risk 规则基线上叠加预算维度。
 
-    契约见 docs/kitchen_loss_budget_solution.md §2.1。LLM 备货预测尚未接线，
-    故 source="rule"、forecast_qty=null；actual/variance 为次日复盘回填。
+    契约见 docs/kitchen_loss_budget_solution.md §2.1。LLM 备货预测接线后 source
+    升级为 rule+llm 且 forecast_qty 出真备货量；不可用/失败降级回 rule、forecast_qty=null。
+    actual/variance 为次日复盘回填。
     """
     sid = _resolve_store_id(store_id, None, request.headers.get("X-Store-Id"), auth)
+    bdate = _business_date(date)
     cost_stats = runtime.hub.get_store(sid).cost_stats or {"store_id": sid, "items": []}
     result = compute_loss_budget(cost_stats, limit=limit)
+    # LLM 备货预测（best-effort，失败/无 key 自动降级回 rule baseline）
+    forecasts = make_forecast_agent().forecast(result["items"], store_id=sid, date=bdate)
+    if forecasts:
+        result = compute_loss_budget(cost_stats, limit=limit, forecasts=forecasts)
     return {
         "store_id": sid,
-        "date": _business_date(date),
+        "date": bdate,
         "generated_at": utc_now_iso(),
-        "source": "rule",
+        "source": "rule+llm" if result.get("forecasted") else "rule",
         "items": result["items"],
         "budget_loss_amount_total": result["budget_loss_amount_total"],
         "actual_loss_amount_total": result["actual_loss_amount_total"],

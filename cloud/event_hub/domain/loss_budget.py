@@ -20,14 +20,22 @@ def compute_loss_budget(
     *,
     limit: int = 10,
     actuals: Optional[Dict[str, float]] = None,
+    forecasts: Optional[Dict[str, Dict[str, Any]]] = None,
 ) -> Dict[str, Any]:
     """Return loss-budget items + totals from a cost snapshot.
 
     ``actuals`` maps a budget line's ``ref_id`` to the realized loss amount
     (next-day复盘); when present, ``variance_pct = (actual - budget)/budget*100``.
+
+    ``forecasts`` maps ``ref_id`` to ``{forecast_qty, forecast_unit, reason}`` from
+    the LLM 备货预测 (LOSS-505+). When a line gets a forecast its forecast_qty/unit
+    are filled and the forecast reason merged; the result ``forecasted`` flag lets
+    the caller set source="rule+llm" vs "rule".
     """
     actuals = actuals or {}
+    forecasts = forecasts or {}
     items = []
+    forecasted = False
     for r in compute_loss_risk(cost_stats, limit=limit):
         budget = float(r.get("estimated_loss_amount") or 0.0)
         ref_id = r.get("ref_id")
@@ -35,15 +43,23 @@ def compute_loss_budget(
         variance = None
         if actual is not None and budget:
             variance = round((actual - budget) / budget * 100, 1)
+        reason = r.get("reason")
+        fc = forecasts.get(ref_id) or {}
+        forecast_qty = fc.get("forecast_qty")
+        forecast_unit = fc.get("forecast_unit")
+        if forecast_qty is not None:
+            forecasted = True
+            if fc.get("reason"):
+                reason = "；".join(p for p in (reason, fc["reason"]) if p)
         items.append(
             {
                 "sku": r.get("sku"),
-                "forecast_qty": None,      # LLM forecast not wired (rule baseline)
-                "forecast_unit": None,
+                "forecast_qty": forecast_qty,   # None → rule baseline; set → LLM 备货量
+                "forecast_unit": forecast_unit,
                 "budget_loss_amount": budget,
                 "actual_loss_amount": actual,
                 "variance_pct": variance,
-                "reason": r.get("reason"),
+                "reason": reason,
                 "suggested_action": r.get("suggested_action"),
                 "ref_type": r.get("ref_type"),
                 "ref_id": ref_id,
@@ -52,6 +68,7 @@ def compute_loss_budget(
     actual_vals = [i["actual_loss_amount"] for i in items if i["actual_loss_amount"] is not None]
     return {
         "items": items,
+        "forecasted": forecasted,
         "budget_loss_amount_total": round(sum(i["budget_loss_amount"] for i in items), 2),
         "actual_loss_amount_total": round(sum(actual_vals), 2) if actual_vals else None,
     }

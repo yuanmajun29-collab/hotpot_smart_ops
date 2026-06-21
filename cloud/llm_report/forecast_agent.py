@@ -1,0 +1,102 @@
+"""Loss-budget 备货预测 agent (LOSS-505+ LLM 接线).
+
+Produces per-SKU 备货建议量 (forecast_qty) with a reason from the loss-budget
+TopN. Two backends mirror report_agent.py:
+  - RuleForecastAgent: no LLM → returns {} (loss-budget stays source="rule").
+  - LLMForecastAgent: OpenAI-compatible chat; graceful → {} on any failure so the
+    endpoint always degrades to the rule baseline (frozen contract §2.1).
+
+The chat call is injectable (``chat_fn``) so tests never hit a real API.
+"""
+
+from __future__ import annotations
+
+import json
+import os
+from typing import Any, Callable, Dict, List, Optional
+
+
+class RuleForecastAgent:
+    """No-LLM baseline: no 备货量 forecast."""
+
+    def forecast(self, items: List[Dict[str, Any]], *, store_id: str,
+                 date: Optional[str] = None, **_ctx: Any) -> Dict[str, Dict[str, Any]]:
+        return {}
+
+
+def _build_prompt(items: List[Dict[str, Any]], store_id: str, date: Optional[str]) -> str:
+    lines = [
+        f"门店 {store_id} {date or ''} 今晚损耗预算 TopN。请基于历史消耗与风险，给每个 ref_id 的"
+        "建议备货量（份）与简短理由。只输出 JSON：{ref_id: {forecast_qty, forecast_unit, reason}}。",
+    ]
+    for it in items:
+        lines.append(
+            f"- ref_id={it.get('ref_id')} sku={it.get('sku')} "
+            f"预算损耗¥{it.get('budget_loss_amount')} 原因={it.get('reason')}"
+        )
+    return "\n".join(lines)
+
+
+def _extract_json(raw: str) -> str:
+    raw = (raw or "").strip()
+    if raw.startswith("```"):
+        raw = raw.strip("`").strip()
+        if raw.lower().startswith("json"):
+            raw = raw[4:].strip()
+    return raw
+
+
+class LLMForecastAgent:
+    def __init__(self, api_key: str = "", base_url: str = "https://api.openai.com/v1",
+                 model: str = "gpt-4o-mini", *, chat_fn: Optional[Callable[[str], str]] = None) -> None:
+        self.api_key = api_key
+        self.base_url = base_url
+        self.model = model
+        self._chat_fn = chat_fn  # injectable for tests
+
+    def _chat(self, prompt: str) -> str:
+        if self._chat_fn is not None:
+            return self._chat_fn(prompt)
+        import urllib.request
+        body = json.dumps({
+            "model": self.model,
+            "messages": [{"role": "user", "content": prompt}],
+            "temperature": 0.2,
+        }).encode("utf-8")
+        req = urllib.request.Request(
+            f"{self.base_url}/chat/completions", data=body,
+            headers={"Authorization": f"Bearer {self.api_key}", "Content-Type": "application/json"},
+        )
+        with urllib.request.urlopen(req, timeout=20) as resp:
+            data = json.loads(resp.read().decode("utf-8"))
+        return data["choices"][0]["message"]["content"]
+
+    def forecast(self, items: List[Dict[str, Any]], *, store_id: str,
+                 date: Optional[str] = None, **_ctx: Any) -> Dict[str, Dict[str, Any]]:
+        if not items:
+            return {}
+        try:
+            parsed = json.loads(_extract_json(self._chat(_build_prompt(items, store_id, date))))
+        except Exception:
+            return {}  # graceful degrade → rule baseline
+        if not isinstance(parsed, dict):
+            return {}
+        out: Dict[str, Dict[str, Any]] = {}
+        for ref_id, v in parsed.items():
+            if isinstance(v, dict) and v.get("forecast_qty") is not None:
+                out[str(ref_id)] = {
+                    "forecast_qty": v.get("forecast_qty"),
+                    "forecast_unit": v.get("forecast_unit"),
+                    "reason": v.get("reason"),
+                }
+        return out
+
+
+def make_forecast_agent() -> Any:
+    """Factory: LLM agent when HOTPOT_FORECAST=1 + key present; else rule baseline."""
+    key = os.environ.get("HOTPOT_FORECAST_API_KEY") or os.environ.get("OPENAI_API_KEY", "")
+    if os.environ.get("HOTPOT_FORECAST", "") == "1" and key:
+        base = os.environ.get("OPENAI_BASE_URL", "https://api.openai.com/v1")
+        model = os.environ.get("HOTPOT_FORECAST_MODEL") or os.environ.get("OPENAI_MODEL", "gpt-4o-mini")
+        return LLMForecastAgent(key, base, model)
+    return RuleForecastAgent()
