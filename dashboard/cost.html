@@ -82,12 +82,21 @@
           ul.appendChild(li);
         });
         if (!ul.children.length) ul.innerHTML = "<div class='empty-state'><span class='es-ic'>\u2696</span>暂无来料对账数据<br><small>收货 PDA 验收后将同步至此</small></div>";
+        await HotpotApp.loadRbac();
+        const canTask = HotpotApp.canAction((HotpotApp.getAuth() || {}).role, "task_create");
         const riskList = document.getElementById("loss-risk-list");
         riskList.innerHTML = "";
         (loss.risks || []).forEach((risk) => {
           const li = document.createElement("li");
           const amount = risk.estimated_loss_amount ? ` · 预估损耗 ¥${risk.estimated_loss_amount.toLocaleString()}` : "";
-          li.innerHTML = `<b>${esc(risk.sku || risk.batch_id)}</b> <span style="color:var(--accent)">风险 ${esc(risk.risk_score)}</span>${esc(amount)}<br>
+          const batchId = risk.ref_id || risk.batch_id;
+          let action = "";
+          if (risk.task_id) {
+            action = ` <span class="tag pass">✓ 已转任务 ${esc(risk.task_id)}</span>`;
+          } else if (canTask && batchId) {
+            action = ` <button class="btn btn-sm" data-risk-task="${esc(batchId)}">转复称任务</button>`;
+          }
+          li.innerHTML = `<b>${esc(risk.sku || risk.batch_id)}</b> <span style="color:var(--accent)">风险 ${esc(risk.risk_score)}</span>${esc(amount)}${action}<br>
             <small style="color:var(--muted)">原因：${esc(risk.reason || "规则命中")} · 建议：${esc(risk.suggested_action || "人工复核")}</small>`;
           riskList.appendChild(li);
         });
@@ -114,6 +123,22 @@
         }
       } catch (e) { console.warn(e); }
     }
+    // LOSS-506 闭环：风险卡「转复称任务」按钮（事件委托，幂等，跨店/无权 403 反馈）
+    document.getElementById("loss-risk-list").addEventListener("click", async (e) => {
+      const btn = e.target.closest("[data-risk-task]");
+      if (!btn) return;
+      const batchId = btn.getAttribute("data-risk-task");
+      btn.disabled = true;
+      btn.textContent = "转换中…";
+      try {
+        const r = await HotpotApp.riskToTask(batchId);
+        btn.outerHTML = `<span class="tag pass">✓ 已转任务 ${esc(r.task?.task_id || "已建单")}</span>`;
+      } catch (err) {
+        btn.disabled = false;
+        btn.textContent = err.status === 403 ? "无权限" : "重试";
+        console.warn("riskToTask failed", err);
+      }
+    });
     refresh();
     setInterval(refresh, 8000);
   </script>

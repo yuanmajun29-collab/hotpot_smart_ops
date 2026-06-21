@@ -337,6 +337,23 @@ const HotpotApp = (() => {
     return res.json();
   }
 
+  // LOSS-506: 一键把损耗风险转为复称留证任务（幂等，跨店 403）
+  async function riskToTask(batchId) {
+    const res = await fetch(`${hubUrl()}/v1/cost/loss-risk/${encodeURIComponent(batchId)}/task`, {
+      method: "POST",
+      headers: authHeaders({ "Content-Type": "application/json" }),
+      body: JSON.stringify({ store_id: storeId() }),
+    });
+    if (!res.ok) {
+      let detail = res.statusText;
+      try { detail = (await res.json()).detail || detail; } catch { /* non-json */ }
+      const err = new Error(detail);
+      err.status = res.status;
+      throw err;
+    }
+    return res.json();
+  }
+
   async function fetchHealth() {
     const res = await fetch(`${hubUrl()}/health`);
     if (!res.ok) throw new Error(res.statusText);
@@ -948,6 +965,7 @@ const HotpotApp = (() => {
     fetchSummary,
     fetchLossRisk,
     fetchLossBudget,
+    riskToTask,
     fetchHealth,
     fetchMetrics,
     askSop,
