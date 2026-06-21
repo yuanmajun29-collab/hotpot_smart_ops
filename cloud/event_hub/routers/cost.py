@@ -11,18 +11,33 @@ from datetime import datetime
 from typing import Any, Dict, Optional
 from zoneinfo import ZoneInfo
 
-from fastapi import APIRouter, Depends, Query, Request
+from fastapi import APIRouter, Depends, HTTPException, Query, Request
+from pydantic import BaseModel
 
 from cloud.event_hub import runtime
-from cloud.event_hub.auth import AuthContext, get_auth_context
+from cloud.event_hub.auth import (
+    AuthContext, get_auth_context, enforce_store_write, enforce_action,
+)
 from cloud.event_hub.domain.loss_risk import compute_loss_risk
 from cloud.event_hub.domain.loss_budget import compute_loss_budget
+from cloud.event_hub.hub_core import DEFAULT_STORE_ID
 from cloud.event_hub.routers._deps import resolve_store_id as _resolve_store_id
+from cloud.event_hub.task_store import task_store, TaskError
 from shared.schemas import utc_now_iso
 
 _STORE_TZ = "Asia/Shanghai"
 
 router = APIRouter()
+
+
+def _risk_priority(score: float) -> str:
+    return "P0" if score >= 70 else "P1" if score >= 40 else "P2"
+
+
+class RiskToTaskBody(BaseModel):
+    store_id: Optional[str] = None
+    assignee_id: Optional[str] = None
+    assignee_group: Optional[str] = None
 
 
 def _business_date(date: Optional[str]) -> str:
@@ -83,3 +98,45 @@ def cost_loss_budget(
         "budget_loss_amount_total": result["budget_loss_amount_total"],
         "actual_loss_amount_total": result["actual_loss_amount_total"],
     }
+
+
+@router.post("/v1/cost/loss-risk/{batch_id}/task")
+def loss_risk_to_task(
+    batch_id: str,
+    body: RiskToTaskBody,
+    auth: AuthContext = Depends(get_auth_context),
+) -> Dict[str, Any]:
+    """风险一键转复称任务（LOSS-506）。
+
+    把指定批次的损耗风险转成 recheck_weight（复称留证）任务，复用任务引擎；
+    source_id 保证 (店,批次) 幂等，ref 追溯到收货批次（ADR-012）。store-scoped。
+    """
+    sid = body.store_id or auth.store_id or DEFAULT_STORE_ID
+    enforce_store_write(auth, sid)
+    enforce_action(auth, "task_create")
+    cost_stats = runtime.hub.get_store(sid).cost_stats or {"store_id": sid, "items": []}
+    risks = compute_loss_risk(cost_stats, limit=1000)
+    risk = next((r for r in risks if (r.get("ref_id") or r.get("batch_id")) == batch_id), None)
+    if risk is None:
+        raise HTTPException(status_code=404, detail=f"无该批次损耗风险: {batch_id}")
+
+    sku = risk.get("sku") or batch_id
+    actor = auth.sub or auth.role or "user"
+    try:
+        task = task_store(runtime.db).create(
+            sid,
+            task_type="recheck_weight",
+            title=f"复称留证：{sku}（{risk.get('reason', '')}）",
+            created_by=actor,
+            priority=_risk_priority(risk.get("risk_score", 0)),
+            source="loss_risk",
+            ref_type="receiving_batch",
+            ref_id=batch_id,
+            assignee_id=body.assignee_id,
+            assignee_group=body.assignee_group,
+            detail=risk.get("suggested_action", ""),
+            source_id=f"loss-risk:{sid}:{batch_id}:recheck",
+        )
+    except TaskError as exc:
+        raise HTTPException(status_code=400, detail=str(exc)) from exc
+    return {"ok": True, "task": task, "risk": risk}
