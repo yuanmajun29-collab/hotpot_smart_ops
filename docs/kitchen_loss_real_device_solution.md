@@ -4,8 +4,8 @@
 
 | 项目 | 内容 |
 |------|------|
-| 状态 | V0.1 · 试点执行方案 |
-| 关联 | ADR-016/017/019 · `kitchen_loss_prediction_wedge_plan.md` · `architecture_data_model_phase1.md` |
+| 状态 | V0.1 · 试点执行方案（**本文为 SSOT**） |
+| 关联 | ADR-016/017/019 · `kitchen_loss_prediction_wedge_plan.md` · `architecture_data_model_phase1.md` · 执行附录 [kitchen_loss_budget_solution.md](kitchen_loss_budget_solution.md)（接口契约冻结 + 持久化/离线细化） |
 | 试点对象 | 单店优先：`store_yuhuan`，通过后复制到 `store_jiaojiang` |
 | 当前代码基线 | `GET /v1/cost/loss-risk` 已实现规则 baseline；`edge/iot_mock/*`、`shared/iot_sensors.py`、UAT MQTT 配置已具备替换真设备的入口 |
 
@@ -240,9 +240,9 @@ flowchart LR
 |----|-------|------|-----|
 | LOSS-501 | P1A | 设备注册与 health profile | `shared/iot_sensors.py` 支持协议/校准/health；dashboard 能看设备在线 |
 | LOSS-502 | P1A | 真 MQTT/Modbus 接入 adapter | `mqtt_bridge.py` 接真实 broker；断线重连；mock 与 real profile 明确区分 |
-| LOSS-503 | P1A | PDA 收货实时称重/温度绑定 | 收货页显示设备读数、人工确认、异常原因；写入 receiving/cost snapshot |
-| LOSS-504 | P1B | `loss_feature_builder` snapshot | 生成 SKU/批次/班次 JSON 特征；有单测；暂不强制建表 |
-| LOSS-505 | P1B | 损耗预算/预测 API 扩展 | `/v1/cost/loss-risk` 返回预算阈值、证据、TopN、建议动作 |
+| LOSS-503 | P1A | PDA 收货实时称重/温度绑定 + 品质打分 | 收货页显示设备读数、人工确认、异常原因；写入 receiving/cost snapshot；品质打分契约见附录 §2.2 `/v1/receiving/quality-tap` |
+| LOSS-504 | P1B | `loss_feature_builder` snapshot | 生成 SKU/批次/班次特征，**持久化到 `store_snapshots(kind="loss_features")`/events**（非临时 JSON，见附录 §3）；有单测；关系表延后 LOSS-508 |
+| LOSS-505 | P1B | 损耗预算/预测 API 扩展 | 新增 `/v1/cost/loss-budget`（契约冻结见附录 §2.1）；`/v1/cost/loss-risk` 叠加证据/TopN/动作 |
 | LOSS-506 | P1C | 风险转任务/SOP | 一键复称/退货留证/优先消耗；状态回写日报 |
 | LOSS-507 | P1C | schedule profiles | 15:00 备货、22:00 损耗复盘、周报三类调度可配置 |
 | LOSS-508 | P2 | feature/prediction 落表 | pay-test 通过后落 `loss_features/loss_predictions`，支持跨天回放 |

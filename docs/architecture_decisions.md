@@ -315,5 +315,5 @@
 | 硬件 | 延续 ADR-017：Jetson Orin Nano Super 8GB 用于 VLM/LLM 开发验证；试点/量产默认 RK3588 16GB 工业边缘盒。工业网关需支持 RS232/RS485、Modbus RTU、标准 MQTT/HTTP；摄像头仅做留证与二期 VLM 输入，不作为 P1A 主证据。 |
 | 分期 | P0 数据基线；P1A 真设备收货/冷链接入；P1B 损耗预算/预测 feature snapshot；P1C 风险转任务/SOP/日报闭环；P2 双店复制与模板化。 |
 | 边界 | P1A 不采购 RFID 全追溯、全量 VLM 摄像头、改刀双秤；不承诺本地 VLM/LLM 常驻；设备数据作为证据与建议，自动扣款/自动退货仍禁止。 |
-| 后果 | 新增方案文档 `kitchen_loss_real_device_solution.md`；后续任务以 LOSS-501~508 管理。现场验收从“页面能演示”升级为“真实设备在线率、读数延迟、数据完整率、闭环损耗金额”四类指标。 |
-| 关联 | ADR-016 · ADR-017 · ADR-018 · [kitchen_loss_real_device_solution.md](kitchen_loss_real_device_solution.md) · `shared/iot_sensors.py` · `edge/iot_mock/mqtt_bridge.py` · `cloud/event_hub/routers/cost.py` |
+| 后果 | 新增方案文档 `kitchen_loss_real_device_solution.md`（SSOT）+ 执行附录 `kitchen_loss_budget_solution.md`（接口契约冻结 + 特征持久化/离线口径细化）；后续任务以 LOSS-501~508 管理。新增 store-scoped 接口契约 `/v1/cost/loss-budget`、`/v1/receiving/quality-tap`、`/v1/vlm/waste-estimate`（字段/降级/验收测试见附录 §2，遵 ADR-009 跨店隔离）。Phase 1 特征持久化到 `store_snapshots(kind="loss_features")`/events，关系表延后 LOSS-508。现场验收从“页面能演示”升级为“真实设备在线率、读数延迟、数据完整率、闭环损耗金额”四类指标。 |
+| 关联 | ADR-016 · ADR-017 · ADR-018 · ADR-009（跨店隔离） · [kitchen_loss_real_device_solution.md](kitchen_loss_real_device_solution.md) · [kitchen_loss_budget_solution.md](kitchen_loss_budget_solution.md) · `shared/iot_sensors.py` · `edge/iot_mock/mqtt_bridge.py` · `cloud/event_hub/routers/cost.py` · `cloud/event_hub/db.py`（store_snapshots） |
