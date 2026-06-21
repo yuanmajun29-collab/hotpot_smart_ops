@@ -1,9 +1,10 @@
 """Receiving routes."""
 from __future__ import annotations
 
-from typing import Any, Dict, Optional
+from typing import Any, Dict, Literal, Optional
 
 from fastapi import APIRouter, Depends, HTTPException, Query, Request
+from pydantic import BaseModel
 
 from cloud.event_hub import runtime
 from cloud.event_hub.auth import AuthContext, get_auth_context, enforce_store_write, enforce_action
@@ -12,6 +13,80 @@ from cloud.event_hub.receiving_store import new_batch_id, receiving_store, varia
 from cloud.event_hub.hub_core import DEFAULT_STORE_ID
 
 router = APIRouter()
+
+# 师傅手动品质打分 → loss-risk 既有等级体系（poor=D 触发 _LOW_GRADES 风险）。
+_GRADE_MAP = {"good": "A", "normal": "B", "poor": "D"}
+
+
+class QualityTapBody(BaseModel):
+    batch_id: str
+    grade: Literal["good", "normal", "poor"]
+    store_id: Optional[str] = None
+    sku: Optional[str] = None
+    actor_id: Optional[str] = None
+    note: str = ""
+
+
+def _upsert_cost_grade(store: Any, batch_id: str, sku: Optional[str], grade: str) -> None:
+    """Set vlm_grade on the matching cost item (or append a minimal one) so the
+    manual quality tap feeds /v1/cost/loss-risk."""
+    cost = dict(store.cost_stats or {"store_id": store.store_id, "items": []})
+    items = [dict(i) for i in cost.get("items", [])]
+    for it in items:
+        if it.get("batch_id") == batch_id:
+            it["vlm_grade"] = grade
+            if sku and not it.get("sku"):
+                it["sku"] = sku
+            break
+    else:
+        items.append({"batch_id": batch_id, "sku": sku, "vlm_grade": grade})
+    cost["items"] = items
+    store.set_cost_stats(cost)
+
+
+@router.post("/v1/receiving/quality-tap")
+def receiving_quality_tap(
+    body: QualityTapBody,
+    auth: AuthContext = Depends(get_auth_context),
+) -> Dict[str, Any]:
+    """师傅手动 3 按钮品质打分（LOSS-503）。契约见
+    docs/kitchen_loss_budget_solution.md §2.2。"""
+    sid = body.store_id or auth.store_id or DEFAULT_STORE_ID
+    enforce_store_write(auth, sid)
+    enforce_action(auth, "receiving_submit")
+    store = runtime.hub.get_store(sid)
+    mapped = _GRADE_MAP[body.grade]
+    actor = body.actor_id or auth.sub or auth.role or "user"
+
+    event = store.add_event(
+        {
+            "event_type": "receiving_quality_tap",
+            "source": "manual",
+            "level": "warn" if body.grade == "poor" else "info",
+            "message": f"来料品质打分 {body.sku or body.batch_id}：{body.grade}（{mapped}）",
+            "metadata": {
+                "batch_id": body.batch_id,
+                "sku": body.sku,
+                "grade": body.grade,
+                "mapped_grade": mapped,
+                "actor_id": actor,
+                "note": body.note,
+                "ref_type": "receiving_batch",
+                "ref_id": body.batch_id,
+            },
+        }
+    )
+    _upsert_cost_grade(store, body.batch_id, body.sku, mapped)
+
+    return {
+        "ok": True,
+        "store_id": sid,
+        "batch_id": body.batch_id,
+        "grade": body.grade,
+        "mapped_grade": mapped,
+        "event_id": event.get("event_id"),
+        "source": "real",
+    }
 
 
 @router.post("/v1/receiving/submit")
