@@ -26,6 +26,16 @@ def test_dashboard_login_uses_server_role_after_success():
     assert "role: user.role || role" not in login_html
 
 
+def test_dashboard_login_reports_hub_connection_and_file_mode():
+    core_js = (PROJECT_ROOT / "dashboard" / "assets" / "core.js").read_text(encoding="utf-8")
+    login_html = (PROJECT_ROOT / "dashboard" / "login.html").read_text(encoding="utf-8")
+
+    assert 'window.location.protocol === "file:"' in core_js
+    assert "Hub 未连接：请先启动平台服务" in core_js
+    assert "本地文件模式" in login_html
+    assert "alert(err?.message" in login_html
+
+
 def test_task_dashboard_actions_use_authenticated_role_for_rbac():
     tasks_html = (PROJECT_ROOT / "dashboard" / "tasks.html").read_text(encoding="utf-8")
 

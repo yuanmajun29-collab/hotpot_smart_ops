@@ -21,7 +21,7 @@
 | **设计 vs 分期交付（总原则）** | [product_design.md §2.1](product_design.md#21-设计完整性-vs-分期交付) | [ADR-013](architecture_decisions.md#adr-013设计先行实现与真数据接入分期) |
 | **产品综观（决策层 / 新人 onboarding）** | [product_overview.md](product_overview.md) | 本文 |
 | 功能范围与验收标准 | [product_design.md §5、§12](product_design.md#5-功能规格feature-prd) | [phase1_mvp_acceptance_checklist.md](phase1_mvp_acceptance_checklist.md) |
-| **测试用例 / 自动化追溯** | [test_cases_phase1.md](test_cases_phase1.md) — 7 模块 F-xxx→用例→pytest（174 passed） | 与 acceptance/UAT 互补 |
+| **测试用例 / 自动化追溯** | [test_cases_phase1.md](test_cases_phase1.md) — 7 模块 F-xxx→用例→pytest（175 passed） | 与 acceptance/UAT 互补 |
 | **全国连锁层级 / 运营后台** | [product_hierarchy_national_chain.md](product_hierarchy_national_chain.md) | [architecture_hierarchy_phase_plan.md](architecture_hierarchy_phase_plan.md) |
 | **完整性复盘（登录+Admin CRUD）** | [product_completeness_review.md](product_completeness_review.md) | 本文 §2~§3 |
 | 用户故事与优先级 | [user_story_map.md](user_story_map.md) | [sprint_task_backlog.md](sprint_task_backlog.md) |

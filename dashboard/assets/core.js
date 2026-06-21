@@ -13,6 +13,10 @@ const HotpotApp = (() => {
     return `${protocol}//${hostname}${port ? `:${port}` : ""}`;
   }
 
+  function isFileMode() {
+    return window.location.protocol === "file:";
+  }
+
   /** 记录双端口部署（nginx :3000 业务 / :3001 运营后台） */
   function syncDeploymentOrigins(opts = {}) {
     const { protocol, hostname, port } = window.location;
@@ -222,6 +226,12 @@ const HotpotApp = (() => {
 
   async function loadRbac() {
     if (RBAC_MATRIX) return RBAC_MATRIX;
+    if (isFileMode()) {
+      // Chromium blocks fetch(file://.../rbac.json). Keep file-mode demos usable;
+      // backend RBAC remains authoritative for all protected operations.
+      RBAC_MATRIX = { roles: {} };
+      return RBAC_MATRIX;
+    }
     try {
       const base = window.location.pathname.replace(/[^/]+$/, "");
       const res = await fetch(base + "assets/rbac.json");
@@ -273,12 +283,26 @@ const HotpotApp = (() => {
       password: password || "demo",
       store_id: storeIdVal || "store_yuhuan",
     };
-    const res = await fetch(`${hubUrl()}/auth/token`, {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify(payload),
-    });
-    if (!res.ok) throw new Error("Hub 登录失败: " + res.statusText);
+    let res;
+    try {
+      res = await fetch(`${hubUrl()}/auth/token`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(payload),
+      });
+    } catch {
+      throw new Error(`Hub 未连接：请先启动平台服务（${hubUrl()}）`);
+    }
+    if (!res.ok) {
+      let detail = res.statusText;
+      try {
+        const body = await res.json();
+        detail = body.detail || body.message || detail;
+      } catch {
+        /* ignore non-json error body */
+      }
+      throw new Error(`Hub 登录失败 (${res.status})：${detail}`);
+    }
     return res.json();
   }
 

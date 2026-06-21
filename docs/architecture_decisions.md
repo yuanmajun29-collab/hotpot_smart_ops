@@ -227,7 +227,7 @@
 | 状态 | **已采纳**（2026-06-18，补记两轮重构决策） |
 | 背景 | 2026-06-17~18 两轮重构（Claude router-split + Codex hardening）显著改变了 Event Hub 结构，但此前无 ADR 记录，违反 development_delivery_plan §2.3「代码路径与 ar401 映射一致」的治理要求。 |
 | 决策 | 1) **app.py 为组装根**（composition root）：仅 `runtime.init` + `lifespan` 启停 + `include_router`，不含路由逻辑。2) **单例经 `runtime.py` 容器延迟绑定**（hub/db/alert_gateway/org_registry），路由直接 `runtime.X` 访问；测试经 `runtime.init` 注入，禁止 routers→app 反向依赖。3) **路由按 10 业务域拆 `routers/*.py`**（system/auth/ingest/receiving/sop/iot/reports/alerts/org/admin），每域单一职责。4) **RBAC 集中于 `rbac.py`（RolePolicy）**，auth.py 委托，`test_rbac_policy` 守 backend↔`rbac.json` 对齐。5) **`/v1` 别名 + Deprecation 治理**（ADR-004）：legacy 同 handler 双挂、`deprecated=True`、中间件 `Deprecation` 头，显式 legacy 集合。6) **纯业务逻辑入 `domain/`**（health/turnover），无 FastAPI/状态依赖。 |
-| 后果 | app.py 986→170 行（新增安全 profile 门禁后仍保持组装根职责）；可并行开发与独立测试；174 passed；pyflakes 干净。新增路由族须落到对应 `routers/*.py`，新权限改 `rbac.py` 单一源，新决策追加 ADR。 |
+| 后果 | app.py 986→170 行（新增安全 profile 门禁后仍保持组装根职责）；可并行开发与独立测试；175 passed；pyflakes 干净。新增路由族须落到对应 `routers/*.py`，新权限改 `rbac.py` 单一源，新决策追加 ADR。 |
 | 关联 | ADR-004 · `cloud/event_hub/{app,runtime,rbac}.py` · `routers/` · `domain/` · `docs/superpowers/specs/2026-06-17-event-hub-router-split-design.md` |
 
 ---
