@@ -16,6 +16,7 @@ if str(PROJECT_ROOT) not in sys.path:
     sys.path.insert(0, str(PROJECT_ROOT))
 
 from edge.iot_mock.iot_rules import DoorTimeoutTracker, level_for_sensor
+from edge.store_forward import StoreAndForwardBuffer
 from shared.hub_client import EdgeHubClient
 from shared.schemas import EventSource, utc_now_iso
 from shared.store_config import DEFAULT_UAT_ROOT, uat_dir
@@ -69,6 +70,7 @@ class MqttHubBridge:
         broker_url: str,
         topics_cfg: Dict[str, Any],
         thresholds: Optional[Dict[str, Any]] = None,
+        buffer_path: Optional[Any] = None,
     ) -> None:
         self.store_id = store_id
         self.hub = EdgeHubClient(hub_url, store_id)
@@ -82,6 +84,25 @@ class MqttHubBridge:
         self._door_tracker = DoorTimeoutTracker(
             timeout_sec=float(self.thresholds.get("door_open_timeout_sec", 180))
         )
+        # store-and-forward: buffer events when the Hub is unreachable (LOSS-502)
+        default_buf = PROJECT_ROOT / ".iot_buffer" / f"{store_id}.jsonl"
+        self.buffer = StoreAndForwardBuffer(buffer_path or default_buf)
+
+    def _try_post(self, event: Dict[str, Any]) -> bool:
+        try:
+            self.hub.post_event(event)
+            return True
+        except Exception:
+            return False
+
+    def _forward(self, event: Dict[str, Any]) -> None:
+        """Post to Hub; buffer locally (replay-safe) on failure so no reading is lost."""
+        if not self._try_post(event):
+            self.buffer.enqueue(event)
+
+    def replay_buffer(self) -> int:
+        """Re-deliver buffered events; returns count delivered this pass."""
+        return self.buffer.replay(self._try_post)
 
     def _on_message(self, _client: Any, _userdata: Any, msg: Any) -> None:
         cfg = self.topic_map.get(msg.topic)
@@ -103,7 +124,7 @@ class MqttHubBridge:
                 sid, parsed["value"], store_id=self.store_id, zone="kitchen"
             )
             if door_ev:
-                self.hub.post_event(door_ev)
+                self._forward(door_ev)
 
         event = {
             "event_type": f"iot_{stype}_reading" if stype != "door" else "iot_door_reading",
@@ -115,7 +136,7 @@ class MqttHubBridge:
             "timestamp": utc_now_iso(),
             "metadata": parsed,
         }
-        self.hub.post_event(event)
+        self._forward(event)
 
     def _post_iot_stats(self) -> None:
         with self._lock:
@@ -141,6 +162,7 @@ class MqttHubBridge:
             client_id=f"hotpot_bridge_{self.store_id}",
         )
         client.on_message = self._on_message
+        client.reconnect_delay_set(min_delay=1, max_delay=60)  # auto-reconnect on broker drop
         client.connect(host, port, keepalive=60)
         for topic in self.topic_map:
             client.subscribe(topic)
@@ -152,6 +174,7 @@ class MqttHubBridge:
         try:
             while cycles == 0 or tick < cycles:
                 time.sleep(flush_interval)
+                self.replay_buffer()  # re-deliver readings buffered during outages
                 self._post_iot_stats()
                 self.hub.flush_queue()
                 tick += 1
