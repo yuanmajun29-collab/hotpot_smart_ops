@@ -213,3 +213,33 @@ def generate_daily_report_for_store(
         "cached": False,
         "pushed": pushed,
     }
+
+
+def push_restock_advice_for_store(
+    hub: Any,
+    db: Any,
+    alert_gateway: Any,
+    store_id: str,
+    *,
+    report_date: Optional[str] = None,
+) -> Dict[str, Any]:
+    """15:00 备货建议（LOSS-507 restock 槽）：从门店成本快照算 loss-budget 并推送。
+
+    rule baseline 复用 compute_loss_budget；LLM 备货预测接线后 source 升级为
+    rule+llm（见 docs/kitchen_loss_budget_solution.md §2.1）。
+    """
+    from cloud.event_hub.domain.loss_budget import compute_loss_budget
+
+    rdate = report_date or local_today(DEFAULT_TZ)
+    cost_stats = hub.get_store(store_id).cost_stats or {"store_id": store_id, "items": []}
+    budget = compute_loss_budget(cost_stats, limit=10)
+    budget["source"] = "rule"
+    res = alert_gateway.push_loss_restock_advice(store_id, rdate, budget)
+    return {
+        "ok": True,
+        "store_id": store_id,
+        "report_date": rdate,
+        "budget_loss_amount_total": budget["budget_loss_amount_total"],
+        "pushed": res["pushed"],
+        "webhook_sent": res["webhook_sent"],
+    }

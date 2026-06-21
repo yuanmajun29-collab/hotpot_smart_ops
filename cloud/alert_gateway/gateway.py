@@ -507,6 +507,68 @@ class AlertGateway:
             return self._post_webhook(route["webhook_url"], card)
         return False
 
+    # ---- 损耗备货建议推送（15:00 restock，LOSS-507 runtime）------------------
+
+    def format_loss_restock_card(
+        self, store_id: str, report_date: str, budget: Dict[str, Any]
+    ) -> Dict[str, str]:
+        """Restock advice card from a loss-budget result (compute_loss_budget)."""
+        route = self._store_route(store_id)
+        store_name = route.get("store_name", store_id)
+        dash = route.get("dashboard_url", "http://127.0.0.1:3000/alerts.html")
+        base = dash.replace("/alerts.html", "").rstrip("/")
+        cost_url = f"{base}/cost.html?store_id={store_id}&date={report_date}"
+        source = budget.get("source", "rule")
+        items = budget.get("items") or []
+        title = f"【今日备货建议】{store_name} · {report_date}"
+        lines = [title, "今晚损耗预算 TopN："]
+        for it in items[:5]:
+            qty = it.get("forecast_qty")
+            qty_txt = f"建议{qty}{it.get('forecast_unit') or ''}" if qty is not None else "建议待定"
+            lines.append(
+                f"· {it.get('sku') or it.get('ref_id')}：{qty_txt}，"
+                f"预算损耗 ¥{it.get('budget_loss_amount', 0)}（{it.get('suggested_action') or it.get('reason') or ''}）"
+            )
+        if not items:
+            lines.append("· 暂无显著损耗风险")
+        lines.append(f"来源：{source}")
+        lines.append(f"👉 打开损耗页：{cost_url}")
+        body = "\n".join(lines)
+        return {"title": title, "body": body, "markdown": body, "cost_url": cost_url}
+
+    def push_loss_restock_advice(
+        self, store_id: str, report_date: str, budget: Dict[str, Any], *,
+        dedup_token: Optional[str] = None,
+    ) -> Dict[str, Any]:
+        """Push the 15:00 restock advice card. Idempotent per (store, date)."""
+        card = self.format_loss_restock_card(store_id, report_date, budget)
+        route = self._store_route(store_id)
+        event_id = f"loss-restock-{store_id}-{report_date}"
+        if dedup_token:
+            event_id += f":{dedup_token}"
+        event = {
+            "event_id": event_id,
+            "event_type": "loss_restock_advice",
+            "level": "info",
+            "message": card["title"],
+            "timestamp": utc_now_iso(),
+        }
+        result = {
+            "store_id": store_id,
+            "date": report_date,
+            "channel": "wechat_work",
+            "event_id": event_id,
+            "card": card,
+            "pushed": False,
+            "webhook_sent": False,
+        }
+        if self._record_push(event, store_id, card):
+            self._append_file_log(card, store_id, event)
+            result["pushed"] = True
+            if route.get("webhook_url"):
+                result["webhook_sent"] = self._post_webhook(route["webhook_url"], card)
+        return result
+
     def list_pushes(self, store_id: Optional[str] = None, limit: int = 20) -> List[Dict[str, Any]]:
         with self._lock:
             conn = sqlite3.connect(str(self.db_path))

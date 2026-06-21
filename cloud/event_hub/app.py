@@ -5,7 +5,7 @@ from __future__ import annotations
 import os
 from contextlib import asynccontextmanager
 from pathlib import Path
-from typing import Any, AsyncIterator, Dict, Optional
+from typing import AsyncIterator, Optional
 
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
@@ -13,7 +13,12 @@ from fastapi.middleware.cors import CORSMiddleware
 from cloud.alert_gateway.gateway import AlertGateway
 from cloud.event_hub.auth import DEFAULT_JWT_SECRET
 from cloud.event_hub.db import create_hub_database
-from cloud.event_hub.daily_scheduler import DailyReportScheduler, generate_daily_report_for_store
+from cloud.event_hub.daily_scheduler import (
+    DailyReportScheduler,
+    default_loss_profiles,
+    generate_daily_report_for_store,
+    push_restock_advice_for_store,
+)
 from cloud.event_hub.hub_core import MultiTenantHub, seed_from_directory
 
 PROJECT_ROOT = Path(__file__).resolve().parents[2]
@@ -93,11 +98,21 @@ def startup() -> None:
 
     if os.environ.get("HOTPOT_DAILY_REPORT_SCHEDULER", "1") == "1":
 
-        def _gen(sid: str, push: bool) -> Dict[str, Any]:
-            return generate_daily_report_for_store(runtime.hub, runtime.db, runtime.alert_gateway, sid, push=push)
+        def _daily(sid: str) -> None:
+            generate_daily_report_for_store(runtime.hub, runtime.db, runtime.alert_gateway, sid, push=True)
 
+        def _restock(sid: str) -> None:
+            push_restock_advice_for_store(runtime.hub, runtime.db, runtime.alert_gateway, sid)
+
+        def _weekly(sid: str) -> None:
+            # P1.5 LLM 损耗趋势周报，flag 关闭前为预留槽（LOSS-507 仅提供调度位）
+            if os.environ.get("HOTPOT_WEEKLY_REPORT", "0") != "1":
+                return
+
+        # 三时段损耗调度：15:00 备货建议 / 22:00 损耗复盘 / 周一 09:00 趋势周报
+        dispatch = {"restock": _restock, "daily": _daily, "weekly": _weekly}
         global _daily_scheduler
-        _daily_scheduler = DailyReportScheduler(_gen)
+        _daily_scheduler = DailyReportScheduler(profiles=default_loss_profiles(), dispatch=dispatch)
         _daily_scheduler.start()
 
 
