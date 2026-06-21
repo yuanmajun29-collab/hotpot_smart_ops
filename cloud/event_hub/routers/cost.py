@@ -117,7 +117,11 @@ def cost_loss_budget(
     cost_stats = runtime.hub.get_store(sid).cost_stats or {"store_id": sid, "items": []}
     result = compute_loss_budget(cost_stats, limit=limit)
     # LLM 备货预测（best-effort，失败/无 key 自动降级回 rule baseline）
-    forecasts = make_forecast_agent().forecast(result["items"], store_id=sid, date=bdate)
+    try:
+        forecasts = make_forecast_agent().forecast(result["items"], store_id=sid, date=bdate)
+    except Exception as exc:  # noqa: BLE001 - forecast failure must degrade, never break budget
+        print(f"[EventHub] WARN: loss forecast failed for {sid}@{bdate}: {exc}")
+        forecasts = {}
     if forecasts:
         result = compute_loss_budget(cost_stats, limit=limit, forecasts=forecasts)
     return {

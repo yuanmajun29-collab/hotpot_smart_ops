@@ -1,8 +1,8 @@
 """GET /v1/cost/loss-budget — 损耗预算 (LOSS-505).
 
 Frozen contract: docs/kitchen_loss_budget_solution.md §2.1.
-Builds on the loss-risk rule baseline; LLM forecast not wired yet → source="rule",
-forecast_qty=null. actual/variance are next-day backfill (null on same-day).
+Builds on the loss-risk rule baseline; with no LLM forecast available it degrades to
+source="rule", forecast_qty=null. actual/variance are next-day backfill (null on same-day).
 Store-scoped (ADR-009).
 """
 from __future__ import annotations
@@ -30,7 +30,7 @@ def test_compute_loss_budget_variance_when_actual_given():
     base = compute_loss_budget(_COST, limit=10)
     budget = base["items"][0]["budget_loss_amount"]
     assert budget > 0
-    assert base["items"][0]["forecast_qty"] is None  # LLM not wired
+    assert base["items"][0]["forecast_qty"] is None  # no forecast supplied
     assert base["items"][0]["variance_pct"] is None  # same-day, no actual
     # supply an actual = 1.5x budget → variance +50%
     key = base["items"][0]["ref_id"]
@@ -72,7 +72,7 @@ def test_loss_budget_source_rule_and_fields(client):
     r = client.get("/v1/cost/loss-budget", headers=h)
     assert r.status_code == 200, r.text
     body = r.json()
-    assert body["source"] == "rule"  # LLM not wired
+    assert body["source"] == "rule"  # no LLM forecast available
     assert body["store_id"] == "store_yuhuan"
     assert body["date"]
     assert body["generated_at"]

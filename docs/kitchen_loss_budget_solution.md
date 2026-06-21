@@ -73,9 +73,9 @@
   "actual_loss_amount_total": null
 }
 ```
-- `forecast_qty/forecast_unit`：备货建议量（LLM 不可用时可为 `null`，`source="rule"`）。
+- `forecast_qty/forecast_unit`：备货建议量；预测 agent 会校验 `forecast_qty` 必须为有限、非负数，非法/缺失预测被丢弃。LLM 不可用或全部预测无效时为 `null`，`source="rule"`；至少一条有效预测命中时为 `source="rule+llm"`。
 - `actual_loss_amount/variance_pct`：次日复盘回填，当日请求时为 `null`（预算→实际→偏差闭环）。
-- **自动化验收测试**（LOSS-505 已实现）：`tests/test_loss_budget.py` —（a）store-scope 403；（b）无 LLM 时 `source="rule"` 且不 500；（c）含实际值时 `variance_pct` 计算正确；（d）字段齐全。
+- **自动化验收测试**（LOSS-505 已实现）：`tests/test_loss_budget.py` + `tests/test_loss_forecast.py` —（a）store-scope 403；（b）无 LLM 时 `source="rule"` 且不 500；（c）含实际值时 `variance_pct` 计算正确；（d）字段齐全；（e）LLM JSON 解析、数值边界、异常降级与 `source="rule+llm"`。
 
 ### 2.2 `POST /v1/receiving/quality-tap` — 师傅手动品质打分（LOSS-503）
 

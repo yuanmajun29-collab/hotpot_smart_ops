@@ -161,7 +161,7 @@ Phase 1 北极星建议从“有效告警处理率”调整为：
 |----|------------------|--------------|
 | L1 数据采集 | VLM 把切配台/废料桶画面翻译成结构化日志（`{时间,食材,动作,预估份量}`）；MVP 阶段可由手工台账/手动打分替代 | `cloud/vlm_review/`（废料/份量识别）；W1 手工台账过渡 |
 | L2 特征工程 | 边缘时序对齐：VLM 输出 + 预订桌数 + 入座率 + 天气 + 节假日/活动。**先做 snapshot/JSON feature_builder + 测试，暂不建 `loss_features/loss_predictions` 表**（pay-test 通过或需跨天回放再落表） | `cloud/cost_control/analyzer.py`（仅够 P1A）+ `demo/data/*` |
-| L3 预测决策 | LLM 少样本时序预测，输出**带理由**的备货建议（非黑盒数字）。**规则 baseline 已落桩 LOSS-402**：`GET /v1/cost/loss-risk` → TopN risk_score/reason/suggested_action | `routers/cost.py` + `domain/loss_risk.py`（已实现）；`cloud/llm_report/report_agent.py`（forecast prompt 待接） |
+| L3 预测决策 | LLM 少样本时序预测，输出**带理由**的备货建议（非黑盒数字）。**规则 baseline 已落桩 LOSS-402**：`GET /v1/cost/loss-risk` → TopN risk_score/reason/suggested_action；`GET /v1/cost/loss-budget` 已接可选 LLM 预测，失败降级 `source="rule"` | `routers/cost.py` + `domain/loss_risk.py` / `domain/loss_budget.py`（已实现）；`cloud/llm_report/forecast_agent.py`（rule→rule+llm） |
 | L4 闭环反馈 | 次日 VLM/台账验证实际浪费，误差回喂 LLM 自动修正系数 | `daily_scheduler` 调度 + 成本页/日报归因（§2 闭环） |
 
 ### 8.5 交付形态（三时段推送 → daily_scheduler 多时段）

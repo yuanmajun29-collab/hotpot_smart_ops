@@ -12,6 +12,7 @@ The chat call is injectable (``chat_fn``) so tests never hit a real API.
 from __future__ import annotations
 
 import json
+import math
 import os
 from typing import Any, Callable, Dict, List, Optional
 
@@ -40,17 +41,46 @@ def _build_prompt(items: List[Dict[str, Any]], store_id: str, date: Optional[str
 def _extract_json(raw: str) -> str:
     raw = (raw or "").strip()
     if raw.startswith("```"):
-        raw = raw.strip("`").strip()
-        if raw.lower().startswith("json"):
-            raw = raw[4:].strip()
+        lines = raw.splitlines()
+        if lines and lines[0].startswith("```"):
+            lines = lines[1:]
+        if lines and lines[-1].startswith("```"):
+            lines = lines[:-1]
+        raw = "\n".join(lines).strip()
+    if raw.lower().startswith("json"):
+        raw = raw[4:].strip()
+    start, end = raw.find("{"), raw.rfind("}")
+    if start >= 0 and end > start:
+        raw = raw[start:end + 1]
     return raw
+
+
+def _clean_entry(value: Dict[str, Any]) -> Optional[Dict[str, Any]]:
+    raw_qty = value.get("forecast_qty")
+    try:
+        qty = float(raw_qty)
+    except (TypeError, ValueError):
+        return None
+    if not math.isfinite(qty) or qty < 0:
+        return None
+    unit = value.get("forecast_unit")
+    if not isinstance(unit, str) or not unit.strip():
+        unit = "份"
+    reason = value.get("reason")
+    if not isinstance(reason, str):
+        reason = ""
+    return {
+        "forecast_qty": int(qty) if qty.is_integer() else round(qty, 2),
+        "forecast_unit": unit.strip()[:16],
+        "reason": reason.strip()[:160],
+    }
 
 
 class LLMForecastAgent:
     def __init__(self, api_key: str = "", base_url: str = "https://api.openai.com/v1",
                  model: str = "gpt-4o-mini", *, chat_fn: Optional[Callable[[str], str]] = None) -> None:
         self.api_key = api_key
-        self.base_url = base_url
+        self.base_url = base_url.rstrip("/")
         self.model = model
         self._chat_fn = chat_fn  # injectable for tests
 
@@ -66,6 +96,7 @@ class LLMForecastAgent:
         req = urllib.request.Request(
             f"{self.base_url}/chat/completions", data=body,
             headers={"Authorization": f"Bearer {self.api_key}", "Content-Type": "application/json"},
+            method="POST",
         )
         with urllib.request.urlopen(req, timeout=20) as resp:
             data = json.loads(resp.read().decode("utf-8"))
@@ -83,12 +114,11 @@ class LLMForecastAgent:
             return {}
         out: Dict[str, Dict[str, Any]] = {}
         for ref_id, v in parsed.items():
-            if isinstance(v, dict) and v.get("forecast_qty") is not None:
-                out[str(ref_id)] = {
-                    "forecast_qty": v.get("forecast_qty"),
-                    "forecast_unit": v.get("forecast_unit"),
-                    "reason": v.get("reason"),
-                }
+            if not isinstance(v, dict):
+                continue
+            clean = _clean_entry(v)
+            if clean is not None:
+                out[str(ref_id)] = clean
         return out
 
 

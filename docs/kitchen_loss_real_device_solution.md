@@ -155,7 +155,7 @@ flowchart LR
 | 收货页 | `dashboard/pda/receiving.html` | 绑定实时重量/温度，显示“设备读数 + 人工确认” |
 | 风险 API | `cloud/event_hub/routers/cost.py` | `/v1/cost/loss-risk` 接 feature snapshot 与 action status |
 | 纯规则 | `cloud/event_hub/domain/loss_risk.py` | 保留短重/超温 baseline，新增预算阈值和证据聚合 |
-| LLM 预测 | `cloud/llm_report/report_agent.py` | 新增 forecast prompt，输出备货建议和理由 |
+| LLM 预测 | `cloud/llm_report/forecast_agent.py` | 已新增 forecast prompt，输出备货建议和理由；失败降级 `source="rule"` |
 | 调度推送 | `cloud/event_hub/daily_scheduler.py` | 单时段扩展为 schedule profiles：15:00/22:00/周报 |
 
 ---

@@ -38,6 +38,26 @@ def test_compute_loss_budget_applies_forecasts():
     assert "雨天" in it["reason"]  # forecast reason merged
 
 
+def test_compute_loss_budget_rejects_unsafe_forecasts():
+    from cloud.event_hub.domain.loss_budget import compute_loss_budget
+    bad = compute_loss_budget(
+        _COST,
+        limit=10,
+        forecasts={"B1": {"forecast_qty": -1, "forecast_unit": "份", "reason": "bad"}},
+    )
+    assert bad["forecasted"] is False
+    assert bad["items"][0]["forecast_qty"] is None
+
+    good = compute_loss_budget(
+        _COST,
+        limit=10,
+        forecasts={"B1": {"forecast_qty": "12.5", "reason": "模型建议"}},
+    )
+    assert good["forecasted"] is True
+    assert good["items"][0]["forecast_qty"] == 12.5
+    assert good["items"][0]["forecast_unit"] == "份"
+
+
 # ---- agents ----------------------------------------------------------------
 
 def test_rule_forecast_agent_returns_empty():
@@ -48,12 +68,17 @@ def test_rule_forecast_agent_returns_empty():
 def test_llm_forecast_agent_parses_response():
     from cloud.llm_report.forecast_agent import LLMForecastAgent
     def fake_chat(_prompt):
-        return '```json\n{"B1": {"forecast_qty": 15, "forecast_unit": "份", "reason": "近7天均耗13"}}\n```'
+        return (
+            '这里是结果：\n```json\n'
+            '{"B1": {"forecast_qty": 15, "forecast_unit": "份", "reason": "近7天均耗13"},'
+            ' "BAD": {"forecast_qty": -2, "forecast_unit": "份", "reason": "bad"}}\n```'
+        )
     fc = LLMForecastAgent(chat_fn=fake_chat).forecast(
         [{"ref_id": "B1", "sku": "毛肚", "budget_loss_amount": 160}],
         store_id="store_yuhuan", date="2026-06-21")
     assert fc["B1"]["forecast_qty"] == 15
     assert fc["B1"]["forecast_unit"] == "份"
+    assert "BAD" not in fc
 
 
 def test_llm_forecast_agent_graceful_on_error_or_bad_json():
@@ -120,3 +145,19 @@ def test_loss_budget_endpoint_source_rule_plus_llm_with_agent(client, monkeypatc
     item = next(i for i in body["items"] if i["ref_id"] == "B1")
     assert item["forecast_qty"] == 15.0
     assert item["forecast_unit"] == "份"
+
+
+def test_loss_budget_endpoint_degrades_when_agent_raises(client, monkeypatch):
+    h = _tok(client, "zhangdian", "店长")
+    _seed(client, h)
+
+    class BoomAgent:
+        def forecast(self, items, *, store_id, date=None, **ctx):
+            raise RuntimeError("llm down")
+
+    monkeypatch.setattr("cloud.event_hub.routers.cost.make_forecast_agent", lambda: BoomAgent())
+    r = client.get("/v1/cost/loss-budget", headers=h)
+    assert r.status_code == 200, r.text
+    body = r.json()
+    assert body["source"] == "rule"
+    assert all(i["forecast_qty"] is None for i in body["items"])
