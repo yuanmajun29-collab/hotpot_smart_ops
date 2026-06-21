@@ -4,8 +4,8 @@
 
 | 项目 | 内容 |
 |------|------|
-| 版本 | V1.6 |
-| 更新 | 2026-06-19 |
+| 版本 | V1.7 |
+| 更新 | 2026-06-21 |
 | 前置 | 产品设计规格 OK · [product_design_index.md](product_design_index.md) |
 | 评审 | [architecture_review_checklist.md](architecture_review_checklist.md)（AR-401） |
 | 会议 | [ar401_meeting_invite_20260618.md](ar401_meeting_invite_20260618.md) · **6/18 10:00** |
@@ -63,8 +63,9 @@ flowchart TB
 | F-TASK | §5.4.1 · task 详设 | api §3 · data §5.4~5.5 | ✅ |
 | DEV 编号 | `sprint_task_backlog` §12.1 | hierarchy §8 · task §13 | ✅ |
 | 角色目标态 | PRD §9 + §9.1 | DEV-503/528~530 | ✅ |
-| ADR | product §2.1 P8 | ADR-001~016 | ✅ |
+| ADR | product §2.1 P8 | ADR-001~019 | ✅ |
 | 后厨损耗预测切入口 | PRD §1.3.1 · F-C06~07 | ADR-016 · phase1 C-05 lead loop | ✅ |
+| 后厨损耗真实设备接入 | F-C06/F-C07 · 试点采购/验收 | ADR-019 · kitchen_loss_real_device_solution | 🔶 方案定稿 |
 
 ---
 
@@ -83,7 +84,7 @@ flowchart TB
 | 数据模型 / 表结构 | [architecture_data_model_phase1.md](architecture_data_model_phase1.md) | **V1.2** OpsEvent · tasks · 组织 · 追溯 · loss features |
 | 部署拓扑 | [architecture_deployment_phase1.md](architecture_deployment_phase1.md) | docker · systemd · 两店 |
 | **业务/Admin 分离（nginx）** | [deploy/nginx/README.md](../deploy/nginx/README.md) | combined · 子域 · 双端口 |
-| 架构决策 ADR | [architecture_decisions.md](architecture_decisions.md) | ADR-001~016 |
+| 架构决策 ADR | [architecture_decisions.md](architecture_decisions.md) | ADR-001~019 |
 | 事件模型 / ER / 存储 | design_dev | §1.4 数据设计 |
 | 部署与安全 | design_dev | §1.5~1.6 |
 | PoC → 生产差距 | [poc_to_production_gap.md](poc_to_production_gap.md) | 全文 |
@@ -217,7 +218,7 @@ flowchart TB
 | [architecture_api_spec.md](architecture_api_spec.md) | REST API V1.2 · PRD 主映射 §6 |
 | [architecture_data_model_phase1.md](architecture_data_model_phase1.md) | 数据模型 V1.2 · OpsEvent · tasks · 组织 · loss features |
 | [architecture_deployment_phase1.md](architecture_deployment_phase1.md) | docker · systemd · 两店拓扑 |
-| [architecture_decisions.md](architecture_decisions.md) | ADR-001~016 |
+| [architecture_decisions.md](architecture_decisions.md) | ADR-001~019 |
 | [architecture_changelog.md](architecture_changelog.md) | 架构变更日志 |
 | [architecture_review_checklist.md](architecture_review_checklist.md) | AR-401 评审清单 |
 | [ar401_meeting_invite_20260618.md](ar401_meeting_invite_20260618.md) | 会议邀请定稿 |

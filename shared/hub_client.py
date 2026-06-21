@@ -90,6 +90,37 @@ class EdgeHubClient:
     def post_event(self, event: Dict[str, Any]) -> bool:
         return self.post("/events", event, store_query=False)
 
+    def try_post(
+        self,
+        path: str,
+        body: Any,
+        *,
+        store_query: bool = True,
+    ) -> bool:
+        """Best-effort POST without writing to the built-in SQLite queue.
+
+        Used by components that own a stronger domain-specific store-and-forward
+        buffer and need a pure success/failure signal.
+        """
+        query = f"store_id={urllib.parse.quote(self.store_id)}" if store_query else ""
+        url = self.hub_url + path
+        if query:
+            url += ("&" if "?" in url else "?") + query
+        req = urllib.request.Request(
+            url,
+            data=json.dumps(body, ensure_ascii=False).encode("utf-8"),
+            headers=self._headers(),
+            method="POST",
+        )
+        try:
+            urllib.request.urlopen(req, timeout=8)
+            return True
+        except (urllib.error.URLError, TimeoutError):
+            return False
+
+    def try_post_event(self, event: Dict[str, Any]) -> bool:
+        return self.try_post("/events", event, store_query=False)
+
     def post_events(self, events: list) -> int:
         ok = 0
         for ev in events:

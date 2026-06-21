@@ -4,6 +4,16 @@
 
 ---
 
+## V1.6 · 2026-06-21
+
+| 变更 | 说明 |
+|------|------|
+| 新增 `kitchen_loss_real_device_solution.md` | 后厨损耗预算/预测真实设备接入方案：采购、接线、数据契约、开发任务、验收指标 |
+| `architecture_decisions.md` V1.3 | 新增 ADR-019：后厨损耗预算/预测真实设备接入 Profile |
+| `architecture_design_index.md` V1.7 | 索引 ADR 范围更新至 ADR-019，并新增真实设备接入对齐项 |
+
+---
+
 ## V1.5 · 2026-06-19
 
 | 变更 | 说明 |

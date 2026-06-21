@@ -63,6 +63,7 @@ class EventStore:
         self.cost_stats: Dict[str, Any] = {}
         self.iot_stats: Dict[str, Any] = {}
         self.erp_stats: Dict[str, Any] = {}
+        self.loss_features: Dict[str, Any] = {}
 
     def _persist(self, kind: str, payload: Any) -> None:
         if self._on_persist:
@@ -130,6 +131,13 @@ class EventStore:
             self.erp_stats = stats
             self._persist("erp", stats)
 
+    def set_loss_features(self, features: Dict[str, Any]) -> None:
+        with self._lock:
+            features = dict(features)
+            features["store_id"] = self.store_id
+            self.loss_features = features
+            self._persist("loss_features", features)
+
     def get_events(self, level: Optional[str] = None, limit: int = 50) -> List[Dict[str, Any]]:
         with self._lock:
             items = list(self.events)
@@ -195,6 +203,8 @@ class EventStore:
                 self.iot_stats = dict(payload)
             elif kind == "erp":
                 self.erp_stats = dict(payload)
+            elif kind == "loss_features":
+                self.loss_features = dict(payload)
             elif kind == "event" and isinstance(payload, dict):
                 self.events.appendleft(payload)
 

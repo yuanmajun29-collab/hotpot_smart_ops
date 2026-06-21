@@ -14,6 +14,7 @@
         <h1 style="font-family:'STSong','Songti SC','Noto Serif SC',serif;letter-spacing:.04em;margin:0;">冯校长火锅</h1>
       </div>
       <p class="subtitle">智能运营 · Phase 1 MVP（玉环 / 椒江）</p>
+      <p id="entry-hint" style="display:none;margin:-12px 0 16px;padding:10px 12px;border-radius:8px;background:rgba(230,169,62,.12);border:1px solid rgba(230,169,62,.35);color:var(--warn);font-size:.8rem;line-height:1.6;"></p>
       <form id="login-form">
         <div class="form-group">
           <label>演示身份（账号与角色绑定）</label>
@@ -97,6 +98,11 @@
 
     const params = new URLSearchParams(location.search);
     const preferMobile = params.get("mobile") === "1";
+    const entryHint = document.getElementById("entry-hint");
+    if (location.protocol === "file:") {
+      entryHint.style.display = "";
+      entryHint.innerHTML = '本地文件模式 · Hub 默认 <code>http://127.0.0.1:8088</code> · 推荐入口 <code>http://127.0.0.1:3000/login.html</code>';
+    }
 
     if (params.get("admin") === "1") {
       document.getElementById("username").value = "zongbu";
@@ -139,8 +145,8 @@
           });
           window.location.href = targetAfterLogin(mobile, role);
         })
-        .catch(() => {
-          alert("登录失败：请确认账号与密码");
+        .catch((err) => {
+          alert(err?.message || "登录失败：请确认账号与密码");
         });
     }
 

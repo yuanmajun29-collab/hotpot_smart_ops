@@ -147,7 +147,7 @@
 |----|------|------|
 | task_id | TEXT PK | |
 | store_id | TEXT | 租户 |
-| task_type | TEXT | sop_violation / cleaning / safety_alert / … |
+| task_type | TEXT | sop_violation / cleaning / safety_alert / recheck_weight / … |
 | priority | TEXT | P0 / P1 / P2 |
 | status | TEXT | pending / in_progress / submitted / closed / cancelled |
 | source | TEXT | manual / system |

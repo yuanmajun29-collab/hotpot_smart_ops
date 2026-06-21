@@ -8,7 +8,7 @@
 | 日期 | 2026-06-18 |
 | 范围 | 7 业务模块 + F-TASK + PDA + 层级/驾驶仓 + Admin + 跨切面 |
 | 依据 | [product_design.md §5/§12](product_design.md) · [architecture_api_spec.md](architecture_api_spec.md) · [phase1_mvp_acceptance_checklist.md](phase1_mvp_acceptance_checklist.md) |
-| 自动化 | `tests/`（128 passed） |
+| 自动化 | `tests/`（176 passed） |
 | 归档 | V1.1 定稿基线 · 2026-06-18 · 已链入 [product_design_index](product_design_index.md) 与 README |
 
 ---
@@ -40,7 +40,7 @@
 |------|--------|--------|------------|------|
 | 首页 Home | F-H01~H04 | TC-HOME-* | health/metrics/summary | 🔶 |
 | 桌态 Tables | F-T01~T07 | TC-TBL-* | summary tables / table_correct RBAC | 🔶 |
-| 厨房 IoT | F-K01~K07 | TC-KIT-* | iot readings / 门磁规则 | 🔶 |
+| 厨房 IoT | F-K01~K07 | TC-KIT-* | iot readings / device health / 门磁规则 | 🔶 |
 | SOP | F-S01~S08 | TC-SOP-* | sop assign / RAG | 🔶 |
 | 任务 Task | F-TASK01~04 | TC-TASK-* | （兼容写入）sop assign | 🔶 |
 | 成本 Cost | F-C01~C08 | TC-COST-* | receiving cost / VLM grade / 拒收 / loss-risk(LOSS-402) | 🔶 |
@@ -93,7 +93,7 @@
 | TC-KIT-04 | F-K03 | P0 | 功能 | IoT 摘要 | 食材三阶段快照 | 来料→保存→加工卡片 + 异常高亮 | 🔶 mock |
 | TC-KIT-05 | F-K04 | P0 | 异常 | 燃气/烟雾事件 | 写入 critical IoT 事件 | critical 级 + 推送（见 TC-ALT-03） | 🔶 mock |
 | TC-KIT-06 | F-K05 | P1 | 功能 | CV 桩 | 穿戴合规事件 | 未戴帽事件列表 + 截图 | 🔶 mock |
-| TC-KIT-07 | F-K07 | P1 | 功能 | 传感器离线 | 查询设备在线率 | 离线传感器清单 | ⬜ |
+| TC-KIT-07 | F-K07 | P1 | 接口/UI | 传感器离线/越界 | `GET /v1/iot/devices` + 后厨页设备在线卡片 | P1A 必选设备在线率、离线/越界清单、跨店 403 | `test_iot_devices_health_summary_from_latest_readings` / `test_iot_devices_cross_store_403` |
 
 ---
 
@@ -263,7 +263,7 @@
 
 | 维度 | 已自动化 | 部分/桩 | 手工/UAT/待真数据 |
 |------|----------|---------|--------------------|
-| 接口（Hub REST） | 高（128 passed） | iot/cv summary 桩 | — |
+| 接口（Hub REST） | 高（176 passed） | iot/cv summary 桩 | — |
 | 权限 RBAC + 多租户 | ✅ 完整 | — | — |
 | /v1 契约 + 鉴权模式 | ✅ 完整 | — | — |
 | 功能（业务闭环） | 中 | CV/IoT/VLM mock | 真链路 BL-01~04 |
@@ -281,4 +281,4 @@
 - [phase1_mvp_acceptance_checklist.md](phase1_mvp_acceptance_checklist.md) — 验收勾选表（与本用例互补）
 - [architecture_api_spec.md](architecture_api_spec.md) — REST API 契约
 - [uat_concept_test_record.md](uat_concept_test_record.md) — PM-402 店长概念测试
-- `tests/` — 自动化套件（128 passed）
+- `tests/` — 自动化套件（176 passed）

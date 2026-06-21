@@ -4,6 +4,16 @@
 
 ---
 
+## V1.9 · 2026-06-21
+
+| 变更 | 说明 |
+|------|------|
+| 新增 `kitchen_loss_real_device_solution.md` | 将后厨损耗预算/预测从 wedge 策略推进到真实设备接入解决方案，明确 P0/P1A/P1B/P1C/P2 分阶段、硬件选型与验收 |
+| `product_design_index.md` V1.6 | 增加“真实设备接入 / 损耗预算落地”入口 |
+| 对齐 | ADR-019 · `README.md` 完整方案入口 · Jetson Orin Nano Super 当前官方规格口径 |
+
+---
+
 ## V1.8 · 2026-06-19
 
 | 变更 | 说明 |

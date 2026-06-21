@@ -26,6 +26,16 @@ def test_dashboard_login_uses_server_role_after_success():
     assert "role: user.role || role" not in login_html
 
 
+def test_dashboard_login_reports_hub_connection_and_file_mode():
+    core_js = (PROJECT_ROOT / "dashboard" / "assets" / "core.js").read_text(encoding="utf-8")
+    login_html = (PROJECT_ROOT / "dashboard" / "login.html").read_text(encoding="utf-8")
+
+    assert 'window.location.protocol === "file:"' in core_js
+    assert "Hub 未连接：请先启动平台服务" in core_js
+    assert "本地文件模式" in login_html
+    assert "alert(err?.message" in login_html
+
+
 def test_task_dashboard_actions_use_authenticated_role_for_rbac():
     tasks_html = (PROJECT_ROOT / "dashboard" / "tasks.html").read_text(encoding="utf-8")
 
@@ -46,3 +56,15 @@ def test_dashboard_cost_wedge_consumes_loss_risk_api():
     assert "损耗风险" in home_html
     assert "HotpotApp.fetchLossRisk(5)" in cost_html
     assert "后厨损耗风险 TopN" in cost_html
+
+
+def test_dashboard_cost_risk_to_task_uses_rbac_and_exported_helper():
+    core_js = (PROJECT_ROOT / "dashboard" / "assets" / "core.js").read_text(encoding="utf-8")
+    cost_html = (PROJECT_ROOT / "dashboard" / "cost.html").read_text(encoding="utf-8")
+
+    assert "async function riskToTask(batchId)" in core_js
+    assert "/v1/cost/loss-risk/" in core_js
+    assert "riskToTask," in core_js
+    assert 'HotpotApp.canAction((HotpotApp.getAuth() || {}).role, "task_create")' in cost_html
+    assert 'HotpotApp.canAction("task_create")' not in cost_html
+    assert "HotpotApp.riskToTask(batchId)" in cost_html

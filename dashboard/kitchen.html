@@ -33,11 +33,16 @@
           <div class="card"><h3>冷冻库</h3><div class="stat ok" id="temp-freeze">-18°C</div><p style="font-size:0.8rem;color:var(--muted);margin-top:8px">标准 -22~-15°C</p></div>
           <div class="card"><h3>冷藏库</h3><div class="stat warn" id="temp-cold">-</div><p style="font-size:0.8rem;color:var(--muted);margin-top:8px">标准 0~4°C</p></div>
           <div class="card"><h3>门磁状态</h3><div class="stat ok" id="door-status">关闭</div></div>
+          <div class="card"><h3>设备在线</h3><div class="stat" id="device-online">-</div><p id="device-health-meta" style="font-size:0.8rem;color:var(--muted);margin-top:8px">P1A 必选设备</p></div>
           <div class="card"><h3>链路告警</h3><div class="stat warn" id="iot-alerts-n">-</div></div>
         </div>
         <div class="card" style="margin-bottom:20px">
           <h3>食材全链路快照</h3>
           <div class="stage-row" id="stages"></div>
+        </div>
+        <div class="card" style="margin-bottom:20px">
+          <h3>设备 Health Profile</h3>
+          <ul class="list-plain" id="device-health-list"><li>加载中…</li></ul>
         </div>
         <div class="card">
           <h3>IoT 告警明细</h3>
@@ -99,8 +104,33 @@
         if (freeze) {
           document.getElementById("temp-freeze").textContent = freeze.value + "°C";
         }
+        await renderDeviceHealth();
         await renderTempChart();
       } catch (e) { console.warn(e); }
+    }
+
+    function renderDeviceHealth() {
+      return HotpotApp.fetchIotDevices(true).then((data) => {
+        const summary = data.summary || {};
+        const online = document.getElementById("device-online");
+        const meta = document.getElementById("device-health-meta");
+        const list = document.getElementById("device-health-list");
+        online.textContent = `${summary.online || 0}/${summary.total || 0}`;
+        online.className = "stat " + ((summary.offline || 0) ? "warn" : (summary.out_of_range || 0) ? "critical" : "ok");
+        meta.textContent = `在线率 ${summary.online_rate_pct || 0}% · 离线 ${summary.offline || 0} · 越界 ${summary.out_of_range || 0}`;
+        list.innerHTML = "";
+        (data.devices || []).forEach((d) => {
+          const h = d.health || {};
+          const li = document.createElement("li");
+          const latest = d.latest_reading ? `${d.latest_reading.value}${d.latest_reading.unit || ""}` : "无读数";
+          const status = h.status === "online" ? "在线" : h.status === "out_of_range" ? "越界" : "离线";
+          li.innerHTML = `<strong>${d.description || d.sensor_id}</strong> · ${status} · ${latest} · ${d.protocol || "mqtt"}`;
+          list.appendChild(li);
+        });
+        if (!list.children.length) list.innerHTML = "<li>暂无设备 profile</li>";
+      }).catch(() => {
+        document.getElementById("device-health-list").innerHTML = "<li>设备状态加载失败</li>";
+      });
     }
 
     function renderTempChart() {
