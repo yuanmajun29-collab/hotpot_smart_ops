@@ -8,7 +8,7 @@ store scope before the LLM forecast layer (wedge plan §8 L3) lands.
 from __future__ import annotations
 
 from datetime import datetime
-from typing import Any, Dict, Optional
+from typing import Any, Dict, List, Optional
 from zoneinfo import ZoneInfo
 
 from fastapi import APIRouter, Depends, HTTPException, Query, Request
@@ -32,6 +32,30 @@ router = APIRouter()
 
 def _risk_priority(score: float) -> str:
     return "P0" if score >= 70 else "P1" if score >= 40 else "P2"
+
+
+def _risk_task_source_id(store_id: str, batch_id: str) -> str:
+    return f"loss-risk:{store_id}:{batch_id}:recheck"
+
+
+def _attach_recheck_task_status(store_id: str, risks: List[Dict[str, Any]]) -> List[Dict[str, Any]]:
+    """Annotate loss-risk rows with the generated recheck task, if one exists."""
+    store = task_store(runtime.db)
+    annotated = []
+    for risk in risks:
+        item = dict(risk)
+        batch_id = item.get("ref_id") or item.get("batch_id")
+        if batch_id:
+            task = store.get_by_source(_risk_task_source_id(store_id, str(batch_id)), store_id)
+            if task:
+                item.update({
+                    "task_id": task["task_id"],
+                    "task_status": task["status"],
+                    "task_assignee_status": task.get("assignee_status"),
+                    "task_type": task["task_type"],
+                })
+        annotated.append(item)
+    return annotated
 
 
 class RiskToTaskBody(BaseModel):
@@ -60,7 +84,7 @@ def cost_loss_risk(
     """
     sid = _resolve_store_id(store_id, None, request.headers.get("X-Store-Id"), auth)
     cost_stats = runtime.hub.get_store(sid).cost_stats or {"store_id": sid, "items": []}
-    risks = compute_loss_risk(cost_stats, limit=limit)
+    risks = _attach_recheck_task_status(sid, compute_loss_risk(cost_stats, limit=limit))
     return {
         "store_id": sid,
         "date": _business_date(date),
@@ -135,8 +159,8 @@ def loss_risk_to_task(
             assignee_id=body.assignee_id,
             assignee_group=body.assignee_group,
             detail=risk.get("suggested_action", ""),
-            source_id=f"loss-risk:{sid}:{batch_id}:recheck",
+            source_id=_risk_task_source_id(sid, batch_id),
         )
     except TaskError as exc:
         raise HTTPException(status_code=400, detail=str(exc)) from exc
-    return {"ok": True, "task": task, "risk": risk}
+    return {"ok": True, "task": task, "risk": _attach_recheck_task_status(sid, [risk])[0]}

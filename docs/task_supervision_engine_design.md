@@ -94,6 +94,7 @@ erDiagram
 | `sop_violation` | SOP 引擎 F-S04 | 检查点未过 → 整改 | P1 |
 | `cleaning` | 桌态 F-T03 | 待清台 → 派保洁 | P2 |
 | `receiving_exception` | 成本/PDA F-C04 | 短重/拒收 → 处理 | P1 |
+| `recheck_weight` | 损耗预测 LOSS-506 | 高风险批次 → 复称留证 | P1（风险≥70 升 P0，<40 降 P2） |
 | `safety_alert` | 告警 F-A04 | 烟雾/燃气/冷链断链 | P0 |
 | `iot_anomaly` | IoT F-K02 | 门磁超时/温度异常 | P1 |
 | `inspection` | 督导交办 | 区域督导→店长巡检项 | P1 |

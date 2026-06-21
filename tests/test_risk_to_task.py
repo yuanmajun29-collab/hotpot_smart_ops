@@ -56,6 +56,8 @@ def test_risk_to_task_creates_recheck_task(client):
     assert task["source"] == "loss_risk"
     assert "毛肚" in task["title"]
     assert task["priority"] == "P1"  # grade D → score 40 → P1
+    assert body["risk"]["task_id"] == task["task_id"]
+    assert body["risk"]["task_type"] == "recheck_weight"
     # traceable in the task list
     lst = client.get("/v1/tasks", headers=h)
     assert any(t["task_id"] == task["task_id"] for t in lst.json()["tasks"])
@@ -67,6 +69,30 @@ def test_risk_to_task_is_idempotent(client):
     a = client.post("/v1/cost/loss-risk/B2/task", json={}, headers=h)
     b = client.post("/v1/cost/loss-risk/B2/task", json={}, headers=h)
     assert a.json()["task"]["task_id"] == b.json()["task"]["task_id"]
+
+
+def test_loss_risk_surfaces_existing_recheck_task(client):
+    h = _tok(client, "zhangdian", "店长")
+    _seed_risk(client, h, "B3", "黄喉")
+    created = client.post("/v1/cost/loss-risk/B3/task", json={}, headers=h).json()["task"]
+    r = client.get("/v1/cost/loss-risk", headers=h)
+    assert r.status_code == 200, r.text
+    hit = next(item for item in r.json()["risks"] if item["ref_id"] == "B3")
+    assert hit["task_id"] == created["task_id"]
+    assert hit["task_status"] == "pending"
+    assert hit["task_assignee_status"] == "needs_triage"
+    assert hit["task_type"] == "recheck_weight"
+
+
+def test_risk_to_task_group_assignment_is_assigned(client):
+    h = _tok(client, "zhangdian", "店长")
+    _seed_risk(client, h, "B4", "鲜鸭血")
+    r = client.post("/v1/cost/loss-risk/B4/task",
+                    json={"assignee_group": "后厨班组"}, headers=h)
+    assert r.status_code == 200, r.text
+    task = r.json()["task"]
+    assert task["assignee_group"] == "后厨班组"
+    assert task["assignee_status"] == "assigned"
 
 
 def test_risk_to_task_404_when_no_risk(client):

@@ -195,7 +195,7 @@ class TaskStore:
                 return existing
         tid = task_id or new_task_id(store_id)
         now = utc_now_iso()
-        assignee_status = "assigned" if assignee_id else "needs_triage"
+        assignee_status = "assigned" if (assignee_id or assignee_group) else "needs_triage"
         row = {
             "task_id": tid, "source_id": source_id, "store_id": store_id, "task_type": task_type,
             "priority": priority, "status": "pending", "source": source,
@@ -213,7 +213,7 @@ class TaskStore:
                     tuple(row[c] for c in _TASK_COLS.replace(" ", "").split(",")),
                 )
                 self._write_event(conn, tid, "create", created_by, None, "pending",
-                                   to_assignee=assignee_id)
+                                   to_assignee=assignee_id or assignee_group)
                 conn.commit()
             finally:
                 conn.close()
