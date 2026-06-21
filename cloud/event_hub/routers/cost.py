@@ -25,6 +25,10 @@ _STORE_TZ = "Asia/Shanghai"
 router = APIRouter()
 
 
+def _business_date(date: Optional[str]) -> str:
+    return date or datetime.now(ZoneInfo(_STORE_TZ)).strftime("%Y-%m-%d")
+
+
 @router.get("/v1/cost/loss-risk")
 def cost_loss_risk(
     request: Request,
@@ -44,7 +48,7 @@ def cost_loss_risk(
     risks = compute_loss_risk(cost_stats, limit=limit)
     return {
         "store_id": sid,
-        "date": date,
+        "date": _business_date(date),
         "baseline": "rule",
         "risks": risks,
         "count": len(risks),
@@ -72,7 +76,7 @@ def cost_loss_budget(
     result = compute_loss_budget(cost_stats, limit=limit)
     return {
         "store_id": sid,
-        "date": date or datetime.now(ZoneInfo(_STORE_TZ)).strftime("%Y-%m-%d"),
+        "date": _business_date(date),
         "generated_at": utc_now_iso(),
         "source": "rule",
         "items": result["items"],

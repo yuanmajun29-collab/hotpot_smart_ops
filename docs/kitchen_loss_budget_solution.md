@@ -75,7 +75,7 @@
 ```
 - `forecast_qty/forecast_unit`：备货建议量（LLM 不可用时可为 `null`，`source="rule"`）。
 - `actual_loss_amount/variance_pct`：次日复盘回填，当日请求时为 `null`（预算→实际→偏差闭环）。
-- **计划验收测试**（实现 LOSS-505 时新增）：`tests/test_loss_budget.py` —（a）store-scope 403；（b）无 LLM 时 `source="rule"` 且不 500；（c）含实际值时 `variance_pct` 计算正确；（d）字段齐全。
+- **自动化验收测试**（LOSS-505 已实现）：`tests/test_loss_budget.py` —（a）store-scope 403；（b）无 LLM 时 `source="rule"` 且不 500；（c）含实际值时 `variance_pct` 计算正确；（d）字段齐全。
 
 ### 2.2 `POST /v1/receiving/quality-tap` — 师傅手动品质打分（LOSS-503）
 
@@ -90,11 +90,11 @@
 | `actor_id` | body | 否 | 缺省取登录身份 |
 | `note` | body | 否 | 备注 |
 
-行为：写 `OpsEvent`（`stage="receiving"`, `type="quality_tap"`, `ref_type="receiving_batch"`, `ref_id=batch_id`）；`grade` 映射到 loss-risk 既有等级体系（`good→A`、`normal→B`、`poor→D`，`D` 触发 `_LOW_GRADES` 风险）。
+行为：写事件 `event_type="receiving_quality_tap"`（metadata 含 `ref_type="receiving_batch"`、`ref_id=batch_id`）；`grade` 映射到 loss-risk 既有等级体系（`good→A`、`normal→B`、`poor→D`，`D` 触发 `_LOW_GRADES` 风险）。
 
 响应：`{ "ok": true, "event_id": "...", "batch_id": "...", "grade": "poor", "mapped_grade": "D", "source": "real" }`
 - **权限**：收货写权限（RBAC `receiving` 域），非授权角色 403。
-- **计划验收测试**（实现 LOSS-503 时新增）：`tests/test_quality_tap.py` —（a）grade→mapped_grade 映射；（b）写入后 loss-risk 能读到该批次品质风险；（c）跨店 403；（d）非法 grade 422。
+- **自动化验收测试**（LOSS-503 已实现）：`tests/test_quality_tap.py` —（a）grade→mapped_grade 映射；（b）写入后 loss-risk 能读到该批次品质风险；（c）跨店 403；（d）非法 grade 422；（e）先打分后收货提交仍合并同批次成本项。
 
 ### 2.3 `POST /v1/vlm/waste-estimate` — 废料识别（P1C/P2，mock-first）
 

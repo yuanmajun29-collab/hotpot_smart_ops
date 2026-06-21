@@ -78,6 +78,7 @@ def test_loss_risk_endpoint_reads_cost_snapshot(client):
     assert r.status_code == 200
     body = r.json()
     assert body["store_id"] == STORE
+    assert body["date"]
     assert body["baseline"] == "rule"
     assert body["count"] == 1
     top = body["risks"][0]
@@ -85,6 +86,12 @@ def test_loss_risk_endpoint_reads_cost_snapshot(client):
     assert top["ref_type"] == "receiving_batch" and top["ref_id"] == "B1"
     assert "estimated_loss_amount" in top
     assert "estimated_loss_amount_total" in body
+
+
+def test_loss_risk_preserves_explicit_date(client):
+    r = client.get(f"/v1/cost/loss-risk?store_id={STORE}&date=2026-06-21")
+    assert r.status_code == 200
+    assert r.json()["date"] == "2026-06-21"
 
 
 def test_loss_risk_store_scoped(client):

@@ -36,25 +36,39 @@ def _enforce_report_generate(auth: AuthContext) -> None:
 
 def _append_cost_item(store: Any, batch: Dict[str, Any], signatures: List[Dict[str, Any]]) -> None:
     cost = dict(store.cost_stats or {"store_id": store.store_id, "items": []})
-    items = list(cost.get("items", []))
+    items = [dict(i) for i in cost.get("items", [])]
     var = batch.get("variance_pct")
-    items.append(
-        {
-            "batch_id": batch["batch_id"],
-            "po_id": batch["po_id"],
-            "sku": batch["sku"],
-            "weight_kg": batch["weight_kg"],
-            "po_weight_kg": batch.get("po_weight_kg"),
-            "variance_pct": var,
-            "vlm_grade": batch.get("vlm_grade"),
-            "temp_c": batch.get("temp_c"),
-            "signatures": signatures,
-            "submitted_at": batch.get("created_at"),
-        }
-    )
-    cost["items"] = items
+    incoming = {
+        "batch_id": batch["batch_id"],
+        "po_id": batch["po_id"],
+        "sku": batch["sku"],
+        "weight_kg": batch["weight_kg"],
+        "po_weight_kg": batch.get("po_weight_kg"),
+        "variance_pct": var,
+        "vlm_grade": batch.get("vlm_grade"),
+        "temp_c": batch.get("temp_c"),
+        "signatures": signatures,
+        "submitted_at": batch.get("created_at"),
+    }
+    merged_items: List[Dict[str, Any]] = []
+    merged = False
+    for item in items:
+        if item.get("batch_id") != batch["batch_id"]:
+            merged_items.append(item)
+            continue
+        if merged:
+            continue
+        merged_item = {**item, **incoming}
+        for key in ("vlm_grade", "temp_c"):
+            if incoming.get(key) is None and item.get(key) is not None:
+                merged_item[key] = item[key]
+        merged_items.append(merged_item)
+        merged = True
+    if not merged:
+        merged_items.append(incoming)
+    cost["items"] = merged_items
     if var is not None:
-        shorts = [i for i in items if (i.get("variance_pct") or 0) < -3]
+        shorts = [i for i in merged_items if (i.get("variance_pct") or 0) < -3]
         cost["short_weight_count"] = len(shorts)
         cost["variance_rate_pct"] = var
     store.set_cost_stats(cost)

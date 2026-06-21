@@ -71,6 +71,36 @@ def test_quality_tap_feeds_loss_risk(client):
     assert "品质等级 D" in hit["reason"]
 
 
+def test_quality_tap_before_receiving_submit_merges_cost_item(client):
+    h = _tok(client, "zhangdian", "店长")
+    batch_id = "RCV-T-004B"
+    client.post("/v1/receiving/quality-tap",
+                json={"batch_id": batch_id, "sku": "毛肚", "grade": "poor"}, headers=h)
+    submitted = client.post(
+        "/v1/receiving/submit",
+        json={
+            "batch_id": batch_id,
+            "po_id": "PO-T-004B",
+            "sku": "毛肚",
+            "weight_kg": 10.0,
+            "po_weight_kg": 10.0,
+            "signatures": [
+                {"role": "receiver", "signed_by": "赵收货"},
+                {"role": "chef", "signed_by": "王厨师长"},
+            ],
+        },
+        headers=h,
+    )
+    assert submitted.status_code == 200, submitted.text
+
+    risk = client.get("/v1/cost/loss-risk", headers=h)
+    risks = [x for x in risk.json()["risks"] if x.get("batch_id") == batch_id]
+    assert len(risks) == 1, risks
+    assert risks[0]["vlm_grade"] == "D"
+    assert "品质等级 D" in risks[0]["reason"]
+    assert risks[0]["estimated_loss_amount"] > 0
+
+
 def test_quality_tap_cross_store_403(client):
     h = _tok(client, "zhangdian", "店长", store="store_yuhuan")
     r = client.post("/v1/receiving/quality-tap",
