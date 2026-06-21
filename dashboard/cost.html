@@ -45,7 +45,7 @@
           <ul class="list-plain" id="loss-risk-list"></ul>
         </div>
         <div class="card" style="margin-top:16px">
-          <h3>今日备货建议 <span id="budget-source" class="pill" style="font-size:12px"></span></h3>
+          <h3>今日备货建议 <span id="budget-source" class="tag pending"></span></h3>
           <ul class="list-plain" id="loss-budget-list"></ul>
         </div>
       </main>
@@ -96,6 +96,7 @@
         }
         const srcEl = document.getElementById("budget-source");
         srcEl.textContent = budget.source === "rule+llm" ? "规则+LLM" : "规则";
+        srcEl.className = budget.source === "rule+llm" ? "tag pass" : "tag pending";
         const budgetList = document.getElementById("loss-budget-list");
         budgetList.innerHTML = "";
         (budget.items || []).forEach((it) => {
@@ -103,7 +104,7 @@
           const qty = it.forecast_qty != null
             ? `建议备货 <b style="color:var(--accent)">${esc(it.forecast_qty)}${esc(it.forecast_unit || "份")}</b>`
             : "建议备货 <span style='color:var(--muted)'>待定</span>";
-          const amount = it.budget_loss_amount ? ` · 预算损耗 ¥${it.budget_loss_amount.toLocaleString()}` : "";
+          const amount = it.budget_loss_amount != null ? ` · 预算损耗 ¥${it.budget_loss_amount.toLocaleString()}` : "";
           li.innerHTML = `<b>${esc(it.sku || it.ref_id)}</b> · ${qty}${esc(amount)}<br>
             <small style="color:var(--muted)">理由：${esc(it.reason || "规则命中")} · 动作：${esc(it.suggested_action || "人工复核")}</small>`;
           budgetList.appendChild(li);
