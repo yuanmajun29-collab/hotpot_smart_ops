@@ -66,6 +66,23 @@ def default_loss_profiles() -> List[ScheduleProfile]:
     ]
 
 
+def validate_profiles(profiles: List[ScheduleProfile]) -> None:
+    """Fail fast on invalid schedule configuration."""
+    seen = set()
+    for p in profiles:
+        if not p.name:
+            raise ValueError("schedule profile name is required")
+        if p.name in seen:
+            raise ValueError(f"duplicate schedule profile name: {p.name}")
+        seen.add(p.name)
+        if not 0 <= p.hour <= 23:
+            raise ValueError(f"schedule profile {p.name} hour must be 0..23")
+        if not 0 <= p.minute <= 59:
+            raise ValueError(f"schedule profile {p.name} minute must be 0..59")
+        if p.weekday is not None and not 0 <= p.weekday <= 6:
+            raise ValueError(f"schedule profile {p.name} weekday must be 0..6 or None")
+
+
 class DailyReportScheduler:
     """Background loop: once per local day per store at configured time."""
 
@@ -92,6 +109,7 @@ class DailyReportScheduler:
             profiles = [ScheduleProfile("daily_report", hour, minute, None, "daily")]
             if dispatch is None and generate_fn is not None:
                 dispatch = {"daily": lambda sid: generate_fn(sid, True)}
+        validate_profiles(profiles)
         self.profiles = profiles
         self.dispatch = dispatch or {}
         # dedup key: f"{profile.name}:{store_id}" -> local date already run

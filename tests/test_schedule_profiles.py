@@ -8,6 +8,8 @@ from __future__ import annotations
 from datetime import datetime
 from zoneinfo import ZoneInfo
 
+import pytest
+
 TZ = "Asia/Shanghai"
 
 
@@ -36,12 +38,29 @@ def test_due_profiles_respects_weekday():
 
 
 def test_default_loss_profiles_three_slots():
-    from cloud.event_hub.daily_scheduler import default_loss_profiles
+    from cloud.event_hub.daily_scheduler import default_loss_profiles, validate_profiles
     profs = {p.name: p for p in default_loss_profiles()}
     assert set(profs) == {"restock", "daily_loss", "weekly"}
     assert (profs["restock"].hour, profs["restock"].minute) == (15, 0)
     assert (profs["daily_loss"].hour, profs["daily_loss"].minute) == (22, 0)
     assert (profs["weekly"].hour, profs["weekly"].minute, profs["weekly"].weekday) == (9, 0, 0)
+    validate_profiles(list(profs.values()))
+
+
+def test_validate_profiles_rejects_ambiguous_or_invalid_config():
+    from cloud.event_hub.daily_scheduler import ScheduleProfile, validate_profiles
+
+    with pytest.raises(ValueError, match="duplicate"):
+        validate_profiles([
+            ScheduleProfile("restock", 15, 0),
+            ScheduleProfile("restock", 16, 0),
+        ])
+    with pytest.raises(ValueError, match="hour"):
+        validate_profiles([ScheduleProfile("bad", 24, 0)])
+    with pytest.raises(ValueError, match="minute"):
+        validate_profiles([ScheduleProfile("bad", 15, 60)])
+    with pytest.raises(ValueError, match="weekday"):
+        validate_profiles([ScheduleProfile("bad", 9, 0, 7)])
 
 
 def test_run_due_dedups_per_profile_per_store_per_day():
