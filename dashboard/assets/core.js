@@ -405,6 +405,13 @@ const HotpotApp = (() => {
     return res.json();
   }
 
+  async function fetchIotDevices(requiredOnly = true) {
+    const q = storeQuery(`required_only=${requiredOnly ? "true" : "false"}`);
+    const res = await fetch(`${hubUrl()}/v1/iot/devices?${q}`, { headers: authHeaders() });
+    if (!res.ok) throw new Error(res.statusText);
+    return res.json();
+  }
+
   async function fetchAuditForStore(targetStoreId) {
     const res = await fetch(
       `${hubUrl()}/v1/audit/acks?store_id=${encodeURIComponent(targetStoreId)}`,
@@ -915,6 +922,7 @@ const HotpotApp = (() => {
     fetchSopAssignments,
     updateSopAssignmentStatus,
     fetchIotReadings,
+    fetchIotDevices,
     fetchAuditForStore,
     fetchEvents,
     fetchAlertPushes,

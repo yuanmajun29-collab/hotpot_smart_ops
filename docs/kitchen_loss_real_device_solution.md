@@ -238,7 +238,7 @@ flowchart LR
 
 | ID | Phase | 任务 | DoD |
 |----|-------|------|-----|
-| LOSS-501 | P1A | 设备注册与 health profile | `shared/iot_sensors.py` 支持协议/校准/health；dashboard 能看设备在线 |
+| LOSS-501 | P1A | 设备注册与 health profile | `shared/iot_sensors.py` 支持协议/校准/health；`GET /v1/iot/devices` 返回 P1A 必选设备在线率/离线/越界；后厨页展示设备在线卡片 |
 | LOSS-502 | P1A | 真 MQTT/Modbus 接入 adapter | `mqtt_bridge.py` 接真实 broker；断线重连；mock 与 real profile 明确区分 |
 | LOSS-503 | P1A | PDA 收货实时称重/温度绑定 + 品质打分 | 收货页显示设备读数、人工确认、异常原因；写入 receiving/cost snapshot；品质打分契约见附录 §2.2 `/v1/receiving/quality-tap` |
 | LOSS-504 | P1B | `loss_feature_builder` snapshot | 生成 SKU/批次/班次特征，**持久化到 `store_snapshots(kind="loss_features")`/events**（非临时 JSON，见附录 §3）；有单测；关系表延后 LOSS-508 |
