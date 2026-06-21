@@ -4,8 +4,8 @@
 
 | 项目 | 内容 |
 |------|------|
-| 状态 | V0.1 · 试点执行方案（**本文为 SSOT**） |
-| 关联 | ADR-016/017/019 · `kitchen_loss_prediction_wedge_plan.md` · `architecture_data_model_phase1.md` · 执行附录 [kitchen_loss_budget_solution.md](kitchen_loss_budget_solution.md)（接口契约冻结 + 持久化/离线细化） |
+| 状态 | V0.2 · 试点执行方案（**本文为 SSOT**） |
+| 关联 | ADR-016/017/019/020 · `kitchen_loss_prediction_wedge_plan.md` · `architecture_data_model_phase1.md` · 执行附录 [kitchen_loss_budget_solution.md](kitchen_loss_budget_solution.md)（接口契约冻结 + 持久化/离线细化）· [kitchen_vlm_waste_vision_plan.md](kitchen_vlm_waste_vision_plan.md)（VLM 视觉经营分析） |
 | 试点对象 | 单店优先：`store_yuhuan`，通过后复制到 `store_jiaojiang` |
 | 当前代码基线 | `GET /v1/cost/loss-risk` 已实现规则 baseline；`edge/iot_mock/*`、`shared/iot_sensors.py`、UAT MQTT 配置已具备替换真设备的入口 |
 
@@ -32,6 +32,7 @@
 | 先 snapshot，后建大表 | P1B 先做 JSON snapshot feature builder；跨天回放稳定后再落 `loss_features/loss_predictions` |
 | Jetson 做开发，RK3588 做量产 | Jetson 用于 VLM/LLM 实验验证；试点生产默认 RK3588 edge box + 云 API/YOLO-first |
 | 全链路可降级 | 任一设备断线时保留 PDA 手填、手动 3 按钮品质打分与规则 baseline |
+| VLM 是感知补充，不是近期 VLA | VLA 机器人高成本高不确定性，P3+ 观察；P1C/P2 仅以 VLM 影子模式补充“废弃区/收盘区”视觉浪费证据 |
 
 ---
 
@@ -70,6 +71,7 @@
 |------|------|
 | 动作生成 | 风险一键生成复称、优先消耗、退货留证、SOP 整改任务 |
 | 推送 | 15:00 备货建议、22:00 当日损耗复盘、周一趋势周报；需要 `daily_scheduler` schedule profiles |
+| VLM 影子模式 | 利旧摄像头并补盲废弃区/收盘区，采集 14 天样本；`/v1/vlm/waste-estimate` mock-first，只出报告不改采购 |
 | 闭环指标 | 行动闭环率、预测命中率、可归因损耗金额、已挽回/已避免损耗金额 |
 | 验收 | 70% 高风险项在 SLA 内有处理结果；日报能展示“预测 → 动作 → 结果” |
 
@@ -79,6 +81,7 @@
 |------|------|
 | 多店复制 | `store_yuhuan` 通过后复制到 `store_jiaojiang`，验证店型差异 |
 | 数据持久化 | pay-test 通过后落 `loss_features/loss_predictions` 表，支持跨天回放和区域对标 |
+| 视觉模型 | 采集样本达标后做 Qwen/InternVL LoRA 微调评测；VLM 结果以 `source="vlm-shadow"` 反哺 feature builder |
 | 模板化 | 行业模板参数化：SKU、阈值、设备 profile、推送时段、任务策略 |
 | 验收 | 新店部署 <=1 天；设备映射 <=2 小时；模板配置不改代码 |
 
@@ -186,13 +189,23 @@ flowchart LR
 | 后厨/收货摄像头 | 1~2 | PoE、4MP 起、H.265、RTSP/ONVIF、WDR、防油污安装位 | 二期 VLM/废料识别；P1A 只留证 |
 | POE 交换机 + UPS | 1 批 | VLAN/固定 IP；边缘盒与网关至少 30 分钟续航 | 网络与断电韧性 |
 
+### 4.3A VLM 视觉补盲采购（P1C 影子模式）
+
+| 设备 | 数量 | 参考 | 用途 |
+|------|------|------|------|
+| Jetson Orin Nano Super Developer Kit 8GB | 1 | 约 ¥2,299（采购时复核）；官方 Super profile 67 INT8 TOPS | VLM 开发/影子模式抽帧验证，不作为量产默认 |
+| PoE 俯拍补盲摄像头 | 2 | 400万像素、RTSP/ONVIF、防油污膜、PoE；价格采购时复核 | 备餐废弃区 + 餐余回收区 |
+| PoE 交换机/网线/补光 | 1 批 | 约 ¥300~500（采购时复核） | 固定点位、稳定供电、减少反光/暗光 |
+
+采购与部署细节见 [kitchen_vlm_waste_vision_plan.md](kitchen_vlm_waste_vision_plan.md)。先完成 3~5 天手机/现有摄像头试采、RTSP/ONVIF 勘测、补光/动线验证，再采购补盲摄像头与 Jetson 开发机。VLM 摄像头只进入影子模式验收，不改变 P1A“称重/温度/品质打分是主证据”的口径。
+
 ### 4.3 延后设备（P1C/P2 再买）
 
 | 设备 | 延后原因 |
 |------|----------|
 | 改刀双秤 / 出成秤 | P1A 先用收货短重与冷链证明 ROI；出成率等 P1C 行动闭环再接 |
 | RFID 全追溯 | 成本高、操作改造大；先用批次码/二维码 |
-| 全后厨多路 VLM 摄像头 | 油烟、遮挡、标注成本高；先 1~2 路关键点留证 |
+| 全后厨多路 VLM 摄像头 | 油烟、遮挡、标注成本高；先 2 路废弃区/收盘区补盲做影子模式 |
 | 本地常驻 VLM/LLM | 算力、内存、模型维护成本高；先云 API + 规则 baseline |
 
 ---

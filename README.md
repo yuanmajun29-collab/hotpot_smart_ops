@@ -58,7 +58,7 @@ curl http://127.0.0.1:8088/benchmark
 | [architecture_api_spec.md](docs/architecture_api_spec.md) | REST API + /v1 规划 |
 | [architecture_data_model_phase1.md](docs/architecture_data_model_phase1.md) | OpsEvent · 表结构 |
 | [architecture_deployment_phase1.md](docs/architecture_deployment_phase1.md) | docker · systemd · 两店 |
-| [architecture_decisions.md](docs/architecture_decisions.md) | ADR-001~019 |
+| [architecture_decisions.md](docs/architecture_decisions.md) | ADR-001~020 |
 | [architecture_review_checklist.md](docs/architecture_review_checklist.md) | AR-401 评审清单 |
 | [ar401_code_directory_mapping.md](docs/ar401_code_directory_mapping.md) | **会前必读** · 代码目录映射 |
 | [ar401_meeting_invite_20260618.md](docs/ar401_meeting_invite_20260618.md) | **6/18 10:00** 邀请定稿 |
@@ -68,6 +68,7 @@ curl http://127.0.0.1:8088/benchmark
 
 **方案与实施**
 - **[docs/solution.md](docs/solution.md)** — V2.0 完整方案（17 章）
+- **[docs/kitchen_vlm_waste_vision_plan.md](docs/kitchen_vlm_waste_vision_plan.md)** — 后厨 VLM 视觉损耗经营分析：摄像头利旧、数据采集 SOP、影子模式
 - **[docs/design_dev_implementation_plan.md](docs/design_dev_implementation_plan.md)** — 设计 · 开发 · 实施方案（主计划）
 - **[docs/executive_summary_onepager.md](docs/executive_summary_onepager.md)** — 决策层一页纸
 - **[docs/sprint_task_backlog.md](docs/sprint_task_backlog.md)** — Sprint 1~4 任务（含 §6.1 UAT 阻塞专项）

@@ -317,3 +317,18 @@
 | 边界 | P1A 不采购 RFID 全追溯、全量 VLM 摄像头、改刀双秤；不承诺本地 VLM/LLM 常驻；设备数据作为证据与建议，自动扣款/自动退货仍禁止。 |
 | 后果 | 新增方案文档 `kitchen_loss_real_device_solution.md`（SSOT）+ 执行附录 `kitchen_loss_budget_solution.md`（接口契约冻结 + 特征持久化/离线口径细化）；后续任务以 LOSS-501~508 管理。新增 store-scoped 接口契约 `/v1/cost/loss-budget`、`/v1/receiving/quality-tap`、`/v1/vlm/waste-estimate`（字段/降级/验收测试见附录 §2，遵 ADR-009 跨店隔离）。Phase 1 特征持久化到 `store_snapshots(kind="loss_features")`/events，关系表延后 LOSS-508。现场验收从“页面能演示”升级为“真实设备在线率、读数延迟、数据完整率、闭环损耗金额”四类指标。 |
 | 关联 | ADR-016 · ADR-017 · ADR-018 · ADR-009（跨店隔离） · [kitchen_loss_real_device_solution.md](kitchen_loss_real_device_solution.md) · [kitchen_loss_budget_solution.md](kitchen_loss_budget_solution.md) · `shared/iot_sensors.py` · `edge/iot_mock/mqtt_bridge.py` · `cloud/event_hub/routers/cost.py` · `cloud/event_hub/db.py`（store_snapshots） |
+
+---
+
+## ADR-020：VLM 视觉损耗经营分析（VLA 延后）
+
+| 项 | 内容 |
+|----|------|
+| 状态 | **提议中**（2026-06-22 · DeepSeek 方案融合 + PK 收敛） |
+| 背景 | 外部讨论提出 VLA/VLM 在火锅后厨损耗管控中的应用。VLA 具备“看懂并动手”潜力，但近期机械臂成本、稳定性、安全边界和后厨非标环境都不适合先证明 ROI；VLM 则可利旧摄像头，低成本补充“实际浪费发生在哪里”的感知反馈。 |
+| 决策 | **VLA 延后到 P3+ 观察**；P1C/P2 引入 VLM 视觉损耗经营分析，以“摄像头利旧 + 废弃区/收盘区补盲 + 14 天数据采集 SOP + VLM 影子模式”为主。VLM 不做电子监工，不作为自动处罚依据，只输出结构化浪费证据，反哺 `loss_feature_builder`、`/v1/cost/loss-budget`、日报与任务闭环。 |
+| 技术路线 | 先手机/补盲摄像头采集 500~1000 张火锅食材图，LabelStudio 标注；基座优先 Qwen2-VL/Qwen2.5-VL，备选 InternVL；LoRA 微调在云 GPU/4090 完成；Jetson Orin Nano Super 8GB 仅做开发/影子模式抽帧验证；实时全帧管线仍 YOLO-first，VLM 经 RTSP 抽帧 sidecar 输出 JSON。 |
+| 边界 | 不承诺 7B VLM 在 8GB Jetson 上实时全帧稳定运行；不上传全量视频到云；不做自动报废、自动扣款、自动采购改单；影子模式准确率未达标前只出报告。 |
+| 验收 | 14 天数据采集 500~1000 张、标注覆盖率 100%、抽检合格率 >=90%；影子模式食材识别 Top1 >=85%、新鲜度三分类 >=80%、餐余比例分档 >=75%；连续 14 天无重大误报导致运营反感。 |
+| 后果 | 新增 [kitchen_vlm_waste_vision_plan.md](kitchen_vlm_waste_vision_plan.md)。`/v1/vlm/waste-estimate` 先 mock-first，再接 VLM shadow sidecar；新增 VLM-601~606 任务族。产品侧新增 F-C09“视觉浪费证据”，测试侧新增 TC-COST-09，要求 store-scope、source 降级、无模型不 500 与事件/特征入口。ADR-019 的摄像头从“留证/二期输入”细化为“P1C 影子模式经营补盲”。 |
+| 关联 | ADR-017 · ADR-019 · ADR-014 · [kitchen_loss_real_device_solution.md](kitchen_loss_real_device_solution.md) · [kitchen_vlm_waste_vision_plan.md](kitchen_vlm_waste_vision_plan.md) |
