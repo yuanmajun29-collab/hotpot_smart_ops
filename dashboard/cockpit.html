@@ -10,34 +10,73 @@
       background: linear-gradient(135deg, #1F1813 0%, #3A2016 60%, #4A2614 100%);
       border-radius: 12px;
       padding: 24px 28px;
-      margin-bottom: 20px;
-      border: 1px solid var(--border, #334155);
+      margin-bottom: 16px;
+      border: 1px solid var(--border);
     }
     .cockpit-hero h2 { margin: 0 0 8px; font-size: 1.5rem; }
     .cockpit-hero p { margin: 0; color: var(--muted); font-size: 0.9rem; }
+    .hero-stats {
+      display: grid; grid-template-columns: repeat(4, 1fr); gap: 16px; margin-top: 20px;
+    }
+    .hero-stat {
+      background: rgba(0,0,0,0.22); border: 1px solid var(--border);
+      border-radius: 10px; padding: 14px 16px;
+    }
+    .hero-stat .hs-label { font-size: 0.8rem; color: var(--muted); }
+    .hero-stat .hs-value { font-size: 2rem; font-weight: 700; line-height: 1.15; margin-top: 4px; }
+    .hero-stat .hs-sub { font-size: 0.75rem; color: var(--muted); margin-top: 2px; }
+    /* 异常告警滚动条 */
+    .ticker {
+      display: flex; align-items: center; gap: 12px; overflow: hidden;
+      background: var(--card); border: 1px solid var(--border);
+      border-radius: 10px; padding: 9px 14px; margin-bottom: 20px;
+    }
+    .ticker-label {
+      flex: none; font-size: 0.72rem; font-weight: 700; letter-spacing: 0.04em;
+      color: #fff; background: var(--accent); border-radius: 4px; padding: 3px 8px;
+    }
+    .ticker-track { flex: 1; overflow: hidden; }
+    .ticker-move { display: inline-block; white-space: nowrap; animation: ticker 36s linear infinite; }
+    .ticker-track:hover .ticker-move { animation-play-state: paused; }
+    .ticker-item { display: inline-block; margin-right: 40px; font-size: 0.85rem; }
+    .ticker-item .dot { display: inline-block; width: 8px; height: 8px; border-radius: 50%; margin-right: 6px; vertical-align: middle; }
+    @keyframes ticker { 0% { transform: translateX(0); } 100% { transform: translateX(-50%); } }
+    /* 趋势 */
+    .trend-head { display: flex; justify-content: space-between; align-items: center; }
+    .trend-toggle button {
+      background: transparent; border: 1px solid var(--border); color: var(--muted);
+      border-radius: 6px; padding: 4px 12px; cursor: pointer; font-size: 0.8rem; margin-left: 6px;
+    }
+    .trend-toggle button.active { background: rgba(226,97,58,0.15); color: var(--brand); border-color: var(--brand); }
+    .trend-svg { width: 100%; height: 180px; display: block; margin-top: 12px; }
+    /* 区域热力 + 排名 */
     .zone-cards { display: grid; grid-template-columns: repeat(auto-fill, minmax(240px, 1fr)); gap: 14px; }
     .zone-card {
-      padding: 16px;
-      border-radius: 10px;
-      background: var(--card2, #1e293b);
-      border: 1px solid var(--border);
-      cursor: pointer;
-      transition: border-color 0.15s;
+      padding: 16px; border-radius: 10px; background: var(--card2);
+      border: 1px solid var(--border); cursor: pointer; transition: border-color 0.15s;
     }
-    .zone-card:hover { border-color: var(--accent, #38bdf8); }
+    .zone-card:hover { border-color: var(--brand); }
     .zone-card .zone-name { font-weight: 600; margin-bottom: 8px; }
     .zone-card .zone-meta { font-size: 0.8rem; color: var(--muted); }
+    .heat-bar { height: 6px; border-radius: 3px; margin-top: 10px; }
+    .rank-row { display: flex; align-items: center; gap: 10px; padding: 9px 0; border-bottom: 1px solid var(--border); font-size: 0.9rem; }
+    .rank-row:last-child { border-bottom: none; }
+    .rank-num { flex: none; width: 22px; height: 22px; border-radius: 50%; display: inline-flex; align-items: center; justify-content: center; font-size: 0.75rem; font-weight: 700; background: var(--card2); color: var(--muted); }
+    .rank-row.top .rank-num { background: rgba(86,184,132,0.18); color: var(--ok); }
+    .rank-row.bottom .rank-num { background: rgba(240,71,60,0.16); color: var(--accent); }
+    .rank-name { flex: 1; }
+    .rank-val { font-variant-numeric: tabular-nums; color: var(--muted); }
     .anomaly-row {
       display: flex; justify-content: space-between; align-items: center;
-      padding: 10px 0; border-bottom: 1px solid var(--border);
-      font-size: 0.9rem;
+      padding: 10px 0; border-bottom: 1px solid var(--border); font-size: 0.9rem;
     }
     .anomaly-row:last-child { border-bottom: none; }
     .read-only-badge {
       display: inline-block; font-size: 0.75rem; padding: 2px 8px;
-      border-radius: 4px; background: rgba(56,189,248,0.15); color: var(--accent);
-      margin-left: 8px;
+      border-radius: 4px; background: rgba(127,176,206,0.15); color: var(--info); margin-left: 8px;
     }
+    .schematic-tag { font-size: 0.7rem; color: var(--muted); border: 1px dashed var(--border); border-radius: 4px; padding: 1px 6px; }
+    @media (max-width: 1100px) { .hero-stats { grid-template-columns: repeat(2, 1fr); } }
   </style>
 </head>
 <body>
@@ -65,6 +104,18 @@
         <div class="cockpit-hero">
           <h2 id="hero-title">全国经营态势</h2>
           <p id="hero-narrative">加载中…</p>
+          <div class="hero-stats">
+            <div class="hero-stat"><div class="hs-label">集团日营收</div><div class="hs-value" id="hero-revenue">—</div><div class="hs-sub" id="hero-revenue-sub">全店合计</div></div>
+            <div class="hero-stat"><div class="hs-label">平均翻台率</div><div class="hs-value" id="hero-turnover">—</div><div class="hs-sub">次 / 桌 · 日</div></div>
+            <div class="hero-stat"><div class="hs-label">平均损耗率</div><div class="hs-value" id="hero-loss">—</div><div class="hs-sub">来料成本偏差</div></div>
+            <div class="hero-stat"><div class="hs-label">严重告警</div><div class="hs-value" id="hero-alerts">—</div><div class="hs-sub">全国当日累计</div></div>
+          </div>
+        </div>
+
+        <!-- 异常告警滚动条 -->
+        <div class="ticker">
+          <span class="ticker-label">异常告警</span>
+          <div class="ticker-track"><span class="ticker-move" id="ticker-move">加载中…</span></div>
         </div>
 
         <div class="kpi-strip" id="rollup-kpi">
@@ -77,11 +128,33 @@
           <div class="kpi-tile"><span class="cell-muted">均 SOP</span><b id="kpi-sop">—</b></div>
         </div>
 
+        <!-- 趋势折线图 -->
+        <div class="card" style="margin:20px 0">
+          <div class="trend-head">
+            <h3 style="margin:0">经营趋势 <span class="schematic-tag">示意 · 待接历史数据 API</span></h3>
+            <div class="trend-toggle">
+              <button data-range="7" class="active">近 7 天</button>
+              <button data-range="30">近 30 天</button>
+            </div>
+          </div>
+          <svg class="trend-svg" id="trend-svg" viewBox="0 0 640 180" preserveAspectRatio="none" aria-label="经营趋势示意"></svg>
+        </div>
+
         <div class="grid grid-2" style="margin:20px 0">
           <div class="card">
-            <h3>大区态势 · 点击下钻</h3>
+            <h3>大区态势 · 热力 · 点击下钻</h3>
             <div class="zone-cards" id="zone-cards"><p style="color:var(--muted)">加载中…</p></div>
           </div>
+          <div class="card">
+            <h3>门店排名 · 健康分</h3>
+            <div style="font-size:0.78rem;color:var(--muted);margin:2px 0 8px">Top / Bottom 3 · 点击查看门店</div>
+            <div id="rank-top"></div>
+            <div style="height:8px"></div>
+            <div id="rank-bottom"></div>
+          </div>
+        </div>
+
+        <div class="grid grid-2" style="margin:20px 0">
           <div class="card">
             <h3>异常门店 Top · 需关注</h3>
             <div id="anomaly-list"><p style="color:var(--muted)">加载中…</p></div>
@@ -89,24 +162,23 @@
               <a href="regional.html?region_id=zone_east_china">进入区域总揽详细分析 →</a>
             </p>
           </div>
-        </div>
-
-        <div class="card">
-          <h3>全国门店一览</h3>
-          <div class="benchmark-wrap">
-            <table class="benchmark-table">
-              <thead>
-                <tr>
-                  <th>门店</th>
-                  <th>健康</th>
-                  <th>健康分</th>
-                  <th>日营收</th>
-                  <th>SOP</th>
-                  <th>严重告警</th>
-                </tr>
-              </thead>
-              <tbody id="stores-body"></tbody>
-            </table>
+          <div class="card">
+            <h3>全国门店一览</h3>
+            <div class="benchmark-wrap">
+              <table class="benchmark-table">
+                <thead>
+                  <tr>
+                    <th>门店</th>
+                    <th>健康</th>
+                    <th>健康分</th>
+                    <th>日营收</th>
+                    <th>SOP</th>
+                    <th>严重告警</th>
+                  </tr>
+                </thead>
+                <tbody id="stores-body"></tbody>
+              </table>
+            </div>
           </div>
         </div>
       </main>
@@ -120,15 +192,83 @@
     function fmtPct(v) { return v != null ? v + "%" : "—"; }
     function fmtMoney(v) { return v != null ? "¥" + Number(v).toLocaleString() : "—"; }
     function shortName(name) { return (name || "").replace("冯校长火锅·", ""); }
-    function healthLabel(s) {
-      return s === "critical" ? "异常" : s === "warn" ? "关注" : "正常";
+    function healthLabel(s) { return s === "critical" ? "异常" : s === "warn" ? "关注" : "正常"; }
+    function healthColorVar(s) { return s === "critical" ? "--accent" : s === "warn" ? "--warn" : "--ok"; }
+
+    let _stores = [];
+
+    // 经营趋势示意：从当前集团总营收派生确定性序列（非真实历史，待接 API）
+    function renderTrend(range) {
+      const base = _stores.reduce((s, x) => s + (x.metrics?.daily_revenue || 0), 0) || 100000;
+      const n = range === 30 ? 30 : 7;
+      const pts = [];
+      for (let i = 0; i < n; i++) {
+        const wave = Math.sin(i / (n / 6)) * 0.08 + Math.sin(i / 2.3) * 0.04;
+        pts.push(base * (0.9 + (i / n) * 0.12 + wave));
+      }
+      const W = 640, H = 180, pad = 16;
+      const max = Math.max(...pts), min = Math.min(...pts);
+      const span = (max - min) || 1;
+      const x = (i) => pad + (i * (W - 2 * pad)) / (n - 1);
+      const y = (v) => pad + (H - 2 * pad) * (1 - (v - min) / span);
+      const line = pts.map((v, i) => `${i ? "L" : "M"}${x(i).toFixed(1)},${y(v).toFixed(1)}`).join(" ");
+      const area = `${line} L${x(n - 1).toFixed(1)},${H - pad} L${x(0).toFixed(1)},${H - pad} Z`;
+      const svg = document.getElementById("trend-svg");
+      svg.innerHTML = `
+        <defs><linearGradient id="tg" x1="0" y1="0" x2="0" y2="1">
+          <stop offset="0%" stop-color="var(--brand)" stop-opacity="0.32"/>
+          <stop offset="100%" stop-color="var(--brand)" stop-opacity="0"/>
+        </linearGradient></defs>
+        <path d="${area}" fill="url(#tg)" />
+        <path d="${line}" fill="none" stroke="var(--brand)" stroke-width="2" />
+        ${pts.map((v, i) => `<circle cx="${x(i).toFixed(1)}" cy="${y(v).toFixed(1)}" r="2.5" fill="var(--brand)"/>`).join("")}`;
+    }
+
+    document.querySelectorAll(".trend-toggle button").forEach((b) => {
+      b.onclick = () => {
+        document.querySelectorAll(".trend-toggle button").forEach((x) => x.classList.remove("active"));
+        b.classList.add("active");
+        renderTrend(Number(b.dataset.range));
+      };
+    });
+
+    function renderRanking() {
+      const ranked = _stores
+        .filter((s) => s.health?.score != null)
+        .sort((a, b) => (b.health.score || 0) - (a.health.score || 0));
+      const row = (s, i, cls) => `
+        <div class="rank-row ${cls}" data-store="${s.store_id}" data-name="${s.store_name}" style="cursor:pointer">
+          <span class="rank-num">${i}</span>
+          <span class="rank-name">${shortName(s.store_name)}</span>
+          <span class="rank-val">${s.health.score ?? "—"} 分 · ${fmtMoney(s.metrics?.daily_revenue)}</span>
+        </div>`;
+      const top = ranked.slice(0, 3).map((s, i) => row(s, i + 1, "top")).join("");
+      const bottom = ranked.slice(-3).reverse().map((s, i) => row(s, ranked.length - i, "bottom")).join("");
+      document.getElementById("rank-top").innerHTML = top || '<p style="color:var(--muted)">暂无数据</p>';
+      document.getElementById("rank-bottom").innerHTML = ranked.length > 3 ? bottom : "";
+      document.querySelectorAll("[data-store]").forEach((el) => {
+        if (el.tagName === "BUTTON") return;
+        el.onclick = () => { HotpotApp.switchStore(el.dataset.store, el.dataset.name); window.location.href = "home.html"; };
+      });
     }
 
     async function loadCockpit() {
       const data = await HotpotApp.fetchNationalOverview();
       const rollup = data.rollup || {};
+      _stores = data.stores || [];
       document.getElementById("hero-title").textContent = data.region_name || "全国经营态势";
       document.getElementById("hero-narrative").textContent = (data.narrative || []).join(" · ") || "—";
+
+      // Hero 大字指标（真实聚合，无对应数据的不臆造）
+      const totalRev = _stores.reduce((s, x) => s + (x.metrics?.daily_revenue || 0), 0);
+      const turns = _stores.map((x) => x.metrics?.turnover_rate).filter((v) => v != null);
+      const losses = _stores.map((x) => x.metrics?.cost_variance_pct).filter((v) => v != null);
+      const avg = (a) => a.length ? a.reduce((s, v) => s + v, 0) / a.length : null;
+      document.getElementById("hero-revenue").textContent = totalRev ? fmtMoney(totalRev) : "—";
+      document.getElementById("hero-revenue-sub").textContent = `${_stores.length} 店合计`;
+      const at = avg(turns); document.getElementById("hero-turnover").textContent = at != null ? at.toFixed(1) : "—";
+      const al = avg(losses); document.getElementById("hero-loss").textContent = al != null ? fmtPct(Math.round(al * 10) / 10) : "—";
+      document.getElementById("hero-alerts").textContent = rollup.total_critical_alerts ?? "—";
 
       document.getElementById("kpi-stores").textContent = rollup.store_count ?? "—";
       document.getElementById("kpi-zones").textContent = (data.zones || []).length;
@@ -142,25 +282,34 @@
       zonesEl.innerHTML = "";
       (data.zones || []).forEach((z) => {
         const r = z.rollup || {};
+        const cVar = healthColorVar(z.status === "critical" ? "critical" : (r.critical_stores ? "warn" : "ok"));
         const card = document.createElement("div");
         card.className = "zone-card";
         card.innerHTML = `
           <div class="zone-name">${z.zone_name}</div>
-          <div class="zone-meta">
-            ${r.store_count ?? 0} 店 · 异常 ${r.critical_stores ?? 0} · 均 SOP ${fmtPct(r.avg_sop_compliance)}
-          </div>
-          <div class="zone-meta" style="margin-top:6px">状态 ${z.status || "—"} · 点击下钻</div>`;
-        card.onclick = () => {
-          window.location.href = `regional.html?region_id=${encodeURIComponent(z.zone_id)}`;
-        };
+          <div class="zone-meta">${r.store_count ?? 0} 店 · 异常 ${r.critical_stores ?? 0} · 均 SOP ${fmtPct(r.avg_sop_compliance)}</div>
+          <div class="zone-meta" style="margin-top:6px">状态 ${z.status || "—"} · 点击下钻</div>
+          <div class="heat-bar" style="background:var(${cVar})"></div>`;
+        card.onclick = () => { window.location.href = `regional.html?region_id=${encodeURIComponent(z.zone_id)}`; };
         zonesEl.appendChild(card);
       });
-      if (!(data.zones || []).length) {
-        zonesEl.innerHTML = '<p style="color:var(--muted)">暂无大区数据</p>';
+      if (!(data.zones || []).length) zonesEl.innerHTML = '<p style="color:var(--muted)">暂无大区数据</p>';
+
+      // 异常告警滚动条
+      const anomalies = data.anomaly_stores || [];
+      const tickerEl = document.getElementById("ticker-move");
+      if (!anomalies.length) {
+        tickerEl.style.animation = "none";
+        tickerEl.innerHTML = '<span class="ticker-item" style="color:var(--ok)">● 全国门店运营态势正常，无严重告警</span>';
+      } else {
+        const items = anomalies.map((a) => {
+          const cv = healthColorVar(a.health);
+          return `<span class="ticker-item"><span class="dot" style="background:var(${cv})"></span>${shortName(a.store_name)} · ${healthLabel(a.health)}${a.reasons ? " · " + (Array.isArray(a.reasons) ? a.reasons[0] : a.reasons) : ""}</span>`;
+        }).join("");
+        tickerEl.innerHTML = items + items; // 双份用于无缝滚动
       }
 
       const anomalyEl = document.getElementById("anomaly-list");
-      const anomalies = data.anomaly_stores || [];
       if (!anomalies.length) {
         anomalyEl.innerHTML = '<p style="color:var(--ok)">全国门店运营态势正常</p>';
       } else {
@@ -172,16 +321,13 @@
             <button class="btn btn-sm btn-ghost" data-store="${a.store_id}" data-name="${a.store_name}">查看</button>
           </div>`).join("");
         anomalyEl.querySelectorAll("[data-store]").forEach((btn) => {
-          btn.onclick = () => {
-            HotpotApp.switchStore(btn.dataset.store, btn.dataset.name);
-            window.location.href = "home.html";
-          };
+          btn.onclick = () => { HotpotApp.switchStore(btn.dataset.store, btn.dataset.name); window.location.href = "home.html"; };
         });
       }
 
       const tbody = document.getElementById("stores-body");
       tbody.innerHTML = "";
-      (data.stores || []).forEach((s) => {
+      _stores.forEach((s) => {
         const m = s.metrics || {};
         const h = s.health || {};
         const tr = document.createElement("tr");
@@ -194,6 +340,9 @@
           <td>${m.critical_alerts ?? 0}</td>`;
         tbody.appendChild(tr);
       });
+
+      renderRanking();
+      renderTrend(7);
     }
 
     loadCockpit().catch((e) => {
