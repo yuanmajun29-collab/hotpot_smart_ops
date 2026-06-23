@@ -348,6 +348,13 @@ a:hover { text-decoration: underline; }
 .tag.fail { background: rgba(248,81,73,0.2); color: var(--accent); }
 .tag.pending { background: rgba(210,153,34,0.2); color: var(--warn); }
 
+/* Tag/QualityGrade（figma §3.1 · F-C03）— 来料品质 A/B/C/D 四级原子 */
+.grade { display: inline-block; min-width: 20px; text-align: center; padding: 2px 8px; border-radius: 4px; font-size: 0.75rem; font-weight: 700; background: var(--card2); color: var(--muted); }
+.grade.a { background: rgba(86,184,132,0.20); color: var(--ok); }
+.grade.b { background: rgba(127,176,206,0.18); color: var(--info); }
+.grade.c { background: var(--warn-soft); color: var(--warn); }
+.grade.d { background: var(--crit-soft); color: var(--accent); }
+
 .mvp-banner {
   background: rgba(88,166,255,0.1);
   border: 1px solid var(--info);

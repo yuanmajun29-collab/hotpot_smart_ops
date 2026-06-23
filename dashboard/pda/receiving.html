@@ -48,7 +48,7 @@
       <div id="vlm-photo" style="height:140px;background:var(--card);border:1px solid var(--border);border-radius:8px;display:flex;align-items:center;justify-content:center;color:var(--muted);margin-bottom:12px;cursor:pointer;overflow:hidden;background-size:cover;background-position:center">
         📷 点击拍照（调用摄像头）
       </div>
-      <p>VLM 品质等级：<span class="tag pass" id="vlm-grade" style="font-size:1rem;padding:4px 12px">—</span></p>
+      <p>VLM 品质等级：<span class="grade" id="vlm-grade" style="font-size:1rem;padding:4px 12px">—</span></p>
       <p style="font-size:0.85rem;color:var(--muted);margin-top:8px" id="vlm-note">拍照后自动评级</p>
     </div>
 
@@ -218,7 +218,7 @@
         const data = await HotpotApp.vlmQualityGrade(selectedSku, selectedPo, imageBase64);
         vlmGrade = data.quality_grade || data.grade || "B";
         gradeEl.textContent = vlmGrade + " 级";
-        gradeEl.className = "tag " + (vlmGrade === "A" ? "pass" : vlmGrade === "B" ? "pending" : "fail");
+        gradeEl.className = "grade " + String(vlmGrade).toLowerCase();
         note.textContent = (data.defects || []).join("；") || "外观正常，符合入库标准";
         if (imageBase64) {
           photo.textContent = "";
@@ -229,6 +229,7 @@
       } catch (e) {
         vlmGrade = "A";
         gradeEl.textContent = "A 级";
+        gradeEl.className = "grade a";
         note.textContent = "VLM 服务不可用，默认 A 级";
         photo.textContent = "📷 演示评级 ✓";
       }
