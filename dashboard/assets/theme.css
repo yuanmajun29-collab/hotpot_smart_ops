@@ -13,6 +13,7 @@
   --ok: #56B884;          /* 正常（暖绿）*/
   --info: #7FB0CE;        /* 中性信息 / 链接 */
   --dining: #5BAEC2;      /* 用餐中桌态（青绿，与链接蓝区分）*/
+  --faint: #8A7B6E;       /* 最弱文字 · figma text/caption 弱化 */
   --sidebar-w: 220px;
 }
 * { box-sizing: border-box; margin: 0; padding: 0; }
@@ -266,7 +267,7 @@ a:hover { text-decoration: underline; }
 .chip-warn { background: rgba(210, 153, 34, 0.2); color: var(--warn); border: 1px solid var(--warn); }
 
 .report-box {
-  background: #0d1117;
+  background: var(--bg);
   border: 1px solid var(--border);
   border-radius: 8px;
   padding: 16px;
@@ -703,3 +704,223 @@ body.is-loading .stat {
 /* 手机版 H5 底部导航线性图标 */
 .mobile-tab .tab-ic { width: 23px; height: 23px; stroke: currentColor; fill: none; }
 .mobile-tab.active .tab-ic { stroke: var(--info); }
+
+/* ============================================================
+   组件库 · figma §3 原子/分子（HTML 原型组件化）
+   ============================================================ */
+
+/* 布局别名（tasks.html 等） */
+.layout { display: flex; min-height: 100vh; }
+.layout > .main {
+  margin-left: var(--sidebar-w);
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+  padding: 24px;
+}
+
+/* 文字工具类 */
+.text-muted { color: var(--muted); }
+.text-faint { color: var(--faint); }
+.text-critical { color: var(--accent); }
+.text-warn { color: var(--warn); }
+.text-ok { color: var(--ok); }
+.muted { color: var(--muted); font-size: 0.8rem; }
+.card-mt { margin-top: 16px; }
+.card-mb { margin-bottom: 20px; }
+.section-hint { font-size: 0.8rem; color: var(--muted); margin-bottom: 12px; }
+.flex-row { display: flex; gap: 8px; align-items: center; flex-wrap: wrap; }
+.flex-1 { flex: 1; min-width: 0; }
+
+/* Divider（figma §3.1） */
+.divider { border: none; border-top: 1px solid var(--border); margin: 16px 0; }
+.divider-v { display: inline-block; width: 1px; height: 1em; background: var(--border); margin: 0 8px; vertical-align: middle; }
+
+/* Skeleton/Block（figma §3.1 · P1） */
+.sk-line {
+  height: 14px;
+  border-radius: 6px;
+  margin-bottom: 10px;
+  background: linear-gradient(90deg, var(--card2) 25%, var(--border) 50%, var(--card2) 75%);
+  background-size: 400px 100%;
+  animation: hp-shimmer 1.2s infinite linear;
+}
+.sk-line.w80 { width: 80%; }
+.sk-line.w60 { width: 60%; }
+
+/* Tag/TableState（figma §3.1 · F-T01） */
+.table-tag {
+  display: inline-block;
+  padding: 2px 8px;
+  border-radius: 4px;
+  font-size: 0.72rem;
+  font-weight: 600;
+}
+.table-tag.empty { background: rgba(86,184,132,0.20); color: var(--ok); }
+.table-tag.dining { background: rgba(91,174,194,0.16); color: var(--dining); }
+.table-tag.need_clean { background: var(--warn-soft); color: var(--warn); }
+.table-tag.checkout { background: var(--crit-soft); color: var(--accent); }
+
+/* Badge/Count（顶栏角标已有 nav-badge；通用计数徽章） */
+.badge-count {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-width: 18px;
+  height: 18px;
+  padding: 0 5px;
+  border-radius: 9px;
+  background: var(--accent);
+  color: #fff;
+  font-size: 0.68rem;
+  font-weight: 700;
+}
+
+/* Avatar/User（figma §3.1） */
+.avatar {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: 50%;
+  background: var(--brand-soft);
+  color: var(--brand);
+  font-weight: 700;
+  flex-shrink: 0;
+}
+.avatar.sm { width: 28px; height: 28px; font-size: 0.75rem; }
+.avatar.md { width: 36px; height: 36px; font-size: 0.9rem; }
+
+/* List/SuggestionItem（figma §3.2 · F-T03） */
+.suggestion-item { display: flex; gap: 8px; align-items: baseline; font-size: 0.9rem; }
+.suggestion-item .rank { color: var(--brand); font-weight: 700; min-width: 28px; }
+
+/* List/CostBatchItem（figma §3.2 · F-C01） */
+.cost-batch-item { font-size: 0.9rem; line-height: 1.5; }
+.cost-batch-item.bad { color: var(--accent); }
+.cost-batch-item .hint { display: block; font-size: 0.8rem; color: var(--muted); margin-top: 4px; }
+
+/* List/SOPItem（figma §3.2 · F-S01） */
+.sop-item { border: 1px solid var(--border); border-radius: 8px; margin-bottom: 8px; overflow: hidden; }
+.sop-item-head {
+  padding: 12px;
+  cursor: pointer;
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 12px;
+}
+.sop-item-head:hover { background: rgba(255,255,255,0.03); }
+.sop-item-body { padding: 0 12px 12px; font-size: 0.85rem; color: var(--muted); display: none; line-height: 1.6; }
+.sop-item-body.open { display: block; }
+
+/* Inline form / search row */
+.inline-form { display: flex; gap: 8px; margin-bottom: 12px; align-items: stretch; }
+.inline-form .hub-input { flex: 1; width: auto; padding: 10px 12px; font-size: 0.9rem; }
+.answer-box { font-size: 0.9rem; line-height: 1.6; white-space: pre-wrap; color: var(--text); }
+
+/* Alert/InlineBanner（figma §3.2 · P1） */
+.inline-banner {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 10px 14px;
+  border-radius: var(--r-md);
+  font-size: 0.85rem;
+  margin-bottom: 16px;
+}
+.inline-banner.info { background: rgba(127,176,206,0.12); border: 1px solid rgba(127,176,206,0.35); color: var(--info); }
+.inline-banner.warn { background: var(--warn-soft); border: 1px solid rgba(230,169,62,0.4); color: var(--warn); }
+.inline-banner.critical { background: var(--crit-soft); border: 1px solid rgba(240,71,60,0.35); color: var(--accent); }
+
+/* Filter chips（tasks / alerts 共用） */
+.filter-bar .filter-chip,
+.task-toolbar .filter-chip,
+.filter-chip {
+  padding: 5px 12px;
+  border: 1px solid var(--border);
+  border-radius: 999px;
+  background: var(--card);
+  color: var(--muted);
+  cursor: pointer;
+  font-size: 0.82rem;
+  user-select: none;
+  display: inline-block;
+}
+.filter-chip.active,
+.filter-bar .filter-chip.active { background: var(--brand); border-color: var(--brand); color: #fff; }
+.task-toolbar { display: flex; flex-wrap: wrap; gap: 8px; align-items: center; margin: 12px 0; }
+
+/* Task supervision molecules（ADR-010 · tasks.html） */
+.task-row {
+  display: grid;
+  grid-template-columns: 1fr auto;
+  gap: 10px;
+  align-items: start;
+  padding: 14px 16px;
+  border: 1px solid var(--border);
+  border-radius: var(--r-md);
+  background: var(--card);
+  margin-bottom: 10px;
+}
+.task-row.overdue { border-color: var(--accent); box-shadow: inset 3px 0 0 var(--accent); }
+.task-main h4 { margin: 0 0 6px; font-size: 0.95rem; }
+.task-meta { display: flex; flex-wrap: wrap; gap: 6px; align-items: center; font-size: 0.78rem; color: var(--muted); }
+.task-meta .chip { padding: 2px 8px; border-radius: 6px; background: var(--brand-soft); color: var(--text); font-size: 0.75rem; }
+.st { padding: 2px 9px; border-radius: 6px; font-size: 0.75rem; font-weight: 600; }
+.st-pending { background: rgba(127,176,206,0.16); color: var(--info); }
+.st-in_progress { background: var(--warn-soft); color: var(--warn); }
+.st-submitted { background: rgba(226,97,58,0.16); color: var(--brand); }
+.st-closed { background: rgba(86,184,132,0.16); color: var(--ok); }
+.st-cancelled { background: rgba(178,162,148,0.16); color: var(--muted); }
+.ov-tag { color: var(--accent); font-weight: 700; }
+.task-actions { display: flex; flex-direction: column; gap: 6px; min-width: 84px; }
+.task-actions .btn { padding: 5px 10px; font-size: 0.78rem; }
+.btn.ghost { background: transparent; border: 1px solid var(--border); color: var(--muted); }
+.layout .kpi-strip {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 12px;
+  margin: 6px 0 4px;
+  grid-template-columns: unset;
+}
+.layout .kpi-strip .card { flex: 1; min-width: 120px; padding: 12px 16px; }
+
+/* Modal/AlertAck（figma §3.3 · dialog） */
+dialog.modal,
+dialog.tk {
+  border: 1px solid var(--border);
+  border-radius: var(--r-lg);
+  background: var(--card);
+  color: var(--text);
+  padding: 0;
+  width: min(440px, 92vw);
+}
+dialog.modal::backdrop,
+dialog.tk::backdrop { background: rgba(0,0,0,0.5); }
+.modal-body,
+.tk-body { padding: 18px 20px; display: flex; flex-direction: column; gap: 10px; }
+.modal-body label,
+.tk-body label { font-size: 0.78rem; color: var(--muted); display: block; margin-bottom: 3px; }
+.modal-body input,
+.modal-body select,
+.modal-body textarea,
+.tk-body input,
+.tk-body select,
+.tk-body textarea {
+  width: 100%;
+  padding: 8px 10px;
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  background: var(--bg);
+  color: var(--text);
+  font: inherit;
+  box-sizing: border-box;
+}
+.modal-foot,
+.tk-foot { display: flex; justify-content: flex-end; gap: 8px; padding: 12px 20px; border-top: 1px solid var(--border); }
+
+/* Button states（figma §3.1） */
+.btn:disabled,
+.btn.rbac-disabled { opacity: 0.45; cursor: not-allowed; }
+.btn-lg { padding: 12px 22px; font-size: 1rem; }

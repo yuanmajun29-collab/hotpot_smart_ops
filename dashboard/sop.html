@@ -34,23 +34,23 @@
           <div class="card"><h3>通过</h3><div class="stat ok" id="sop-pass">-</div></div>
           <div class="card"><h3>未通过</h3><div class="stat critical" id="sop-fail">-</div></div>
         </div>
-        <div class="card" style="margin-bottom:20px">
+        <div class="card card-mb">
           <h3>SOP 清单 · 点击展开检查点</h3>
           <div id="sop-list"></div>
         </div>
         <div class="card">
           <h3>违规待整改</h3>
           <div id="violations"></div>
-          <div id="assignments" style="margin-top:16px"></div>
+          <div id="assignments" class="card-mt"></div>
         </div>
-        <div class="card" style="margin-top:20px">
+        <div class="card card-mt">
           <h3>SOP 智能问答</h3>
-          <p style="font-size:0.85rem;color:var(--muted);margin-bottom:12px">基于总部 SOP 知识库，输入问题获取执行要点</p>
-          <div style="display:flex;gap:8px;margin-bottom:12px">
-            <input id="sop-q" type="text" placeholder="例如：来料收货 RFID 怎么扫？" style="flex:1;padding:10px;border:1px solid var(--border);border-radius:8px" />
+          <p class="section-hint">基于总部 SOP 知识库，输入问题获取执行要点</p>
+          <div class="inline-form">
+            <input id="sop-q" class="hub-input" type="text" placeholder="例如：来料收货 RFID 怎么扫？" />
             <button class="btn btn-sm" id="sop-ask-btn">提问</button>
           </div>
-          <div id="sop-answer" style="font-size:0.9rem;line-height:1.6;white-space:pre-wrap;color:var(--text)"></div>
+          <div id="sop-answer" class="answer-box"></div>
         </div>
       </main>
     </div>
@@ -71,34 +71,37 @@
         list.innerHTML = "";
         (sop.results || []).forEach((r) => {
           const div = document.createElement("div");
-          div.style.cssText = "border:1px solid var(--border);border-radius:8px;margin-bottom:8px;overflow:hidden";
-          const tag = r.status === "passed" ? "pass" : r.status === "failed" ? "fail" : "pending";
+          div.className = "sop-item";
           div.innerHTML = `
-            <div style="padding:12px;cursor:pointer;display:flex;justify-content:space-between;align-items:center" class="sop-head">
-              <span>${r.sop_name || r.sop_id}</span>
-              <span class="tag ${tag}">${r.status}</span>
+            <div class="sop-item-head">
+              <span>${HotpotApp.esc(r.sop_name || r.sop_id)}</span>
+              ${HotpotApp.sopStatusTag(r.status)}
             </div>
-            <div class="sop-detail" style="display:none;padding:0 12px 12px;font-size:0.85rem;color:var(--muted)">
-              ${r.reason || "检查点明细（演示）"} · <a href="#">查看全部检查点</a>
+            <div class="sop-item-body">
+              ${HotpotApp.esc(r.reason || "检查点明细（演示）")} · <a href="#">查看全部检查点</a>
             </div>`;
-          div.querySelector(".sop-head").onclick = () => {
-            const d = div.querySelector(".sop-detail");
-            d.style.display = d.style.display === "none" ? "block" : "none";
+          div.querySelector(".sop-item-head").onclick = () => {
+            div.querySelector(".sop-item-body").classList.toggle("open");
           };
           list.appendChild(div);
         });
-        if (!list.children.length) list.innerHTML = "<div class='empty-state'><span class='es-ic'>\u2713</span>本班尚无 SOP 检查记录<br><small>运行 PoC 后将在此展示各项检查结果</small></div>";
+        if (!list.children.length) {
+          HotpotApp.renderEmptyState(list, {
+            icon: "✓",
+            title: "本班尚无 SOP 检查记录",
+            subtitle: "运行 PoC 后将在此展示各项检查结果",
+          });
+        }
 
         const viol = document.getElementById("violations");
         viol.innerHTML = "";
         const failed = (sop.results || []).filter((r) => r.status === "failed");
         if (!failed.length) {
-          viol.innerHTML = "<div class='empty-state'><span class='es-ic'>\u2713</span>本班无违规项<br><small>所有 SOP 检查项均达标</small></div>";
+          HotpotApp.renderEmptyState(viol, { icon: "✓", title: "本班无违规项", subtitle: "所有 SOP 检查项均达标" });
         } else {
           failed.forEach((r) => {
             const div = document.createElement("div");
             div.className = "todo-item";
-            div.style.cssText = "display:flex;justify-content:space-between;align-items:center;gap:8px;padding:10px 0;border-bottom:1px solid var(--border)";
             const btn = document.createElement("button");
             btn.className = "btn btn-sm";
             btn.textContent = "指派整改";
@@ -144,11 +147,12 @@
           box.innerHTML = "";
           return;
         }
-        box.innerHTML = "<h4 style='font-size:0.9rem;margin-bottom:8px'>进行中的整改工单</h4>";
+        box.innerHTML = "<h4 class='section-hint' style='text-transform:none;font-size:0.9rem'>进行中的整改工单</h4>";
         items.forEach((a) => {
           const div = document.createElement("div");
+          div.className = "text-muted";
           div.style.cssText = "font-size:0.85rem;padding:8px 0;border-bottom:1px solid var(--border)";
-          div.innerHTML = `<b>${a.sop_name}</b> → ${a.assignee} <span class="tag pending">${a.status}</span>`;
+          div.innerHTML = `<b>${HotpotApp.esc(a.sop_name)}</b> → ${HotpotApp.esc(a.assignee)} ${HotpotApp.sopStatusTag(a.status === "open" ? "pending" : a.status)}`;
           box.appendChild(div);
         });
       } catch (e) {

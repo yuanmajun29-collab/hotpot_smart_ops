@@ -117,10 +117,60 @@
           <div class="row"><span class="status-dot online"></span> 在线 <span class="status-dot offline" style="margin-left:12px"></span> 离线</div>
         </div>
         <div class="demo-box">
+          <div class="dh">桌态 Tag / 翻台建议</div>
+          <div class="row" style="margin-bottom:14px">
+            <span class="table-tag empty">空桌</span>
+            <span class="table-tag dining">用餐中</span>
+            <span class="table-tag need_clean">待清台</span>
+            <span class="table-tag checkout">待结账</span>
+          </div>
+          <ul class="list-plain">
+            <li class="suggestion-item"><span class="rank">#1</span><span>T03 <span class="table-tag need_clean">待清台</span> → 派保洁</span></li>
+          </ul>
+        </div>
+        <div class="demo-box">
+          <div class="dh">来料批次 / 任务状态</div>
+          <div class="cost-batch-item bad" style="margin-bottom:10px"><b>毛肚</b> (供应商A) 偏差 -4.2% → 拒收</div>
+          <div class="row"><span class="st st-pending">待处理</span><span class="st st-in_progress">处理中</span><span class="st st-closed">已闭环</span></div>
+        </div>
+        <div class="demo-box">
+          <div class="dh">SOP 清单项</div>
+          <div class="sop-item">
+            <div class="sop-item-head"><span>开档卫生检查</span><span class="tag pass">passed</span></div>
+            <div class="sop-item-body open">全部检查点达标 · 07:30 完成</div>
+          </div>
+        </div>
+        <div class="demo-box">
+          <div class="dh">筛选胶囊 / 内联横幅</div>
+          <div class="row" style="margin-bottom:12px">
+            <span class="filter-chip active">全部</span>
+            <span class="filter-chip">待处理</span>
+            <span class="filter-chip">仅超时</span>
+          </div>
+          <div class="inline-banner warn">⚠ 3 条告警待确认 · <a href="#">去处理</a></div>
+        </div>
+        <div class="demo-box">
           <div class="dh">空状态 / 骨架</div>
           <div class="empty-state" style="padding:14px"><span class="es-ic">✓</span>本班无违规项</div>
           <div class="sk-line w80"></div><div class="sk-line w60"></div>
         </div>
+      </div>
+    </section>
+
+    <section class="sg-sec">
+      <h2><span class="n">6</span>core.js 渲染 helper</h2>
+      <p class="sg-lede" style="margin-bottom:16px">页面内联 JS 应优先调用 <code>HotpotApp.*</code> 组件渲染函数，避免重复 HTML 拼接。</p>
+      <div class="demo-box">
+        <ul class="list-plain" style="font-size:0.85rem;line-height:1.9">
+          <li><code>renderTableGrid</code> · 桌位四态网格</li>
+          <li><code>renderEvents</code> · 分级事件流 + ack</li>
+          <li><code>renderCostBatchList</code> · 来料批次 + grade 标签</li>
+          <li><code>renderLossRiskList</code> · 损耗风险 + 转任务</li>
+          <li><code>renderLossBudgetList</code> · 备货建议</li>
+          <li><code>renderSuggestions</code> · 翻台 TopN</li>
+          <li><code>renderEmptyState</code> · 统一空态</li>
+          <li><code>gradeTag / sopStatusTag / tableStateTag / esc</code> · 原子标签</li>
+        </ul>
       </div>
     </section>
   </div>

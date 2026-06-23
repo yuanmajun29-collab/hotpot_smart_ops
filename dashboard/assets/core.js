@@ -735,6 +735,145 @@ const HotpotApp = (() => {
     return lines.join("\n");
   }
 
+  function esc(s) {
+    return String(s ?? "").replace(/[&<>"]/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;" }[c]));
+  }
+
+  function renderEmptyState(container, opts = {}) {
+    const { icon = "✓", title = "", subtitle = "", html = false } = opts;
+    const inner =
+      `<span class="es-ic">${icon}</span>` +
+      (title ? esc(title) : "") +
+      (subtitle ? `<br><small>${esc(subtitle)}</small>` : "");
+    const markup = `<div class="empty-state">${inner}</div>`;
+    if (html) return markup;
+    if (container) container.innerHTML = markup;
+    return markup;
+  }
+
+  function gradeTag(grade) {
+    const g = String(grade || "").toUpperCase();
+    if (!["A", "B", "C", "D"].includes(g)) return "";
+    return `<span class="grade ${g.toLowerCase()}">${esc(g)}</span>`;
+  }
+
+  function sopStatusTag(status) {
+    const map = { passed: "pass", failed: "fail", pending: "pending" };
+    const cls = map[status] || "pending";
+    return `<span class="tag ${cls}">${esc(status)}</span>`;
+  }
+
+  function tableStateTag(state) {
+    const st = state || "empty";
+    return `<span class="table-tag ${st}">${esc(STATE_LABELS[st] || st)}</span>`;
+  }
+
+  function renderCostBatchList(container, items) {
+    container.innerHTML = "";
+    const list = items || [];
+    if (!list.length) {
+      renderEmptyState(container, { icon: "⚖", title: "暂无来料对账数据", subtitle: "收货 PDA 验收后将同步至此" });
+      return;
+    }
+    list.forEach((item) => {
+      const li = document.createElement("li");
+      const bad = Math.abs(item.variance_pct || 0) > 3;
+      const flag = item.action === "reject" ? "拒收" : item.action === "negotiate" ? "议价" : "入库";
+      const g = gradeTag(item.quality_grade || item.vlm_grade);
+      const gradePart = g ? ` · VLM ${g}` : "";
+      li.className = "cost-batch-item" + (bad ? " bad" : "");
+      li.innerHTML =
+        `<span><b>${esc(item.sku)}</b> (${esc(item.supplier)}) 偏差 ${esc(item.variance_pct)}%</span>${gradePart}` +
+        `<span> → ${esc(flag)}</span>`;
+      if (item.action === "reject") {
+        li.innerHTML += `<span class="hint">拒收建议：短重/品质不达标，建议扣重结算</span>`;
+      }
+      container.appendChild(li);
+    });
+  }
+
+  function renderLossRiskList(container, risks, opts = {}) {
+    const { canTask = false, onTaskClick } = opts;
+    container.innerHTML = "";
+    const list = risks || [];
+    if (!list.length) {
+      renderEmptyState(container, {
+        icon: "✓",
+        title: "暂无高风险损耗项",
+        subtitle: "短重、低等级、超温会进入此列表",
+      });
+      return;
+    }
+    list.forEach((risk) => {
+      const li = document.createElement("li");
+      const amount = risk.estimated_loss_amount
+        ? ` · 预估损耗 ¥${risk.estimated_loss_amount.toLocaleString()}`
+        : "";
+      const batchId = risk.ref_id || risk.batch_id;
+      let action = "";
+      if (risk.task_id) {
+        action = ` <span class="tag pass">✓ 已转任务 ${esc(risk.task_id)}</span>`;
+      } else if (canTask && batchId) {
+        action = ` <button class="btn btn-sm" data-risk-task="${esc(batchId)}">转复称任务</button>`;
+      }
+      li.innerHTML =
+        `<b>${esc(risk.sku || risk.batch_id)}</b> <span class="text-critical">风险 ${esc(risk.risk_score)}</span>${esc(amount)}${action}<br>` +
+        `<small class="text-muted">原因：${esc(risk.reason || "规则命中")} · 建议：${esc(risk.suggested_action || "人工复核")}</small>`;
+      container.appendChild(li);
+    });
+    if (onTaskClick) {
+      container.querySelectorAll("[data-risk-task]").forEach((btn) => {
+        btn.onclick = () => onTaskClick(btn.getAttribute("data-risk-task"), btn);
+      });
+    }
+  }
+
+  function renderLossBudgetList(container, items) {
+    container.innerHTML = "";
+    const list = items || [];
+    if (!list.length) {
+      renderEmptyState(container, {
+        icon: "📦",
+        title: "暂无备货建议",
+        subtitle: "15:00 自动推送今晚备货预算",
+      });
+      return;
+    }
+    list.forEach((it) => {
+      const li = document.createElement("li");
+      const qty =
+        it.forecast_qty != null
+          ? `建议备货 <b class="text-critical">${esc(it.forecast_qty)}${esc(it.forecast_unit || "份")}</b>`
+          : '建议备货 <span class="text-muted">待定</span>';
+      const amount =
+        it.budget_loss_amount != null ? ` · 预算损耗 ¥${it.budget_loss_amount.toLocaleString()}` : "";
+      li.innerHTML =
+        `<b>${esc(it.sku || it.ref_id)}</b> · ${qty}${esc(amount)}<br>` +
+        `<small class="text-muted">理由：${esc(it.reason || "规则命中")} · 动作：${esc(it.suggested_action || "人工复核")}</small>`;
+      container.appendChild(li);
+    });
+  }
+
+  function renderSuggestions(container, suggestions) {
+    container.innerHTML = "";
+    const items = suggestions || [];
+    if (!items.length) {
+      const li = document.createElement("li");
+      li.className = "text-muted";
+      li.textContent = "暂无建议";
+      container.appendChild(li);
+      return;
+    }
+    items.forEach((s, i) => {
+      const li = document.createElement("li");
+      li.className = "suggestion-item";
+      li.innerHTML =
+        `<span class="rank">#${i + 1}</span>` +
+        `<span>${esc(s.table_id)} ${tableStateTag(s.state)} → ${esc(s.action)}</span>`;
+      container.appendChild(li);
+    });
+  }
+
   function renderTableGrid(container, states, onClick) {
     container.innerHTML = "";
     if (!states || !Object.keys(states).length) {
@@ -761,7 +900,7 @@ const HotpotApp = (() => {
     let list = events || [];
     if (filter !== "all") list = list.filter((e) => e.level === filter);
     if (!list.length) {
-      container.innerHTML = '<p style="color:var(--muted)">暂无事件</p>';
+      renderEmptyState(container, { icon: "—", title: "暂无事件" });
       return;
     }
     list.forEach((ev) => {
@@ -800,7 +939,7 @@ const HotpotApp = (() => {
     container.innerHTML = "";
     const list = pushes || [];
     if (!list.length) {
-      container.innerHTML = '<p style="color:var(--muted)">暂无企微推送记录（严重告警将自动推送）</p>';
+      renderEmptyState(container, { icon: "—", title: "暂无企微推送记录", subtitle: "严重告警将自动推送" });
       return;
     }
     list.forEach((p) => {
@@ -999,6 +1138,15 @@ const HotpotApp = (() => {
     renderTableGrid,
     renderEvents,
     renderWechatPreview,
+    renderEmptyState,
+    renderCostBatchList,
+    renderLossRiskList,
+    renderLossBudgetList,
+    renderSuggestions,
+    esc,
+    gradeTag,
+    sopStatusTag,
+    tableStateTag,
     initShell,
     loadRbac,
     canAccessMenu,

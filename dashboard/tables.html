@@ -33,7 +33,7 @@
         <div class="grid grid-2">
           <div class="card">
             <h3>桌位平面图</h3>
-            <p style="font-size:0.8rem;color:var(--muted);margin-bottom:12px">点击桌位查看详情 · 绿空/蓝用餐/黄待清/红待结</p>
+            <p class="section-hint">点击桌位查看详情 · 绿空/蓝用餐/黄待清/红待结</p>
             <div class="tables" id="table-grid"></div>
           </div>
           <div class="card">
@@ -46,9 +46,9 @@
   </div>
   <div class="drawer-overlay" id="drawer">
     <div class="drawer">
-      <h3 id="drawer-title" style="margin-bottom:16px">桌位详情</h3>
+      <h3 id="drawer-title" class="card-mb">桌位详情</h3>
       <div id="drawer-body"></div>
-      <button class="btn btn-ghost" style="margin-top:16px" onclick="closeDrawer()">关闭</button>
+      <button class="btn btn-ghost card-mt" onclick="closeDrawer()">关闭</button>
     </div>
   </div>
   <script src="assets/core.js"></script>
@@ -62,25 +62,24 @@
       const canCorrect = HotpotApp.canAction(HotpotApp.getAuth()?.role, "table_correct");
       document.getElementById("drawer-title").textContent = table.table_id + " · " + (HotpotApp.STATE_LABELS[table.state] || table.state);
       document.getElementById("drawer-body").innerHTML = `
-        <p style="margin-bottom:12px;color:var(--muted)">状态变更时间线（演示）</p>
+        <p class="text-muted card-mb">状态变更时间线（演示）</p>
         <ul class="list-plain">
           <li>14:20 用餐中 → 待清台</li>
           <li>14:05 空桌 → 用餐中</li>
           <li>13:50 清台完成 → 空桌</li>
         </ul>
-        <p style="margin-top:16px;font-size:0.85rem">VLM 清台就绪分：<b style="color:var(--warn)">72</b>（Phase 1 mock）</p>
+        <p class="card-mt" style="font-size:0.85rem">VLM 清台就绪分：<b class="text-warn">72</b>（Phase 1 mock）</p>
         <div id="drawer-actions"></div>
       `;
       const actions = document.getElementById("drawer-actions");
       if (canCorrect) {
         const btn = document.createElement("button");
-        btn.className = "btn btn-sm btn-warn";
-        btn.style.marginTop = "12px";
+        btn.className = "btn btn-sm btn-warn card-mt";
         btn.textContent = "派保洁清台";
         btn.onclick = () => alert("已派保洁（演示）");
         actions.appendChild(btn);
       } else {
-        actions.innerHTML = "<p style='margin-top:12px;font-size:0.85rem;color:var(--muted)'>当前角色无桌态纠正权限</p>";
+        actions.innerHTML = "<p class='card-mt text-muted' style='font-size:0.85rem'>当前角色无桌态纠正权限</p>";
       }
       document.getElementById("drawer").classList.add("open");
     }
@@ -89,15 +88,7 @@
       try {
         lastData = await HotpotApp.fetchSummary();
         HotpotApp.renderTableGrid(document.getElementById("table-grid"), lastData.table_states || {}, openDrawer);
-        const ul = document.getElementById("suggestions");
-        ul.innerHTML = "";
-        const items = lastData.turnover_suggestions || [];
-        if (!items.length) { ul.innerHTML = "<li>暂无建议</li>"; return; }
-        items.forEach((s, i) => {
-          const li = document.createElement("li");
-          li.innerHTML = `<b>#${i + 1}</b> ${s.table_id} [${HotpotApp.STATE_LABELS[s.state] || s.state}] → ${s.action}`;
-          ul.appendChild(li);
-        });
+        HotpotApp.renderSuggestions(document.getElementById("suggestions"), lastData.turnover_suggestions);
       } catch (e) { console.warn(e); }
     }
     refresh();
