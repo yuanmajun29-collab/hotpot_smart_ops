@@ -41,6 +41,13 @@
           <h3>今日摘要</h3>
           <p id="m-summary" style="font-size:0.85rem;color:var(--muted);line-height:1.7">加载中...</p>
         </div>
+        <div class="card" style="margin-top:12px">
+          <h3>快捷操作</h3>
+          <div style="display:grid;grid-template-columns:1fr 1fr;gap:10px;margin-top:4px">
+            <a class="btn" href="../pda/receiving.html" style="text-align:center">📦 收货确认</a>
+            <button class="btn btn-ghost" type="button" data-goto-tab="tables" style="text-align:center">🍲 桌态管理</button>
+          </div>
+        </div>
       </section>
 
       <!-- Tab: 桌态 -->
@@ -124,13 +131,16 @@
     let allEvents = [];
     let alertFilter = "all";
 
+    function activateTab(name) {
+      document.querySelectorAll(".mobile-tab").forEach((t) => t.classList.toggle("active", t.dataset.tab === name));
+      document.querySelectorAll(".mobile-tab-panel").forEach((p) => p.classList.remove("active"));
+      document.getElementById("panel-" + name).classList.add("active");
+    }
     document.querySelectorAll(".mobile-tab").forEach((tab) => {
-      tab.onclick = () => {
-        document.querySelectorAll(".mobile-tab").forEach((t) => t.classList.remove("active"));
-        document.querySelectorAll(".mobile-tab-panel").forEach((p) => p.classList.remove("active"));
-        tab.classList.add("active");
-        document.getElementById("panel-" + tab.dataset.tab).classList.add("active");
-      };
+      tab.onclick = () => activateTab(tab.dataset.tab);
+    });
+    document.querySelectorAll("[data-goto-tab]").forEach((el) => {
+      el.onclick = () => activateTab(el.dataset.gotoTab);
     });
 
     document.querySelectorAll("#panel-alerts .filter-bar button").forEach((btn) => {

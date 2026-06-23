@@ -149,7 +149,7 @@
         const vals = pts.map((p) => p.value);
         const min = Math.min(...vals) - 1;
         const max = Math.max(...vals) + 1;
-        ctx.strokeStyle = "#3b82f6";
+        ctx.strokeStyle = getComputedStyle(document.documentElement).getPropertyValue("--info").trim() || "#7FB0CE";
         ctx.lineWidth = 2;
         ctx.beginPath();
         pts.forEach((p, i) => {
