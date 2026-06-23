@@ -137,7 +137,7 @@
 | TC-COST-06 | F-C08 | P2 | UAT | PMO | 供应商累计 KPI | 区域/全国榜单 | ⬜ P2 |
 | TC-COST-07 | F-C06 | P1 | 接口 | 已写入成本 | `GET /v1/cost/loss-risk?limit=10` | TopN 损耗风险，含 risk_score/estimated_loss_amount/reason/suggested_action/ref_type/ref_id（LOSS-402 规则桩） | `test_loss_risk_endpoint_reads_cost_snapshot` |
 | TC-COST-08 | F-C06 | P0 | 权限 | 店级 token | 跨店 `GET /v1/cost/loss-risk` | 403（沿用跨店隔离） | `test_loss_risk_store_scoped` |
-| TC-COST-09 | F-C09 | P1C | 接口 | VLM shadow/mock | `POST /v1/vlm/waste-estimate` | store-scope 403；`source` 标注 mock/vlm-shadow；无模型不 500；`image_ref`/`stream_id` 至少一项；写入事件/特征入口 | ⬜ 计划：`tests/test_waste_estimate.py` |
+| TC-COST-09 | F-C09 | P1C | 接口 | VLM shadow/mock | `POST /v1/vlm/waste-estimate` | store-scope 403；`source` 标注 mock/vlm-shadow；无模型不 500；`image_ref`/`stream_id` 至少一项；写入事件/特征入口 | ✅ `tests/test_waste_estimate.py` |
 
 ---
 

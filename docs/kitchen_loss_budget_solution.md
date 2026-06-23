@@ -115,7 +115,7 @@
 }
 ```
 - **降级**：边缘 VLM 不可用 → `source="mock"`，或提示改用 §2.2 手动 3 按钮打分。
-- **计划验收测试**（实现 P1C/P2 waste-estimate 时新增）：`tests/test_waste_estimate.py` —（a）store-scope 403；（b）无 VLM 时 `source="mock"` 不 500；（c）`image_ref`/`stream_id` 至少一项，缺失 422。
+- **自动化验收测试**（VLM-603 已实现）：`tests/test_waste_estimate.py` —（a）store-scope 403；（b）无 VLM 时 `source="mock"` 不 500；（c）`image_ref`/`stream_id` 至少一项，缺失 422；（d）写入事件并刷新 `loss_features.waste_evidence`。
 
 ### 2.4 已实现端点（保持不变）
 
@@ -128,6 +128,7 @@
 | 项 | 收敛口径 |
 |----|----------|
 | Phase 1（P1B/LOSS-504）存储 | **持久化到 `store_snapshots(kind="loss_features")`**（`db.py`/`pg_db.py` 已有该表，`INSERT OR REPLACE` by store_id+kind），或 append-only `events`/OpsEvent；**不**用临时进程内 JSON |
+| Phase 1（P1B/LOSS-504）HTTP | **`GET /v1/cost/loss-features`** 读 snapshot；**`POST /v1/cost/loss-features/rebuild`** 从 cost 重建并持久化（`tests/test_loss_features_api.py`） |
 | 复用既有 | 优先复用 `receiving_batches`、`iot_readings`、`store_snapshots.cost`（见 `architecture_data_model_phase1.md` §line184） |
 | 关系表延后 | `loss_features` / `loss_predictions` 独立表延后到 **P2 · LOSS-508**：pay-test 通过或需跨天回放/模型对比时再落 |
 

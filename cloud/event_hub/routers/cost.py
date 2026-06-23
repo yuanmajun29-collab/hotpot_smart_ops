@@ -24,6 +24,7 @@ from cloud.event_hub.hub_core import DEFAULT_STORE_ID
 from cloud.llm_report.forecast_agent import make_forecast_agent
 from cloud.event_hub.routers._deps import resolve_store_id as _resolve_store_id
 from cloud.event_hub.task_store import task_store, TaskError
+from cloud.cost_control.feature_builder import build_loss_features, persist_loss_features
 from shared.schemas import utc_now_iso
 
 _STORE_TZ = "Asia/Shanghai"
@@ -133,6 +134,71 @@ def cost_loss_budget(
         "budget_loss_amount_total": result["budget_loss_amount_total"],
         "actual_loss_amount_total": result["actual_loss_amount_total"],
     }
+
+
+@router.get("/v1/cost/loss-features")
+def cost_loss_features(
+    request: Request,
+    store_id: Optional[str] = Query(None),
+    date: Optional[str] = Query(None, description="特征日期，默认今日"),
+    auth: AuthContext = Depends(get_auth_context),
+) -> Dict[str, Any]:
+    """读取持久化的 loss-feature snapshot（LOSS-504 HTTP 读路径）。"""
+    sid = _resolve_store_id(store_id, None, request.headers.get("X-Store-Id"), auth)
+    bdate = _business_date(date)
+    store = runtime.hub.get_store(sid)
+    features = dict(store.loss_features or {})
+    if features and features.get("date") and features.get("date") != bdate:
+        return {
+            "store_id": sid,
+            "date": bdate,
+            "source": "empty",
+            "items": [],
+            "sku_count": 0,
+            "generated_at": None,
+            "waste_evidence": [],
+        }
+    if not features:
+        return {
+            "store_id": sid,
+            "date": bdate,
+            "source": "empty",
+            "items": [],
+            "sku_count": 0,
+            "generated_at": None,
+            "waste_evidence": [],
+        }
+    return {
+        "store_id": sid,
+        "date": features.get("date") or bdate,
+        "source": features.get("waste_source") or "snapshot",
+        "items": features.get("items") or [],
+        "sku_count": features.get("sku_count", 0),
+        "generated_at": features.get("generated_at"),
+        "waste_evidence": features.get("waste_evidence") or [],
+    }
+
+
+@router.post("/v1/cost/loss-features/rebuild")
+def cost_loss_features_rebuild(
+    request: Request,
+    store_id: Optional[str] = Query(None),
+    date: Optional[str] = Query(None, description="特征日期，默认今日"),
+    auth: AuthContext = Depends(get_auth_context),
+) -> Dict[str, Any]:
+    """从 cost snapshot 重建并持久化 loss_features（LOSS-504 HTTP 写路径）。"""
+    sid = _resolve_store_id(store_id, None, request.headers.get("X-Store-Id"), auth)
+    enforce_store_write(auth, sid)
+    bdate = _business_date(date)
+    store = runtime.hub.get_store(sid)
+    cost_stats = store.cost_stats or {"store_id": sid, "items": []}
+    features = build_loss_features(cost_stats, store_id=sid, date=bdate)
+    existing = store.loss_features or {}
+    if existing.get("waste_evidence"):
+        features["waste_evidence"] = existing["waste_evidence"]
+        features["waste_source"] = existing.get("waste_source")
+    persist_loss_features(store, features)
+    return {"ok": True, "store_id": sid, **features}
 
 
 @router.post("/v1/cost/loss-risk/{batch_id}/task")

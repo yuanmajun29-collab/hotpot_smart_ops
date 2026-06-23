@@ -170,6 +170,7 @@ from cloud.event_hub.routers import org as _org_router
 from cloud.event_hub.routers import admin as _admin_router
 from cloud.event_hub.routers import cost as _cost_router
 from cloud.event_hub.routers import tasks as _tasks_router
+from cloud.event_hub.routers import vlm as _vlm_router
 
 app.include_router(_system_router.router)
 app.include_router(_auth_routes_router.router)
@@ -183,3 +184,4 @@ app.include_router(_org_router.router)
 app.include_router(_admin_router.router)
 app.include_router(_cost_router.router)
 app.include_router(_tasks_router.router)
+app.include_router(_vlm_router.router)
