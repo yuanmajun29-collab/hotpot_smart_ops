@@ -1,4 +1,4 @@
-"""POST /v1/vlm/waste-estimate — VLM 废料识别 mock-first (VLM-603 / TC-COST-09)."""
+"""POST /v1/vlm/waste-estimate — VLM 废料识别 (VLM-603 / TC-COST-09)."""
 from __future__ import annotations
 
 import tempfile
@@ -33,6 +33,8 @@ def _tok(c, user="zhangdian", role="店长", store="store_yuhuan"):
     return {"Authorization": f"Bearer {r.json()['access_token']}"}
 
 
+# ── mock (hub) path tests ──
+
 def test_waste_estimate_mock_with_image_ref(client):
     h = _tok(client)
     r = client.post(
@@ -51,7 +53,8 @@ def test_waste_estimate_mock_with_image_ref(client):
     assert body["items"][0]["unit"] == "份"
 
 
-def test_waste_estimate_requires_image_or_stream(client):
+def test_waste_estimate_requires_input(client):
+    """Must have items, image_ref, or stream_id."""
     h = _tok(client)
     r = client.post("/v1/vlm/waste-estimate", json={"zone": "废弃区"}, headers=h)
     assert r.status_code == 422
@@ -79,3 +82,88 @@ def test_waste_estimate_writes_loss_features(client):
     data = feats.json()
     assert data["waste_evidence"]
     assert data["source"] in ("mock", "vlm-shadow")
+
+
+# ── edge inference (Jetson bridge) path tests ──
+
+def test_waste_estimate_edge_items_direct(client):
+    """Jetson sends items directly — Hub uses them without mock."""
+    h = _tok(client)
+    items = [
+        {
+            "sku": "毛肚",
+            "waste_type": "边角料",
+            "estimated_portion": 0.8,
+            "unit": "份",
+            "confidence": 0.82,
+            "reason": "切口不齐，大小不均",
+            "suggested_action": "调整切配标准",
+        }
+    ]
+    r = client.post(
+        "/v1/vlm/waste-estimate",
+        json={
+            "store_id": "store_yuhuan",
+            "items": items,
+            "source": "vlm-shadow",
+            "model": "ostrakon-vl-8b-iq4xs",
+            "zone": "备餐废弃区",
+        },
+        headers=h,
+    )
+    assert r.status_code == 200, r.text
+    body = r.json()
+    assert body["ok"] is True
+    assert body["source"] == "vlm-shadow"
+    assert body["model"] == "ostrakon-vl-8b-iq4xs"
+    assert body["items"] == items
+    assert body["store_id"] == "store_yuhuan"
+
+
+def test_waste_estimate_edge_no_image_ref_ok(client):
+    """Edge path: image_ref not required when items present."""
+    h = _tok(client)
+    r = client.post(
+        "/v1/vlm/waste-estimate",
+        json={
+            "items": [{"sku": "黄喉", "waste_type": "过期临界", "estimated_portion": 0.3, "unit": "kg", "confidence": 0.91, "reason": "颜色发暗"}],
+            "source": "vlm-shadow",
+            "model": "ostrakon-vl-8b-iq4xs",
+        },
+        headers=h,
+    )
+    assert r.status_code == 200
+    assert r.json()["source"] == "vlm-shadow"
+
+
+def test_waste_estimate_edge_empty_items_rejected(client):
+    """Empty items list without image_ref/stream_id → 422 (no valid input)."""
+    h = _tok(client)
+    r = client.post(
+        "/v1/vlm/waste-estimate",
+        json={
+            "items": [],
+            "source": "vlm-shadow",
+            "model": "ostrakon-vl-8b-iq4xs",
+        },
+        headers=h,
+    )
+    assert r.status_code == 422
+
+
+def test_waste_estimate_edge_empty_items_with_image_ref(client):
+    """Empty items + image_ref → mock fallback (hub path)."""
+    h = _tok(client)
+    r = client.post(
+        "/v1/vlm/waste-estimate",
+        json={
+            "items": [],
+            "source": "vlm-shadow",
+            "model": "ostrakon-vl-8b-iq4xs",
+            "image_ref": "file://test.jpg",
+        },
+        headers=h,
+    )
+    assert r.status_code == 200
+    body = r.json()
+    assert body["source"] == "mock"
