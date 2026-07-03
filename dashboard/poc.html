@@ -127,7 +127,7 @@
       <p class="subtitle">LLM + VLM + 视频 + IoT + 边缘计算 · 全国连锁 PoC</p>
     </div>
     <div class="toolbar">
-      <input id="hub-url" type="text" value="http://127.0.0.1:8088" />
+      <input id="hub-url" type="text" value="http://127.0.0.1:8098" />
       <button onclick="refresh()">刷新</button>
       <button onclick="generateReport()">生成日报</button>
     </div>
@@ -224,7 +224,7 @@
     }
 
     document.getElementById("hub-url").value =
-      localStorage.getItem(HUB_KEY) || "http://127.0.0.1:8088";
+      localStorage.getItem(HUB_KEY) || "http://127.0.0.1:8098";
 
     async function refresh() {
       const url = hubUrl();

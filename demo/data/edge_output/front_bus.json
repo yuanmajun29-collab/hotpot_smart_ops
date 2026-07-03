@@ -1,0 +1,86 @@
+{
+  "zone": "front",
+  "backend": "yolo_real",
+  "model": "yolov8n",
+  "total_detections": 6,
+  "inference_ms": 44.4,
+  "label_counts": {
+    "bus": 1,
+    "customer": 4,
+    "stop sign": 1
+  },
+  "detections": [
+    {
+      "class_id": 5,
+      "label": "bus",
+      "coco_name": "bus",
+      "confidence": 0.873,
+      "bbox": [
+        23,
+        231,
+        805,
+        757
+      ]
+    },
+    {
+      "class_id": 0,
+      "label": "customer",
+      "coco_name": "person",
+      "confidence": 0.866,
+      "bbox": [
+        49,
+        399,
+        245,
+        903
+      ]
+    },
+    {
+      "class_id": 0,
+      "label": "customer",
+      "coco_name": "person",
+      "confidence": 0.853,
+      "bbox": [
+        669,
+        392,
+        810,
+        877
+      ]
+    },
+    {
+      "class_id": 0,
+      "label": "customer",
+      "coco_name": "person",
+      "confidence": 0.825,
+      "bbox": [
+        222,
+        406,
+        345,
+        858
+      ]
+    },
+    {
+      "class_id": 0,
+      "label": "customer",
+      "coco_name": "person",
+      "confidence": 0.261,
+      "bbox": [
+        0,
+        551,
+        63,
+        873
+      ]
+    },
+    {
+      "class_id": 11,
+      "label": "stop sign",
+      "coco_name": "stop sign",
+      "confidence": 0.255,
+      "bbox": [
+        0,
+        254,
+        33,
+        325
+      ]
+    }
+  ]
+}

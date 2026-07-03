@@ -1,0 +1,324 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8"/>
+<meta name="viewport" content="width=device-width,initial-scale=1.0"/>
+<title>后厨智能识别 · 冯校长火锅</title>
+<style>
+:root{--bg:#15110E;--card:#1F1813;--card2:#2A201A;--border:#3A2E25;--text:#F4ECE3;--muted:#B2A294;--brand:#E2613A;--accent:#F0473C;--warn:#E6A93E;--ok:#56B884;--info:#7FB0CE;--sidebar-w:220px}
+*{box-sizing:border-box;margin:0;padding:0}
+body{font-family:"PingFang SC",system-ui,sans-serif;background:var(--bg);color:var(--text);min-height:100vh}
+.app-shell{display:flex;min-height:100vh}
+.sidebar{width:var(--sidebar-w);background:var(--card);border-right:1px solid var(--border);padding:16px 0;flex-shrink:0;position:fixed;top:0;left:0;bottom:0;overflow-y:auto}
+.sidebar-brand{padding:0 16px 16px;border-bottom:1px solid var(--border);margin-bottom:8px}
+.sidebar-brand h1{font-size:1rem;font-family:"STSong","Songti SC",serif;letter-spacing:.04em}
+.sidebar-brand p{font-size:.75rem;color:var(--muted);margin-top:4px}
+.nav-group{padding:8px 16px 4px;margin-top:8px;font-size:.68rem;color:var(--muted);text-transform:uppercase;letter-spacing:.05em}
+.nav-item{display:flex;align-items:center;gap:10px;padding:10px 16px;color:var(--muted);font-size:.9rem;border-left:3px solid transparent;text-decoration:none}
+.nav-item:hover{background:rgba(255,255,255,.04);color:var(--text);text-decoration:none}
+.nav-item.active{color:var(--brand);border-left-color:var(--brand);background:rgba(226,97,58,.1)}
+.main-wrap{margin-left:var(--sidebar-w);flex:1;display:flex;flex-direction:column;min-width:0}
+.topbar{display:flex;align-items:center;justify-content:space-between;padding:12px 24px;border-bottom:1px solid var(--border);background:rgba(26,35,50,.6);flex-wrap:wrap;gap:12px}
+.topbar-left h2{font-size:1.1rem}.topbar-meta{font-size:.8rem;color:var(--muted);margin-top:2px}
+.topbar-right{display:flex;align-items:center;gap:12px}
+.chip{display:inline-flex;align-items:center;gap:6px;padding:4px 10px;border-radius:20px;background:var(--card);border:1px solid var(--border);font-size:.8rem}
+.dot{width:7px;height:7px;border-radius:50%;display:inline-block}
+.dot.green{background:var(--ok)}.dot.red{background:var(--accent)}
+.content{padding:24px;flex:1;min-height:0}
+.vstack{display:flex;flex-direction:column;gap:20px}
+.card{background:var(--card);border:1px solid var(--border);border-radius:12px;padding:18px}
+.card h3{font-size:.82rem;color:var(--muted);margin-bottom:12px}
+/* 中间大图布局 */
+.img-section{background:var(--card);border:1px solid var(--border);border-radius:12px;padding:18px;min-height:360px;display:flex;flex-direction:column}
+.img-section .img-header{display:flex;justify-content:space-between;align-items:center;margin-bottom:12px}
+.img-section .badge{font-size:.68rem;padding:3px 10px;border-radius:12px;background:rgba(86,184,132,.15);color:var(--ok)}
+.img-wrap{flex:1;display:flex;align-items:center;justify-content:center;background:#000;border-radius:8px;overflow:hidden;min-height:280px}
+.img-wrap img{max-width:100%;max-height:100%;object-fit:contain;margin:auto}
+.img-meta{display:flex;gap:16px;margin-top:10px;font-size:.68rem;color:var(--muted);padding-top:10px;border-top:1px solid rgba(58,46,37,.5)}
+.ctrls{display:flex;gap:10px;margin-top:0}
+.btn{background:var(--brand);color:#fff;border:none;border-radius:8px;padding:10px 20px;cursor:pointer;font-size:.85rem;font-weight:500;flex:1}
+.btn:hover{opacity:.9}.btn:disabled{opacity:.4}
+.btn-s{background:var(--border);color:var(--text);flex:.5}
+.stats{display:flex;gap:12px;margin-bottom:16px}
+.stat-box{flex:1;background:rgba(0,0,0,.25);border-radius:8px;padding:14px;text-align:center}
+.stat-box .lbl{font-size:.7rem;color:var(--muted);margin-bottom:4px}
+.stat-box .val{font-size:1.3rem;font-weight:700}
+.grid{display:grid;grid-template-columns:1fr 1fr;gap:10px;margin-bottom:16px}
+.grid-item{padding:10px 14px;background:rgba(0,0,0,.25);border-radius:8px}
+.grid-item .l{font-size:.7rem;color:var(--muted);margin-bottom:3px}
+.grid-item .v{font-size:.9rem;font-weight:600}
+table{width:100%;border-collapse:collapse;font-size:.8rem}
+th{padding:10px 12px;text-align:left;border-bottom:1px solid var(--border);color:var(--muted);font-weight:500;font-size:.75rem;white-space:nowrap}
+td{padding:10px 12px;border-bottom:1px solid rgba(58,46,37,.5)}
+.bar{display:inline-block;height:6px;border-radius:3px;margin-right:6px;vertical-align:middle}
+.bar-h{background:var(--accent)}.bar-m{background:var(--warn)}.bar-l{background:var(--muted)}
+.log-card{flex:1;display:flex;flex-direction:column;overflow:hidden}
+.log-list{overflow-y:auto;font-size:.75rem;max-height:200px}
+.log-row{padding:8px 0;border-bottom:1px solid rgba(58,46,37,.4);display:flex;gap:10px;align-items:center}
+.log-time{color:var(--muted);flex:none;width:70px;font-size:.68rem}
+.log-src{flex:none;width:72px;font-size:.68rem;padding:2px 6px;border-radius:4px;text-align:center}
+.log-src.edge{background:rgba(86,184,132,.15);color:var(--ok)}
+.log-src.sim{background:rgba(230,169,62,.15);color:var(--warn)}
+.log-src.err{background:rgba(240,71,60,.15);color:var(--accent)}
+.empty{text-align:center;padding:30px;color:var(--muted)}
+.empty .ic{font-size:2rem;margin-bottom:8px}
+/* 中间双栏：图居中 + 结果右侧 */
+.main-row{display:flex;gap:20px}
+.main-row .img-section{flex:1.2;min-width:0}
+.main-row .result-panel{flex:0.8;display:flex;flex-direction:column;gap:16px;min-width:300px}
+.result-panel .card{flex:1}
+/* 底部双栏：记录 + 结果表并排 */
+.bottom-row{display:flex;gap:20px}
+.bottom-row .card{flex:1}
+@media(max-width:900px){.main-row{flex-direction:column}.sidebar{display:none}.main-wrap{margin-left:0}}
+</style>
+</head>
+<body><div class="app-shell">
+
+<aside class="sidebar">
+<div class="sidebar-brand"><h1>冯校长火锅</h1><p>智能运营中心</p></div>
+<div class="nav-group">📊 总览</div>
+<a class="nav-item" href="home.html">首页概览</a>
+<div class="nav-group">🍽 前厅</div>
+<a class="nav-item" href="tables.html">桌台管理</a>
+<a class="nav-item" href="sop.html">规范执行</a>
+<div class="nav-group">🔪 后厨</div>
+<a class="nav-item" href="kitchen.html">设备监控</a>
+<a class="nav-item active" href="vlm-demo.html">智能识别</a>
+<a class="nav-item" href="cost.html">成本分析</a>
+<div class="nav-group">📋 运营</div>
+<a class="nav-item" href="alerts.html">告警中心</a>
+<a class="nav-item" href="report.html">运营日报</a>
+<a class="nav-item" href="pda/receiving.html">收货终端</a>
+<div class="nav-group">📱 移动端</div>
+<a class="nav-item" href="mobile/index.html">手机版</a>
+</aside>
+
+<div class="main-wrap">
+<header class="topbar">
+<div class="topbar-left"><h2>后厨 · 智能识别</h2><div class="topbar-meta">边缘分析盒实时推理 · <span id="st">检测中</span></div></div>
+<div class="topbar-right">
+<span class="chip"><span class="dot green" id="svc-dot"></span> 数据中心 <span id="svc">在线</span></span>
+<span class="chip"><span class="dot green" id="box-dot"></span> 分析盒 已连接</span>
+</div></header>
+
+<div class="content">
+<div class="vstack">
+
+<!-- 📊 识别总览（引擎/门店/耗时）-->
+<div class="card" id="result-card">
+  <div class="empty" id="re-empty"><div class="ic">🤖</div>拉取最新识别以查看分析盒结果</div>
+  <div id="re-data" style="display:none">
+    <div class="stats">
+      <div class="stat-box"><div class="lbl">识别食材</div><div class="val" id="s-items">0</div></div>
+      <div class="stat-box"><div class="lbl">损耗项</div><div class="val" id="s-waste">0</div></div>
+      <div class="stat-box"><div class="lbl">平均可信度</div><div class="val" id="s-conf">—</div></div>
+      <div class="stat-box"><div class="lbl">数据来源</div><div class="val" id="s-source" style="font-size:1rem">—</div></div>
+    </div>
+    <div class="grid">
+      <div class="grid-item"><div class="l">识别引擎</div><div class="v" id="r-engine">—</div></div>
+      <div class="grid-item"><div class="l">所属门店</div><div class="v" id="r-store">—</div></div>
+      <div class="grid-item"><div class="l">监控区域</div><div class="v" id="r-zone">—</div></div>
+      <div class="grid-item"><div class="l">事件时间</div><div class="v" id="r-time">—</div></div>
+    </div>
+  </div>
+</div>
+
+<!-- 中间双栏：图居中 + 结果右侧 -->
+<div class="main-row">
+<!-- 图居中 -->
+<div class="img-section">
+  <div class="img-header">
+    <h3>📷 <span id="cam-label">备餐废弃区</span></h3>
+    <span class="badge" id="cam-badge">摄像头 01</span>
+  </div>
+  <div class="img-wrap">
+    <div class="empty" id="img-empty"><div class="ic">📷</div>等待分析盒推送</div>
+    <img id="img" src="" alt="后厨现场" style="display:none">
+  </div>
+  <div class="img-meta" id="img-meta" style="display:none">
+    <span id="mt-engine">识别引擎: —</span>
+    <span id="mt-time">抓拍时间: —</span>
+    <span id="mt-store">门店: —</span>
+  </div>
+</div>
+<!-- 右侧结果 -->
+<div class="result-panel">
+  <div class="card" id="result-table-card" style="display:none">
+    <h3>🔍 详细推理结果</h3>
+    <table><thead><tr>
+      <th>#</th><th>食材</th><th>可信度</th><th>判断依据</th>
+    </tr></thead><tbody id="tb"></tbody></table>
+  </div>
+</div>
+</div><!-- /main-row -->
+
+<div class="ctrls">
+  <button class="btn" onclick="pullLatest()" id="btn">🔍 拉取最新识别</button>
+  <button class="btn btn-s" onclick="chk()">🔄 刷新状态</button>
+</div>
+
+<!-- 底部：识别记录 -->
+<div class="card log-card">
+    <h3>📋 识别记录</h3>
+    <div class="log-list" id="log"><div class="empty"><div class="ic">📝</div>暂无记录</div></div>
+  </div>
+
+</div><!-- /vstack -->
+</div><!-- /content -->
+</div><!-- /main-wrap -->
+</div><!-- /app-shell -->
+
+<script>
+const H='http://192.168.2.85:8098';
+let storeId='store_yuhuan', zone='混合废弃区';
+let lastEventId=null;
+
+async function chk(){
+  try{
+    const r=await fetch(H+'/health');
+    document.getElementById('st').textContent='数据中心在线';
+    document.getElementById('svc').textContent='在线';
+    document.getElementById('svc-dot').className='dot green';
+  }catch(e){
+    document.getElementById('st').textContent='数据中心离线';
+    document.getElementById('svc').textContent='离线';
+    document.getElementById('svc-dot').className='dot red';
+  }
+}
+
+async function pullLatest(){
+  const b=document.getElementById('btn');
+  b.disabled=true;b.textContent='⏳ 拉取中...';
+  try{
+    const evR=await fetch(H+'/v1/events?limit=50');
+    const evs=await evR.json();
+    let matched=null;
+    for(const prefix of ['ostrakon-vl','vlm-shadow','']){
+      for(const e of evs){
+        if(e.event_type!=='vlm_waste_estimate') continue;
+        const src = (e.metadata?.source||e.source||'');
+        if(prefix && !src.startsWith(prefix)) continue;
+        const ez=e.metadata?.zone||e.zone||'';
+        if(ez!==zone) continue;
+        matched=e;break;
+      }
+      if(matched) break;
+    }
+    let imageUrl=null, imageTime='';
+    try{
+      const imR=await fetch(H+'/v1/images');
+      const imData=await imR.json();
+      const zoneImgs=(imData.images||[]).filter(i=>i.zone===zone);
+      if(zoneImgs.length>0){
+        const sorted=[...zoneImgs].sort((a,b)=>{
+          const aTs=/^\d/.test(a.filename), bTs=/^\d/.test(b.filename);
+          if(aTs!==bTs) return aTs?-1:1;
+          return b.filename.localeCompare(a.filename);
+        });
+        const best=sorted[0];
+        imageUrl=H+best.url;
+        imageTime=best.filename.replace(/_/g,' ').replace(/\.[^.]+$/,'');
+      }
+    }catch(e){console.warn('拉图片失败:',e);}
+
+    if(matched){
+      // 去重：同一事件不重复显示
+      if(matched.event_id===lastEventId){
+        b.disabled=false;b.textContent='🔍 拉取最新识别';
+        return;
+      }
+      lastEventId=matched.event_id;
+
+      const m=matched.metadata||{};
+      const evt=matched;
+      const source='边缘分析盒';
+      const model='边缘AI引擎';
+      const store=m.store_id||evt.store_id||'玉环店';
+      const zone2=m.zone||evt.zone||zone;
+      const items=m.items||evt.items||[];
+
+      document.getElementById('re-empty').style.display='none';
+      document.getElementById('re-data').style.display='block';
+      document.getElementById('s-items').textContent=items.length;
+      const wasteCount=items.filter(i=>i.waste_type&&i.waste_type!=='无').length;
+      document.getElementById('s-waste').textContent=wasteCount;
+      const avgConf=items.length>0?(items.reduce((s,i)=>s+(i.confidence||0),0)/items.length*100).toFixed(0):'—';
+      document.getElementById('s-conf').textContent=avgConf+'%';
+      document.getElementById('s-source').textContent=source;
+      document.getElementById('r-engine').textContent=model;
+      document.getElementById('r-store').textContent=store;
+      document.getElementById('r-zone').textContent=zone2;
+      document.getElementById('r-time').textContent=new Date(matched.timestamp).toLocaleString();
+
+      document.getElementById('result-table-card').style.display='block';
+      document.getElementById('tb').innerHTML=items.map((i,idx)=>{
+        const p=((i.confidence||0)*100).toFixed(0);
+        const c=p>70?'bar-h':p>40?'bar-m':'bar-l';
+        return `<tr><td style="color:var(--muted)">${idx+1}</td><td><strong>${i.sku||'—'}</strong><br><span style="font-size:.68rem;color:var(--muted)">${i.waste_type||'—'} · ${i.estimated_portion||'—'}${i.unit||'份'}</span></td><td><span class="bar ${c}" style="width:${Math.min(p,100)}px"></span>${p}%</td><td style="color:var(--muted);font-size:.7rem">${i.reason||''}</td></tr>`;
+      }).join('');
+
+      // 图片URL：优先取事件关联图，无合法扩展时fallback到/v1/images快照
+      let displayUrl='';
+      const candidateUrl = m.image_url||evt.image_url||'';
+      const hasExt=/\.(jpg|jpeg|png|gif|webp)(\?|$)/i.test(candidateUrl);
+      if(candidateUrl && candidateUrl.startsWith('/static/') && hasExt){
+        displayUrl = H + candidateUrl;
+      }else if(candidateUrl && candidateUrl.startsWith('http') && hasExt){
+        displayUrl = candidateUrl;
+      }else{
+        // 事件image_url无合法扩展（或为空），尝试image_ref
+        let imgRef=m.image_ref||evt.image_ref||'';
+        const refHasExt=/\.(jpg|jpeg|png|gif|webp)(\?|$)/i.test(imgRef);
+        if(imgRef && imgRef!=='edge/test.jpg' && refHasExt){
+          if(imgRef.startsWith('http')){displayUrl=imgRef;}
+          else if(imgRef.startsWith('/static/')){displayUrl=H+imgRef;}
+          else{const fn=imgRef.split('/').pop();
+            displayUrl=H+'/static/images/'+storeId+'/'+encodeURIComponent(zone)+'/'+encodeURIComponent(fn);}
+        }else{displayUrl=imageUrl;}
+      }
+      if(!displayUrl) displayUrl=imageUrl;
+      if(displayUrl){
+        document.getElementById('img').src=displayUrl;
+        document.getElementById('img').style.display='block';
+        document.getElementById('img-empty').style.display='none';
+        document.getElementById('img-meta').style.display='flex';
+      }
+      document.getElementById('mt-engine').textContent='引擎: '+model;
+      document.getElementById('mt-time').textContent='时间: '+new Date(matched.timestamp).toLocaleString();
+      document.getElementById('mt-store').textContent='门店: '+store;
+
+      log('edge','分析盒上报 · '+items.length+' 项损耗',matched.event_id);
+    }else{
+      if(imageUrl){
+        document.getElementById('img').src=imageUrl;
+        document.getElementById('img').style.display='block';
+        document.getElementById('img-empty').style.display='none';
+        document.getElementById('img-meta').style.display='flex';
+        document.getElementById('mt-engine').textContent='引擎: 边缘AI引擎';
+        document.getElementById('mt-time').textContent='上传时间: '+imageTime;
+        document.getElementById('mt-store').textContent='门店: 玉环店';
+        log('sim','暂无新识别事件，已加载最新图片',null);
+      }else{
+        log('err','未找到区域【'+zone+'】的图片',null);
+      }
+    }
+  }catch(e){
+    log('err','拉取失败: '+e.message,null);
+  }
+  b.disabled=false;b.textContent='🔍 拉取最新识别';
+}
+
+function log(src,msg,id){
+  const l=document.getElementById('log'),e=l.querySelector('.empty');
+  if(e)e.remove();
+  const m={edge:'边缘实时',sim:'通知',err:'异常'}[src]||src;
+  l.insertAdjacentHTML('afterbegin',`<div class="log-row"><span class="log-time">${new Date().toLocaleTimeString()}</span><span class="log-src ${src}">${m}</span>${msg}${id?' · '+id.slice(-8):''}</div>`);
+  while(l.children.length>50)l.lastChild.remove();
+}
+
+chk();
+setInterval(chk,30000);
+pullLatest();
+</script>
+</body></html>

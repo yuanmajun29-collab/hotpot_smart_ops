@@ -222,6 +222,7 @@ const HotpotApp = (() => {
     admin: "admin/index.html",
     admin_stores: "admin/stores.html",
     admin_pipeline: "admin/pipeline.html",
+    vlm: "vlm-demo.html",
   };
 
   async function loadRbac() {

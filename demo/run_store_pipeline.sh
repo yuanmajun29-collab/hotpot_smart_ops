@@ -31,11 +31,11 @@ python3 cloud/integrations/pos_bridge.py \
   --hub-url "$HUB_URL" \
   --mode sim > "${LIVE_DIR}/pos_result.json" 2>/dev/null
 
-echo "  [vision] UAT ROI + file mode (DEV-203 mock)..."
+echo "  [vision] UAT ROI + file mode (ONNX yolo)..."
 VISION_ARGS=(
   --store-id "$STORE_ID"
   --hub-url "$HUB_URL"
-  --backend mock
+  --backend yolo
   --output-dir "$LIVE_DIR"
 )
 if [[ -n "${VISION_INTERVAL:-}" && "${VISION_INTERVAL}" != "0" ]]; then

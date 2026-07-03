@@ -13,7 +13,7 @@ Environment=PYTHONUNBUFFERED=1
 ExecStart=/usr/bin/python3 edge/stream/vision_worker.py \
   --store-id %i \
   --hub-url ${HOTPOT_HUB_URL} \
-  --backend mock \
+  --backend yolo \
   --output-dir demo/data/stores/%i/live \
   --interval 5 --cycles 0
 Restart=always

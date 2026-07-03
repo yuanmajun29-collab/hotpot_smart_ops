@@ -1,0 +1,343 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>火锅智能 · 边缘推理 + Hub 图库</title>
+<style>
+:root {
+  --bg: #0d1117; --card: #161b22; --border: #30363d;
+  --text: #c9d1d9; --muted: #8b949e; --accent: #f78166;
+  --ok: #3fb950; --warn: #d2991d; --brand: #e2613a;
+}
+* { box-sizing: border-box; margin: 0; padding: 0; }
+body { font-family: -apple-system, system-ui, sans-serif; background: var(--bg); color: var(--text); }
+.header {
+  display: flex; align-items: center; justify-content: space-between;
+  padding: 16px 24px; border-bottom: 1px solid var(--border); background: var(--card);
+}
+.header h1 { font-size: 1.2rem; }
+.tabs { display: flex; gap: 4px; }
+.tab {
+  background: none; border: 1px solid var(--border); color: var(--muted);
+  padding: 6px 16px; border-radius: 6px 6px 0 0; cursor: pointer; font-size: 0.85rem;
+}
+.tab.active { background: var(--card); color: var(--text); border-bottom-color: var(--card); }
+.status { display: flex; align-items: center; gap: 8px; font-size: 0.85rem; }
+.dot { width: 10px; height: 10px; border-radius: 50%; display: inline-block; }
+.dot.green { background: var(--ok); } .dot.red { background: var(--accent); } .dot.yellow { background: var(--warn); }
+.toolbar {
+  padding: 12px 24px; display: flex; gap: 12px; flex-wrap: wrap; align-items: center;
+  border-bottom: 1px solid var(--border);
+}
+.toolbar button, .toolbar select {
+  background: var(--card); color: var(--text); border: 1px solid var(--border);
+  border-radius: 6px; padding: 6px 14px; cursor: pointer; font-size: 0.85rem;
+}
+.toolbar button:hover { border-color: var(--brand); }
+.toolbar button:disabled { opacity: 0.4; cursor: not-allowed; }
+.toolbar button.primary { background: var(--brand); border-color: var(--brand); color: #fff; }
+.pulse { animation: pulse 1.5s infinite; }
+@keyframes pulse { 0%, 100% { opacity: 1; } 50% { opacity: 0.4; } }
+.main { padding: 20px 24px; display: flex; gap: 20px; }
+.main.full { flex-direction: column; }
+.viz-panel { flex: 1; min-width: 0; }
+.viz-panel h2 { font-size: 1rem; margin-bottom: 12px; color: var(--muted); }
+.image-container {
+  background: var(--card); border: 1px solid var(--border);
+  border-radius: 10px; overflow: hidden; position: relative;
+}
+.image-container img { width: 100%; display: block; }
+.image-container .overlay {
+  position: absolute; bottom: 0; left: 0; right: 0;
+  background: linear-gradient(transparent, rgba(0,0,0,0.8));
+  padding: 20px 16px 12px; font-size: 0.85rem;
+}
+.side-panel { width: 360px; flex: none; display: flex; flex-direction: column; gap: 16px; }
+.card {
+  background: var(--card); border: 1px solid var(--border);
+  border-radius: 10px; padding: 16px;
+}
+.card h3 { font-size: 0.9rem; margin-bottom: 10px; color: var(--muted); }
+.stat-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; }
+.stat-item { text-align: center; padding: 10px 8px; background: rgba(0,0,0,0.2); border-radius: 6px; }
+.stat-value { font-size: 1.8rem; font-weight: 700; }
+.stat-label { font-size: 0.75rem; color: var(--muted); margin-top: 2px; }
+.detection-list { max-height: 300px; overflow-y: auto; }
+.det-row {
+  display: flex; align-items: center; gap: 10px; padding: 8px 0;
+  border-bottom: 1px solid var(--border); font-size: 0.85rem;
+}
+.det-row:last-child { border-bottom: none; }
+.det-color { width: 12px; height: 12px; border-radius: 3px; flex: none; }
+.det-label { flex: 1; font-weight: 500; }
+.det-conf { color: var(--muted); font-variant-numeric: tabular-nums; }
+.det-bbox { color: var(--muted); font-size: 0.75rem; font-variant-numeric: tabular-nums; }
+.log-list { max-height: 200px; overflow-y: auto; font-size: 0.8rem; }
+.log-row {
+  display: flex; gap: 10px; padding: 5px 0; border-bottom: 1px solid var(--border); align-items: center;
+}
+.log-time { color: var(--muted); flex: none; width: 60px; }
+.log-zone { flex: none; width: 50px; font-weight: 500; }
+.log-img { flex: 1; } .log-det { flex: none; color: var(--accent); }
+.empty-state { text-align: center; padding: 40px 20px; color: var(--muted); }
+.empty-state .icon { font-size: 3rem; margin-bottom: 12px; }
+
+/* ── Hub 图库样式 ── */
+.hub-gallery { display: none; }
+.hub-gallery.active { display: block; }
+.hub-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(280px, 1fr)); gap: 16px; }
+.hub-card {
+  background: var(--card); border: 1px solid var(--border); border-radius: 10px;
+  overflow: hidden; cursor: pointer; transition: border-color 0.2s;
+}
+.hub-card:hover { border-color: var(--brand); }
+.hub-card img { width: 100%; height: 200px; object-fit: cover; display: block; }
+.hub-card .info { padding: 10px 12px; font-size: 0.8rem; }
+.hub-card .info .label { color: var(--brand); font-weight: 500; }
+.hub-card .info .meta { color: var(--muted); margin-top: 4px; }
+.hub-viewer {
+  position: fixed; top: 0; left: 0; right: 0; bottom: 0; background: rgba(0,0,0,0.9);
+  display: none; align-items: center; justify-content: center; z-index: 100;
+  flex-direction: column; gap: 16px;
+}
+.hub-viewer.active { display: flex; }
+.hub-viewer img { max-width: 90vw; max-height: 80vh; border-radius: 8px; }
+.hub-viewer .close {
+  position: absolute; top: 20px; right: 20px; background: var(--card); color: var(--text);
+  border: 1px solid var(--border); border-radius: 6px; width: 40px; height: 40px;
+  cursor: pointer; font-size: 1.2rem; display: flex; align-items: center; justify-content: center;
+}
+.hub-viewer .info-bar { color: var(--muted); font-size: 0.85rem; }
+</style>
+</head>
+<body>
+<div class="header">
+  <div style="display:flex;align-items:center;gap:16px">
+    <h1>🔬 火锅智能监控</h1>
+    <div class="tabs">
+      <button class="tab active" onclick="switchTab('edge')">边缘推理</button>
+      <button class="tab" onclick="switchTab('hub')">Hub 图库</button>
+    </div>
+  </div>
+  <div class="status">
+    <span class="dot red" id="status-dot"></span>
+    <span id="status-text">检测中...</span>
+  </div>
+</div>
+
+<!-- ═══ 边缘推理 Tab ═══ -->
+<div id="tab-edge">
+<div class="toolbar">
+  <select id="sel-image">
+    <option value="real_kitchen.jpg">🥘 真实后厨</option>
+    <option value="real_hotpot_waste.jpg">🗑 火锅废料</option>
+    <option value="bus.jpg">🚌 街景巴士</option>
+    <option value="zidane.jpg">⚽ 球场</option>
+    <option value="kitchen.jpg">后厨-生成图</option>
+    <option value="front_hall.jpg">前厅-生成图</option>
+  </select>
+  <select id="sel-zone">
+    <option value="kitchen">Zone: 后厨</option>
+    <option value="front">Zone: 前厅</option>
+  </select>
+  <button class="primary" id="btn-run" onclick="runInference()">▶ 推理</button>
+  <button id="btn-all" onclick="runAll()">▷ 全部推理</button>
+  <label style="display:flex;align-items:center;gap:6px;font-size:0.8rem;color:var(--muted)">
+    <input type="checkbox" id="chk-auto" onchange="toggleAuto()" /> 自动刷新 (3s)
+  </label>
+</div>
+<div class="main">
+  <div class="viz-panel">
+    <h2 id="viz-title">等待推理...</h2>
+    <div class="image-container" id="img-container">
+      <div class="empty-state"><div class="icon">📷</div><div>点击「推理」开始 YOLO 检测</div></div>
+    </div>
+  </div>
+  <div class="side-panel">
+    <div class="card"><h3>检测统计</h3>
+      <div class="stat-grid">
+        <div class="stat-item"><div class="stat-value" id="stat-detections">—</div><div class="stat-label">检测目标</div></div>
+        <div class="stat-item"><div class="stat-value" id="stat-infer-ms">—</div><div class="stat-label">推理耗时</div></div>
+        <div class="stat-item"><div class="stat-value" id="stat-total-ms">—</div><div class="stat-label">总耗时</div></div>
+        <div class="stat-item"><div class="stat-value" id="stat-zone">—</div><div class="stat-label">检测区域</div></div>
+      </div>
+    </div>
+    <div class="card"><h3>检测详情</h3><div class="detection-list" id="det-list"><div class="empty-state"><div>🔍</div><div>无检测结果</div></div></div></div>
+    <div class="card"><h3>推理日志</h3><div class="log-list" id="log-list"><div class="empty-state"><div>等待推理...</div></div></div></div>
+  </div>
+</div>
+</div>
+
+<!-- ═══ Hub 图库 Tab ═══ -->
+<div id="tab-hub" class="hub-gallery">
+<div class="toolbar">
+  <button class="primary" onclick="loadHubImages()">🔄 刷新图库</button>
+  <span style="color:var(--muted);font-size:0.85rem" id="hub-count">—</span>
+  <span style="color:var(--muted);font-size:0.8rem;margin-left:auto">Hub: <span id="hub-url-label">127.0.0.1:8098</span></span>
+</div>
+<div class="main full">
+  <div class="hub-grid" id="hub-grid">
+    <div class="empty-state"><div class="icon">🖼</div><div>点击「刷新图库」加载 Hub 图片</div></div>
+  </div>
+</div>
+</div>
+
+<!-- 图片大图查看器 -->
+<div class="hub-viewer" id="hub-viewer" onclick="closeViewer(event)">
+  <button class="close" onclick="closeViewer()">✕</button>
+  <img id="viewer-img" src="" alt="" />
+  <div class="info-bar" id="viewer-info"></div>
+</div>
+
+<script>
+const EDGE_API = 'http://127.0.0.1:8090';
+const HUB_API = 'http://127.0.0.1:8098';
+let autoTimer = null;
+let currentTab = 'edge';
+
+const labelColors = {
+  staff:'#FFA500',customer:'#0064FF',table:'#00FF7F',chair:'#C8C8C8',
+  tableware:'#FFFF00',utensil:'#FFFF00',container:'#00FFFF',drink:'#00FFFF',
+  food:'#0064FF',appliance:'#FF0000',
+};
+
+// ═══ 标签切换 ═══
+function switchTab(tab) {
+  currentTab = tab;
+  document.querySelectorAll('.tab').forEach((el,i) => el.classList.toggle('active', (i===0 && tab==='edge') || (i===1 && tab==='hub')));
+  document.getElementById('tab-edge').style.display = tab==='edge' ? 'block' : 'none';
+  document.getElementById('tab-hub').classList.toggle('active', tab==='hub');
+  if (tab==='hub') loadHubImages();
+}
+
+// ═══ 边缘推理 (保持原有逻辑) ═══
+async function checkHealth() {
+  try {
+    const r = await fetch(`${EDGE_API}/health`);
+    const j = await r.json();
+    document.getElementById('status-dot').className = 'dot green';
+    document.getElementById('status-text').textContent = `${j.backend} · ${j.detector}`;
+  } catch(e) {
+    document.getElementById('status-dot').className = 'dot red';
+    document.getElementById('status-text').textContent = '后端离线';
+  }
+}
+async function runInference() {
+  const image = document.getElementById('sel-image').value;
+  const zone = document.getElementById('sel-zone').value;
+  const btn = document.getElementById('btn-run');
+  btn.disabled = true; btn.textContent = '推理中...';
+  document.getElementById('status-dot').className = 'dot yellow pulse';
+  try {
+    const r = await fetch(`${EDGE_API}/api/infer?zone=${zone}&image=${encodeURIComponent(image)}`);
+    const data = await r.json();
+    if (data.error) { alert(data.error); return; }
+    renderResult(data);
+    document.getElementById('status-dot').className = 'dot green';
+  } catch(e) {
+    alert('推理失败: ' + e.message);
+    document.getElementById('status-dot').className = 'dot red';
+  } finally { btn.disabled = false; btn.textContent = '▶ 推理'; }
+}
+async function runAll() {
+  const btn = document.getElementById('btn-all');
+  btn.disabled = true; btn.textContent = '推理中...';
+  document.getElementById('status-dot').className = 'dot yellow pulse';
+  try {
+    const r = await fetch(`${EDGE_API}/api/infer/all`);
+    const data = await r.json();
+    renderAll(data);
+    document.getElementById('status-dot').className = 'dot green';
+  } catch(e) {
+    alert('全部推理失败: ' + e.message);
+    document.getElementById('status-dot').className = 'dot red';
+  } finally { btn.disabled = false; btn.textContent = '▷ 全部推理'; }
+}
+function renderResult(data) {
+  const c = document.getElementById('img-container');
+  c.innerHTML = `<img src="${EDGE_API}${data.annotated_url}?t=${Date.now()}" />
+    <div class="overlay">检测到 <strong>${data.total_detections}</strong> 个目标 · 推理 ${data.inference_ms}ms · 总耗时 ${data.total_ms}ms</div>`;
+  document.getElementById('viz-title').textContent = `📸 ${data.image} · Zone: ${data.zone}`;
+  document.getElementById('stat-detections').textContent = data.total_detections;
+  document.getElementById('stat-infer-ms').textContent = data.inference_ms+'ms';
+  document.getElementById('stat-total-ms').textContent = data.total_ms+'ms';
+  document.getElementById('stat-zone').textContent = data.zone;
+  const detDiv = document.getElementById('det-list');
+  if (data.detections && data.detections.length) {
+    detDiv.innerHTML = data.detections.map(d => {
+      const color = labelColors[d.label]||'#00FF00';
+      return `<div class="det-row"><span class="det-color" style="background:${color}"></span><span class="det-label">${d.label} <span style="color:var(--muted);font-size:0.75rem">(${d.coco_name})</span></span><span class="det-conf">${(d.confidence*100).toFixed(1)}%</span><span class="det-bbox">[${d.bbox.join(', ')}]</span></div>`;
+    }).join('');
+  } else detDiv.innerHTML = '<div class="empty-state"><div>🔍</div><div>未检测到目标</div></div>';
+  refreshLog();
+}
+function renderAll(data) {
+  if (!data.results || !data.results.length) return;
+  renderResult(data.results[0]);
+  const total = data.results.reduce((s,r) => s + r.total_detections, 0);
+  document.getElementById('viz-title').textContent = `📊 全部 ${data.total_images} 张图 · 共 ${total} 个检测目标`;
+}
+async function refreshLog() {
+  try {
+    const r = await fetch(`${EDGE_API}/api/log?limit=20`);
+    const data = await r.json();
+    const logDiv = document.getElementById('log-list');
+    if (data.entries && data.entries.length) {
+      logDiv.innerHTML = data.entries.map(e => `<div class="log-row"><span class="log-time">${e.timestamp}</span><span class="log-zone">${e.zone}</span><span class="log-img">${e.image}</span><span class="log-det">${e.detections}目标 · ${e.inference_ms}ms</span></div>`).join('');
+    }
+  } catch(e) {}
+}
+function toggleAuto() {
+  if (document.getElementById('chk-auto').checked) autoTimer = setInterval(runInference, 3000);
+  else { clearInterval(autoTimer); autoTimer = null; }
+}
+
+// ═══ Hub 图库 ═══
+async function loadHubImages() {
+  const grid = document.getElementById('hub-grid');
+  document.getElementById('hub-count').textContent = '加载中...';
+  try {
+    const r = await fetch(`${HUB_API}/v1/images`, { headers: {'X-Api-Key':'edge_yuhuan_dev_key'} });
+    const data = await r.json();
+    if (!data.images || !data.images.length) {
+      grid.innerHTML = '<div class="empty-state"><div class="icon">📭</div><div>Hub 暂无图片</div></div>';
+      document.getElementById('hub-count').textContent = '0 张';
+      return;
+    }
+    document.getElementById('hub-count').textContent = `${data.images.length} 张`;
+    grid.innerHTML = data.images.map(img => {
+      const ts = img.filename.replace(/T(\d{2})-(\d{2})-(\d{2})/, ' $1:$2:$3').split('_')[0];
+      const kb = (img.size_bytes/1024).toFixed(0);
+      return `<div class="hub-card" onclick="viewImage('${img.url}','${img.store_id}','${img.zone}','${img.filename}')">
+        <img src="${HUB_API}${img.url}" loading="lazy" />
+        <div class="info">
+          <span class="label">${img.zone}</span> · ${img.store_id}<br>
+          <span class="meta">${ts} · ${kb}KB</span>
+        </div>
+      </div>`;
+    }).join('');
+  } catch(e) {
+    grid.innerHTML = `<div class="empty-state"><div class="icon">⚠</div><div>连接 Hub 失败: ${e.message}</div></div>`;
+    document.getElementById('hub-count').textContent = '错误';
+  }
+}
+
+function viewImage(url, storeId, zone, filename) {
+  document.getElementById('viewer-img').src = `${HUB_API}${url}`;
+  document.getElementById('viewer-info').textContent = `${storeId} / ${zone} / ${filename}`;
+  document.getElementById('hub-viewer').classList.add('active');
+}
+function closeViewer(e) {
+  if (e && e.target !== document.getElementById('hub-viewer')) return;
+  document.getElementById('hub-viewer').classList.remove('active');
+}
+
+// Init
+checkHealth();
+setInterval(checkHealth, 5000);
+refreshLog();
+setInterval(refreshLog, 3000);
+</script>
+</body>
+</html>

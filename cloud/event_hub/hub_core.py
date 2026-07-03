@@ -93,6 +93,8 @@ class EventStore:
     def set_table_states(self, states: List[Dict[str, Any]]) -> None:
         with self._lock:
             for s in states:
+                if "table_id" not in s:
+                    continue
                 self.table_states[s["table_id"]] = s
             self._persist("tables", list(self.table_states.values()))
 

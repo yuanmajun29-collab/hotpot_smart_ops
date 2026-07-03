@@ -1,0 +1,9 @@
+{
+  "zone": "后厨备餐区",
+  "backend": "yolo_real",
+  "model": "yolov8n",
+  "total_detections": 0,
+  "inference_ms": 51.1,
+  "label_counts": {},
+  "detections": []
+}

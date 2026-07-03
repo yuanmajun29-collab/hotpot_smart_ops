@@ -1,0 +1,257 @@
+{
+  "zone": "kitchen",
+  "backend": "yolo_real",
+  "model": "yolov8n",
+  "total_detections": 20,
+  "inference_ms": 47.3,
+  "label_counts": {
+    "staff": 3,
+    "container": 7,
+    "appliance": 1,
+    "tableware": 6,
+    "utensil": 2,
+    "potted plant": 1
+  },
+  "detections": [
+    {
+      "class_id": 0,
+      "label": "staff",
+      "coco_name": "person",
+      "confidence": 0.915,
+      "bbox": [
+        311,
+        83,
+        463,
+        300
+      ]
+    },
+    {
+      "class_id": 0,
+      "label": "staff",
+      "coco_name": "person",
+      "confidence": 0.907,
+      "bbox": [
+        43,
+        86,
+        158,
+        256
+      ]
+    },
+    {
+      "class_id": 0,
+      "label": "staff",
+      "coco_name": "person",
+      "confidence": 0.899,
+      "bbox": [
+        153,
+        37,
+        264,
+        266
+      ]
+    },
+    {
+      "class_id": 39,
+      "label": "container",
+      "coco_name": "bottle",
+      "confidence": 0.825,
+      "bbox": [
+        131,
+        194,
+        156,
+        297
+      ]
+    },
+    {
+      "class_id": 68,
+      "label": "appliance",
+      "coco_name": "microwave",
+      "confidence": 0.816,
+      "bbox": [
+        16,
+        61,
+        142,
+        135
+      ]
+    },
+    {
+      "class_id": 39,
+      "label": "container",
+      "coco_name": "bottle",
+      "confidence": 0.813,
+      "bbox": [
+        379,
+        255,
+        403,
+        302
+      ]
+    },
+    {
+      "class_id": 45,
+      "label": "tableware",
+      "coco_name": "bowl",
+      "confidence": 0.723,
+      "bbox": [
+        262,
+        258,
+        319,
+        298
+      ]
+    },
+    {
+      "class_id": 39,
+      "label": "container",
+      "coco_name": "bottle",
+      "confidence": 0.623,
+      "bbox": [
+        351,
+        247,
+        373,
+        292
+      ]
+    },
+    {
+      "class_id": 45,
+      "label": "tableware",
+      "coco_name": "bowl",
+      "confidence": 0.606,
+      "bbox": [
+        470,
+        57,
+        511,
+        75
+      ]
+    },
+    {
+      "class_id": 41,
+      "label": "container",
+      "coco_name": "cup",
+      "confidence": 0.56,
+      "bbox": [
+        314,
+        240,
+        346,
+        282
+      ]
+    },
+    {
+      "class_id": 45,
+      "label": "tableware",
+      "coco_name": "bowl",
+      "confidence": 0.451,
+      "bbox": [
+        345,
+        52,
+        376,
+        77
+      ]
+    },
+    {
+      "class_id": 45,
+      "label": "tableware",
+      "coco_name": "bowl",
+      "confidence": 0.423,
+      "bbox": [
+        166,
+        258,
+        202,
+        287
+      ]
+    },
+    {
+      "class_id": 45,
+      "label": "tableware",
+      "coco_name": "bowl",
+      "confidence": 0.394,
+      "bbox": [
+        258,
+        104,
+        309,
+        132
+      ]
+    },
+    {
+      "class_id": 41,
+      "label": "container",
+      "coco_name": "cup",
+      "confidence": 0.372,
+      "bbox": [
+        430,
+        111,
+        449,
+        134
+      ]
+    },
+    {
+      "class_id": 45,
+      "label": "tableware",
+      "coco_name": "bowl",
+      "confidence": 0.355,
+      "bbox": [
+        312,
+        59,
+        337,
+        76
+      ]
+    },
+    {
+      "class_id": 41,
+      "label": "container",
+      "coco_name": "cup",
+      "confidence": 0.327,
+      "bbox": [
+        207,
+        262,
+        251,
+        304
+      ]
+    },
+    {
+      "class_id": 43,
+      "label": "utensil",
+      "coco_name": "knife",
+      "confidence": 0.264,
+      "bbox": [
+        19,
+        158,
+        31,
+        191
+      ]
+    },
+    {
+      "class_id": 43,
+      "label": "utensil",
+      "coco_name": "knife",
+      "confidence": 0.248,
+      "bbox": [
+        19,
+        158,
+        37,
+        191
+      ]
+    },
+    {
+      "class_id": 58,
+      "label": "potted plant",
+      "coco_name": "potted plant",
+      "confidence": 0.243,
+      "bbox": [
+        256,
+        172,
+        323,
+        225
+      ]
+    },
+    {
+      "class_id": 41,
+      "label": "container",
+      "coco_name": "cup",
+      "confidence": 0.224,
+      "bbox": [
+        379,
+        259,
+        403,
+        302
+      ]
+    }
+  ]
+}

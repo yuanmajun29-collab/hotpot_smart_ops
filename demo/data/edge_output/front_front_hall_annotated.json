@@ -1,0 +1,24 @@
+{
+  "zone": "front",
+  "backend": "yolo_real",
+  "model": "yolov8n",
+  "total_detections": 1,
+  "inference_ms": 38.7,
+  "label_counts": {
+    "book": 1
+  },
+  "detections": [
+    {
+      "class_id": 73,
+      "label": "book",
+      "coco_name": "book",
+      "confidence": 0.233,
+      "bbox": [
+        969,
+        21,
+        1272,
+        339
+      ]
+    }
+  ]
+}

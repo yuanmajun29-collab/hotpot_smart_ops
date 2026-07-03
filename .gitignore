@@ -24,3 +24,6 @@ demo/data/stores/*/live/erp_result.json
 datasets/
 runs/
 .gstack/
+test_images/
+cloud/event_hub/static/images/store_*/
+*.jpg\n*.jpeg\n*.png\n*.pt\n*.onnx

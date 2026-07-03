@@ -9,6 +9,7 @@ from typing import AsyncIterator, Optional
 
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
+from fastapi.staticfiles import StaticFiles
 
 from cloud.alert_gateway.gateway import AlertGateway
 from cloud.event_hub.auth import DEFAULT_JWT_SECRET
@@ -141,6 +142,12 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
+# ── 静态文件服务（图片等） ──
+_STATIC_DIR = Path(__file__).parent / "static"
+_STATIC_DIR.mkdir(parents=True, exist_ok=True)
+(_STATIC_DIR / "images").mkdir(exist_ok=True)
+app.mount("/static", StaticFiles(directory=str(_STATIC_DIR)), name="static")
+
 _LEGACY_PATHS = {
     "/summary", "/events", "/tables", "/sop", "/pos", "/erp", "/cost", "/iot",
     "/stores", "/benchmark", "/sop/ask",
@@ -171,6 +178,7 @@ from cloud.event_hub.routers import admin as _admin_router
 from cloud.event_hub.routers import cost as _cost_router
 from cloud.event_hub.routers import tasks as _tasks_router
 from cloud.event_hub.routers import vlm as _vlm_router
+from cloud.event_hub.routers import images as _images_router
 
 app.include_router(_system_router.router)
 app.include_router(_auth_routes_router.router)
@@ -185,3 +193,4 @@ app.include_router(_admin_router.router)
 app.include_router(_cost_router.router)
 app.include_router(_tasks_router.router)
 app.include_router(_vlm_router.router)
+app.include_router(_images_router.router)

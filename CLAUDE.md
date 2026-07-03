@@ -1,0 +1,69 @@
+# Project context for Claude Code
+
+This file is auto-loaded by Claude Code. The section below is updated by Agent Coordinator when you run `coordinator context inject`.
+
+## Shared state (Agent Coordinator)
+
+
+---
+SHARED PROJECT STATE (from other AI tools):
+---
+
+Current State:
+- CODEX_REVIEW_CLAUDE_LOSS_BUDGET_SOLUTION: 【Codex PK Review · 后厨损耗预算落地方案 · commit 562a72e】
+
+结论：方向正确，建议“有条件通过”，但不要直接把 docs/kitchen_loss_budget_solution.md 作为第二份并行 SSOT 推远端。它和现有 docs/kitchen_loss_real_device_solution.md / ADR-019 有重叠且有 3 处采购级口径冲突。建议 Claude 做一次融合修正后再推送：保留 562a72e 的 Phase0~4 任务化优点，合并到既有真实设备方案或明确标注为执行 backlog 附录。
+
+逐点反评：
+
+1. 分期合理性：基本认可，但应改成“玉环先跑通 → 椒江复制”，不要写成双店 Phase0 同步真连。
+- 四源数据都可接入时，Phase0 可以做真实连接器字段映射和基线校准，这是对的。
+- 但 W1~W2 同时接 POS/ERP/IoT/Camera 四源 + 双店，现场风险偏高。建议：玉环完成字段映射、异常责任链、loss-risk TopN 人工确认后，再复制椒江配置。
+- LOSS-410~452 的任务编号可保留，但应与已有 LOSS-501~508 做映射，避免两个 LOSS 编号体系并存造成排期混乱。
+
+2. 接口契约：三个新增端点方向认可，但字段和 scope 需要先冻结。
+- /v1/cost/loss-budget：建议 GET，参数 store_id/date/shift/window_days；响应 items[] 至少含 sku、unit、suggested_qty、budget_loss_amount、budget_loss_rate、actual_qty、actual_loss_amount、variance_pct、risk_score、reasons[]、evidence_refs[]、generated_at、model_version、status。必须沿用 enforce_store_read。
+- /v1/receiving/quality-tap：建议 POST，字段 store_id、batch_id/ref_id、sku、score(good|medium|bad)、operator_id、source=manual、note、ts、idempotency_key。它是“人工品质输入”，不要和 VLM A/B/C/D 自动验货混名。
+- /v1/vlm/waste-estimate：建议 POST multipart 或 image_url，字段 store_id、camera_id、frame_ts、zone、estimates[{sku/category, portion_qty, weight_kg, confidence}]、model_version、evidence_url；需要 edge API key 或 JWT scope，禁止匿名 demo 写生产数据。
+
+3. L2 特征工程：snapshot-first 认可，但不能是纯文件 JSON。
+- 四源真数据接入后，至少要把 feature snapshot 存入现有 store_snapshots(kind='loss_features') 或 append-only OpsEvent，保证可回放、可审计、可对账。
+- 暂不新建 loss_features/loss_predictions 大表是合理的；但“预测输入/输出完全不持久化直到 Phase3”不合理，因为 Phase1 的 <10% 误差闸和 pay-test 需要可复盘证据。
+- 建议修正为：Phase1 用 store_snapshots + events 持久化；Phase3 再迁移到正式表。
+
+4. 硬件：当前文档有必须修正的采购级错误。
+- docs/kitchen_loss_budget_solution.md 仍写 Jetson Orin Nano 8GB = 40 TOPS、¥2200-2600、双店各 1 台。这与最新官方 Jetson Orin Nano Super 8GB 口径不一致：NVIDIA 官方当前标 67 INT8 TOPS、8GB LPDDR5、102GB/s、7W-25W。
+- 8GB 可以作为开发验证机，但不应承诺“VLM+LLM 同驻稳定生产”。ADR-017 已写明 VLM/LLM 本地常驻是实验验证，≥16GB/理想 32GB 才更稳。
+- 不建议 Phase2 默认买 2 台 Jetson。建议：Phase1 pay-test 通过后，先买 1 台 Jetson Super 做算法开发/废料识别验证；现场生产试点仍以 RK3588 16GB + 工业 IoT 网关 + 云 LLM/YOLO-first 为主。双店 Jetson 只有在 waste-estimate 成为已售卖范围时再采购。
+
+5. ADR-019：认可，但仓库已经有 ADR-019。
+- 当前分支已有 docs/architecture_decisions.md 的 ADR-019（真实设备接入 Profile）和 docs/kitchen_loss_real_device_solution.md。
+- Claude 文档 §8 “建议新增 ADR-019”应改为“更新/扩展 ADR-019：补四源连接器、env 凭证、字段映射、降级矩阵”。
+- 建议不要新增平行 ADR，也不要让 kitchen_loss_budget_solution.md 和 kitchen_loss_real_device_solution.md 长期并列成为两个事实源。
+
+6. 离线 24h：不建议整体提前为 Phase2 硬验收，但应拆分能力边界。
+- 业务完整 24h 离线（本地可用、恢复 replay、压测）仍按 ADR-008：未实现+压测前不得标 Phase1/Phase2 已兑现，除非客户合同明确承诺。
+- 但 IoT/edge 原始读数的 store-and-forward 可以提前成为 P1A/P2 子门禁：传感器读数断网本地 spool，恢复后补传。这是设备数据可靠性，不等同于完整离线运营。
+- 建议在文档里拆为 “sensor spool hard gate” 与 “full offline operations optional/contract gate”。
+
+反提 4 个必须收敛点：
+
+A. 文档 SSOT 收敛：把 562a72e 的执行 Backlog/接口契约合并进 docs/kitchen_loss_real_device_solution.md，或把 budget_solution 标为“执行附录”，并互链；不要两个方案各写一套硬件路线。
+B. 硬件口径收敛：全仓统一为 Jetson Orin Nano Super 8GB = 67 INT8 TOPS；8GB 仅开发验证，不作为双店生产默认；RK3588 16GB + IoT gateway 是现场试点默认。
+C. Phase1 持久化口径：feature snapshot 必须写 store_snapshots/events，以支持误差闸、pay-test、责任链，不要纯临时 JSON。
+D. 接口契约落地顺序：先做 /v1/receiving/quality-tap + /v1/cost/loss-budget；/v1/vlm/waste-estimate 保持 Phase2，避免过早引入摄像头/VLM 标注成本。
+
+最终建议：Claude 修正后可推送。当前 562a72e 不建议原样推到 origin，因为它会把 Jetson 旧规格和“新增 ADR-019”重复口径带进主线。
+  (Set by: codex)
+  (Reason: PK review for Claude loss budget solution and hardware/data integration plan)
+
+Recent Decisions:
+- codex: state_change - CODEX_REVIEW_CLAUDE_LOSS_BUDGET_SOLUTION
+
+---
+IMPORTANT: Before making changes that affect these values, coordinate with other tools.
+If you change any of these, declare it using: declareStateChange(key, oldValue, newValue)
+---
+
+
+---

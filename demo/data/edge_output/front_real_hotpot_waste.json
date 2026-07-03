@@ -1,0 +1,193 @@
+{
+  "zone": "front",
+  "backend": "yolo_real",
+  "model": "yolov8n",
+  "total_detections": 15,
+  "inference_ms": 41.5,
+  "label_counts": {
+    "tableware": 14,
+    "oven": 1
+  },
+  "detections": [
+    {
+      "class_id": 45,
+      "label": "tableware",
+      "coco_name": "bowl",
+      "confidence": 0.587,
+      "bbox": [
+        405,
+        206,
+        511,
+        260
+      ]
+    },
+    {
+      "class_id": 45,
+      "label": "tableware",
+      "coco_name": "bowl",
+      "confidence": 0.401,
+      "bbox": [
+        297,
+        174,
+        409,
+        221
+      ]
+    },
+    {
+      "class_id": 45,
+      "label": "tableware",
+      "coco_name": "bowl",
+      "confidence": 0.395,
+      "bbox": [
+        302,
+        218,
+        401,
+        255
+      ]
+    },
+    {
+      "class_id": 45,
+      "label": "tableware",
+      "coco_name": "bowl",
+      "confidence": 0.388,
+      "bbox": [
+        0,
+        170,
+        92,
+        228
+      ]
+    },
+    {
+      "class_id": 45,
+      "label": "tableware",
+      "coco_name": "bowl",
+      "confidence": 0.34,
+      "bbox": [
+        298,
+        182,
+        409,
+        232
+      ]
+    },
+    {
+      "class_id": 45,
+      "label": "tableware",
+      "coco_name": "bowl",
+      "confidence": 0.336,
+      "bbox": [
+        304,
+        124,
+        385,
+        171
+      ]
+    },
+    {
+      "class_id": 45,
+      "label": "tableware",
+      "coco_name": "bowl",
+      "confidence": 0.277,
+      "bbox": [
+        164,
+        169,
+        297,
+        223
+      ]
+    },
+    {
+      "class_id": 45,
+      "label": "tableware",
+      "coco_name": "bowl",
+      "confidence": 0.276,
+      "bbox": [
+        89,
+        180,
+        175,
+        216
+      ]
+    },
+    {
+      "class_id": 69,
+      "label": "oven",
+      "coco_name": "oven",
+      "confidence": 0.273,
+      "bbox": [
+        725,
+        36,
+        1345,
+        454
+      ]
+    },
+    {
+      "class_id": 45,
+      "label": "tableware",
+      "coco_name": "bowl",
+      "confidence": 0.263,
+      "bbox": [
+        91,
+        188,
+        177,
+        222
+      ]
+    },
+    {
+      "class_id": 45,
+      "label": "tableware",
+      "coco_name": "bowl",
+      "confidence": 0.248,
+      "bbox": [
+        94,
+        217,
+        174,
+        252
+      ]
+    },
+    {
+      "class_id": 45,
+      "label": "tableware",
+      "coco_name": "bowl",
+      "confidence": 0.243,
+      "bbox": [
+        0,
+        169,
+        91,
+        212
+      ]
+    },
+    {
+      "class_id": 45,
+      "label": "tableware",
+      "coco_name": "bowl",
+      "confidence": 0.228,
+      "bbox": [
+        405,
+        199,
+        511,
+        226
+      ]
+    },
+    {
+      "class_id": 45,
+      "label": "tableware",
+      "coco_name": "bowl",
+      "confidence": 0.213,
+      "bbox": [
+        34,
+        106,
+        171,
+        148
+      ]
+    },
+    {
+      "class_id": 45,
+      "label": "tableware",
+      "coco_name": "bowl",
+      "confidence": 0.21,
+      "bbox": [
+        465,
+        181,
+        569,
+        212
+      ]
+    }
+  ]
+}

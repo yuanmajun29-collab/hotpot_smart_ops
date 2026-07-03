@@ -1,6 +1,7 @@
 """POST /v1/vlm/waste-estimate — VLM 废料识别 (VLM-603 / TC-COST-09)."""
 from __future__ import annotations
 
+import base64
 import tempfile
 from pathlib import Path
 
@@ -167,3 +168,48 @@ def test_waste_estimate_edge_empty_items_with_image_ref(client):
     assert r.status_code == 200
     body = r.json()
     assert body["source"] == "mock"
+
+
+# ── 图片流转测试 ──
+
+# 最小有效 1x1 JPEG (base64)
+_TINY_JPEG_B64 = "/9j/4AAQSkZJRgABAQAAAQABAAD/2wBDAAgGBgcGBQgHBwcJCQgKDBQNDAsLDBkSEw8UHRofHh0aHBwgJC4nICIsIxwcKDcpLDAxNDQ0Hyc5PTgyPC4zNDL/wAALCAABAAEBAREA/8QAFAABAAAAAAAAAAAAAAAAAAAACf/EABQQAQAAAAAAAAAAAAAAAAAAAAD/2gAIAQEAAD8AKp//2Q=="
+
+
+def test_waste_estimate_edge_with_image(client):
+    """Jetson sends items + base64 image → Hub saves image + returns image_url."""
+    h = _tok(client)
+    items = [{"sku": "毛肚", "waste_type": "边角料", "estimated_portion": 0.8, "unit": "份", "confidence": 0.82}]
+    r = client.post("/v1/vlm/waste-estimate", json={
+        "store_id": "store_yuhuan",
+        "items": items,
+        "source": "vlm-shadow",
+        "model": "ostrakon-vl-8b-iq4xs",
+        "image_data": _TINY_JPEG_B64,
+        "image_mime": "image/jpeg",
+    }, headers=h)
+    assert r.status_code == 200
+    body = r.json()
+    assert body["ok"] is True
+    assert "image_url" in body
+    # 验证图片端点可访问
+    img_r = client.get(body["image_url"])
+    assert img_r.status_code == 200
+    assert img_r.headers["content-type"].startswith("image/")
+
+
+def test_waste_image_404(client):
+    """Non-existent image returns 404."""
+    r = client.get("/v1/vlm/images/nonexistent-id")
+    assert r.status_code == 404
+
+
+def test_waste_estimate_edge_no_image(client):
+    """Edge path without image_data still works (backward compat)."""
+    h = _tok(client)
+    items = [{"sku": "黄喉", "waste_type": "过期临界", "estimated_portion": 0.3, "unit": "kg", "confidence": 0.91}]
+    r = client.post("/v1/vlm/waste-estimate", json={
+        "items": items, "source": "vlm-shadow", "model": "ostrakon-vl-8b-iq4xs",
+    }, headers=h)
+    assert r.status_code == 200
+    assert "image_url" not in r.json() or r.json().get("image_url") is None

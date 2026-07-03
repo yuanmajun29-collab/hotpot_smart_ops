@@ -11,7 +11,8 @@
         "report",
         "pda",
         "tasks",
-        "system"
+        "system",
+        "vlm"
       ],
       "actions": [
         "ack",
@@ -43,7 +44,8 @@
         "kitchen",
         "sop",
         "cost",
-        "pda"
+        "pda",
+        "vlm"
       ],
       "actions": [
         "ack",
@@ -70,7 +72,8 @@
         "alerts",
         "report",
         "tasks",
-        "system"
+        "system",
+        "vlm"
       ],
       "actions": [
         "ack",
@@ -203,6 +206,7 @@
     "admin_pipeline": "数据流 · 打桩",
     "tasks": "任务督办中心",
     "sales": "增收 · F-SALES",
-    "trace": "全链路追溯"
+    "trace": "全链路追溯",
+    "vlm": "后厨 · VLM"
   }
 }

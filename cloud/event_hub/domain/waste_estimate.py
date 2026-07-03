@@ -30,24 +30,40 @@ def compute_waste_estimate(
     items: Optional[List[Dict[str, Any]]] = None,
     source: str = "mock",
     model: str = "mock-rule",
+    image_url: Optional[str] = None,
 ) -> Dict[str, Any]:
     """Return a structured waste estimate payload.
 
     Edge path: items non-empty → bypass mock, use directly (source from caller).
     Hub path: items None/empty → deterministic mock stub.
+    image_url: 可选，边缘图片的静态文件 URL。
     """
+    base: Dict[str, Any] = {
+        "store_id": store_id,
+        "source": source,
+        "model": model,
+        "image_ref": image_ref,
+        "stream_id": stream_id,
+        "zone": zone,
+        "ts": ts,
+    }
+    # ── image_url: 优先用直接传入的 image_url，否则从 image_ref 提取静态路径 ──
+    _url = image_url
+    if not _url and image_ref:
+        # 支持相对路径 /static/... 和完整 URL http://.../static/...
+        if image_ref.startswith("/static/"):
+            _url = image_ref
+        elif "/static/" in image_ref:
+            # 从完整 URL 中提取 /static/... 部分
+            idx = image_ref.index("/static/")
+            _url = image_ref[idx:]
+    if _url:
+        base["image_url"] = _url
+
     # ── edge inference path (Jetson/edge box already inferred) ──
     if items:
-        return {
-            "store_id": store_id,
-            "source": source,
-            "model": model,
-            "image_ref": image_ref,
-            "stream_id": stream_id,
-            "zone": zone,
-            "ts": ts,
-            "items": items,
-        }
+        base["items"] = items
+        return base
 
     # ── hub mock path ──
     ref = image_ref or stream_id or ""
@@ -69,13 +85,7 @@ def compute_waste_estimate(
     }
     if zone:
         item["zone"] = zone
-    return {
-        "store_id": store_id,
-        "source": _source,
-        "model": _model,
-        "image_ref": image_ref,
-        "stream_id": stream_id,
-        "zone": zone,
-        "ts": ts,
-        "items": [item],
-    }
+    base["source"] = _source
+    base["model"] = _model
+    base["items"] = [item]
+    return base

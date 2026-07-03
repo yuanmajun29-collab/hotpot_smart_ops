@@ -1,0 +1,9 @@
+{
+  "zone": "前厅传菜口",
+  "backend": "yolo_real",
+  "model": "yolov8n",
+  "total_detections": 0,
+  "inference_ms": 46.5,
+  "label_counts": {},
+  "detections": []
+}
