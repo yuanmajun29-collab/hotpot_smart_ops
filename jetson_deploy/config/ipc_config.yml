@@ -1,0 +1,16 @@
+# IPC 摄像头配置
+# 修改 stream_url 为你的摄像头 RTSP 地址后，启动 grabber 即可
+
+stream_url: "rtsp://admin:password@192.168.1.64:554/Streaming/Channels/101"
+interval_seconds: 10
+save_latest_only: true
+stream_timeout: 10
+
+# 自动推理（每 N 帧触发一次 VLM 推理）
+auto_infer: true
+infer_on_frame_count: 1
+
+# Hub 配置（与 bridge_waste_vision.sh 一致）
+hub_url: "http://192.168.2.85:8098"
+store_id: "store_yuhuan"
+zone: "备餐废弃区"

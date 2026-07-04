@@ -1,0 +1,18 @@
+[Unit]
+Description=Hotpot Inference Pipeline Runner
+After=ipc-grabber.service docker.service
+Wants=ipc-grabber.service docker.service
+
+[Service]
+Type=oneshot
+User=root
+WorkingDirectory=/opt/hotpot-infer
+Environment=HOTPOT_HUB_URL=http://192.168.2.85:8098
+Environment=HOTPOT_STORE_ID=store_yuhuan
+Environment=HOTPOT_ZONE=备餐废弃区
+ExecStart=/usr/bin/python3 /opt/hotpot-infer/pipeline/inference_pipeline.py --frame /tmp/ipc_frames/latest.jpg --output /tmp/pipeline_result.json --hub ${HOTPOT_HUB_URL}
+StandardOutput=append:/var/log/hotpot-pipeline.log
+StandardError=append:/var/log/hotpot-pipeline.log
+
+[Install]
+WantedBy=multi-user.target

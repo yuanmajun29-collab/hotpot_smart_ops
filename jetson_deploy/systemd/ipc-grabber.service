@@ -1,0 +1,17 @@
+[Unit]
+Description=IPC Frame Grabber for Hotpot Inference Pipeline
+After=network.target docker.service
+Wants=network.target docker.service
+
+[Service]
+Type=simple
+User=root
+WorkingDirectory=/opt/hotpot-infer
+ExecStart=/usr/bin/python3 /opt/hotpot-infer/pipeline/ipc_frame_grabber.py --config /opt/hotpot-infer/config/ipc_config.yml
+Restart=on-failure
+RestartSec=10
+StandardOutput=append:/var/log/ipc-grabber.log
+StandardError=append:/var/log/ipc-grabber.log
+
+[Install]
+WantedBy=multi-user.target

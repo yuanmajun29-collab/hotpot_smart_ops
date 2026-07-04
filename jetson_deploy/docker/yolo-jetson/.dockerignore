@@ -1,0 +1,12 @@
+.git
+__pycache__
+*.pyc
+.venv*
+.hermes
+results/
+runs/
+*.engine
+*.onnx
+.baidu-sync-*
+.DS_Store
+.baidu-sync-remote-snapshot.json
