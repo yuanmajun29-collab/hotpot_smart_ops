@@ -12,7 +12,9 @@ API_KEY = os.environ.get("HOTPOT_API_KEY", "test-key")
 SERVER_PORT = int(os.environ.get("HOTPOT_AGENT_PORT", "9100"))
 SERVER_HOST = os.environ.get("HOTPOT_AGENT_HOST", "0.0.0.0")
 
-# ─── VLM 推理（后厨 kitchen） ───
+# ─── 后厨推理管道 — YOLO 预过滤 + VLM（ADR-014 三级过滤） ───
+# YOLO 预过滤：检测厨房场景 → 仅可疑帧触发 VLM（省 80-95% 调用）
+# 设置 HOTPOT_KITCHEN_VLM_ENABLED=0 关闭 VLM 层，纯 YOLO 模式
 LLAMA_CLI = os.environ.get(
     "LLAMA_CLI", "/opt/hotpot-infer/bin/llama-mtmd-cli"
 )
