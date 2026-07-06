@@ -114,7 +114,7 @@ def test_bridge_buffers_when_hub_returns_false_without_exception(tmp_path):
 
 
 def test_edge_hub_try_post_event_does_not_enqueue(tmp_path):
-    from shared.hub_client import EdgeHubClient
+    from common.hub_client import EdgeHubClient
 
     client = EdgeHubClient(
         "http://127.0.0.1:9",

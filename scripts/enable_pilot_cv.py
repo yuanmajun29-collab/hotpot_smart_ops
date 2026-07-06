@@ -13,7 +13,7 @@ PROJECT_ROOT = Path(__file__).resolve().parents[1]
 if str(PROJECT_ROOT) not in sys.path:
     sys.path.insert(0, str(PROJECT_ROOT))
 
-from shared.store_config import DEFAULT_UAT_ROOT, uat_dir
+from common.store_config import DEFAULT_UAT_ROOT, uat_dir
 
 PILOT_STORES = ("store_yuhuan", "store_jiaojiang")
 BACKENDS = ("mock", "yolo", "rknn", "onnx")

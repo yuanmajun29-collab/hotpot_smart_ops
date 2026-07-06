@@ -7,7 +7,7 @@ services:
     command: >
       bash -c "apt-get update -qq && apt-get install -y -qq libgl1 libglib2.0-0 libpq-dev gcc >/dev/null
       && pip install -q -r requirements.txt
-      && python cloud/event_hub/server.py --host 0.0.0.0 --port 8088 --seed-dir demo/data/stores"
+      && python hotpot_platform/cloud/event_hub/server.py --host 0.0.0.0 --port 8088 --seed-dir demo/data/stores"
     ports:
       - "8088:8088"
     environment:
@@ -32,7 +32,7 @@ services:
     working_dir: /app
     volumes:
       - .:/app
-    command: python dashboard/serve.py --host 0.0.0.0 --port 3000
+    command: python hotpot_platform/dashboard/serve.py --host 0.0.0.0 --port 3000
     ports:
       - "3000:3000"
     depends_on:
@@ -46,7 +46,7 @@ services:
       - .:/app
     command: >
       bash -c "pip install -q -r requirements.txt
-      && python cloud/vlm_review/server.py --host 0.0.0.0 --port 8089"
+      && python hotpot_platform/cloud/vlm_review/server.py --host 0.0.0.0 --port 8089"
     ports:
       - "8089:8089"
     profiles:

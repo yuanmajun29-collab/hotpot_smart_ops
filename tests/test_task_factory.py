@@ -10,7 +10,7 @@ from fastapi.testclient import TestClient
 
 @pytest.fixture()
 def db():
-    from platform.cloud.event_hub.db import create_hub_database
+    from hotpot_platform.cloud.event_hub.db import create_hub_database
     tmp = tempfile.mkdtemp()
     return create_hub_database(Path(tmp) / "f.db")
 
@@ -18,7 +18,7 @@ def db():
 # ---- classification --------------------------------------------------------
 
 def test_classify_sop_violation():
-    from platform.cloud.event_hub.task_factory import classify
+    from hotpot_platform.cloud.event_hub.task_factory import classify
     spec = classify({"event_id": "e1", "event_type": "sop_violation", "level": "warn",
                      "metadata": {"sop_id": "s1", "sop_name": "后厨清洁", "assignee": "chushi"}})
     assert spec["task_type"] == "sop_violation" and spec["priority"] == "P1"
@@ -26,14 +26,14 @@ def test_classify_sop_violation():
 
 
 def test_classify_safety_critical_is_p0():
-    from platform.cloud.event_hub.task_factory import classify
+    from hotpot_platform.cloud.event_hub.task_factory import classify
     spec = classify({"event_id": "e2", "event_type": "alert_smoke", "level": "critical",
                      "message": "后厨烟雾"})
     assert spec["task_type"] == "safety_alert" and spec["priority"] == "P0"
 
 
 def test_classify_cleaning():
-    from platform.cloud.event_hub.task_factory import classify
+    from hotpot_platform.cloud.event_hub.task_factory import classify
     spec = classify({"event_id": "e3", "event_type": "table_need_clean", "table_id": "T05",
                      "message": "T05 待清台"})
     assert spec["task_type"] == "cleaning" and spec["priority"] == "P2"
@@ -41,24 +41,24 @@ def test_classify_cleaning():
 
 
 def test_classify_no_rule_returns_none():
-    from platform.cloud.event_hub.task_factory import classify
+    from hotpot_platform.cloud.event_hub.task_factory import classify
     assert classify({"event_id": "e4", "event_type": "heartbeat", "level": "info"}) is None
 
 
 # ---- idempotency -----------------------------------------------------------
 
 def test_spawn_is_idempotent(db):
-    from platform.cloud.event_hub.task_factory import spawn_task_for_event
+    from hotpot_platform.cloud.event_hub.task_factory import spawn_task_for_event
     ev = {"event_id": "dup1", "event_type": "alert_gas", "level": "critical", "message": "燃气"}
     a = spawn_task_for_event(db, "store_yuhuan", ev)
     b = spawn_task_for_event(db, "store_yuhuan", ev)
     assert a["task_id"] == b["task_id"]
-    from platform.cloud.event_hub.task_store import task_store
+    from hotpot_platform.cloud.event_hub.task_store import task_store
     assert len(task_store(db).list_tasks("store_yuhuan")) == 1
 
 
 def test_helpers(db):
-    from platform.cloud.event_hub import task_factory
+    from hotpot_platform.cloud.event_hub import task_factory
     t1 = task_factory.spawn_sop_violation(db, "store_yuhuan", sop_id="s9", sop_name="测温", assignee="chushi")
     assert t1["task_type"] == "sop_violation" and t1["assignee_id"] == "chushi"
     t2 = task_factory.spawn_cleaning(db, "store_yuhuan", table_id="B3")
@@ -75,9 +75,9 @@ def client(monkeypatch):
     monkeypatch.setenv("HOTPOT_AUTH_MODE", "strict")
     monkeypatch.delenv("HOTPOT_SEED_DIR", raising=False)
     monkeypatch.delenv("HOTPOT_DATABASE_URL", raising=False)
-    from platform.cloud.event_hub import app as m
-    from platform.cloud.event_hub.db import create_hub_database
-    from platform.cloud.event_hub import runtime
+    from hotpot_platform.cloud.event_hub import app as m
+    from hotpot_platform.cloud.event_hub.db import create_hub_database
+    from hotpot_platform.cloud.event_hub import runtime
     dbo = create_hub_database(db_path)
     runtime.init(m.MultiTenantHub(on_persist=dbo.on_persist), dbo, m.AlertGateway(db_path))
     with TestClient(m.app) as c:

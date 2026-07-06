@@ -18,9 +18,9 @@ def client(monkeypatch):
     monkeypatch.delenv("HOTPOT_SEED_DIR", raising=False)
     monkeypatch.delenv("HOTPOT_DATABASE_URL", raising=False)
 
-    from platform.cloud.event_hub import app as m
-    from platform.cloud.event_hub.db import create_hub_database
-    from platform.cloud.event_hub import runtime
+    from hotpot_platform.cloud.event_hub import app as m
+    from hotpot_platform.cloud.event_hub.db import create_hub_database
+    from hotpot_platform.cloud.event_hub import runtime
 
     dbo = create_hub_database(db_path)
     runtime.init(m.MultiTenantHub(on_persist=dbo.on_persist), dbo, m.AlertGateway(db_path))
@@ -35,7 +35,7 @@ def _tok(c, user="zhangdian", role="店长", store="store_yuhuan"):
 
 
 def test_sensor_profile_has_protocol_topic_and_calibration():
-    from shared.iot_sensors import sensor_profile
+    from common.iot_sensors import sensor_profile
 
     p = sensor_profile("receiving_scale", "store_yuhuan")
     assert p["protocol"] == "modbus_rtu"

@@ -47,10 +47,10 @@ def client():
     os.environ.pop("HOTPOT_SEED_DIR", None)
     os.environ.pop("HOTPOT_DATABASE_URL", None)
 
-    from platform.cloud.event_hub import app as hub_app_module
-    from platform.cloud.event_hub.db import create_hub_database
+    from hotpot_platform.cloud.event_hub import app as hub_app_module
+    from hotpot_platform.cloud.event_hub.db import create_hub_database
 
-    from platform.cloud.event_hub import runtime
+    from hotpot_platform.cloud.event_hub import runtime
     _db = create_hub_database(db_path)
     runtime.init(
         hub_app_module.MultiTenantHub(on_persist=_db.on_persist),

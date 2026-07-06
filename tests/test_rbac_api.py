@@ -18,9 +18,9 @@ def strict_client(monkeypatch):
     monkeypatch.delenv("HOTPOT_SEED_DIR", raising=False)
     monkeypatch.delenv("HOTPOT_DATABASE_URL", raising=False)
 
-    from platform.cloud.event_hub import app as hub_app_module
-    from platform.cloud.event_hub.db import create_hub_database
-    from platform.cloud.event_hub import runtime
+    from hotpot_platform.cloud.event_hub import app as hub_app_module
+    from hotpot_platform.cloud.event_hub.db import create_hub_database
+    from hotpot_platform.cloud.event_hub import runtime
 
     db = create_hub_database(db_path)
     runtime.init(

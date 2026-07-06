@@ -21,10 +21,10 @@ def hub_client():
     os.environ.pop("HOTPOT_DATABASE_URL", None)
     os.environ.pop("HOTPOT_SEED_DIR", None)
 
-    from platform.cloud.event_hub import app as hub_app_module
-    from platform.cloud.event_hub.db import create_hub_database
+    from hotpot_platform.cloud.event_hub import app as hub_app_module
+    from hotpot_platform.cloud.event_hub.db import create_hub_database
 
-    from platform.cloud.event_hub import runtime
+    from hotpot_platform.cloud.event_hub import runtime
     _db = create_hub_database(db_path)
     runtime.init(
         hub_app_module.MultiTenantHub(on_persist=_db.on_persist),
@@ -49,7 +49,7 @@ def test_pos_sync_sim():
 
     # Start minimal in-process isn't needed — use TestClient via urllib mock
     # Instead test simulate_live_stats shape
-    from platform.cloud.integrations.pos_bridge import simulate_live_stats
+    from hotpot_platform.cloud.integrations.pos_bridge import simulate_live_stats
 
     base = {"turnover_rate": 2.5, "daily_revenue": 50000, "dish_timeout_count": 2}
     out = simulate_live_stats(base, "store_yuhuan")

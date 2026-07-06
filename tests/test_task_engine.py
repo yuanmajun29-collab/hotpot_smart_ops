@@ -13,8 +13,8 @@ from fastapi.testclient import TestClient
 
 @pytest.fixture()
 def store():
-    from platform.cloud.event_hub.db import create_hub_database
-    from platform.cloud.event_hub.task_store import task_store
+    from hotpot_platform.cloud.event_hub.db import create_hub_database
+    from hotpot_platform.cloud.event_hub.task_store import task_store
 
     tmp = tempfile.mkdtemp()
     db = create_hub_database(Path(tmp) / "t.db")
@@ -35,7 +35,7 @@ def test_happy_path_pending_to_closed(store):
 
 
 def test_illegal_transition_rejected(store):
-    from platform.cloud.event_hub.task_store import TaskError
+    from hotpot_platform.cloud.event_hub.task_store import TaskError
     t = store.create("store_yuhuan", task_type="adhoc", title="x", created_by="z")
     # cannot verify a pending task
     with pytest.raises(TaskError):
@@ -52,7 +52,7 @@ def test_reopen_returns_to_pending(store):
 
 
 def test_reassign_requires_sla_policy_and_logs(store):
-    from platform.cloud.event_hub.task_store import TaskError
+    from hotpot_platform.cloud.event_hub.task_store import TaskError
     t = store.create("store_yuhuan", task_type="adhoc", title="x", created_by="z", assignee_id="a")
     tid = t["task_id"]
     r = store.transition(tid, "store_yuhuan", "reassign", actor_id="z",
@@ -90,9 +90,9 @@ def client(monkeypatch):
     monkeypatch.setenv("HOTPOT_AUTH_MODE", "strict")
     monkeypatch.delenv("HOTPOT_SEED_DIR", raising=False)
     monkeypatch.delenv("HOTPOT_DATABASE_URL", raising=False)
-    from platform.cloud.event_hub import app as m
-    from platform.cloud.event_hub.db import create_hub_database
-    from platform.cloud.event_hub import runtime
+    from hotpot_platform.cloud.event_hub import app as m
+    from hotpot_platform.cloud.event_hub.db import create_hub_database
+    from hotpot_platform.cloud.event_hub import runtime
     db = create_hub_database(db_path)
     runtime.init(m.MultiTenantHub(on_persist=db.on_persist), db, m.AlertGateway(db_path))
     with TestClient(m.app) as c:

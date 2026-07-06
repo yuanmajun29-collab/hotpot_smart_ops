@@ -2,7 +2,7 @@
 
 from __future__ import annotations
 
-from platform.cloud.event_hub.domain.turnover import turnover_suggestions
+from hotpot_platform.cloud.event_hub.domain.turnover import turnover_suggestions
 
 
 def test_turnover_priority_ordering_and_actions():

@@ -10,7 +10,7 @@ from fastapi.testclient import TestClient
 
 @pytest.fixture()
 def gw():
-    from platform.cloud.alert_gateway.gateway import AlertGateway
+    from hotpot_platform.cloud.alert_gateway.gateway import AlertGateway
     tmp = tempfile.mkdtemp()
     return AlertGateway(Path(tmp) / "g.db")
 
@@ -77,9 +77,9 @@ def client(monkeypatch):
     monkeypatch.setenv("HOTPOT_AUTH_MODE", "strict")
     monkeypatch.delenv("HOTPOT_SEED_DIR", raising=False)
     monkeypatch.delenv("HOTPOT_DATABASE_URL", raising=False)
-    from platform.cloud.event_hub import app as m
-    from platform.cloud.event_hub.db import create_hub_database
-    from platform.cloud.event_hub import runtime
+    from hotpot_platform.cloud.event_hub import app as m
+    from hotpot_platform.cloud.event_hub.db import create_hub_database
+    from hotpot_platform.cloud.event_hub import runtime
     dbo = create_hub_database(db_path)
     runtime.init(m.MultiTenantHub(on_persist=dbo.on_persist), dbo, m.AlertGateway(db_path))
     with TestClient(m.app) as c:
@@ -93,7 +93,7 @@ def _tok(c, user, role, store="store_yuhuan"):
 
 
 def test_create_task_triggers_dispatch_push(client):
-    from platform.cloud.event_hub import runtime
+    from hotpot_platform.cloud.event_hub import runtime
     h = _tok(client, "zhangdian", "店长")
     r = client.post("/v1/tasks", json={"task_type": "cleaning", "title": "B3 待清台",
                     "priority": "P1", "assignee_id": "banzu"}, headers=h)
@@ -104,7 +104,7 @@ def test_create_task_triggers_dispatch_push(client):
 
 
 def test_create_task_survives_push_failure(client, monkeypatch):
-    from platform.cloud.event_hub import runtime
+    from hotpot_platform.cloud.event_hub import runtime
 
     def _boom(*a, **k):
         raise RuntimeError("webhook down")

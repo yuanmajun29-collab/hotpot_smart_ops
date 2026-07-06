@@ -25,7 +25,7 @@ PROJECT_ROOT = Path(__file__).resolve().parents[1]
 if str(PROJECT_ROOT) not in sys.path:
     sys.path.insert(0, str(PROJECT_ROOT))
 
-from shared.store_config import DEFAULT_UAT_ROOT, table_regions_for_frame
+from common.store_config import DEFAULT_UAT_ROOT, table_regions_for_frame
 
 DEFAULT_IMAGE = PROJECT_ROOT / "demo" / "data" / "front_hall.jpg"
 OUTPUT_ROOT = PROJECT_ROOT / "datasets" / "table_state"

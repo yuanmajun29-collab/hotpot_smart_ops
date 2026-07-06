@@ -26,7 +26,7 @@ _COST = {
 
 
 def test_compute_loss_budget_variance_when_actual_given():
-    from platform.cloud.event_hub.domain.loss_budget import compute_loss_budget
+    from hotpot_platform.cloud.event_hub.domain.loss_budget import compute_loss_budget
     base = compute_loss_budget(_COST, limit=10)
     budget = base["items"][0]["budget_loss_amount"]
     assert budget > 0
@@ -49,9 +49,9 @@ def client(monkeypatch):
     monkeypatch.setenv("HOTPOT_AUTH_MODE", "strict")
     monkeypatch.delenv("HOTPOT_SEED_DIR", raising=False)
     monkeypatch.delenv("HOTPOT_DATABASE_URL", raising=False)
-    from platform.cloud.event_hub import app as m
-    from platform.cloud.event_hub.db import create_hub_database
-    from platform.cloud.event_hub import runtime
+    from hotpot_platform.cloud.event_hub import app as m
+    from hotpot_platform.cloud.event_hub.db import create_hub_database
+    from hotpot_platform.cloud.event_hub import runtime
     dbo = create_hub_database(db_path)
     runtime.init(m.MultiTenantHub(on_persist=dbo.on_persist), dbo, m.AlertGateway(db_path))
     with TestClient(m.app) as c:

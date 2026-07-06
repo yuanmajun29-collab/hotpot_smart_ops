@@ -25,7 +25,7 @@ datasets/
 runs/
 .gstack/
 test_images/
-platform/cloud/event_hub/static/images/store_*/
+hotpot_platform/cloud/event_hub/static/images/store_*/
 # 大模型文件 — 不进 Git，边缘端构建时从 URL 下载
 *.jpg
 *.jpeg

@@ -21,8 +21,8 @@ if str(PROJECT_ROOT) not in sys.path:
 
 from edge.detector.hotpot_detector import create_detector, run_on_frame
 from edge.stream.sources import create_source
-from shared.hub_client import EdgeHubClient
-from shared.store_config import (
+from common.hub_client import EdgeHubClient
+from common.store_config import (
     DEFAULT_UAT_ROOT,
     camera_file_source,
     get_stream_mode,

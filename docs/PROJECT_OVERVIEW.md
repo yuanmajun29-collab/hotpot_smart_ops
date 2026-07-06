@@ -65,7 +65,7 @@ hotpot_smart_ops/
 │       ├── systemd/               自启服务
 │       ├── deploy.sh              增量部署
 │       └── scripts/               模型下载
-├── platform/                      ← 云端
+├── hotpot_platform/                      ← 云端
 │   ├── cloud/event_hub/           Hub API :8098
 │   │   ├── app.py                 FastAPI入口
 │   │   ├── routers/               API路由

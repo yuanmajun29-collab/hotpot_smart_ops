@@ -17,9 +17,9 @@ if str(PROJECT_ROOT) not in sys.path:
 
 from edge.iot_mock.iot_rules import DoorTimeoutTracker, level_for_sensor
 from edge.store_forward import StoreAndForwardBuffer
-from shared.hub_client import EdgeHubClient
-from shared.schemas import EventSource, utc_now_iso
-from shared.store_config import DEFAULT_UAT_ROOT, uat_dir
+from common.hub_client import EdgeHubClient
+from common.schemas import EventSource, utc_now_iso
+from common.store_config import DEFAULT_UAT_ROOT, uat_dir
 
 try:
     import paho.mqtt.client as mqtt

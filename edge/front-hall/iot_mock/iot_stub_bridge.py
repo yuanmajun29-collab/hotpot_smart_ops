@@ -23,9 +23,9 @@ if str(PROJECT_ROOT) not in sys.path:
 
 from edge.iot_mock.iot_rules import DoorTimeoutTracker, level_for_sensor, parse_door_open
 from edge.iot_mock.mqtt_bridge import load_mqtt_topics
-from shared.hub_client import EdgeHubClient
-from shared.schemas import EventSource, utc_now_iso
-from shared.store_config import DEFAULT_UAT_ROOT, load_store_config, uat_dir
+from common.hub_client import EdgeHubClient
+from common.schemas import EventSource, utc_now_iso
+from common.store_config import DEFAULT_UAT_ROOT, load_store_config, uat_dir
 
 
 SCENARIOS = ("normal", "door_alert", "temp_high")

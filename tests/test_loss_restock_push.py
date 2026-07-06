@@ -27,7 +27,7 @@ _BUDGET = {
 
 @pytest.fixture()
 def gw():
-    from platform.cloud.alert_gateway.gateway import AlertGateway
+    from hotpot_platform.cloud.alert_gateway.gateway import AlertGateway
     tmp = tempfile.mkdtemp()
     return AlertGateway(Path(tmp) / "g.db")
 
@@ -53,10 +53,10 @@ def test_push_loss_restock_idempotent_per_day(gw):
 
 
 def test_push_restock_advice_for_store_builds_budget_and_pushes():
-    from platform.cloud.event_hub.daily_scheduler import push_restock_advice_for_store
-    from platform.cloud.event_hub.db import create_hub_database
-    from platform.cloud.event_hub.hub_core import MultiTenantHub
-    from platform.cloud.alert_gateway.gateway import AlertGateway
+    from hotpot_platform.cloud.event_hub.daily_scheduler import push_restock_advice_for_store
+    from hotpot_platform.cloud.event_hub.db import create_hub_database
+    from hotpot_platform.cloud.event_hub.hub_core import MultiTenantHub
+    from hotpot_platform.cloud.alert_gateway.gateway import AlertGateway
 
     tmp = tempfile.mkdtemp()
     db_path = Path(tmp) / "h.db"

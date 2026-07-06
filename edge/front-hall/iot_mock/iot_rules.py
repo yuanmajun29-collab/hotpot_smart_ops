@@ -5,7 +5,7 @@ from __future__ import annotations
 import time
 from typing import Any, Dict, Optional
 
-from shared.schemas import EventLevel, EventSource, utc_now_iso
+from common.schemas import EventLevel, EventSource, utc_now_iso
 
 DEFAULT_DOOR_TIMEOUT_SEC = 180
 

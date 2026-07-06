@@ -19,8 +19,8 @@ PROJECT_ROOT = Path(__file__).resolve().parents[2]
 if str(PROJECT_ROOT) not in sys.path:
     sys.path.insert(0, str(PROJECT_ROOT))
 
-from shared.iot_sensors import IOT_SENSORS, LIFECYCLE_STAGES, sensors_by_stage
-from shared.schemas import EventLevel, EventSource, OpsEvent, utc_now_iso
+from common.iot_sensors import IOT_SENSORS, LIFECYCLE_STAGES, sensors_by_stage
+from common.schemas import EventLevel, EventSource, OpsEvent, utc_now_iso
 
 DEFAULT_INPUT = PROJECT_ROOT / "demo" / "data" / "ingredient_lifecycle_iot.json"
 

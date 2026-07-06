@@ -24,7 +24,7 @@ _COST = {
 # ---- domain ----------------------------------------------------------------
 
 def test_compute_loss_budget_applies_forecasts():
-    from platform.cloud.event_hub.domain.loss_budget import compute_loss_budget
+    from hotpot_platform.cloud.event_hub.domain.loss_budget import compute_loss_budget
     base = compute_loss_budget(_COST, limit=10)
     assert base["forecasted"] is False
     assert base["items"][0]["forecast_qty"] is None
@@ -39,7 +39,7 @@ def test_compute_loss_budget_applies_forecasts():
 
 
 def test_compute_loss_budget_rejects_unsafe_forecasts():
-    from platform.cloud.event_hub.domain.loss_budget import compute_loss_budget
+    from hotpot_platform.cloud.event_hub.domain.loss_budget import compute_loss_budget
     bad = compute_loss_budget(
         _COST,
         limit=10,
@@ -61,12 +61,12 @@ def test_compute_loss_budget_rejects_unsafe_forecasts():
 # ---- agents ----------------------------------------------------------------
 
 def test_rule_forecast_agent_returns_empty():
-    from platform.cloud.llm_report.forecast_agent import RuleForecastAgent
+    from hotpot_platform.cloud.llm_report.forecast_agent import RuleForecastAgent
     assert RuleForecastAgent().forecast([{"ref_id": "B1", "sku": "毛肚"}], store_id="store_yuhuan") == {}
 
 
 def test_llm_forecast_agent_parses_response():
-    from platform.cloud.llm_report.forecast_agent import LLMForecastAgent
+    from hotpot_platform.cloud.llm_report.forecast_agent import LLMForecastAgent
     def fake_chat(_prompt):
         return (
             '这里是结果：\n```json\n'
@@ -82,7 +82,7 @@ def test_llm_forecast_agent_parses_response():
 
 
 def test_llm_forecast_agent_graceful_on_error_or_bad_json():
-    from platform.cloud.llm_report.forecast_agent import LLMForecastAgent
+    from hotpot_platform.cloud.llm_report.forecast_agent import LLMForecastAgent
     def boom(_p):
         raise RuntimeError("api down")
     assert LLMForecastAgent(chat_fn=boom).forecast([{"ref_id": "B1"}], store_id="s") == {}
@@ -99,9 +99,9 @@ def client(monkeypatch):
     monkeypatch.setenv("HOTPOT_AUTH_MODE", "strict")
     monkeypatch.delenv("HOTPOT_SEED_DIR", raising=False)
     monkeypatch.delenv("HOTPOT_DATABASE_URL", raising=False)
-    from platform.cloud.event_hub import app as m
-    from platform.cloud.event_hub.db import create_hub_database
-    from platform.cloud.event_hub import runtime
+    from hotpot_platform.cloud.event_hub import app as m
+    from hotpot_platform.cloud.event_hub.db import create_hub_database
+    from hotpot_platform.cloud.event_hub import runtime
     dbo = create_hub_database(db_path)
     runtime.init(m.MultiTenantHub(on_persist=dbo.on_persist), dbo, m.AlertGateway(db_path))
     with TestClient(m.app) as c:

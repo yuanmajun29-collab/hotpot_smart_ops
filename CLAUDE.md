@@ -14,7 +14,7 @@ Current State:
 
 Recent Decisions:
 - hermes: 前厅场景分析双模式落地（plan_b YOLO规则 40ms + plan_a YOLO+CLIP混合 ~190ms）
-- hermes: Edge 服务器必须从 /tmp 启动绕开 platform/ 目录污染
+- hermes: Edge 服务器必须从 /tmp 启动绕开 hotpot_platform/ 目录污染
 
 ---
 IMPORTANT: Before making changes that affect these values, coordinate with other tools.
@@ -26,7 +26,7 @@ If you change any of these, declare it using: declareStateChange(key, oldValue, 
 
 ```
 hotpot_smart_ops/
-├── platform/          # 云平台（Hub + Dashboard + 集成）
+├── hotpot_platform/          # 云平台（Hub + Dashboard + 集成）
 │   ├── cloud/         #  event_hub, llm_report, vlm_review, integrations
 │   └── dashboard/     #  HTML 前端面板
 ├── edge/              # 边缘端
@@ -52,12 +52,10 @@ hotpot_smart_ops/
 | plan_a | YOLO 硬判决 + CLIP 语义 | 40-190ms | YOLO + CLIP 子进程 |
 
 **策略**: YOLO 检测人头 → 没人+少餐具=empty，没人+多餐具(≥3)=needs_cleaning，有人→CLIP 语义细分
-**CLIP**: 独立子进程（cwd=/tmp 绕开 platform/ 污染），stdin/stdout JSON 通信，模型常驻
+**CLIP**: 独立子进程（cwd=/tmp 绕开 hotpot_platform/ 污染），stdin/stdout JSON 通信，模型常驻
 
 ## Edge 服务器启动
 
-⚠️ **必须从 /tmp 启动**，否则 `platform/` 目录遮蔽 stdlib platform 导致 YOLO/CLIP 无法加载：
-
 ```bash
-cd /tmp && PYTHONPATH="<project_root>:$PYTHONPATH" python3 -m uvicorn edge.agent.server:app --host 0.0.0.0 --port 9100
+cd <project_root> && python3 -m uvicorn edge.agent.server:app --host 0.0.0.0 --port 9100
 ```

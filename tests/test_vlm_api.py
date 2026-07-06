@@ -2,7 +2,7 @@
 
 from fastapi.testclient import TestClient
 
-from platform.cloud.vlm_review.app import app
+from hotpot_platform.cloud.vlm_review.app import app
 
 client = TestClient(app)
 

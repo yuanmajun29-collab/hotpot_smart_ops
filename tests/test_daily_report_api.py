@@ -20,10 +20,10 @@ def client():
     os.environ.pop("HOTPOT_SEED_DIR", None)
     os.environ.pop("HOTPOT_DATABASE_URL", None)
 
-    from platform.cloud.event_hub import app as hub_app_module
-    from platform.cloud.event_hub.db import create_hub_database
+    from hotpot_platform.cloud.event_hub import app as hub_app_module
+    from hotpot_platform.cloud.event_hub.db import create_hub_database
 
-    from platform.cloud.event_hub import runtime
+    from hotpot_platform.cloud.event_hub import runtime
     _db = create_hub_database(db_path)
     runtime.init(
         hub_app_module.MultiTenantHub(on_persist=_db.on_persist),
@@ -104,8 +104,8 @@ def test_daily_report_push_webhook_e2e(client):
     webhook_url = f"http://127.0.0.1:{server.server_address[1]}/hook"
     os.environ["HOTPOT_WECHAT_WEBHOOK_STORE_YUHUAN"] = webhook_url
 
-    from platform.cloud.event_hub import app as hub_app_module
-    from platform.cloud.event_hub import runtime
+    from hotpot_platform.cloud.event_hub import app as hub_app_module
+    from hotpot_platform.cloud.event_hub import runtime
 
     runtime.alert_gateway = hub_app_module.AlertGateway(Path(os.environ["HOTPOT_DB"]))
 

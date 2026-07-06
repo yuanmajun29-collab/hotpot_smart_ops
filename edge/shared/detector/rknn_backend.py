@@ -11,7 +11,7 @@ import cv2
 import numpy as np
 
 from edge.detector.hotpot_detector import MockHotpotDetector
-from shared.schemas import EventLevel, EventSource, OpsEvent, TableState
+from common.schemas import EventLevel, EventSource, OpsEvent, TableState
 
 PROJECT_ROOT = Path(__file__).resolve().parents[2]
 DEFAULT_RKNN_MODEL = PROJECT_ROOT / "edge" / "rknn_deploy" / "output" / "hotpot_detect.rknn"

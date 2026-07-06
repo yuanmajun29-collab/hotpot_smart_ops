@@ -26,7 +26,7 @@ PROJECT_ROOT = Path(__file__).resolve().parents[2]
 if str(PROJECT_ROOT) not in sys.path:
     sys.path.insert(0, str(PROJECT_ROOT))
 
-from shared.schemas import TABLE_STATES, EventLevel, EventSource, OpsEvent, TableState, utc_now_iso
+from common.schemas import TABLE_STATES, EventLevel, EventSource, OpsEvent, TableState, utc_now_iso
 
 DETECT_PROJECT = Path("/home/liuwz/Detect_Inference_Project")
 
@@ -428,7 +428,7 @@ def main() -> None:
 
     table_regions = None
     if args.zone == "front":
-        from shared.store_config import DEFAULT_UAT_ROOT, table_regions_for_frame
+        from common.store_config import DEFAULT_UAT_ROOT, table_regions_for_frame
         import cv2 as _cv2
 
         img = _cv2.imread(args.image)
@@ -444,7 +444,7 @@ def main() -> None:
     print(payload)
 
     if args.hub_url:
-        from shared.hub_client import EdgeHubClient
+        from common.hub_client import EdgeHubClient
 
         config_key = os.environ.get("HOTPOT_API_KEY", "")
         client = EdgeHubClient(args.hub_url, args.store_id, api_key=config_key)
