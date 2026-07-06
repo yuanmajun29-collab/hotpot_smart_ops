@@ -27,7 +27,7 @@ smoke:poc:
   script:
     - chmod +x demo/run_poc.sh demo/run_store_pipeline.sh demo/run_vision_daemon.sh
     - VISION_DAEMON=0 python3 demo/generate_demo_images.py --out-dir demo/data
-    - python3 cloud/event_hub/server.py --port 8088 --seed-dir demo/data/stores &
+    - python3 hotpot_platform/cloud/event_hub/server.py --port 8088 --seed-dir demo/data/stores &
     - sleep 2
     - bash demo/run_store_pipeline.sh store_yuhuan "玉环店" 1 http://127.0.0.1:8088
     - python3 -c "import urllib.request; d=urllib.request.urlopen('http://127.0.0.1:8088/health').read(); assert b'ok' in d"
