@@ -2,7 +2,7 @@
 
 from fastapi.testclient import TestClient
 
-from cloud.vlm_review.app import app
+from platform.cloud.vlm_review.app import app
 
 client = TestClient(app)
 

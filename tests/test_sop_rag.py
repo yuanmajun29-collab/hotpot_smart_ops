@@ -1,6 +1,6 @@
 """Tests for SOP RAG (DEV-303)."""
 
-from cloud.llm_report.sop_rag import SOPKnowledgeBase
+from platform.cloud.llm_report.sop_rag import SOPKnowledgeBase
 
 
 def test_sop_search_receiving():

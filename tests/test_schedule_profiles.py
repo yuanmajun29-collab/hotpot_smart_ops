@@ -18,7 +18,7 @@ def _dt(y, mo, d, h, mi):
 
 
 def test_due_profiles_matches_hour_minute():
-    from cloud.event_hub.daily_scheduler import ScheduleProfile, due_profiles
+    from platform.cloud.event_hub.daily_scheduler import ScheduleProfile, due_profiles
     profiles = [
         ScheduleProfile("restock", 15, 0, None, "restock"),
         ScheduleProfile("daily_loss", 22, 0, None, "daily"),
@@ -29,7 +29,7 @@ def test_due_profiles_matches_hour_minute():
 
 
 def test_due_profiles_respects_weekday():
-    from cloud.event_hub.daily_scheduler import ScheduleProfile, due_profiles
+    from platform.cloud.event_hub.daily_scheduler import ScheduleProfile, due_profiles
     weekly = ScheduleProfile("weekly", 9, 0, 0, "weekly")  # Monday=0
     assert datetime(2026, 6, 22).weekday() == 0   # Monday
     assert datetime(2026, 6, 21).weekday() == 6   # Sunday
@@ -38,7 +38,7 @@ def test_due_profiles_respects_weekday():
 
 
 def test_default_loss_profiles_three_slots():
-    from cloud.event_hub.daily_scheduler import default_loss_profiles, validate_profiles
+    from platform.cloud.event_hub.daily_scheduler import default_loss_profiles, validate_profiles
     profs = {p.name: p for p in default_loss_profiles()}
     assert set(profs) == {"restock", "daily_loss", "weekly"}
     assert (profs["restock"].hour, profs["restock"].minute) == (15, 0)
@@ -48,7 +48,7 @@ def test_default_loss_profiles_three_slots():
 
 
 def test_validate_profiles_rejects_ambiguous_or_invalid_config():
-    from cloud.event_hub.daily_scheduler import ScheduleProfile, validate_profiles
+    from platform.cloud.event_hub.daily_scheduler import ScheduleProfile, validate_profiles
 
     with pytest.raises(ValueError, match="duplicate"):
         validate_profiles([
@@ -64,7 +64,7 @@ def test_validate_profiles_rejects_ambiguous_or_invalid_config():
 
 
 def test_run_due_dedups_per_profile_per_store_per_day():
-    from cloud.event_hub.daily_scheduler import DailyReportScheduler, ScheduleProfile
+    from platform.cloud.event_hub.daily_scheduler import DailyReportScheduler, ScheduleProfile
     calls = []
     profiles = [
         ScheduleProfile("restock", 15, 0, None, "restock"),
@@ -89,7 +89,7 @@ def test_run_due_dedups_per_profile_per_store_per_day():
 
 def test_legacy_single_slot_still_works():
     """Backward compat: DailyReportScheduler(generate_fn) keeps the 22:00 daily slot."""
-    from cloud.event_hub.daily_scheduler import DailyReportScheduler
+    from platform.cloud.event_hub.daily_scheduler import DailyReportScheduler
     fired = []
     s = DailyReportScheduler(lambda sid, push: fired.append((sid, push)),
                              stores=["store_yuhuan"], hour=22, minute=0, tz_name=TZ)

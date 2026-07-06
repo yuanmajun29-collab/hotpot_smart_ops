@@ -3,7 +3,7 @@
   "backend": "yolo_real",
   "model": "yolov8n",
   "total_detections": 0,
-  "inference_ms": 35.5,
+  "inference_ms": 30.9,
   "label_counts": {},
   "detections": []
 }

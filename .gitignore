@@ -25,5 +25,25 @@ datasets/
 runs/
 .gstack/
 test_images/
-cloud/event_hub/static/images/store_*/
-*.jpg\n*.jpeg\n*.png\n*.pt\n*.onnx
+platform/cloud/event_hub/static/images/store_*/
+# 大模型文件 — 不进 Git，边缘端构建时从 URL 下载
+*.jpg
+*.jpeg
+*.png
+*.pt
+*.onnx
+# 但保留 adapter 小权重文件（进 Git）
+!edge/models/adapter_weights.pt
+# 边缘端模型下载缓存
+edge/models/.cache/
+
+# 运行时产物
+demo/data/edge_output/*.json
+dnscache.json
+handoff/
+.agent-coordinator/
+
+# AI 工具上下文（非源码，不进 Git）
+GEMINI.md
+.cursor/
+AGENTS.md

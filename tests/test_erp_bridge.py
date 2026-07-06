@@ -18,10 +18,10 @@ def hub_client():
     os.environ["HOTPOT_AUTH_MODE"] = "demo"
     os.environ.pop("HOTPOT_DATABASE_URL", None)
 
-    from cloud.event_hub import app as hub_app_module
-    from cloud.event_hub.db import create_hub_database
+    from platform.cloud.event_hub import app as hub_app_module
+    from platform.cloud.event_hub.db import create_hub_database
 
-    from cloud.event_hub import runtime
+    from platform.cloud.event_hub import runtime
     _db = create_hub_database(db_path)
     runtime.init(
         hub_app_module.MultiTenantHub(on_persist=_db.on_persist),
@@ -53,7 +53,7 @@ def test_post_erp(hub_client):
 
 
 def test_fetch_po_orders():
-    from cloud.integrations.erp_bridge import fetch_po_orders, merge_with_actuals
+    from platform.cloud.integrations.erp_bridge import fetch_po_orders, merge_with_actuals
 
     project = Path(__file__).resolve().parents[1]
     erp_file = project / "demo" / "data" / "erp_po_orders.json"

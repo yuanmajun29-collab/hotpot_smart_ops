@@ -20,7 +20,7 @@ _COST = {
 
 
 def test_build_loss_features_shape():
-    from cloud.cost_control.feature_builder import build_loss_features
+    from platform.cloud.cost_control.feature_builder import build_loss_features
     feats = build_loss_features(_COST, store_id="store_yuhuan", date="2026-06-21")
     assert feats["store_id"] == "store_yuhuan"
     assert feats["date"] == "2026-06-21"
@@ -33,9 +33,9 @@ def test_build_loss_features_shape():
 
 
 def test_loss_features_persist_roundtrip():
-    from cloud.cost_control.feature_builder import build_loss_features, persist_loss_features
-    from cloud.event_hub.db import create_hub_database
-    from cloud.event_hub.hub_core import MultiTenantHub
+    from platform.cloud.cost_control.feature_builder import build_loss_features, persist_loss_features
+    from platform.cloud.event_hub.db import create_hub_database
+    from platform.cloud.event_hub.hub_core import MultiTenantHub
 
     tmp = tempfile.mkdtemp()
     db_path = Path(tmp) / "feat.db"

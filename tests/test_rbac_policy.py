@@ -5,7 +5,7 @@ from __future__ import annotations
 import json
 from pathlib import Path
 
-from cloud.event_hub.rbac import ROLE_ACTIONS, data_scope_for_role
+from platform.cloud.event_hub.rbac import ROLE_ACTIONS, data_scope_for_role
 
 
 PROJECT_ROOT = Path(__file__).resolve().parents[1]
@@ -34,7 +34,7 @@ def test_role_data_scopes_cover_phase1_personas():
 
 def test_auth_mode_reads_env_at_call_time(monkeypatch):
     """auth_mode() must reflect runtime env changes, not an import-time cache."""
-    from cloud.event_hub.auth import auth_mode
+    from platform.cloud.event_hub.auth import auth_mode
 
     monkeypatch.setenv("HOTPOT_AUTH_MODE", "strict")
     assert auth_mode() == "strict"
@@ -44,7 +44,7 @@ def test_auth_mode_reads_env_at_call_time(monkeypatch):
 
 
 def test_strict_deployment_profile_rejects_demo_defaults(monkeypatch):
-    from cloud.event_hub.app import validate_deployment_profile
+    from platform.cloud.event_hub.app import validate_deployment_profile
 
     monkeypatch.setenv("HOTPOT_ENV", "pilot")
     monkeypatch.setenv("HOTPOT_AUTH_MODE", "demo")
@@ -68,7 +68,7 @@ def test_strict_deployment_profile_rejects_demo_defaults(monkeypatch):
 
 
 def test_strict_deployment_profile_accepts_explicit_pilot_env(monkeypatch):
-    from cloud.event_hub.app import validate_deployment_profile
+    from platform.cloud.event_hub.app import validate_deployment_profile
 
     monkeypatch.setenv("HOTPOT_ENV", "pilot")
     monkeypatch.setenv("HOTPOT_AUTH_MODE", "strict")

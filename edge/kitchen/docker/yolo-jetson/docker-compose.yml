@@ -1,0 +1,33 @@
+# 在 Jetson 上于 /opt/hotpot-infer/docker/yolo-jetson/ 执行
+# docker compose build && docker compose up -d
+services:
+  yolo-infer:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    image: yolo-jetson-infer:local
+    runtime: nvidia
+    network_mode: host
+    ipc: host
+    stdin_open: true
+    tty: true
+    volumes:
+      # 模型文件 — Mac 端下载后下发至此
+      - /opt/hotpot-infer/models:/models:ro
+      # 推理流水线代码
+      - /opt/hotpot-infer/pipeline:/pipeline:ro
+      # 配置
+      - /opt/hotpot-infer/config:/config:ro
+      # 共享库
+      - /opt/hotpot-infer/shared:/shared:ro
+      # 输出
+      - /opt/hotpot-infer/runs:/workspace/runs
+      # 输入图片（摄像头抓帧）
+      - /opt/hotpot-infer/images:/images:ro
+    working_dir: /workspace
+    environment:
+      - NVIDIA_VISIBLE_DEVICES=all
+      - NVIDIA_DRIVER_CAPABILITIES=compute,utility
+      - PYTHONPATH=/pipeline:/shared:/models
+    # 默认常驻；一次性推理改 command
+    command: ["bash", "-lc", "sleep infinity"]

@@ -12,8 +12,8 @@ def client():
     os.environ["HOTPOT_AUTH_MODE"] = "demo"
     os.environ.pop("HOTPOT_SEED_DIR", None)
     os.environ.pop("HOTPOT_DATABASE_URL", None)
-    from cloud.event_hub import app as m
-    from cloud.event_hub import runtime
+    from platform.cloud.event_hub import app as m
+    from platform.cloud.event_hub import runtime
     _db = m.create_hub_database(db_path)
     runtime.init(m.MultiTenantHub(on_persist=_db.on_persist), _db, m.AlertGateway(db_path))
     return TestClient(m.app)

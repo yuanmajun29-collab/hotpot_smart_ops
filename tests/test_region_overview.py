@@ -20,11 +20,11 @@ def client():
     os.environ["HOTPOT_SEED_DIR"] = str(Path(__file__).resolve().parents[1] / "demo" / "data" / "stores")
     os.environ.pop("HOTPOT_DATABASE_URL", None)
 
-    from cloud.event_hub import app as hub_app_module
-    from cloud.event_hub.db import create_hub_database
-    from cloud.event_hub.hub_core import seed_from_directory
+    from platform.cloud.event_hub import app as hub_app_module
+    from platform.cloud.event_hub.db import create_hub_database
+    from platform.cloud.event_hub.hub_core import seed_from_directory
 
-    from cloud.event_hub import runtime
+    from platform.cloud.event_hub import runtime
     _db = create_hub_database(db_path)
     runtime.init(
         hub_app_module.MultiTenantHub(on_persist=_db.on_persist),
@@ -85,7 +85,7 @@ def test_benchmark_alias(client):
 
 
 def test_compute_store_health_critical():
-    from cloud.event_hub.hub_core import compute_store_health
+    from platform.cloud.event_hub.hub_core import compute_store_health
 
     h = compute_store_health({"critical_alerts": 2, "sop_compliance_rate": 90, "need_clean": 0})
     assert h["status"] == "critical"

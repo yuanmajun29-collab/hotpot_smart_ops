@@ -1,0 +1,35 @@
+# 前厅边缘推理服务
+# 职责：桌台状态识别、客流统计、前厅监控摄像头
+# 部署：cd edge/front-hall/docker && docker compose up -d
+version: "3.8"
+
+services:
+  front-hall:
+    build:
+      context: ..
+      dockerfile: docker/Dockerfile
+    container_name: hotpot-front-hall
+    restart: unless-stopped
+    runtime: nvidia
+    ports:
+      - "9100:9100"
+    volumes:
+      # 共用检测器
+      - ../../shared/detector:/app/detector:ro
+      # 配置
+      - ../../shared/config:/app/config:ro
+      # 模型权重（ONNX）
+      - /opt/hotpot-infer/models:/app/models:ro
+      # 本地数据缓存
+      - /opt/hotpot-infer/data/front-hall:/app/data
+    environment:
+      - NVIDIA_VISIBLE_DEVICES=all
+      - HOTPOT_HUB_URL=http://192.168.2.85:8098
+      - HOTPOT_STORE_ID=store_yuhuan
+      - HOTPOT_ZONE=front_hall
+    networks:
+      - hotpot-edge
+
+networks:
+  hotpot-edge:
+    name: hotpot-edge

@@ -1,0 +1,505 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>设备管理 · 冯校长火锅 · 智能运营</title>
+  <link rel="stylesheet" href="assets/theme.css" />
+  <style>
+    .device-table { width: 100%; border-collapse: collapse; font-size: 0.9rem; }
+    .device-table th, .device-table td { padding: 10px 12px; border-bottom: 1px solid var(--border); text-align: left; }
+    .device-table th { color: var(--muted); font-weight: 500; font-size: 0.8rem; white-space: nowrap; }
+    .device-table tr { cursor: pointer; transition: background 0.15s; }
+    .device-table tbody tr:hover { background: var(--card2); }
+    .device-table tr.expanded { background: var(--card2); }
+    .status-dot-inline { display: inline-block; width: 8px; height: 8px; border-radius: 50%; margin-right: 6px; }
+    .status-dot-inline.online { background: var(--ok); }
+    .status-dot-inline.offline { background: var(--accent); }
+    .expand-row { display: none; }
+    .expand-row.open { display: table-row; }
+    .expand-row td { padding: 0 12px 14px 12px; border-bottom: 1px solid var(--border); }
+    .expand-card { background: var(--bg); border: 1px solid var(--border); border-radius: 8px; padding: 14px 16px; }
+    .expand-card h4 { font-size: 0.85rem; color: var(--muted); margin-bottom: 10px; display: flex; align-items: center; gap: 6px; }
+    .stream-list { display: flex; flex-direction: column; gap: 6px; margin-bottom: 12px; }
+    .stream-item { display: flex; align-items: center; gap: 10px; font-size: 0.82rem; padding: 6px 10px; background: var(--card); border-radius: 6px; border: 1px solid var(--border); }
+    .stream-item .zone-tag { font-size: 0.7rem; padding: 2px 8px; border-radius: 10px; background: var(--brand); color: #fff; white-space: nowrap; }
+    .stream-item .zone-tag.front_hall { background: var(--info); }
+    .stream-item .url-text { flex: 1; word-break: break-all; color: var(--muted); }
+    .stream-item .badge { font-size: 0.68rem; padding: 2px 7px; border-radius: 8px; }
+    .stream-item .badge.enabled { background: rgba(86,184,132,0.18); color: var(--ok); }
+    .stream-item .badge.disabled { background: rgba(240,71,60,0.15); color: var(--accent); }
+    .config-meta { display: flex; gap: 20px; font-size: 0.82rem; color: var(--muted); flex-wrap: wrap; }
+    .config-meta span strong { color: var(--text); }
+    .action-btns { display: flex; gap: 6px; }
+    .btn-xs { padding: 4px 10px; font-size: 0.75rem; }
+    .btn-danger { background: var(--accent); }
+    .btn-danger:hover { opacity: 0.9; }
+    .store-filter { display: flex; align-items: center; gap: 8px; margin-bottom: 16px; }
+    .store-filter select { background: var(--bg); border: 1px solid var(--border); color: var(--text); padding: 8px 12px; border-radius: 6px; font-size: 0.9rem; }
+    .store-filter label { color: var(--muted); font-size: 0.85rem; }
+    .modal-body .stream-edit-item { display: flex; flex-direction: column; gap: 6px; padding: 10px; background: var(--bg); border-radius: 8px; border: 1px solid var(--border); margin-bottom: 8px; }
+    .stream-edit-item .row { display: flex; gap: 8px; align-items: center; flex-wrap: wrap; }
+    .stream-edit-item .row input, .stream-edit-item .row select { flex: 1; min-width: 80px; }
+    .stream-edit-item .row label { min-width: auto; margin-bottom: 0; }
+    .modal-body { max-height: 70vh; overflow-y: auto; }
+    .toast { position: fixed; top: 20px; right: 20px; padding: 12px 20px; border-radius: 8px; font-size: 0.9rem; z-index: 9999; animation: slideIn 0.3s ease; }
+    .toast.success { background: var(--ok); color: #fff; }
+    .toast.error { background: var(--accent); color: #fff; }
+    @keyframes slideIn { from { transform: translateX(100%); opacity: 0; } to { transform: translateX(0); opacity: 1; } }
+  </style>
+</head>
+<body>
+  <div class="app-shell">
+    <aside class="sidebar">
+      <div class="sidebar-brand"><h1>冯校长火锅</h1><p>智能运营 · MVP</p></div>
+      <a class="nav-item" data-nav="home" href="home.html">首页概览</a>
+      <a class="nav-item" data-nav="tables" href="tables.html">前厅 · 桌态</a>
+      <a class="nav-item" data-nav="kitchen" href="kitchen.html">后厨 · IoT</a>
+      <a class="nav-item" data-nav="sop" href="sop.html">SOP 执行</a>
+      <a class="nav-item" data-nav="cost" href="cost.html">来料 · 成本</a>
+      <a class="nav-item" data-nav="alerts" href="alerts.html">告警中心</a>
+      <a class="nav-item" data-nav="report" href="report.html">运营日报</a>
+      <a class="nav-item active" data-nav="devices" href="devices.html">设备管理</a>
+      <a class="nav-item" href="mobile/index.html">📱 手机版</a>
+    </aside>
+    <div class="main-wrap">
+      <header class="topbar">
+        <div class="topbar-left">
+          <h2>设备管理</h2>
+          <div class="topbar-meta">边缘设备注册 · RTSP 流配置 · 在线监控</div>
+        </div>
+        <div class="topbar-right">
+          <input class="hub-input" id="hub-url" type="text" title="Event Hub URL" />
+          <span class="chip" id="user-name">—</span>
+          <button class="btn btn-sm btn-ghost" id="btn-logout">退出</button>
+        </div>
+      </header>
+      <main class="content">
+        <div class="store-filter">
+          <label for="store-filter-select">门店：</label>
+          <select id="store-filter-select">
+            <option value="">全部门店</option>
+          </select>
+          <button class="btn btn-sm" id="btn-refresh">刷新</button>
+          <span style="color:var(--muted);font-size:0.82rem;margin-left:8px" id="device-count"></span>
+        </div>
+        <div class="card" style="overflow-x:auto">
+          <table class="device-table">
+            <thead>
+              <tr>
+                <th style="width:24px"></th>
+                <th>设备 ID</th>
+                <th>门店</th>
+                <th>类型</th>
+                <th>IP 地址</th>
+                <th>状态</th>
+                <th>最后心跳</th>
+                <th>操作</th>
+              </tr>
+            </thead>
+            <tbody id="device-tbody">
+              <tr><td colspan="8" style="text-align:center;color:var(--muted);padding:40px">加载中…</td></tr>
+            </tbody>
+          </table>
+        </div>
+      </main>
+    </div>
+  </div>
+
+  <!-- Edit Config Modal -->
+  <dialog class="modal" id="edit-modal">
+    <div class="modal-body">
+      <h3 style="margin:0 0 4px">编辑设备配置</h3>
+      <p style="color:var(--muted);font-size:0.82rem;margin:0" id="modal-device-id">—</p>
+
+      <div>
+        <label>RTSP 视频流</label>
+        <div id="stream-editor"></div>
+        <button class="btn btn-sm btn-ghost" id="btn-add-stream" style="margin-top:6px">+ 添加 RTSP 流</button>
+      </div>
+
+      <div>
+        <label for="edit-interval">推理间隔（秒）</label>
+        <input type="number" id="edit-interval" min="1" max="3600" value="15" />
+      </div>
+    </div>
+    <div class="modal-foot">
+      <button class="btn btn-ghost" id="btn-cancel-edit">取消</button>
+      <button class="btn" id="btn-save-config">保存配置</button>
+    </div>
+  </dialog>
+
+  <!-- Delete Confirm Modal -->
+  <dialog class="modal" id="delete-modal">
+    <div class="modal-body">
+      <h3 style="margin:0">确认删除设备</h3>
+      <p style="color:var(--muted);font-size:0.9rem" id="delete-device-name">—</p>
+      <p style="color:var(--accent);font-size:0.82rem">此操作不可撤销，设备的所有配置将被永久删除。</p>
+    </div>
+    <div class="modal-foot">
+      <button class="btn btn-ghost" id="btn-cancel-delete">取消</button>
+      <button class="btn btn-danger" id="btn-confirm-delete">确认删除</button>
+    </div>
+  </dialog>
+
+  <script src="assets/core.js"></script>
+  <script>
+    const app = HotpotApp;
+    const auth = app.initShell("devices");
+    if (!auth) throw new Error("未登录");
+
+    const base = app.hubUrl();
+    let devices = [];
+    let expandedRow = null;
+    let editingDevice = null;
+
+    // --- Toast ---
+    function toast(msg, type) {
+      const el = document.createElement("div");
+      el.className = "toast " + (type || "success");
+      el.textContent = msg;
+      document.body.appendChild(el);
+      setTimeout(() => el.remove(), 3000);
+    }
+
+    // --- Store filter ---
+    async function loadStores() {
+      try {
+        const data = await app.fetchStores();
+        const stores = data.stores || [];
+        const sel = document.getElementById("store-filter-select");
+        stores.forEach((s) => {
+          const opt = document.createElement("option");
+          opt.value = s.store_id;
+          opt.textContent = s.store_name || s.store_id;
+          sel.appendChild(opt);
+        });
+        // Add known stores if not in response
+        const known = [
+          { id: "yuhuan", name: "冯校长火锅·玉环店" },
+          { id: "jiaojiang", name: "冯校长火锅·椒江店" },
+        ];
+        known.forEach((k) => {
+          if (!stores.find((s) => s.store_id === k.id)) {
+            const opt = document.createElement("option");
+            opt.value = k.id;
+            opt.textContent = k.name;
+            sel.appendChild(opt);
+          }
+        });
+      } catch (e) {
+        // Fallback: add known stores
+        const sel = document.getElementById("store-filter-select");
+        ["yuhuan", "jiaojiang"].forEach((id) => {
+          if (!sel.querySelector(`option[value="${id}"]`)) {
+            const opt = document.createElement("option");
+            opt.value = id;
+            opt.textContent = id === "yuhuan" ? "冯校长火锅·玉环店" : "冯校长火锅·椒江店";
+            sel.appendChild(opt);
+          }
+        });
+      }
+    }
+
+    document.getElementById("store-filter-select").onchange = () => refresh();
+    document.getElementById("btn-refresh").onclick = () => refresh();
+
+    // --- Fetch devices ---
+    async function fetchDevices(storeId) {
+      let url = base + "/v1/devices";
+      if (storeId) url += "?store_id=" + encodeURIComponent(storeId);
+      const res = await fetch(url, { headers: app.authHeaders() });
+      if (!res.ok) throw new Error(res.statusText);
+      return res.json();
+    }
+
+    // --- Fetch device config ---
+    async function fetchDeviceConfig(deviceId) {
+      const res = await fetch(base + "/v1/devices/" + encodeURIComponent(deviceId) + "/config", {
+        headers: app.authHeaders(),
+      });
+      if (!res.ok) throw new Error(res.statusText);
+      return res.json();
+    }
+
+    // --- Update device config (requires JWT) ---
+    async function updateDeviceConfig(deviceId, config) {
+      const res = await fetch(base + "/v1/devices/" + encodeURIComponent(deviceId) + "/config", {
+        method: "PUT",
+        headers: app.authHeaders({ "Content-Type": "application/json" }),
+        body: JSON.stringify(config),
+      });
+      if (!res.ok) {
+        let detail = res.statusText;
+        try { detail = (await res.json()).detail || detail; } catch {}
+        throw new Error(detail);
+      }
+      return res.json();
+    }
+
+    // --- Delete device (requires JWT) ---
+    async function deleteDevice(deviceId) {
+      const res = await fetch(base + "/v1/devices/" + encodeURIComponent(deviceId), {
+        method: "DELETE",
+        headers: app.authHeaders(),
+      });
+      if (!res.ok) {
+        let detail = res.statusText;
+        try { detail = (await res.json()).detail || detail; } catch {}
+        throw new Error(detail);
+      }
+      return res.json();
+    }
+
+    // --- Format helpers ---
+    function fmtTime(ts) {
+      if (!ts) return "—";
+      try { return new Date(ts).toLocaleString("zh-CN"); } catch { return ts; }
+    }
+
+    function zoneLabel(zone) {
+      return zone === "kitchen" ? "后厨" : zone === "front_hall" ? "前厅" : zone;
+    }
+
+    function statusDot(online) {
+      const cls = online ? "online" : "offline";
+      const text = online ? "在线" : "离线";
+      return `<span class="status-dot-inline ${cls}"></span>${text}`;
+    }
+
+    function typeLabel(t) {
+      const map = { jetson: "Jetson", rk3588: "RK3588", "iot-gateway": "IoT 网关" };
+      return map[t] || t;
+    }
+
+    // --- Render table ---
+    function render() {
+      const tbody = document.getElementById("device-tbody");
+      const countEl = document.getElementById("device-count");
+      countEl.textContent = `共 ${devices.length} 台设备`;
+
+      if (!devices.length) {
+        tbody.innerHTML = `<tr><td colspan="8" style="text-align:center;color:var(--muted);padding:40px">暂无设备</td></tr>`;
+        return;
+      }
+
+      tbody.innerHTML = devices.map((d, i) => {
+        const cfg = d.config || {};
+        const streams = cfg.rtsp_streams || [];
+        const interval = cfg.inference_interval ?? "—";
+        const rowId = "dev-" + i;
+
+        return `
+          <tr id="${rowId}" data-index="${i}" onclick="toggleRow(${i})">
+            <td><span style="font-size:0.7rem;color:var(--muted)">▶</span></td>
+            <td><code>${app.esc(d.device_id)}</code></td>
+            <td>${app.esc(d.store_id)}</td>
+            <td>${app.esc(typeLabel(d.device_type))}</td>
+            <td><code>${app.esc(d.ip)}</code></td>
+            <td>${statusDot(d.online)}</td>
+            <td style="font-size:0.8rem;color:var(--muted)">${fmtTime(d.last_heartbeat)}</td>
+            <td>
+              <div class="action-btns">
+                <button class="btn btn-sm" onclick="event.stopPropagation();openEdit('${app.esc(d.device_id)}')">编辑</button>
+                <button class="btn btn-sm btn-danger" onclick="event.stopPropagation();openDelete('${app.esc(d.device_id)}')">删除</button>
+              </div>
+            </td>
+          </tr>
+          <tr class="expand-row" id="${rowId}-expand">
+            <td colspan="8">
+              <div class="expand-card">
+                <h4>📡 RTSP 视频流（${streams.length} 路）</h4>
+                <div class="stream-list">
+                  ${streams.map((s) => `
+                    <div class="stream-item">
+                      <span class="zone-tag ${s.zone}">${zoneLabel(s.zone)}</span>
+                      <span class="url-text">${app.esc(s.url)}</span>
+                      <span style="font-size:0.75rem;color:var(--muted)">📷 ${app.esc(s.camera_id)}</span>
+                      <span class="badge ${s.enabled ? 'enabled' : 'disabled'}">${s.enabled ? '启用' : '停用'}</span>
+                    </div>
+                  `).join("")}
+                </div>
+                <div class="config-meta">
+                  <span>⚙️ 推理间隔：<strong>${interval} 秒</strong></span>
+                  <span>🔗 Hub 地址：<code style="font-size:0.78rem">${app.esc(cfg.push_hub_url || "—")}</code></span>
+                  ${cfg.labels && cfg.labels.length ? `<span>🏷️ 标签：${app.esc(cfg.labels.join(", "))}</span>` : ""}
+                </div>
+                <div style="margin-top:8px;font-size:0.75rem;color:var(--muted)">
+                  注册时间：${fmtTime(d.registered_at)}
+                </div>
+              </div>
+            </td>
+          </tr>
+        `;
+      }).join("");
+
+      // Re-expand previously expanded row
+      if (expandedRow !== null && expandedRow < devices.length) {
+        const expandRow = document.getElementById("dev-" + expandedRow + "-expand");
+        if (expandRow) expandRow.classList.add("open");
+        const mainRow = document.getElementById("dev-" + expandedRow);
+        if (mainRow) mainRow.classList.add("expanded");
+      }
+    }
+
+    function toggleRow(idx) {
+      const expandRow = document.getElementById("dev-" + idx + "-expand");
+      const mainRow = document.getElementById("dev-" + idx);
+      if (!expandRow) return;
+
+      if (expandedRow === idx) {
+        expandRow.classList.remove("open");
+        if (mainRow) mainRow.classList.remove("expanded");
+        expandedRow = null;
+      } else {
+        // Close previous
+        if (expandedRow !== null) {
+          const prevExpand = document.getElementById("dev-" + expandedRow + "-expand");
+          const prevMain = document.getElementById("dev-" + expandedRow);
+          if (prevExpand) prevExpand.classList.remove("open");
+          if (prevMain) prevMain.classList.remove("expanded");
+        }
+        expandRow.classList.add("open");
+        if (mainRow) mainRow.classList.add("expanded");
+        expandedRow = idx;
+      }
+    }
+
+    // --- Edit modal ---
+    let editStreams = [];
+
+    function openEdit(deviceId) {
+      const device = devices.find((d) => d.device_id === deviceId);
+      if (!device) return;
+      editingDevice = device;
+      const cfg = device.config || {};
+
+      document.getElementById("modal-device-id").textContent = deviceId;
+      document.getElementById("edit-interval").value = cfg.inference_interval || 15;
+
+      editStreams = (cfg.rtsp_streams || []).map((s) => ({ ...s }));
+      renderStreamEditor();
+
+      document.getElementById("edit-modal").showModal();
+    }
+
+    function renderStreamEditor() {
+      const editor = document.getElementById("stream-editor");
+      if (!editStreams.length) {
+        editor.innerHTML = `<p style="color:var(--muted);font-size:0.82rem;padding:8px 0">暂无 RTSP 流</p>`;
+      } else {
+        editor.innerHTML = editStreams.map((s, i) => `
+          <div class="stream-edit-item">
+            <div class="row">
+              <label style="flex:0 0 auto">区域</label>
+              <select onchange="editStreams[${i}].zone=this.value">
+                <option value="kitchen" ${s.zone === "kitchen" ? "selected" : ""}>后厨 (kitchen)</option>
+                <option value="front_hall" ${s.zone === "front_hall" ? "selected" : ""}>前厅 (front_hall)</option>
+              </select>
+              <label style="flex:0 0 auto">摄像头 ID</label>
+              <input type="text" value="${app.esc(s.camera_id)}" onchange="editStreams[${i}].camera_id=this.value" />
+            </div>
+            <div class="row">
+              <label style="flex:0 0 auto">URL</label>
+              <input type="text" value="${app.esc(s.url)}" onchange="editStreams[${i}].url=this.value" style="flex:3" />
+            </div>
+            <div class="row">
+              <label style="display:flex;align-items:center;gap:6px;cursor:pointer">
+                <input type="checkbox" ${s.enabled ? "checked" : ""} onchange="editStreams[${i}].enabled=this.checked" />
+                启用
+              </label>
+              <button class="btn btn-sm btn-danger" onclick="editStreams.splice(${i},1);renderStreamEditor()" style="margin-left:auto">删除此流</button>
+            </div>
+          </div>
+        `).join("");
+      }
+    }
+
+    document.getElementById("btn-add-stream").onclick = () => {
+      editStreams.push({ zone: "kitchen", url: "rtsp://", enabled: true, camera_id: "cam" + (editStreams.length + 1) });
+      renderStreamEditor();
+    };
+
+    document.getElementById("btn-cancel-edit").onclick = () => {
+      document.getElementById("edit-modal").close();
+      editingDevice = null;
+      editStreams = [];
+    };
+
+    document.getElementById("btn-save-config").onclick = async () => {
+      if (!editingDevice) return;
+      const btn = document.getElementById("btn-save-config");
+      btn.disabled = true;
+      btn.textContent = "保存中…";
+
+      try {
+        const config = {
+          rtsp_streams: editStreams,
+          inference_interval: parseInt(document.getElementById("edit-interval").value) || 15,
+          push_hub_url: editingDevice.config?.push_hub_url || base,
+        };
+        await updateDeviceConfig(editingDevice.device_id, config);
+        document.getElementById("edit-modal").close();
+        toast("配置已保存", "success");
+        editingDevice = null;
+        editStreams = [];
+        await refresh();
+      } catch (e) {
+        toast("保存失败：" + e.message, "error");
+      } finally {
+        btn.disabled = false;
+        btn.textContent = "保存配置";
+      }
+    };
+
+    // --- Delete modal ---
+    function openDelete(deviceId) {
+      document.getElementById("delete-device-name").textContent = "设备：" + deviceId;
+      document.getElementById("delete-modal").dataset.deviceId = deviceId;
+      document.getElementById("delete-modal").showModal();
+    }
+
+    document.getElementById("btn-cancel-delete").onclick = () => {
+      document.getElementById("delete-modal").close();
+    };
+
+    document.getElementById("btn-confirm-delete").onclick = async () => {
+      const deviceId = document.getElementById("delete-modal").dataset.deviceId;
+      const btn = document.getElementById("btn-confirm-delete");
+      btn.disabled = true;
+      btn.textContent = "删除中…";
+
+      try {
+        await deleteDevice(deviceId);
+        document.getElementById("delete-modal").close();
+        toast("设备 " + deviceId + " 已删除", "success");
+        expandedRow = null;
+        await refresh();
+      } catch (e) {
+        toast("删除失败：" + e.message, "error");
+      } finally {
+        btn.disabled = false;
+        btn.textContent = "确认删除";
+      }
+    };
+
+    // --- Main refresh ---
+    async function refresh() {
+      try {
+        const storeId = document.getElementById("store-filter-select").value;
+        const data = await fetchDevices(storeId);
+        devices = data.devices || [];
+        expandedRow = null;
+        render();
+      } catch (e) {
+        document.getElementById("device-tbody").innerHTML =
+          `<tr><td colspan="8" style="text-align:center;color:var(--accent);padding:40px">加载失败：${app.esc(e.message)}</td></tr>`;
+        document.getElementById("device-count").textContent = "加载失败";
+      }
+    }
+
+    // --- Init ---
+    loadStores().then(() => refresh());
+  </script>
+</body>
+</html>

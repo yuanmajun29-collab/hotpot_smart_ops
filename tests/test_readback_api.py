@@ -20,9 +20,9 @@ def client(monkeypatch):
     monkeypatch.delenv("HOTPOT_SEED_DIR", raising=False)
     monkeypatch.delenv("HOTPOT_DATABASE_URL", raising=False)
 
-    from cloud.event_hub import app as hub_app_module
-    from cloud.event_hub import runtime
-    from cloud.event_hub.db import create_hub_database
+    from platform.cloud.event_hub import app as hub_app_module
+    from platform.cloud.event_hub import runtime
+    from platform.cloud.event_hub.db import create_hub_database
 
     db = create_hub_database(db_path)
     runtime.init(

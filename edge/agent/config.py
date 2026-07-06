@@ -1,0 +1,45 @@
+"""边缘 agent 统一配置常量 — 全部来自环境变量"""
+
+import os
+
+# ─── Hub 连接 ───
+HUB_URL = os.environ.get("HOTPOT_HUB_URL", "http://192.168.2.85:8098")
+DEVICE_ID = os.environ.get("HOTPOT_DEVICE_ID", "jetson-yuhuan-01")
+STORE_ID = os.environ.get("HOTPOT_STORE_ID", "store_yuhuan")
+API_KEY = os.environ.get("HOTPOT_API_KEY", "test-key")
+
+# ─── 服务端口 ───
+SERVER_PORT = int(os.environ.get("HOTPOT_AGENT_PORT", "9100"))
+SERVER_HOST = os.environ.get("HOTPOT_AGENT_HOST", "0.0.0.0")
+
+# ─── VLM 推理（后厨 kitchen） ───
+LLAMA_CLI = os.environ.get(
+    "LLAMA_CLI", "/opt/hotpot-infer/bin/llama-mtmd-cli"
+)
+LLAMA_MODEL = os.environ.get(
+    "LLAMA_MODEL",
+    "/opt/hotpot-infer/models/ostrakon-vl-8b/Ostrakon-VL-8B.IQ4_XS.gguf",
+)
+LLAMA_MMPROJ = os.environ.get(
+    "LLAMA_MMPROJ",
+    "/opt/hotpot-infer/models/ostrakon-vl-8b/Ostrakon-VL-8B.mmproj-Q8_0.gguf",
+)
+VLM_TIMEOUT = int(os.environ.get("VLM_TIMEOUT", "120"))
+
+# ─── 心跳 / 配置轮询间隔 ───
+HEARTBEAT_INTERVAL = int(os.environ.get("HEARTBEAT_INTERVAL", "30"))
+CONFIG_POLL_INTERVAL = int(os.environ.get("CONFIG_POLL_INTERVAL", "60"))
+
+# ─── 本地路径 ───
+IPC_CONFIG_PATH = os.environ.get(
+    "IPC_CONFIG_PATH", "/opt/hotpot-infer/config/ipc_config.yml"
+)
+DEVICE_CONFIG_PATH = os.environ.get(
+    "DEVICE_CONFIG_PATH", "/opt/hotpot-infer/config/device_config.json"
+)
+
+# ─── 推理输出 ───
+from pathlib import Path
+
+PROJECT_ROOT = Path(__file__).resolve().parents[2]
+OUTPUT_DIR = PROJECT_ROOT / "demo" / "data" / "edge_output"
