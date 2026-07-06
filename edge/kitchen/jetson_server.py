@@ -1,9 +1,9 @@
 """后厨推理 API — YOLO (ultralytics) + VLM (Ostrakon-VL) 三级过滤
 
-Jetson Orin Docker · 替换旧版 VLM-only
-管道：图片 → YOLO (ultralytics, ~50ms) → 可疑帧? → VLM → Hub
+Jetson Orin Docker · llama-server 常驻模型
+管道：图片 → YOLO (ultralytics, ~50ms) → 可疑帧? → VLM (HTTP) → Hub
 """
-import json, os, sys, time, subprocess
+import base64, json, os, time
 from pathlib import Path
 
 import cv2, httpx
@@ -11,17 +11,27 @@ import numpy as np
 from fastapi import FastAPI, HTTPException
 from pydantic import BaseModel
 
-# ── 路径 ──
-LLAMA_CLI  = os.environ.get("LLAMA_CLI",  "/opt/hotpot-infer/bin/llama-mtmd-cli")
-MODEL_PATH = os.environ.get("LLAMA_MODEL", "/models/ostrakon-vl-8b/Ostrakon-VL-8B.IQ4_XS.gguf")
-MMPROJ     = os.environ.get("LLAMA_MMPROJ", "/models/ostrakon-vl-8b/Ostrakon-VL-8B.mmproj-Q8_0.gguf")
-YOLO_MODEL = os.environ.get("YOLO_MODEL", "/models/yolo26l.pt")
-HUB_URL    = os.environ.get("HOTPOT_HUB_URL", "http://192.168.2.85:8098")
-STORE_ID   = os.environ.get("HOTPOT_STORE_ID", "store_yuhuan")
-ZONE       = os.environ.get("HOTPOT_ZONE", "kitchen")
-IMAGES_DIR = Path(os.environ.get("HOTPOT_IMAGES_DIR", "/images"))
+# ── 配置 ──
+LLAMA_SERVER = os.environ.get("LLAMA_SERVER", "http://localhost:8080")
+YOLO_MODEL   = os.environ.get("YOLO_MODEL", "/models/yolo26l.pt")
+HUB_URL      = os.environ.get("HOTPOT_HUB_URL", "http://192.168.2.85:8098")
+STORE_ID     = os.environ.get("HOTPOT_STORE_ID", "store_yuhuan")
+ZONE         = os.environ.get("HOTPOT_ZONE", "kitchen")
+IMAGES_DIR   = Path(os.environ.get("HOTPOT_IMAGES_DIR", "/images"))
 
 app = FastAPI(title="hotpot-kitchen-yolo-vlm")
+
+# ── 启动时自动拉起 llama-server ──
+@app.on_event("startup")
+def _start_llama_server():
+    import subprocess
+    LLAMA_BIN = os.environ.get("LLAMA_BIN", "/opt/hotpot-infer/bin/llama-server")
+    MODEL     = os.environ.get("LLAMA_MODEL", "/models/ostrakon-vl-8b/Ostrakon-VL-8B.IQ4_XS.gguf")
+    MMPROJ    = os.environ.get("LLAMA_MMPROJ", "/models/ostrakon-vl-8b/Ostrakon-VL-8B.mmproj-Q8_0.gguf")
+    cmd = [LLAMA_BIN, "-m", MODEL, "--mmproj", MMPROJ,
+           "--host", "127.0.0.1", "--port", "8080", "--no-webui"]
+    subprocess.Popen(cmd, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
+    print(f"[startup] llama-server launching: {' '.join(cmd)}")
 
 # ── YOLO 懒加载 (ultralytics) ──
 _detector = None
@@ -69,11 +79,49 @@ def health():
     return {
         "status": "ok", "service": "kitchen-yolo-vlm",
         "pipeline": "yolo+vlm",
-        "model": os.path.basename(MODEL_PATH),
+        "llama_server": LLAMA_SERVER,
         "yolo_model": YOLO_MODEL,
-        "vlm_cli": os.path.exists(LLAMA_CLI),
         "hub": HUB_URL,
     }
+
+def _call_vlm(image_path: str) -> dict:
+    """Call llama-server via OpenAI-compatible chat API."""
+    # Read and encode image
+    with open(image_path, "rb") as f:
+        img_b64 = base64.b64encode(f.read()).decode()
+    
+    # Detect image type from extension
+    ext = Path(image_path).suffix.lower()
+    mime = {"jpg": "jpeg", "jpeg": "jpeg", "png": "png"}.get(ext.lstrip("."), "jpeg")
+    
+    payload = {
+        "messages": [{
+            "role": "user",
+            "content": [
+                {"type": "image_url", "image_url": {"url": f"data:image/{mime};base64,{img_b64}"}},
+                {"type": "text", "text": PROMPT},
+            ]
+        }],
+        "temperature": 0.1,
+        "max_tokens": 512,
+        "stream": False,
+    }
+    
+    resp = httpx.post(f"{LLAMA_SERVER}/v1/chat/completions", json=payload, timeout=300)
+    resp.raise_for_status()
+    data = resp.json()
+    
+    raw = data["choices"][0]["message"]["content"]
+    items = []
+    vlm_error = ""
+    try:
+        brace = raw.index("{")
+        parsed = json.loads(raw[brace:])
+        items = parsed.get("items", [])
+    except (ValueError, json.JSONDecodeError) as e:
+        vlm_error = str(e)
+    
+    return {"items": items, "raw": raw[:500], "error": vlm_error}
 
 @app.post("/infer")
 def infer(req: InferRequest):
@@ -108,26 +156,21 @@ def infer(req: InferRequest):
     # ── 2. 可疑判断 ──
     suspicious, reason = _is_suspicious(detections)
 
-    # ── 3. VLM ──
+    # ── 3. VLM (llama-server HTTP) ──
     items = []
     vlm_used = False
     vlm_ms = 0.0
+    vlm_raw = ""
+    vlm_error = ""
     if suspicious:
         vlm_t0 = time.perf_counter()
         try:
-            cmd = [LLAMA_CLI, "-m", MODEL_PATH, "--mmproj", MMPROJ,
-                   "--image", str(img_path), "--image-min-tokens", "1024",
-                   "-p", PROMPT, "--temp", "0.1", "-n", "512"]
-            proc = subprocess.run(cmd, capture_output=True, text=True, timeout=120)
-            out = proc.stdout
-            try:
-                brace = out.index("{")
-                data = json.loads(out[brace:])
-                items = data.get("items", [])
-            except (ValueError, json.JSONDecodeError):
-                pass
-        except Exception:
-            pass
+            result = _call_vlm(str(img_path))
+            items = result["items"]
+            vlm_raw = result["raw"]
+            vlm_error = result["error"]
+        except Exception as e:
+            vlm_error = str(e)
         vlm_ms = (time.perf_counter() - vlm_t0) * 1000
         vlm_used = True
 
@@ -164,6 +207,8 @@ def infer(req: InferRequest):
             "reason": reason,
             "ms": round(vlm_ms, 1) if vlm_used else None,
             "items": items,
+            "raw": vlm_raw,
+            "error": vlm_error,
         },
         "total_ms": round(total_ms, 1),
         "pushed_to_hub": pushed,
