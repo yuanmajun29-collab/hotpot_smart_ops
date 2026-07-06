@@ -69,6 +69,121 @@ VLM_PROMPT = (
     '"confidence":0.82,"reason":"判断依据"}]}'
 )
 
+# ── VLM Mock 回退（开发机 / Mac 无 llama-mtmd-cli） ──
+def _vlm_mock(detections: List[Dict[str, Any]], label_counts: Dict[str, int]) -> List[Dict[str, Any]]:
+    """基于 YOLO 检测结果生成模拟的废料识别输出。
+
+    策略：用 YOLO 检测到的物体类别反向推断可能的废料类型。
+    当 llama-mtmd-cli 不可用时作为 mock 回退。
+    """
+    items: List[Dict[str, Any]] = []
+    staff_count = label_counts.get("staff", 0)
+    tableware_count = label_counts.get("tableware", 0)
+    container_count = label_counts.get("container", 0)
+    utensil_count = label_counts.get("utensil", 0)
+
+    # 厨房废料 mock 模板
+    waste_templates = [
+        {
+            "waste_type": "边角料",
+            "sku": "牛肉切余料",
+            "estimated_portion": 0.25,
+            "unit": "份",
+            "confidence": 0.88,
+            "reason": "砧板区域检测到容器+刀具，推断备餐切割边角料",
+        },
+        {
+            "waste_type": "餐后剩余",
+            "sku": "锅底残渣",
+            "estimated_portion": 0.40,
+            "unit": "份",
+            "confidence": 0.82,
+            "reason": "多碗+瓶组合，推断餐后回收餐具带锅底残渣",
+        },
+        {
+            "waste_type": "备餐废弃",
+            "sku": "蔬菜叶梗",
+            "estimated_portion": 0.15,
+            "unit": "份",
+            "confidence": 0.75,
+            "reason": "碗类容器旁边角料，推断洗切蔬菜残余",
+        },
+        {
+            "waste_type": "过期临界",
+            "sku": "豆腐",
+            "estimated_portion": 0.30,
+            "unit": "份",
+            "confidence": 0.70,
+            "reason": "容器+人员频繁操作，推断临期食材周转",
+        },
+    ]
+
+    # 根据检测结果筛选相关废料项
+    if staff_count >= 1:
+        items.append(waste_templates[0])  # 有人在 → 边角料
+
+    if tableware_count >= 3 or container_count >= 3:
+        items.append(waste_templates[1])  # 多餐具 → 餐后剩余
+
+    if tableware_count >= 2 and container_count >= 1:
+        items.append(waste_templates[2])  # 碗+瓶 → 备餐废弃
+
+    if staff_count >= 2 and container_count >= 3:
+        items.append(waste_templates[3])  # 多人+多容器 → 过期临界
+
+    # 至少返回 1 项
+    if not items:
+        items.append({
+            "waste_type": "备餐废弃",
+            "sku": "微量残余",
+            "estimated_portion": 0.05,
+            "unit": "份",
+            "confidence": 0.60,
+            "reason": "厨房区域有人/物活动但未检测到明显废料堆积",
+        })
+
+    return items
+
+
+def _run_vlm(image_path: Path, detections: List[Dict[str, Any]], label_counts: Dict[str, int]) -> Tuple[List[Dict[str, Any]], str, float]:
+    """执行 VLM 推理（真实 CLI 或 mock 回退）。
+
+    Returns:
+        (items, source_label, inference_ms)
+    """
+    vlm_t0 = time.perf_counter()
+    items: List[Dict[str, Any]] = []
+    source_label = "mock"
+
+    # 优先尝试真实 VLM CLI
+    if Path(LLAMA_CLI).exists() and Path(LLAMA_MODEL).exists():
+        try:
+            cmd = [
+                LLAMA_CLI, "-m", LLAMA_MODEL, "--mmproj", LLAMA_MMPROJ,
+                "--image", str(image_path), "--image-min-tokens", "1024",
+                "-p", VLM_PROMPT, "--temp", "0.1", "-n", "512",
+            ]
+            proc = subprocess.run(cmd, capture_output=True, text=True, timeout=VLM_TIMEOUT)
+            out = proc.stdout
+            try:
+                brace = out.index("{")
+                data = json.loads(out[brace:])
+                items = data.get("items", [])
+                if items:
+                    source_label = "ostrakon-vl-8b"
+            except (ValueError, json.JSONDecodeError):
+                pass
+        except (subprocess.TimeoutExpired, FileNotFoundError, Exception):
+            pass
+
+    # VLM CLI 不可用或无结果 → mock 回退
+    if not items:
+        items = _vlm_mock(detections, label_counts)
+
+    vlm_ms = (time.perf_counter() - vlm_t0) * 1000
+    return items, source_label, vlm_ms
+
+
 # ── 推理缓存（简单帧差检测用） ──
 _last_yolo_frame: Optional[Dict[str, Any]] = None
 _last_frame_time: float = 0.0
@@ -173,6 +288,8 @@ def _should_trigger_vlm(
 
 @router.get("/kitchen/health")
 def kitchen_health():
+    vlm_cli_ok = Path(LLAMA_CLI).exists()
+    vlm_model_ok = Path(LLAMA_MODEL).exists()
     return {
         "module": "kitchen",
         "active": _active,
@@ -180,7 +297,9 @@ def kitchen_health():
         "pipeline": "yolo+vlm" if VLM_ENABLED else "yolo-only",
         "yolo_loaded": _yolo_detector is not None,
         "vlm_enabled": VLM_ENABLED,
-        "vlm_cli_exists": Path(LLAMA_CLI).exists(),
+        "vlm_cli_exists": vlm_cli_ok,
+        "vlm_model_exists": vlm_model_ok,
+        "vlm_mode": "real" if (vlm_cli_ok and vlm_model_ok) else "mock",
         "vlm_model": Path(LLAMA_MODEL).name if LLAMA_MODEL else "N/A",
     }
 
@@ -277,31 +396,14 @@ def kitchen_infer(req: InferRequest):
     _last_yolo_frame = yolo_result
     _last_frame_time = time.time()
 
-    # ── 第三步：VLM（按需触发） ──
+    # ── 第三步：VLM（按需触发，真实 CLI 或 mock 回退） ──
     items: List[Dict[str, Any]] = []
     vlm_used = False
     vlm_ms = 0.0
+    vlm_source = "none"
 
     if should_vlm and VLM_ENABLED:
-        vlm_t0 = time.perf_counter()
-        try:
-            cmd = [
-                LLAMA_CLI, "-m", LLAMA_MODEL, "--mmproj", LLAMA_MMPROJ,
-                "--image", str(img_path), "--image-min-tokens", "1024",
-                "-p", VLM_PROMPT, "--temp", "0.1", "-n", "512",
-            ]
-            proc = subprocess.run(cmd, capture_output=True, text=True, timeout=VLM_TIMEOUT)
-            out = proc.stdout
-            try:
-                brace = out.index("{")
-                data = json.loads(out[brace:])
-                items = data.get("items", [])
-            except (ValueError, json.JSONDecodeError):
-                pass  # VLM 输出解析失败，items 保持空
-        except (subprocess.TimeoutExpired, FileNotFoundError, Exception):
-            pass
-
-        vlm_ms = (time.perf_counter() - vlm_t0) * 1000
+        items, vlm_source, vlm_ms = _run_vlm(img_path, detections, label_counts)
         vlm_used = True
 
     elif should_vlm and not VLM_ENABLED:
@@ -316,8 +418,8 @@ def kitchen_infer(req: InferRequest):
                 json={
                     "store_id": STORE_ID,
                     "zone": _zone,
-                    "source": "jetson-agent-kitchen",
-                    "model": "Ostrakon-VL-8B.IQ4_XS",
+                    "source": f"jetson-agent-kitchen:{vlm_source}",
+                    "model": "Ostrakon-VL-8B.IQ4_XS" if vlm_source == "ostrakon-vl-8b" else "mock-rule",
                     "pipeline": "yolo+vlm",
                     "yolo_ms": round(yolo_ms, 1),
                     "vlm_ms": round(vlm_ms, 1) if vlm_used else None,
@@ -350,6 +452,7 @@ def kitchen_infer(req: InferRequest):
         "vlm": {
             "triggered": should_vlm,
             "used": vlm_used,
+            "source": vlm_source,
             "reason": vlm_reason,
             "inference_ms": round(vlm_ms, 1) if vlm_used else None,
             "items": items,
