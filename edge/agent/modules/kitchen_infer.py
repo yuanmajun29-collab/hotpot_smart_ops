@@ -205,7 +205,7 @@ def _get_yolo():
     if _yolo_detector is None:
         if str(PROJECT_ROOT) not in sys.path:
             sys.path.append(str(PROJECT_ROOT))
-        from edge.shared.detector.real_yolo import RealYoloDetector, COCO_NAMES
+        from edge.common.detector.real_yolo import RealYoloDetector, COCO_NAMES
         _yolo_detector = RealYoloDetector(conf=_SUSPICIOUS_CONF)
     return _yolo_detector
 

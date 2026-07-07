@@ -103,25 +103,33 @@ scp "$SCRIPT_DIR/jetson_server.py" "$JETSON_HOST:/tmp/jetson_server_new.py"
 ssh "$JETSON_HOST" "docker cp /tmp/jetson_server_new.py $CONTAINER:/workspace/jetson_server.py && rm /tmp/jetson_server_new.py"
 echo "  ✅ jetson_server.py"
 
-# pipeline 模块
-if [ -d "$PROJECT_ROOT/edge/kitchen/pipeline" ]; then
-  ssh "$JETSON_HOST" "docker exec $CONTAINER mkdir -p /workspace/pipeline"
-  tar czf - -C "$PROJECT_ROOT/edge/kitchen" pipeline/ 2>/dev/null | \
+# inference 模块
+if [ -d "$PROJECT_ROOT/edge/kitchen/inference" ]; then
+  ssh "$JETSON_HOST" "docker exec $CONTAINER mkdir -p /workspace/inference"
+  tar czf - -C "$PROJECT_ROOT/edge/kitchen" inference/ 2>/dev/null | \
     ssh "$JETSON_HOST" "docker exec -i $CONTAINER tar xzf - -C /workspace/"
-  echo "  ✅ pipeline/"
+  echo "  ✅ inference/"
+fi
+
+# capture 模块
+if [ -d "$PROJECT_ROOT/edge/kitchen/capture" ]; then
+  ssh "$JETSON_HOST" "docker exec $CONTAINER mkdir -p /workspace/capture"
+  tar czf - -C "$PROJECT_ROOT/edge/kitchen" capture/ 2>/dev/null | \
+    ssh "$JETSON_HOST" "docker exec -i $CONTAINER tar xzf - -C /workspace/"
+  echo "  ✅ capture/"
 fi
 
 # bridge
-if [ -f "$PROJECT_ROOT/edge/kitchen/bridge_waste_vision.py" ]; then
-  scp "$PROJECT_ROOT/edge/kitchen/bridge_waste_vision.py" "$JETSON_HOST:/tmp/bridge_new.py"
-  ssh "$JETSON_HOST" "docker cp /tmp/bridge_new.py $CONTAINER:/workspace/bridge_waste_vision.py && rm /tmp/bridge_new.py"
-  echo "  ✅ bridge_waste_vision.py"
+if [ -f "$PROJECT_ROOT/edge/kitchen/bridge/waste_vision.py" ]; then
+  scp "$PROJECT_ROOT/edge/kitchen/bridge/waste_vision.py" "$JETSON_HOST:/tmp/bridge_new.py"
+  ssh "$JETSON_HOST" "docker cp /tmp/bridge_new.py $CONTAINER:/workspace/bridge/waste_vision.py && rm /tmp/bridge_new.py"
+  echo "  ✅ waste_vision.py"
 fi
 
 # detector
-if [ -d "$PROJECT_ROOT/edge/shared/detector" ]; then
+if [ -d "$PROJECT_ROOT/edge/common/detector" ]; then
   ssh "$JETSON_HOST" "docker exec $CONTAINER mkdir -p /workspace/detector"
-  tar czf - -C "$PROJECT_ROOT/edge/shared" detector/ 2>/dev/null | \
+  tar czf - -C "$PROJECT_ROOT/edge/common" detector/ 2>/dev/null | \
     ssh "$JETSON_HOST" "docker exec -i $CONTAINER tar xzf - -C /workspace/"
   echo "  ✅ detector/"
 fi

@@ -21,8 +21,8 @@ PROJECT_ROOT = Path(__file__).resolve().parents[2]
 if str(PROJECT_ROOT) not in sys.path:
     sys.path.insert(0, str(PROJECT_ROOT))
 
-from edge.iot_mock.iot_rules import DoorTimeoutTracker, level_for_sensor, parse_door_open
-from edge.iot_mock.mqtt_bridge import load_mqtt_topics
+from edge.front_hall.iot.iot_rules import DoorTimeoutTracker, level_for_sensor, parse_door_open
+from edge.front_hall.iot.mqtt_bridge import load_mqtt_topics
 from common.hub_client import EdgeHubClient
 from common.schemas import EventSource, utc_now_iso
 from common.store_config import DEFAULT_UAT_ROOT, load_store_config, uat_dir

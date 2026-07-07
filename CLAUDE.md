@@ -26,24 +26,30 @@ If you change any of these, declare it using: declareStateChange(key, oldValue, 
 
 ```
 hotpot_smart_ops/
-├── hotpot_platform/          # 云平台（Hub + Dashboard + 集成）
-│   ├── cloud/         #  event_hub, llm_report, vlm_review, integrations
-│   └── dashboard/     #  HTML 前端面板
-├── edge/              # 边缘端
-│   ├── agent/         #  Edge Agent 服务器（FastAPI :9100）
-│   ├── front-hall/    #  前厅推理（YOLO + CLIP 场景分析）
-│   │   └── stream/    #    scene_analyzer.py, clip_server.py
-│   ├── kitchen/       #  后厨推理（VLM 废料识别）
-│   └── shared/        #  共用 detector, models, scripts
-├── docs/              # 方案文档与 ADR
-│   ├── kitchen_loss_real_device_solution.md  # SSOT
-│   └── kitchen_loss_budget_solution.md       # 执行附录
-└── tests/             # 自动化验收测试
+├── deploy/             # 部署（源码端 → 板端）
+│   ├── jetson/         #   Jetson 板端：deploy.sh + build.sh
+│   ├── cloud/          #   云端：docker compose
+│   └── bridge/         #   VLM→Hub 桥接
+├── hotpot_platform/    # 云平台（Hub + Dashboard）
+├── edge/               # 边缘端（按场景 → 功能块）
+│   ├── agent/          #   调度层（FastAPI :9100）
+│   ├── front-hall/     #   场景：前厅
+│   │   ├── inference/  #     ├ 推理（scene_analyzer + clip_server）
+│   │   ├── iot/        #     ├ IoT 模拟（传感器/门禁）
+│   │   └── bridge/     #     └ 桥接（store_forward）
+│   ├── kitchen/        #   场景：后厨
+│   │   ├── inference/  #     ├ 推理管道（yolo→clip→vlm）
+│   │   ├── capture/    #     ├ 图像采集（IPC）
+│   │   └── bridge/     #     └ 桥接（waste_vision → Hub）
+│   ├── common/         #   共用（detector / config / models）
+│   └── legacy/         #   废弃代码归档
+├── docs/               # 方案文档
+└── tests/              # 自动化测试
 ```
 
 ## 前厅场景分析
 
-**文件**: `edge/front-hall/stream/scene_analyzer.py` + `clip_server.py`
+**文件**: `edge/front-hall/inference/scene_analyzer.py` + `clip_server.py`
 **API**: `POST /api/scene/analyze?mode=plan_a|plan_b&table_id=T01` (`edge/agent/modules/front_hall_infer.py`)
 
 | 模式 | 策略 | 耗时 | 依赖 |

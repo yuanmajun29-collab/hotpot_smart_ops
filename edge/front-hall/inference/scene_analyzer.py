@@ -125,7 +125,7 @@ class SceneAnalyzer:
             # 加载 YOLO 模块
             spec = importlib.util.spec_from_file_location(
                 "real_yolo",
-                PROJECT_ROOT / "edge" / "shared" / "detector" / "real_yolo.py",
+                PROJECT_ROOT / "edge" / "common" / "detector" / "real_yolo.py",
             )
             mod = importlib.util.module_from_spec(spec)
 
