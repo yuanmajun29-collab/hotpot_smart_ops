@@ -110,8 +110,8 @@ async def heartbeat() -> dict:
 
 
 async def pull_config() -> dict:
-    """拉最新配置。"""
-    return await _hub_get(f"/v1/devices/{DEVICE_ID}/config")
+    """网关级配置拉取：从 Hub 拉所有盒子的待下发配置。"""
+    return await _hub_post(f"/v1/gateways/{GATEWAY_ID}/pull-config", {})
 
 
 # ─── 配置应用 ───
@@ -148,12 +148,17 @@ def _save_device_config(config: dict) -> None:
     Path(DEVICE_CONFIG_PATH).write_text(json.dumps(config, indent=2, ensure_ascii=False))
 
 
-def apply_config(config: dict) -> bool:
-    """应用配置：写 IPC 配置、按 zone 激活/停用模块。
+def apply_box_config(box_id: str, config: dict) -> bool:
+    """对单个盒子应用配置：写 IPC 配置、按 zone 激活/停用模块。
 
-    Returns: True 表示 zone 列表有变化（触发了模块启停）。
+    平台推送 → 网关透传 → 本地应用（当前单 Jetson 部署，所有盒子共享模块）
+    Returns: True 表示 zone 列表有变化。
     """
     global _active_zones, _last_config_hash, _device_config
+
+    if not config:
+        logger.info(f"盒子 {box_id} 无配置，跳过")
+        return False
 
     new_hash = _config_hash(config)
     new_zones = _extract_zones(config)
@@ -161,7 +166,7 @@ def apply_config(config: dict) -> bool:
     zone_changed = (new_hash != _last_config_hash)
 
     if zone_changed:
-        logger.info(f"配置变更: zones {_active_zones} → {new_zones}")
+        logger.info(f"配置变更 [盒子={box_id}]: zones {_active_zones} → {new_zones}")
 
         # 按 zone 激活/停用模块
         kitchen_infer._active = "kitchen" in new_zones
@@ -189,31 +194,45 @@ def apply_config(config: dict) -> bool:
     return zone_changed
 
 
+def apply_all_box_configs(box_configs: dict) -> bool:
+    """应用所有盒子的配置（平台→网关透传→本地）。"""
+    changed = False
+    for box_id, config in box_configs.items():
+        logger.info(f"应用配置 [盒子={box_id}]: zones={config.get('active_zones', [])}")
+        if apply_box_config(box_id, config):
+            changed = True
+    return changed
+
+
 # ─── 后台协程 ───
 
 async def heartbeat_loop():
-    """心跳协程：每 HEARTBEAT_INTERVAL 秒向 Hub 报到续期。"""
+    """心跳协程：每 HEARTBEAT_INTERVAL 秒向 Hub 报到续期 + 接收待下发配置。"""
     while True:
         try:
             hb = await heartbeat()
-            logger.debug(f"心跳 ok")
+            pending = hb.get("pending_configs", {})
+            if pending:
+                logger.info(f"心跳返回 {len(pending)} 个待下发配置")
+                apply_all_box_configs(pending)
         except Exception as e:
             logger.warning(f"心跳失败: {e}")
         await asyncio.sleep(HEARTBEAT_INTERVAL)
 
 
 async def config_poll_loop():
-    """配置轮询协程：每 CONFIG_POLL_INTERVAL 秒拉配置并热重载。"""
+    """配置轮询协程：每 CONFIG_POLL_INTERVAL 秒网关级拉配置并热重载。"""
     # 首次等 5s，确保 register 先完成
     await asyncio.sleep(5)
 
     while True:
         try:
             resp = await pull_config()
-            cfg = resp.get("config", resp)
-            changed = apply_config(cfg)
-            if changed:
-                logger.info("配置已热重载")
+            box_configs = resp.get("box_configs", {})
+            if box_configs:
+                changed = apply_all_box_configs(box_configs)
+                if changed:
+                    logger.info("配置已热重载")
         except Exception as e:
             logger.warning(f"配置轮询失败: {e}")
         await asyncio.sleep(CONFIG_POLL_INTERVAL)
@@ -262,9 +281,9 @@ async def startup():
     # ① 注册到 Hub
     try:
         resp = await register()
-        config = resp.get("config", {})
-        logger.info(f"注册成功，获取到配置: {json.dumps(config, ensure_ascii=False)[:200]}")
-        apply_config(config)
+        box_configs = resp.get("box_configs", {})
+        logger.info(f"注册成功，获取到 {len(box_configs)} 个盒子配置")
+        apply_all_box_configs(box_configs)
     except Exception as e:
         logger.error(f"注册失败，将以无配置模式运行: {e}")
 

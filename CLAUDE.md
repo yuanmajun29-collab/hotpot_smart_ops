@@ -72,3 +72,33 @@ hotpot_smart_ops/
 ```bash
 cd <project_root> && python3 -m uvicorn edge.agent.server:app --host 0.0.0.0 --port 9100
 ```
+
+## 设备管理层级 + 配置透传
+
+```
+大区(Zone) → 区域(Region) → 门店(Store) → 网关(Gateway, 1个) → 推理盒子(Box, N个同构)
+```
+
+盒子功能完全相同（厨房+前厅推理），加盒子只为扩容更多摄像头/算力。
+
+**配置下发流**（平台→Hub→网关→盒子透传）：
+
+```
+管理员 PUT /v1/gateways/{id}/boxes/{bid}/config
+       ↓ Hub 标记 config_pending=True
+网关 register → 返回 box_configs（登录即加载已有配置）
+网关 heartbeat → 返回 pending_configs（运行时增量推送）
+网关 POST /v1/gateways/{id}/pull-config → 主动拉取（更及时）
+       ↓ 网关透传 → apply_box_config(box_id, config)
+       ↓ 写 IPC 配置 + 激活/停用推理模块
+```
+
+| 端点 | 说明 |
+|------|------|
+| `POST /v1/gateways/register` | 网关注册，返回 `box_configs` |
+| `POST /v1/gateways/{id}/heartbeat` | 心跳续期，返回 `pending_configs` |
+| `POST /v1/gateways/{id}/pull-config` | 网关主动拉配置 |
+| `PUT /v1/gateways/{id}/boxes/{bid}/config` | 管理员推送盒子配置 |
+| `GET /v1/gateways/{id}/boxes` | 列出网关下盒子 |
+| `GET /v1/gateways/{id}/overview` | 网关+盒子运行概览 |
+| `GET /v1/devices?zone_id=&region_id=&store_id=` | 按层级过滤设备 |

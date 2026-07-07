@@ -118,16 +118,23 @@ def gateway_register(body: GatewayRegisterRequest) -> dict:
             "metadata": {"gateway_id": body.gateway_id, "store_id": body.store_id, "box_count": len(body.boxes)},
         })
 
+    # 返回已有配置（盒子登录即加载）
+    box_configs: Dict[str, dict] = {}
+    for bid, b in gw["boxes"].items():
+        if b.get("config"):
+            box_configs[bid] = b["config"]
+
     return {
         "ok": True,
         "gateway_id": body.gateway_id,
         "box_count": len(gw["boxes"]),
+        "box_configs": box_configs,
     }
 
 
 @router.post("/v1/gateways/{gateway_id}/heartbeat")
 def gateway_heartbeat(gateway_id: str, body: GatewayHeartbeatRequest) -> dict:
-    """网关心跳续期 + 上报盒子当前状态。"""
+    """网关心跳续期 + 上报盒子当前状态 + 返回待下发配置（平台→网关→盒子透传）。"""
     now = utc_now_iso()
     gw = _gateways.get(gateway_id)
     if gw is None:
@@ -156,7 +163,35 @@ def gateway_heartbeat(gateway_id: str, body: GatewayHeartbeatRequest) -> dict:
             b["online"] = False
             b["status"] = "offline"
 
-    return {"ok": True, "gateway_id": gateway_id, "box_count": len(gw["boxes"])}
+    # 收集待下发配置，打包返回给网关（透传）
+    pending_configs: Dict[str, dict] = {}
+    for bid, b in gw["boxes"].items():
+        if b.get("config_pending") and b.get("config"):
+            pending_configs[bid] = b["config"]
+            b["config_pending"] = False  # 已下发，清标记
+
+    return {
+        "ok": True,
+        "gateway_id": gateway_id,
+        "box_count": len(gw["boxes"]),
+        "pending_configs": pending_configs,
+    }
+
+
+@router.post("/v1/gateways/{gateway_id}/pull-config")
+def gateway_pull_config(gateway_id: str) -> dict:
+    """网关主动拉取所有盒子的待下发配置（不依赖心跳，更及时）。"""
+    gw = _gateways.get(gateway_id)
+    if gw is None:
+        raise HTTPException(404, f"网关不存在: {gateway_id}")
+
+    configs: Dict[str, dict] = {}
+    for bid, b in gw["boxes"].items():
+        if b.get("config"):
+            configs[bid] = b["config"]
+            b["config_pending"] = False
+
+    return {"ok": True, "gateway_id": gateway_id, "box_configs": configs}
 
 
 @router.get("/v1/gateways/{gateway_id}/boxes")
