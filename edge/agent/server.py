@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 """边缘 agent 统一入口 — 注册 · 心跳 · 配置轮询 · 模块激活
 
-替代 edge/kitchen/server.py + edge/front-hall/server.py + edge/scripts/edge_agent.py。
+替代 edge/kitchen/server.py + edge/front_hall/server.py + edge/scripts/edge_agent.py。
 单端口 9100，配置驱动按 zone 激活后厨/前厅推理模块。
 
 启动: python3 edge/agent/server.py  或  python3 -m edge.agent.server

@@ -33,12 +33,19 @@ hotpot_smart_ops/
 ├── hotpot_platform/    # 云平台（Hub + Dashboard）
 ├── edge/               # 边缘端（按场景 → 功能块）
 │   ├── agent/          #   调度层（FastAPI :9100）
-│   ├── front-hall/     #   场景：前厅
-│   │   ├── inference/  #     ├ 推理（scene_analyzer + clip_server）
+│   ├── front_hall/     #   场景：前厅
+│   │   ├── inference/  #     ├ 推理（可插拔策略 + 引擎注册表）
+│   │   │   ├── strategies/ #  ├── 策略（plan_b / plan_a，丢文件即注册）
+│   │   │   ├── engines/    #  ├── 引擎（yolo + clip，懒加载）
+│   │   │   ├── rules.py    #  ├── 推理规则（独立配置）
+│   │   │   └── pipeline.py #  └── 统一入口
 │   │   ├── iot/        #     ├ IoT 模拟（传感器/门禁）
 │   │   └── bridge/     #     └ 桥接（store_forward）
 │   ├── kitchen/        #   场景：后厨
-│   │   ├── inference/  #     ├ 推理管道（yolo→clip→vlm）
+│   │   ├── inference/  #     ├ 推理（可插拔管线级 + 引擎脚本）
+│   │   │   ├── stages/      # ├── 管线级（yolo/clip/vlm，丢文件即注册）
+│   │   │   ├── rules.py     # ├── 推理规则（阈值/提示词/降级矩阵）
+│   │   │   └── pipeline.py  # └── 调度入口
 │   │   ├── capture/    #     ├ 图像采集（IPC）
 │   │   └── bridge/     #     └ 桥接（waste_vision → Hub）
 │   ├── common/         #   共用（detector / config / models）
@@ -49,7 +56,7 @@ hotpot_smart_ops/
 
 ## 前厅场景分析
 
-**文件**: `edge/front-hall/inference/scene_analyzer.py` + `clip_server.py`
+**文件**: `edge/front_hall/inference/scene_analyzer.py` + `clip_server.py`
 **API**: `POST /api/scene/analyze?mode=plan_a|plan_b&table_id=T01` (`edge/agent/modules/front_hall_infer.py`)
 
 | 模式 | 策略 | 耗时 | 依赖 |

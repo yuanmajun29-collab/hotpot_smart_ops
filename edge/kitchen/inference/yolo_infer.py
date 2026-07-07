@@ -1,6 +1,9 @@
 #!/usr/bin/env python3
 """yolo26_infer.py — TensorRT YOLO26_L inference on Jetson Orin.
 
+推理规则（阈值）→ rules.py
+推理内容（TRT 引擎/后处理/分类器）→ 本文件
+
 Converts ONNX → TensorRT engine on first run, caches .engine file.
 Outputs bounding boxes in YOLO format: [x1,y1,x2,y2,conf,cls]
 """
@@ -11,6 +14,8 @@ import time
 import json
 import numpy as np
 from pathlib import Path
+
+from .rules import YOLO_CONF_THRESH, YOLO_IOU_THRESH
 
 MODEL_DIR = os.environ.get("MODEL_DIR", "/root/models")
 ONNX_PATH = os.path.join(MODEL_DIR, "yolo26l.onnx")
@@ -65,7 +70,7 @@ def load_engine(engine_path):
 
 
 # ── YOLO post-processing ────────────────────────────────────────────
-def nms(boxes, scores, iou_thresh=0.45):
+def nms(boxes, scores, iou_thresh=YOLO_IOU_THRESH):
     """Simple NMS."""
     if len(boxes) == 0:
         return []
@@ -89,7 +94,7 @@ def nms(boxes, scores, iou_thresh=0.45):
     return keep
 
 
-def postprocess(output, img_w, img_h, conf_thresh=0.25, iou_thresh=0.45):
+def postprocess(output, img_w, img_h, conf_thresh=YOLO_CONF_THRESH, iou_thresh=YOLO_IOU_THRESH):
     """Parse YOLO output → list of [x1,y1,x2,y2,conf,cls]."""
     # output shape: (1, 84, 8400) for COCO 80-class
     output = output[0]  # [84, 8400]
@@ -148,7 +153,7 @@ class YOLO26:
                 self.outputs.append(buf)
             self.bindings.append(buf.ctypes.data)
 
-    def detect(self, image_bgr, conf=0.25, iou=0.45):
+    def detect(self, image_bgr, conf=YOLO_CONF_THRESH, iou=YOLO_IOU_THRESH):
         """Run detection on BGR image (numpy [H,W,3]).
         Returns list of dicts: {bbox:[x1,y1,x2,y2], confidence, class}.
         """

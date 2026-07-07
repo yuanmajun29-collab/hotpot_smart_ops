@@ -1,7 +1,10 @@
 #!/usr/bin/env python3
 """VLM Inference Wrapper — Ostrakon-VL 后厨场景分析
 
-Calls llama.cpp's llama-llava-cli with the Ostrakon-VL-8B model.
+推理规则（提示词/阈值）→ rules.py
+推理内容（llama.cpp 调用/解析）→ 本文件
+
+Calls llama.cpp's llama-mtmd-cli with the Ostrakon-VL-8B model.
 Outputs structured JSON for Hub ingestion.
 
 Usage:
@@ -15,17 +18,17 @@ import sys
 import time
 from pathlib import Path
 
+from .rules import KITCHEN_PROMPT, VLM_TIMEOUT_SEC, VLM_TEMPERATURE, VLM_MAX_TOKENS
+
 # Default paths (overridable via args)
 LLAMA_CLI = "/opt/hotpot-infer/bin/llama-mtmd-cli"
 MODEL_PATH = "/opt/hotpot-infer/models/ostrakon-vl-8b/Ostrakon-VL-8B.IQ4_XS.gguf"
 MMPROJ_PATH = "/opt/hotpot-infer/models/ostrakon-vl-8b/Ostrakon-VL-8B.mmproj-Q8_0.gguf"
 
-KITCHEN_PROMPT = """你是后厨废弃物识别系统。分析图片中的废弃食材/餐余，输出严格 JSON（不含 markdown）：
-{"items":[{"waste_type":"备餐废弃|边角料|过期临界|餐后剩余","sku":"食材名","estimated_portion":0.8,"unit":"份","confidence":0.82,"reason":"判断依据","suggested_action":"建议操作"}]}
-只输出 JSON，不要额外文字。"""
+# KITCHEN_PROMPT 已移至 rules.py
 
 
-def run_vlm(image_path: str, zone: str, timeout: int = 30) -> dict:
+def run_vlm(image_path: str, zone: str, timeout: int = VLM_TIMEOUT_SEC) -> dict:
     """Run Ostrakon-VL inference, parse JSON output."""
     if not Path(LLAMA_CLI).exists():
         return {"error": f"llama-llava-cli not found at {LLAMA_CLI}"}
@@ -40,8 +43,8 @@ def run_vlm(image_path: str, zone: str, timeout: int = 30) -> dict:
         "--mmproj", MMPROJ_PATH,
         "--image", image_path,
         "-p", KITCHEN_PROMPT,
-        "--temp", "0.1",
-        "-n", "512",
+        "--temp", str(VLM_TEMPERATURE),
+        "-n", str(VLM_MAX_TOKENS),
     ]
 
     try:
@@ -84,7 +87,7 @@ def main():
     parser = argparse.ArgumentParser(description="VLM Inference (Ostrakon-VL)")
     parser.add_argument("--image", required=True)
     parser.add_argument("--zone", default="备餐废弃区")
-    parser.add_argument("--timeout", type=int, default=30)
+    parser.add_argument("--timeout", type=int, default=VLM_TIMEOUT_SEC)
     args = parser.parse_args()
 
     result = run_vlm(args.image, args.zone, args.timeout)

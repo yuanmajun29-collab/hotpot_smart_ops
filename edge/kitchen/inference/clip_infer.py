@@ -1,6 +1,9 @@
 #!/usr/bin/env python3
 """CLIP-Adapter Inference — 后厨少样本食材/缺陷分类
 
+推理规则（阈值/类别）→ rules.py
+推理内容（Adapter 架构/分类器）→ 本文件
+
 Usage:
     python3 clip_infer.py --image /tmp/roi.jpg --classes "毛肚,鹅肠,废料,手套" --adapter /opt/hotpot-infer/models/adapter_weights.pt
 
@@ -26,6 +29,8 @@ import torch
 import torch.nn as nn
 from PIL import Image
 
+from .rules import CLIP_LOW_CONF_THRESHOLD, CLIP_ADAPTER_RATIO
+
 
 # ===== Adapter 实现 =====
 class Adapter(nn.Module):
@@ -47,7 +52,7 @@ class Adapter(nn.Module):
 class CLIPAdapter(nn.Module):
     """CLIP + Adapter 残差融合"""
 
-    def __init__(self, clip_model, adapter_ratio=0.2):
+    def __init__(self, clip_model, adapter_ratio=CLIP_ADAPTER_RATIO):
         super().__init__()
         self.clip = clip_model
         output_dim = clip_model.visual.output_dim
@@ -77,7 +82,7 @@ class CLIPInferencer:
         self.model, self.preprocess = clip.load("ViT-B/32", device=device)
         self.model.eval()
 
-        self.clip_adapter = CLIPAdapter(self.model, adapter_ratio=0.2).to(device)
+        self.clip_adapter = CLIPAdapter(self.model, adapter_ratio=CLIP_ADAPTER_RATIO).to(device)
         self.clip_adapter.eval()
 
         if adapter_path and os.path.exists(adapter_path):
@@ -103,7 +108,7 @@ class CLIPInferencer:
             "top_class": classes[best_idx],
             "top_confidence": round(scores[best_idx], 4),
             "all_scores": {cls: round(s, 4) for cls, s in zip(classes, scores)},
-            "low_confidence": scores[best_idx] < 0.5,
+            "low_confidence": scores[best_idx] < CLIP_LOW_CONF_THRESHOLD,
         }
 
 
@@ -115,7 +120,7 @@ def main():
         "--adapter", default="/opt/hotpot-infer/models/adapter_weights.pt"
     )
     parser.add_argument("--device", default="cuda")
-    parser.add_argument("--threshold", type=float, default=0.5, help="Low confidence threshold")
+    parser.add_argument("--threshold", type=float, default=CLIP_LOW_CONF_THRESHOLD, help="Low confidence threshold")
     args = parser.parse_args()
 
     classes = [c.strip() for c in args.classes.split(",")]

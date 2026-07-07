@@ -4,7 +4,7 @@
 import subprocess, sys, json, base64
 from pathlib import Path
 
-SCRIPT = Path(__file__).resolve().parent.parent / "front-hall" / "stream" / "scene_analyzer.py"
+SCRIPT = Path(__file__).resolve().parent.parent / "front_hall" / "inference" / "scene_analyzer.py"
 PROJECT = Path(__file__).resolve().parents[2]
 
 def analyze(image_path: str, table_id: str = "") -> dict:

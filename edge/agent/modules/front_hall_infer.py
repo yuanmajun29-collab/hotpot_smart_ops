@@ -1,6 +1,6 @@
 """前厅 YOLO 推理模块 — 实时检测 + 标注图
 
-移自 edge/front-hall/server.py。通过 _active 标志由 server.py 按 zone 激活。
+移自 edge/front_hall/server.py。通过 _active 标志由 server.py 按 zone 激活。
 """
 
 from __future__ import annotations
@@ -167,7 +167,7 @@ def _get_scene_analyzer(mode: str = "plan_b"):
     """获取场景分析器实例（按 mode 缓存，plan_b 默认）。"""
     if mode not in _scene_analyzers:
         module_path = str(
-            PROJECT_ROOT / "edge" / "front-hall" / "stream" / "scene_analyzer.py"
+            PROJECT_ROOT / "edge" / "front_hall" / "inference" / "scene_analyzer.py"
         )
         spec = importlib.util.spec_from_file_location(
             f"hotpot_scene_analyzer_{mode}", module_path

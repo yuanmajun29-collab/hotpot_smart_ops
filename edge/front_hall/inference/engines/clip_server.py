@@ -1,6 +1,8 @@
 #!/usr/bin/env python3
 """CLIP 场景语义服务 — 独立子进程，避免 hotpot platform/ 污染。
-   
+
+规则（提示词/映射表）→ rules.py，本文件只做模型加载+分类器
+
 协议（stdin/stdout，每行一条 JSON）：
   输入: {"image_path": "/abs/path/to/image.jpg"}
   输出: {"table": "dining", "table_conf": 0.46, "service": "clearing", "svc_conf": 0.38, ...}
@@ -16,40 +18,10 @@ import torch
 from PIL import Image
 from transformers import CLIPModel, CLIPProcessor
 
-TABLE_STATES = [
-    "customers eating hotpot at the table",
-    "a messy table with leftover food and dirty dishes",
-    "staff cleaning the table",
-]
-SERVICE_EVENTS = [
-    "a waiter serving food or drinks to the table",
-    "a waiter clearing dishes from the table",
-    "a waiter taking orders at the table",
-]
-CUSTOMER_EVENTS = [
-    "customers eating and chatting happily",
-    "customers waving or looking around for waiter",
-    "customers getting up to leave",
-    "customers paying the bill",
-]
-
-# 映射
-TABLE_MAP = {
-    "customers eating hotpot at the table":       "dining",
-    "a messy table with leftover food and dirty dishes": "needs_cleaning",
-    "staff cleaning the table":                   "cleaning",
-}
-SERVICE_MAP = {
-    "a waiter serving food or drinks to the table": "serving",
-    "a waiter clearing dishes from the table":      "clearing",
-    "a waiter taking orders at the table":          "taking_order",
-}
-CUSTOMER_MAP = {
-    "customers eating and chatting happily":       "eating",
-    "customers waving or looking around for waiter": "calling_waiter",
-    "customers getting up to leave":               "leaving",
-    "customers paying the bill":                   "paying",
-}
+from rules import (
+    TABLE_STATES, SERVICE_EVENTS, CUSTOMER_EVENTS,
+    TABLE_MAP, SERVICE_MAP, CUSTOMER_MAP,
+)
 
 def load_models():
     sys.stderr.write("[clip_server] Loading CLIP...\n")

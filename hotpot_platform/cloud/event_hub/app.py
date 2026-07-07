@@ -17,8 +17,6 @@ from hotpot_platform.cloud.event_hub.db import create_hub_database
 from hotpot_platform.cloud.event_hub.daily_scheduler import (
     DailyReportScheduler,
     default_loss_profiles,
-    generate_daily_report_for_store,
-    push_restock_advice_for_store,
 )
 from hotpot_platform.cloud.event_hub.hub_core import MultiTenantHub, seed_from_directory
 
@@ -98,20 +96,10 @@ def startup() -> None:
         print("[EventHub] Started empty (no DB data, no seed dir)")
 
     if os.environ.get("HOTPOT_DAILY_REPORT_SCHEDULER", "1") == "1":
-
-        def _daily(sid: str) -> None:
-            generate_daily_report_for_store(runtime.hub, runtime.db, runtime.alert_gateway, sid, push=True)
-
-        def _restock(sid: str) -> None:
-            push_restock_advice_for_store(runtime.hub, runtime.db, runtime.alert_gateway, sid)
-
-        def _weekly(sid: str) -> None:
-            # P1.5 LLM 损耗趋势周报，flag 关闭前为预留槽（LOSS-507 仅提供调度位）
-            if os.environ.get("HOTPOT_WEEKLY_REPORT", "0") != "1":
-                return
+        from hotpot_platform.cloud.event_hub.tasks import get_dispatch
+        dispatch = get_dispatch()
 
         # 三时段损耗调度：15:00 备货建议 / 22:00 损耗复盘 / 周一 09:00 趋势周报
-        dispatch = {"restock": _restock, "daily": _daily, "weekly": _weekly}
         global _daily_scheduler
         _daily_scheduler = DailyReportScheduler(profiles=default_loss_profiles(), dispatch=dispatch)
         _daily_scheduler.start()
@@ -165,34 +153,6 @@ async def _mark_deprecated(request, call_next):
 
 
 
-from hotpot_platform.cloud.event_hub.routers import system as _system_router
-from hotpot_platform.cloud.event_hub.routers import auth_routes as _auth_routes_router
-from hotpot_platform.cloud.event_hub.routers import ingest as _ingest_router
-from hotpot_platform.cloud.event_hub.routers import receiving as _receiving_router
-from hotpot_platform.cloud.event_hub.routers import sop as _sop_router
-from hotpot_platform.cloud.event_hub.routers import iot as _iot_router
-from hotpot_platform.cloud.event_hub.routers import reports as _reports_router
-from hotpot_platform.cloud.event_hub.routers import alerts as _alerts_router
-from hotpot_platform.cloud.event_hub.routers import org as _org_router
-from hotpot_platform.cloud.event_hub.routers import admin as _admin_router
-from hotpot_platform.cloud.event_hub.routers import cost as _cost_router
-from hotpot_platform.cloud.event_hub.routers import devices as _devices_router
-from hotpot_platform.cloud.event_hub.routers import tasks as _tasks_router
-from hotpot_platform.cloud.event_hub.routers import vlm as _vlm_router
-from hotpot_platform.cloud.event_hub.routers import images as _images_router
-
-app.include_router(_system_router.router)
-app.include_router(_auth_routes_router.router)
-app.include_router(_ingest_router.router)
-app.include_router(_receiving_router.router)
-app.include_router(_sop_router.router)
-app.include_router(_iot_router.router)
-app.include_router(_reports_router.router)
-app.include_router(_alerts_router.router)
-app.include_router(_org_router.router)
-app.include_router(_admin_router.router)
-app.include_router(_cost_router.router)
-app.include_router(_devices_router.router)
-app.include_router(_tasks_router.router)
-app.include_router(_vlm_router.router)
-app.include_router(_images_router.router)
+# ── 路由器自动发现（新增路由 = 在 routers/ 丢一个 .py 文件，导出 router 实例）──
+from hotpot_platform.cloud.event_hub.routers import auto_include_routers
+auto_include_routers(app)

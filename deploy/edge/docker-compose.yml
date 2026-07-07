@@ -1,6 +1,6 @@
 # 前厅边缘推理服务
 # 职责：桌台状态识别、客流统计、前厅监控摄像头
-# 部署：cd edge/front-hall/docker && docker compose up -d
+# 部署：cd edge/front_hall/docker && docker compose up -d
 version: "3.8"
 
 services:
