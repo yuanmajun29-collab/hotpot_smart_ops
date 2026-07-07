@@ -18,8 +18,6 @@ services:
       - /opt/hotpot-infer/models:/models:ro
       # 推理数据
       - /opt/hotpot-infer/data:/data
-      # llama-server 二进制（build.sh 产出）
-      - /opt/hotpot-infer/bin:/opt/hotpot-infer/bin:ro
     environment:
       - NVIDIA_VISIBLE_DEVICES=all
       - HOTPOT_HUB_URL=http://192.168.2.85:8098

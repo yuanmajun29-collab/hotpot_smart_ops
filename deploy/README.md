@@ -1,48 +1,41 @@
 # 火锅智能系统 — 部署
 
+**一切从源码端出发，板端不做任何编译。**
+
 ## 目录
 
 | 目录 | 用途 | 入口 |
 |------|------|------|
-| `jetson/` | Jetson Orin 板端部署 | `deploy.sh`（日常）/ `build.sh`（首次） |
+| `jetson/` | Jetson Orin 板端部署 | `build.sh`（首次）/ `deploy.sh`（日常） |
 | `cloud/` | 云端 Hub + Dashboard | `docker compose up` |
 | `edge/` | 边缘端容器编排（前厅+Agent） | `docker compose up` |
 | `bridge/` | VLM→Hub 图像桥接 | `./bridge.sh` |
 
 ## 板端部署（Jetson）
 
-### 首次部署
+### 首次构建（源码端 Mac）
 ```bash
 cd deploy/jetson
-JETSON_HOST=192.168.2.240 ./build.sh     # 编译 llama.cpp + 下载模型
+JETSON_HOST=192.168.2.240 ./build.sh
 ```
-产出：`/opt/hotpot-infer/bin/llama-server-cuda` + `/opt/hotpot-infer/models/`
+→ 源码端编译 llama.cpp → 打入 Docker 镜像 → `docker save` → `ssh docker load` 推板端
+→ 板端**不做任何编译**
 
-### 日常增量部署（无编译，模型缺失自动下载）
+### 日常增量部署
 ```bash
 cd deploy/jetson
-JETSON_HOST=192.168.2.240 ./deploy.sh    # 检查模型 → 同步代码 → 重启 → 验证
+JETSON_HOST=192.168.2.240 ./deploy.sh
 ```
-- 自动检测模型是否存在，缺失则从 HuggingFace 下载
-- 只同步变更的代码（pipeline/detector/jetson_server）
-- 部署完自动跑 health + infer 验证
+→ 检查镜像+模型 → 同步代码(tar直传) → 重启容器 → 验证
 
-### 流程
+### 板端目录
 ```
-deploy.sh:
-  [0/4] 检查前置 (llama-server 二进制 + 模型文件)
-  [1/4] 停止旧服务
-  [2/4] 同步代码 (tar 管道直传)
-  [3/4] 启动 llama-server + 重启容器
-  [4/4] 验证 (health + infer)
+/opt/hotpot-infer/
+├── models/          ← 大模型权重（镜像外，卷挂载）
+└── data/            ← 推理数据
 ```
 
 ## 云端部署
 ```bash
 cd deploy/cloud && docker compose up -d
-```
-
-## 桥接
-```bash
-deploy/bridge/bridge.sh /path/to/image.jpg store_yuhuan 备餐废弃区 http://127.0.0.1:8098
 ```

@@ -16,10 +16,10 @@ CONTAINER="${CONTAINER:-hotpot-kitchen}"
 SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
 PROJECT_ROOT="$(cd "$SCRIPT_DIR/../.." && pwd)"
 REMOTE_MODEL_DIR="/opt/hotpot-infer/models"
-REMOTE_BIN_DIR="/opt/hotpot-infer/bin"
 MODEL_GGUF="Ostrakon-VL-8B.IQ4_XS.gguf"
 MODEL_MMPROJ="Ostrakon-VL-8B.mmproj-Q8_0.gguf"
 MODEL_BASE="ostrakon-vl-8b"
+IMAGE="hotpot-kitchen:latest"
 
 echo "============================================"
 echo " Jetson 增量部署 (ngl=${NGL})"
@@ -30,13 +30,13 @@ echo "============================================"
 echo ""
 echo "[0/4] 检查前置条件 ..."
 
-# 检查 llama-server 二进制
-if ! ssh "$JETSON_HOST" "[ -f $REMOTE_BIN_DIR/llama-server-cuda ]" 2>/dev/null; then
-  echo "  ❌ $REMOTE_BIN_DIR/llama-server-cuda 不存在"
-  echo "  👉 请先运行: cd deploy/jetson && JETSON_HOST=$JETSON_HOST ./build.sh"
+# 检查 Docker 镜像（llama-server 已打入镜像，源码端 build.sh 产出）
+if ! ssh "$JETSON_HOST" "docker image inspect $IMAGE >/dev/null 2>&1"; then
+  echo "  ❌ Docker 镜像 $IMAGE 不存在"
+  echo "  👉 请先在源码端运行: cd deploy/jetson && JETSON_HOST=$JETSON_HOST ./build.sh"
   exit 1
 fi
-echo "  ✅ llama-server-cuda 就绪"
+echo "  ✅ Docker 镜像 $IMAGE 就绪（含 llama-server）"
 
 # 检查模型 — 缺失则自动下载
 echo "  - 检查模型..."
@@ -135,17 +135,17 @@ echo "[3/4] 启动服务 ..."
 ssh "$JETSON_HOST" bash << 'START'
 set -e
 CONTAINER=hotpot-kitchen
-BIN_DIR='/opt/hotpot-infer/bin'
 NGL='"${NGL}"'
 
 docker restart $CONTAINER
 sleep 5
 
+# llama-server 已打入 Docker 镜像（源码端 build.sh 产出），直接启动
 docker exec -d $CONTAINER bash -c "
 pkill -f llama-server 2>/dev/null || true
 sleep 1
 
-$BIN_DIR/llama-server-cuda \
+/opt/hotpot-infer/bin/llama-server-cuda \
   -m /models/ostrakon-vl-8b/Ostrakon-VL-8B.IQ4_XS.gguf \
   --mmproj /models/ostrakon-vl-8b/Ostrakon-VL-8B.mmproj-Q8_0.gguf \
   --host 127.0.0.1 --port 8080 --no-webui \
