@@ -6,7 +6,24 @@ import os
 HUB_URL = os.environ.get("HOTPOT_HUB_URL", "http://192.168.2.85:8098")
 DEVICE_ID = os.environ.get("HOTPOT_DEVICE_ID", "jetson-yuhuan-01")
 STORE_ID = os.environ.get("HOTPOT_STORE_ID", "store_yuhuan")
-API_KEY = os.environ.get("HOTPOT_API_KEY", "test-key")
+API_KEY = os.environ.get("HOTPOT_API_KEY", "")
+
+# ─── 启动校验 ───
+def _validate():
+    """启动时强制检查关键配置。缺 API Key 或 Device ID 直接退出。"""
+    missing = []
+    if not API_KEY or API_KEY == "test-key":
+        missing.append("HOTPOT_API_KEY (禁止使用 test-key)")
+    if not DEVICE_ID.startswith("jetson-") and not DEVICE_ID.startswith("rk3588-"):
+        missing.append(f"HOTPOT_DEVICE_ID (当前值 '{DEVICE_ID}' 格式可疑)")
+    if missing:
+        raise SystemExit(
+            f"❌ 配置校验失败，缺少以下环境变量:\n" +
+            "\n".join(f"  - {m}" for m in missing) +
+            "\n\n请在 docker-compose.yml 或 .env 中设置后重试。"
+        )
+
+_validate()
 
 # ─── 服务端口 ───
 SERVER_PORT = int(os.environ.get("HOTPOT_AGENT_PORT", "9100"))

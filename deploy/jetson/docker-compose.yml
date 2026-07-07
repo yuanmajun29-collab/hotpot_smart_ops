@@ -26,6 +26,6 @@ services:
       - HOTPOT_STORE_ID=${HOTPOT_STORE_ID:-store_yuhuan}
       - HOTPOT_ACCOUNT_ID=${HOTPOT_ACCOUNT_ID:-default}
       - HOTPOT_DEVICE_ID=${HOTPOT_DEVICE_ID:-jetson-yuhuan-01}
-      - HOTPOT_API_KEY=${HOTPOT_API_KEY:-test-key}
+      - HOTPOT_API_KEY=${HOTPOT_API_KEY:?err}  # 必须设置，无默认值
       - LLAMA_NGL=${LLAMA_NGL:-999}
     network_mode: host

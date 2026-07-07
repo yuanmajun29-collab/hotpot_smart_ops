@@ -18,15 +18,12 @@ from __future__ import annotations
 
 import json
 import os
-import subprocess
 import sys
 import time
 from pathlib import Path
 from typing import Any, Dict, List, Optional, Tuple
 
 import cv2
-import httpx
-import numpy as np
 from fastapi import APIRouter, HTTPException, Query
 from fastapi.responses import JSONResponse
 from pydantic import BaseModel
@@ -68,121 +65,6 @@ VLM_PROMPT = (
     '"sku":"食材名","estimated_portion":0.8,"unit":"份",'
     '"confidence":0.82,"reason":"判断依据"}]}'
 )
-
-# ── VLM Mock 回退（开发机 / Mac 无 llama-mtmd-cli） ──
-def _vlm_mock(detections: List[Dict[str, Any]], label_counts: Dict[str, int]) -> List[Dict[str, Any]]:
-    """基于 YOLO 检测结果生成模拟的废料识别输出。
-
-    策略：用 YOLO 检测到的物体类别反向推断可能的废料类型。
-    当 llama-mtmd-cli 不可用时作为 mock 回退。
-    """
-    items: List[Dict[str, Any]] = []
-    staff_count = label_counts.get("staff", 0)
-    tableware_count = label_counts.get("tableware", 0)
-    container_count = label_counts.get("container", 0)
-    utensil_count = label_counts.get("utensil", 0)
-
-    # 厨房废料 mock 模板
-    waste_templates = [
-        {
-            "waste_type": "边角料",
-            "sku": "牛肉切余料",
-            "estimated_portion": 0.25,
-            "unit": "份",
-            "confidence": 0.88,
-            "reason": "砧板区域检测到容器+刀具，推断备餐切割边角料",
-        },
-        {
-            "waste_type": "餐后剩余",
-            "sku": "锅底残渣",
-            "estimated_portion": 0.40,
-            "unit": "份",
-            "confidence": 0.82,
-            "reason": "多碗+瓶组合，推断餐后回收餐具带锅底残渣",
-        },
-        {
-            "waste_type": "备餐废弃",
-            "sku": "蔬菜叶梗",
-            "estimated_portion": 0.15,
-            "unit": "份",
-            "confidence": 0.75,
-            "reason": "碗类容器旁边角料，推断洗切蔬菜残余",
-        },
-        {
-            "waste_type": "过期临界",
-            "sku": "豆腐",
-            "estimated_portion": 0.30,
-            "unit": "份",
-            "confidence": 0.70,
-            "reason": "容器+人员频繁操作，推断临期食材周转",
-        },
-    ]
-
-    # 根据检测结果筛选相关废料项
-    if staff_count >= 1:
-        items.append(waste_templates[0])  # 有人在 → 边角料
-
-    if tableware_count >= 3 or container_count >= 3:
-        items.append(waste_templates[1])  # 多餐具 → 餐后剩余
-
-    if tableware_count >= 2 and container_count >= 1:
-        items.append(waste_templates[2])  # 碗+瓶 → 备餐废弃
-
-    if staff_count >= 2 and container_count >= 3:
-        items.append(waste_templates[3])  # 多人+多容器 → 过期临界
-
-    # 至少返回 1 项
-    if not items:
-        items.append({
-            "waste_type": "备餐废弃",
-            "sku": "微量残余",
-            "estimated_portion": 0.05,
-            "unit": "份",
-            "confidence": 0.60,
-            "reason": "厨房区域有人/物活动但未检测到明显废料堆积",
-        })
-
-    return items
-
-
-def _run_vlm(image_path: Path, detections: List[Dict[str, Any]], label_counts: Dict[str, int]) -> Tuple[List[Dict[str, Any]], str, float]:
-    """执行 VLM 推理（真实 CLI 或 mock 回退）。
-
-    Returns:
-        (items, source_label, inference_ms)
-    """
-    vlm_t0 = time.perf_counter()
-    items: List[Dict[str, Any]] = []
-    source_label = "mock"
-
-    # 优先尝试真实 VLM CLI
-    if Path(LLAMA_CLI).exists() and Path(LLAMA_MODEL).exists():
-        try:
-            cmd = [
-                LLAMA_CLI, "-m", LLAMA_MODEL, "--mmproj", LLAMA_MMPROJ,
-                "--image", str(image_path), "--image-min-tokens", "1024",
-                "-p", VLM_PROMPT, "--temp", "0.1", "-n", "512",
-            ]
-            proc = subprocess.run(cmd, capture_output=True, text=True, timeout=VLM_TIMEOUT)
-            out = proc.stdout
-            try:
-                brace = out.index("{")
-                data = json.loads(out[brace:])
-                items = data.get("items", [])
-                if items:
-                    source_label = "ostrakon-vl-8b"
-            except (ValueError, json.JSONDecodeError):
-                pass
-        except (subprocess.TimeoutExpired, FileNotFoundError, Exception):
-            pass
-
-    # VLM CLI 不可用或无结果 → mock 回退
-    if not items:
-        items = _vlm_mock(detections, label_counts)
-
-    vlm_ms = (time.perf_counter() - vlm_t0) * 1000
-    return items, source_label, vlm_ms
-
 
 # ── 推理缓存（简单帧差检测用） ──
 _last_yolo_frame: Optional[Dict[str, Any]] = None
@@ -359,13 +241,9 @@ def kitchen_yolo(
 
 @router.post("/kitchen")
 def kitchen_infer(req: InferRequest):
-    """后厨完整推理：YOLO 预过滤 → (可选) VLM 废料识别。
+    """后厨完整推理 — 调用 pipeline.run_pipeline()（stages 注册表架构）。
 
-    流程：
-    1. YOLO 检测（8ms）
-    2. 判断是否需触发 VLM
-    3. 若触发 + VLM 启用 → llama-mtmd-cli 调用（~320ms）
-    4. 推送结果到 Hub
+    流程：YOLO → CLIP → VLM（三级过滤），结果推 Hub。
     """
     _check_active()
 
@@ -375,89 +253,43 @@ def kitchen_infer(req: InferRequest):
     if not img_path.exists():
         raise HTTPException(404, f"图片不存在: {req.image_path}")
 
-    img = cv2.imread(str(img_path))
-    if img is None:
-        raise HTTPException(400, f"无法读取图片: {req.image_path}")
+    # ── 调用统一管线 ──
+    from edge.kitchen.inference.pipeline import run_pipeline, post_to_hub
 
-    # ── 第一步：YOLO 预检测 ──
     t_start = time.perf_counter()
-    detector = _get_yolo()
-    yolo_result = detector.detect(img, zone="kitchen")
-
-    detections = yolo_result.get("detections", [])
-    label_counts = yolo_result.get("label_counts", {})
-    yolo_ms = yolo_result.get("inference_ms", 0)
-
-    # ── 第二步：判断是否触发 VLM ──
-    should_vlm, vlm_reason = _should_trigger_vlm(detections, label_counts)
-
-    # 缓存帧
-    global _last_yolo_frame, _last_frame_time
-    _last_yolo_frame = yolo_result
-    _last_frame_time = time.time()
-
-    # ── 第三步：VLM（按需触发，真实 CLI 或 mock 回退） ──
-    items: List[Dict[str, Any]] = []
-    vlm_used = False
-    vlm_ms = 0.0
-    vlm_source = "none"
-
-    if should_vlm and VLM_ENABLED:
-        items, vlm_source, vlm_ms = _run_vlm(img_path, detections, label_counts)
-        vlm_used = True
-
-    elif should_vlm and not VLM_ENABLED:
-        vlm_reason += " (VLM disabled by HOTPOT_KITCHEN_VLM_ENABLED=0)"
-
-    # ── 第四步：推 Hub ──
-    pushed = False
-    if items:
-        try:
-            httpx.post(
-                f"{HUB_URL}/v1/vlm/waste-estimate",
-                json={
-                    "store_id": STORE_ID,
-                    "zone": _zone,
-                    "source": f"jetson-agent-kitchen:{vlm_source}",
-                    "model": "Ostrakon-VL-8B.IQ4_XS" if vlm_source == "ostrakon-vl-8b" else "mock-rule",
-                    "pipeline": "yolo+vlm",
-                    "yolo_ms": round(yolo_ms, 1),
-                    "vlm_ms": round(vlm_ms, 1) if vlm_used else None,
-                    "items": items,
-                },
-                headers={"X-Api-Key": API_KEY},
-                timeout=10,
-            )
-            pushed = True
-        except Exception:
-            pass
-
+    result = run_pipeline(str(img_path), skip_vlm=not VLM_ENABLED)
     total_ms = (time.perf_counter() - t_start) * 1000
 
+    # ── 推 Hub（带重试 3 次） ──
+    pushed = False
+    hub_error = ""
+    for attempt in range(3):
+        try:
+            post_result = post_to_hub(result)
+            if post_result.get("status") == "ok":
+                pushed = True
+                break
+            hub_error = post_result.get("error", "")
+        except Exception as e:
+            hub_error = str(e)
+            time.sleep(1)
+
     # ── 标注图（可选） ──
-    out_name = f"kitchen_{img_path.stem}.jpg"
-    out_path = OUTPUT_DIR / out_name
-    detector.annotate_and_save(img, zone="kitchen", save_path=out_path)
+    stages_info = {}
+    for name, s in result.get("stages", {}).items():
+        stages_info[name] = {
+            "status": s.get("status", "unknown"),
+            "ms": s.get("inference_ms", 0),
+        }
 
     return {
         "ok": True,
-        "pipeline": "yolo+vlm" if vlm_used else "yolo-only",
+        "pipeline": "stages" if len(result.get("stages", {})) > 1 else "yolo-only",
         "zone": _zone,
         "image": str(img_path),
-        "yolo": {
-            "total_detections": yolo_result.get("total_detections", 0),
-            "label_counts": label_counts,
-            "inference_ms": round(yolo_ms, 1),
-        },
-        "vlm": {
-            "triggered": should_vlm,
-            "used": vlm_used,
-            "source": vlm_source,
-            "reason": vlm_reason,
-            "inference_ms": round(vlm_ms, 1) if vlm_used else None,
-            "items": items,
-        },
+        "stages": stages_info,
+        "items": result.get("items", []),
         "total_ms": round(total_ms, 1),
-        "annotated_url": f"/output/{out_name}",
         "pushed_to_hub": pushed,
+        "hub_error": hub_error if not pushed else "",
     }
