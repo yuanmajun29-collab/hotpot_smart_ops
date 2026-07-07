@@ -10,7 +10,9 @@ API_KEY = os.environ.get("HOTPOT_API_KEY", "")
 
 # ─── 启动校验 ───
 def _validate():
-    """启动时强制检查关键配置。缺 API Key 或 Device ID 直接退出。"""
+    """启动时强制检查关键配置。开发模式下跳过。"""
+    if os.environ.get("HOTPOT_DEV_MODE", "") == "1":
+        return  # 开发模式，不校验
     missing = []
     if not API_KEY or API_KEY == "test-key":
         missing.append("HOTPOT_API_KEY (禁止使用 test-key)")
@@ -20,7 +22,8 @@ def _validate():
         raise SystemExit(
             f"❌ 配置校验失败，缺少以下环境变量:\n" +
             "\n".join(f"  - {m}" for m in missing) +
-            "\n\n请在 docker-compose.yml 或 .env 中设置后重试。"
+            "\n\n请在 docker-compose.yml 或 .env 中设置后重试。\n"
+            "开发调试可设 HOTPOT_DEV_MODE=1 跳过校验。"
         )
 
 _validate()

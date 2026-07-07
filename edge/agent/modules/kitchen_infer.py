@@ -85,8 +85,6 @@ def _get_yolo():
     """懒加载 YOLO 检测器，与 front-hall 复用同一 RealYoloDetector。"""
     global _yolo_detector
     if _yolo_detector is None:
-        if str(PROJECT_ROOT) not in sys.path:
-            sys.path.append(str(PROJECT_ROOT))
         from edge.common.detector.real_yolo import RealYoloDetector, COCO_NAMES
         _yolo_detector = RealYoloDetector(conf=_SUSPICIOUS_CONF)
     return _yolo_detector

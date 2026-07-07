@@ -51,16 +51,30 @@ _MODULE_REGISTRY: Dict[str, Any] = {
 
 # ─── Hub 通信 ───
 
+_hub_client: httpx.AsyncClient = None
+
+
+async def _get_hub_client() -> httpx.AsyncClient:
+    """复用连接池，避免每次创建新 AsyncClient。"""
+    global _hub_client
+    if _hub_client is None or _hub_client.is_closed:
+        _hub_client = httpx.AsyncClient(
+            timeout=httpx.Timeout(10),
+            limits=httpx.Limits(max_keepalive_connections=5, max_connections=10),
+        )
+    return _hub_client
+
+
 async def _hub_post(path: str, data: dict) -> dict:
     """向 Hub POST，带 X-Api-Key。"""
-    async with httpx.AsyncClient(timeout=10) as client:
-        resp = await client.post(
-            f"{HUB_URL}{path}",
-            json=data,
-            headers={"Content-Type": "application/json", "X-Api-Key": API_KEY},
-        )
-        resp.raise_for_status()
-        return resp.json()
+    client = await _get_hub_client()
+    resp = await client.post(
+        f"{HUB_URL}{path}",
+        json=data,
+        headers={"Content-Type": "application/json", "X-Api-Key": API_KEY},
+    )
+    resp.raise_for_status()
+    return resp.json()
 
 
 async def register() -> dict:

@@ -45,8 +45,6 @@ def _check_active():
 def _get_detector():
     global _detector
     if _detector is None:
-        if str(PROJECT_ROOT) not in sys.path:
-            sys.path.append(str(PROJECT_ROOT))  # 放末尾避免遮蔽 stdlib platform
         from edge.common.detector.real_yolo import RealYoloDetector
         _detector = RealYoloDetector(conf=0.2)
     return _detector

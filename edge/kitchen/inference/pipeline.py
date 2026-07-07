@@ -108,19 +108,27 @@ def run_pipeline(frame_path: str, skip_vlm: bool = False, clip_classes: str = No
     return pipeline_result
 
 
-def post_to_hub(result: dict, hub_url: str = HUB_URL) -> dict:
-    """POST pipeline result to Mac Hub."""
-    import urllib.request
+def post_to_hub(result: dict, hub_url: str = HUB_URL, max_retries: int = 3) -> dict:
+    """POST pipeline result to Hub with retry."""
+    import httpx
 
     payload = json.dumps(result).encode("utf-8")
     url = f"{hub_url}/v1/vlm/waste-estimate"
 
-    try:
-        req = urllib.request.Request(url, data=payload, headers={"Content-Type": "application/json"})
-        with urllib.request.urlopen(req, timeout=10) as resp:
-            return {"status": "ok", "event_id": json.loads(resp.read()).get("event_id", "")}
-    except Exception as e:
-        return {"status": "error", "error": str(e)}
+    last_error = ""
+    for attempt in range(max_retries):
+        try:
+            resp = httpx.post(
+                url, content=payload,
+                headers={"Content-Type": "application/json", "X-Api-Key": os.environ.get("HOTPOT_API_KEY", "")},
+                timeout=15,
+            )
+            resp.raise_for_status()
+            return {"status": "ok", "event_id": resp.json().get("event_id", "")}
+        except Exception as e:
+            last_error = str(e)
+            time.sleep(1)
+    return {"status": "error", "error": last_error}
 
 
 def main():
