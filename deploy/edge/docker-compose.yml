@@ -1,35 +1,22 @@
-# 前厅边缘推理服务
-# 职责：桌台状态识别、客流统计、前厅监控摄像头
-# 部署：cd edge/front_hall/docker && docker compose up -d
+# 边缘盒子 — 一个 docker compose up 拉起全部
+# agent server (:9100) 含前厅推理 + 后厨推理 + IPC 抓帧
 version: "3.8"
 
 services:
-  front-hall:
-    build:
-      context: ..
-      dockerfile: docker/Dockerfile
-    container_name: hotpot-front-hall
+  edge:
+    build: .
+    container_name: hotpot-edge
     restart: unless-stopped
     runtime: nvidia
     ports:
       - "9100:9100"
     volumes:
-      # 共用检测器
-      - ../../shared/detector:/app/detector:ro
-      # 配置
-      - ../../shared/config:/app/config:ro
-      # 模型权重（ONNX）
-      - /opt/hotpot-infer/models:/app/models:ro
-      # 本地数据缓存
-      - /opt/hotpot-infer/data/front-hall:/app/data
+      - /opt/hotpot-infer/models:/opt/hotpot-infer/models:ro
+      - /opt/hotpot-infer/data:/opt/hotpot-infer/data
+      - /tmp/ipc_frames:/tmp/ipc_frames
     environment:
       - NVIDIA_VISIBLE_DEVICES=all
-      - HOTPOT_HUB_URL=http://192.168.2.85:8098
-      - HOTPOT_STORE_ID=store_yuhuan
-      - HOTPOT_ZONE=front_hall
-    networks:
-      - hotpot-edge
-
-networks:
-  hotpot-edge:
-    name: hotpot-edge
+      - HOTPOT_MODE=agent
+      - HOTPOT_HUB_URL=${HOTPOT_HUB_URL:-http://192.168.2.85:8098}
+      - HOTPOT_STORE_ID=${HOTPOT_STORE_ID:-store_yuhuan}
+    network_mode: host

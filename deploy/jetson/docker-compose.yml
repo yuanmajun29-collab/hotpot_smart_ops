@@ -1,31 +1,28 @@
-# 后厨边缘推理服务
-# 部署：cd deploy/jetson && docker compose up -d
-# 前置：模型已下载到 /opt/hotpot-infer/models/（build.sh 或手动）
+# Jetson 板端 — 一个 docker compose up 拉起全部
+# agent server (:9100) 含前厅推理 + 后厨推理 + VLM 管线
+#
+# 前置：build.sh 已编译 llama.cpp + 下载模型
+# 日常：deploy.sh 增量同步代码，docker compose restart
 version: "3.8"
 
 services:
-  kitchen:
+  edge:
     build:
-      context: ../..                    # 项目根目录
+      context: ../..
       dockerfile: deploy/jetson/Dockerfile
-    container_name: hotpot-kitchen
+    container_name: hotpot-edge
     restart: unless-stopped
     runtime: nvidia
     ports:
-      - "9200:9200"
+      - "9100:9100"
     volumes:
-      # 模型权重（大文件，不进镜像，板端本地缓存）
-      - /opt/hotpot-infer/models:/models:ro
-      # 推理数据
-      - /opt/hotpot-infer/data:/data
+      - /opt/hotpot-infer/models:/opt/hotpot-infer/models:ro
+      - /opt/hotpot-infer/data:/opt/hotpot-infer/data
+      - /tmp/ipc_frames:/tmp/ipc_frames
     environment:
       - NVIDIA_VISIBLE_DEVICES=all
-      - HOTPOT_HUB_URL=http://192.168.2.85:8098
-      - HOTPOT_STORE_ID=store_yuhuan
-      - HOTPOT_ZONE=kitchen
-    networks:
-      - hotpot-edge
-
-networks:
-  hotpot-edge:
-    name: hotpot-edge
+      - HOTPOT_MODE=agent
+      - HOTPOT_HUB_URL=${HOTPOT_HUB_URL:-http://192.168.2.85:8098}
+      - HOTPOT_STORE_ID=${HOTPOT_STORE_ID:-store_yuhuan}
+      - LLAMA_NGL=${LLAMA_NGL:-999}
+    network_mode: host
