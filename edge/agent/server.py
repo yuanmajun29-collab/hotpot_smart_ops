@@ -28,7 +28,7 @@ from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 
 from edge.agent.config import (
-    HUB_URL, DEVICE_ID, STORE_ID, API_KEY,
+    HUB_URL, GATEWAY_ID, DEVICE_ID, STORE_ID, API_KEY,
     SERVER_PORT, SERVER_HOST,
     HEARTBEAT_INTERVAL, CONFIG_POLL_INTERVAL,
     IPC_CONFIG_PATH, DEVICE_CONFIG_PATH,
@@ -79,24 +79,33 @@ async def _hub_get(path: str) -> dict:
         return resp.json()
 
 
-async def register() -> dict:
-    """向 Hub 报到，获取当前配置。"""
-    return await _hub_post("/v1/devices/register", {
-        "device_id": DEVICE_ID,
-        "store_id": STORE_ID,
+def _build_box_list() -> list:
+    """构建当前网关所挂盒子列表。未来可从本地注册表/auto-discovery 组装。"""
+    return [{
+        "box_id": DEVICE_ID,
         "device_type": "jetson",
         "ip": "192.168.2.240",
+        "active_zones": _active_zones,
+        "status": "online",
+    }]
+
+
+async def register() -> dict:
+    """网关向 Hub 报到，携所挂盒子列表。"""
+    return await _hub_post("/v1/gateways/register", {
+        "gateway_id": GATEWAY_ID,
+        "store_id": STORE_ID,
+        "ip": "192.168.2.240",
         "hardware": {"model": "Orin", "jetpack": "5.0"},
+        "boxes": _build_box_list(),
     })
 
 
 async def heartbeat() -> dict:
-    """心跳（复用 register 端点续期）。"""
-    return await _hub_post("/v1/devices/register", {
-        "device_id": DEVICE_ID,
-        "store_id": STORE_ID,
-        "device_type": "jetson",
-        "ip": "192.168.2.240",
+    """网关心跳续期，上报盒子当前状态。"""
+    return await _hub_post(f"/v1/gateways/{GATEWAY_ID}/heartbeat", {
+        "gateway_id": GATEWAY_ID,
+        "boxes": _build_box_list(),
     })
 
 
