@@ -1,37 +1,30 @@
 # 后厨边缘推理服务
-# 部署：cd edge/kitchen/docker && docker compose up -d
-# 前置：shared/ 已 rsync 到 Jetson，模型权重已下载到 /opt/hotpot-infer/models/
+# 部署：cd deploy/jetson && docker compose up -d
+# 前置：模型已下载到 /opt/hotpot-infer/models/（build.sh 或手动）
 version: "3.8"
 
 services:
   kitchen:
     build:
-      context: ..
-      dockerfile: docker/Dockerfile
+      context: ../..                    # 项目根目录
+      dockerfile: deploy/jetson/Dockerfile
     container_name: hotpot-kitchen
     restart: unless-stopped
     runtime: nvidia
     ports:
       - "9200:9200"
     volumes:
-      # 共用模块
-      - ../../shared/detector:/app/detector:ro
-      - ../../shared/config:/app/config:ro
-      # 模型权重（大文件，不进 Docker 镜像）
-      - /opt/hotpot-infer/models/ostrakon-vl-8b:/models/ostrakon-vl-8b:ro
-      - /opt/hotpot-infer/models:/app/models:ro
-      # 推理图片缓存
-      - /opt/hotpot-infer/data/kitchen:/app/data
-      # llama-mtmd-cli（宿主机编译的 llama.cpp）
+      # 模型权重（大文件，不进镜像，板端本地缓存）
+      - /opt/hotpot-infer/models:/models:ro
+      # 推理数据
+      - /opt/hotpot-infer/data:/data
+      # llama-server 二进制（build.sh 产出）
       - /opt/hotpot-infer/bin:/opt/hotpot-infer/bin:ro
     environment:
       - NVIDIA_VISIBLE_DEVICES=all
       - HOTPOT_HUB_URL=http://192.168.2.85:8098
       - HOTPOT_STORE_ID=store_yuhuan
       - HOTPOT_ZONE=kitchen
-      - LLAMA_CLI=/opt/hotpot-infer/bin/llama-mtmd-cli
-      - LLAMA_MODEL=/models/ostrakon-vl-8b/Ostrakon-VL-8B.IQ4_XS.gguf
-      - LLAMA_MMPROJ=/models/ostrakon-vl-8b/Ostrakon-VL-8B.mmproj-Q8_0.gguf
     networks:
       - hotpot-edge
 
