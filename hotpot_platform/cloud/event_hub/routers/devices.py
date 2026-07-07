@@ -16,6 +16,7 @@
 from __future__ import annotations
 
 import time
+import threading
 from typing import Any, Dict, List, Optional
 
 from fastapi import APIRouter, Depends, HTTPException
@@ -27,8 +28,30 @@ from common.schemas import utc_now_iso
 
 router = APIRouter()
 
-# ─── 内存存储 ───
-_devices: Dict[str, dict] = {}  # device_id → {store_id, modules, ...}
+# ─── 持久化存储（线程安全） ───
+_devices: Dict[str, dict] = {}
+_devices_lock = threading.Lock()
+
+
+def _save_devices():
+    """将设备注册表持久化到 SQLite（Hub 重启可恢复）。"""
+    with _devices_lock:
+        data = {k: v for k, v in _devices.items()}
+    try:
+        runtime.hub.db.update_devices(data)
+    except Exception:
+        pass  # 持久化是 best-effort，不阻断业务
+
+
+def _load_devices():
+    """Hub 启动时从 SQLite 恢复设备注册表。"""
+    try:
+        persisted = runtime.hub.db.get_devices()
+        if persisted:
+            with _devices_lock:
+                _devices.update(persisted)
+    except Exception:
+        pass
 
 
 # ═══════════════════════════════════════════════════════════
@@ -73,21 +96,24 @@ class DeviceHeartbeatRequest(BaseModel):
 def device_register(body: DeviceRegisterRequest) -> dict:
     """设备注册。启动时向 Hub 报到，返回已有模块配置。"""
     now = utc_now_iso()
-    existing = _devices.get(body.device_id)
+    with _devices_lock:
+        existing = _devices.get(body.device_id)
 
-    is_new = existing is None
-    dev = {
-        "device_id": body.device_id,
-        "store_id": body.store_id,
-        "ip": body.ip,
-        "device_type": body.device_type,
-        "hardware": body.hardware or {},
-        "active_modules": body.active_modules,
-        "modules": existing["modules"] if existing else {},
-        "registered_at": existing["registered_at"] if existing else now,
-        "last_heartbeat": now,
-    }
-    _devices[body.device_id] = dev
+        is_new = existing is None
+        dev = {
+            "device_id": body.device_id,
+            "store_id": body.store_id,
+            "ip": body.ip,
+            "device_type": body.device_type,
+            "hardware": body.hardware or {},
+            "active_modules": body.active_modules,
+            "modules": existing["modules"] if existing else {},
+            "registered_at": existing["registered_at"] if existing else now,
+            "last_heartbeat": now,
+        }
+        _devices[body.device_id] = dev
+        modules_copy = dict(dev["modules"])
+    _save_devices()
 
     if is_new:
         runtime.hub.get_store(body.store_id).add_event({
@@ -106,7 +132,7 @@ def device_register(body: DeviceRegisterRequest) -> dict:
     return {
         "ok": True,
         "device_id": body.device_id,
-        "config": _serialize_config(dev["modules"]),
+        "config": _serialize_config(modules_copy),
     }
 
 
@@ -118,24 +144,26 @@ def device_register(body: DeviceRegisterRequest) -> dict:
 def device_heartbeat(device_id: str, body: DeviceHeartbeatRequest) -> dict:
     """设备心跳续期 + 状态上报 + 返回待下发配置。"""
     now = utc_now_iso()
-    dev = _devices.get(device_id)
-    if dev is None:
-        raise HTTPException(404, f"设备不存在: {device_id}")
+    with _devices_lock:
+        dev = _devices.get(device_id)
+        if dev is None:
+            raise HTTPException(404, f"设备不存在: {device_id}")
 
-    dev.update({
-        "last_heartbeat": now,
-        "active_modules": body.active_modules,
-        "ip": body.metrics.get("ip", dev.get("ip", "")) if body.metrics else dev.get("ip", ""),
-        "inference_count": body.inference_count,
-        "last_frame_ts": body.last_frame_ts,
-        "metrics": body.metrics,
-    })
+        dev.update({
+            "last_heartbeat": now,
+            "active_modules": body.active_modules,
+            "ip": body.metrics.get("ip", dev.get("ip", "")) if body.metrics else dev.get("ip", ""),
+            "inference_count": body.inference_count,
+            "last_frame_ts": body.last_frame_ts,
+            "metrics": body.metrics,
+        })
 
-    # 返回待下发配置
-    pending_config = None
-    if dev.get("config_pending") and dev.get("modules"):
-        pending_config = _serialize_config(dev["modules"])
-        dev["config_pending"] = False
+        # 返回待下发配置
+        pending_config = None
+        if dev.get("config_pending") and dev.get("modules"):
+            pending_config = _serialize_config(dev["modules"])
+            dev["config_pending"] = False
+    _save_devices()
 
     return {
         "ok": True,
@@ -151,12 +179,14 @@ def device_heartbeat(device_id: str, body: DeviceHeartbeatRequest) -> dict:
 @router.post("/v1/devices/{device_id}/pull-config")
 def device_pull_config(device_id: str) -> dict:
     """设备主动拉取模块配置（不依赖心跳，更及时）。"""
-    dev = _devices.get(device_id)
-    if dev is None:
-        raise HTTPException(404, f"设备不存在: {device_id}")
+    with _devices_lock:
+        dev = _devices.get(device_id)
+        if dev is None:
+            raise HTTPException(404, f"设备不存在: {device_id}")
 
-    config = _serialize_config(dev.get("modules", {}))
-    dev["config_pending"] = False
+        config = _serialize_config(dev.get("modules", {}))
+        dev["config_pending"] = False
+    _save_devices()
 
     return {
         "ok": True,
@@ -172,22 +202,25 @@ def device_update_config(
     auth: AuthContext = Depends(get_auth_context),
 ) -> dict:
     """管理员推送模块化配置（平台→Hub→设备下次心跳/拉取时下发）。"""
-    dev = _devices.get(device_id)
-    if dev is None:
-        raise HTTPException(404, f"设备不存在: {device_id}")
+    with _devices_lock:
+        dev = _devices.get(device_id)
+        if dev is None:
+            raise HTTPException(404, f"设备不存在: {device_id}")
 
-    # 存储模块配置
-    modules = {}
-    for mod_name, mod in body.modules.items():
-        modules[mod_name] = mod.model_dump()
+        # 存储模块配置
+        modules = {}
+        for mod_name, mod in body.modules.items():
+            modules[mod_name] = mod.model_dump()
 
-    dev["modules"] = modules
-    dev["config_pending"] = True
+        dev["modules"] = modules
+        dev["config_pending"] = True
+        module_names = list(modules.keys())
+    _save_devices()
 
     return {
         "ok": True,
         "device_id": device_id,
-        "modules": list(modules.keys()),
+        "modules": module_names,
         "pending": True,
     }
 
@@ -251,16 +284,18 @@ def device_list(
 @router.get("/v1/devices/{device_id}")
 def device_detail(device_id: str) -> dict:
     """设备详情 + 当前模块配置。"""
-    dev = _devices.get(device_id)
-    if dev is None:
-        raise HTTPException(404, f"设备不存在: {device_id}")
+    with _devices_lock:
+        dev = _devices.get(device_id)
+        if dev is None:
+            raise HTTPException(404, f"设备不存在: {device_id}")
+        dev_copy = dict(dev)
 
     org_tree = runtime.org_registry.get_org_tree()
     store_to_region, store_to_zone = _build_store_maps(org_tree)
 
     return {
-        **_serialize_device(device_id, dev, store_to_region, store_to_zone),
-        "config": _serialize_config(dev.get("modules", {})),
+        **_serialize_device(device_id, dev_copy, store_to_region, store_to_zone),
+        "config": _serialize_config(dev_copy.get("modules", {})),
     }
 
 

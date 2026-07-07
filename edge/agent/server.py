@@ -2,9 +2,9 @@
 """边缘 agent 统一入口 — 注册 · 心跳 · 配置轮询 · 模块激活
 
 替代 edge/kitchen/server.py + edge/front_hall/server.py + edge/scripts/edge_agent.py。
-单端口 9100，配置驱动按 zone 激活后厨/前厅推理模块。
+单端口 9100，配置驱动按模块激活后厨/前厅推理。
 
-启动: python3 edge/agent/server.py  或  python3 -m edge.agent.server
+启动: PYTHONPATH=. python3 -m edge.agent.server
 """
 
 from __future__ import annotations
@@ -12,15 +12,8 @@ from __future__ import annotations
 import asyncio
 import json
 import logging
-import sys
-import time
 from pathlib import Path
 from typing import Any, Dict, List
-
-# 确保项目根目录在 sys.path（放末尾，避免遮蔽 stdlib platform 模块）
-_PROJECT_ROOT = Path(__file__).resolve().parents[2]
-if str(_PROJECT_ROOT) not in sys.path:
-    sys.path.append(str(_PROJECT_ROOT))
 
 import httpx
 import uvicorn
@@ -42,17 +35,19 @@ logger = logging.getLogger("edge-agent")
 # ─── FastAPI 应用 ───
 app = FastAPI(title="Hotpot Edge Agent", version="2.0")
 
-app.add_middleware(
-    CORSMiddleware,
-    allow_origins=["*"],
-    allow_methods=["*"],
-    allow_headers=["*"],
-)
+# 边缘设备不需要 CORS
 
 # ─── 全局状态 ───
 _device_config: Dict[str, Any] = {}
 _active_modules: List[str] = []
 _last_config_hash: str = ""
+
+# ─── 模块注册表（替代硬编码激活） ───
+_MODULE_REGISTRY: Dict[str, Any] = {
+    "kitchen": kitchen_infer,
+    "front_hall": front_hall_infer,
+}
+# 新场景只需在此注册表加一行即可自动激活
 
 # ─── Hub 通信 ───
 
@@ -166,15 +161,16 @@ def apply_device_config(config: dict) -> bool:
     if changed:
         logger.info(f"模块变更: {_active_modules} → {new_modules}")
 
-        kitchen_infer._active = "kitchen" in new_modules
-        front_hall_infer._active = "front_hall" in new_modules
+        # 按注册表激活/停用模块
+        for mod_name, mod in _MODULE_REGISTRY.items():
+            mod._active = mod_name in new_modules
 
         _active_modules = new_modules
         _last_config_hash = new_hash
 
         for mod_name in new_modules:
             logger.info(f"✓ {mod_name} 模块已激活")
-        for mod_name in ["kitchen", "front_hall"]:
+        for mod_name in _MODULE_REGISTRY:
             if mod_name not in new_modules:
                 logger.info(f"✗ {mod_name} 模块已停用")
 

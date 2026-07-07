@@ -1,9 +1,7 @@
-# ===== 后厨边缘推理服务（含 llama.cpp 编译）=====
-# 构建（源码端 Mac）：
-#   docker build -f deploy/jetson/Dockerfile -t hotpot-kitchen .
-# 产出完整镜像（含 llama-server 二进制 + Python 代码），推板端即可用。
-#
-# 模型通过卷挂载（不进镜像）：/opt/hotpot-infer/models → /models
+# ===== 边缘推理服务 Dockerfile =====
+# 构建:
+#   docker build -f deploy/jetson/Dockerfile -t hotpot-edge .
+# 模型通过卷挂载: /opt/hotpot-infer/models → /models
 
 # ── Stage 1: 编译 llama.cpp ──
 FROM nvcr.io/nvidia/l4t-cuda:12.2.0-runtime-ubuntu22.04 AS llama-builder
@@ -50,8 +48,10 @@ COPY --from=llama-builder /opt/llama-server-cuda /opt/hotpot-infer/bin/llama-ser
 
 RUN mkdir -p /models /data /opt/hotpot-infer/bin
 
-HEALTHCHECK --interval=30s --timeout=10s --retries=3 \
-    CMD curl -f http://localhost:9200/health || exit 1
+ENV PYTHONPATH=/workspace
 
-EXPOSE 9200
+HEALTHCHECK --interval=30s --timeout=10s --retries=3 \
+    CMD curl -f http://localhost:9100/health || exit 1
+
+EXPOSE 9100
 CMD ["sleep", "infinity"]
