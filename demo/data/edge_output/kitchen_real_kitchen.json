@@ -3,7 +3,7 @@
   "backend": "yolo_real",
   "model": "yolov8n",
   "total_detections": 20,
-  "inference_ms": 37.3,
+  "inference_ms": 41.1,
   "label_counts": {
     "staff": 3,
     "container": 7,
