@@ -161,18 +161,20 @@ import tempfile
 
 _scene_analyzers: Dict[str, Any] = {}
 
+class _Analyzer:
+    """轻量分析器包装，统一 pipeline.analyze_table 接口。"""
+    def __init__(self, strategy: str = "plan_b"):
+        self.strategy = strategy
+
+    def analyze_table(self, img, table_id="", image_path=""):
+        from edge.front_hall.inference.pipeline import analyze_table
+        return analyze_table(img, table_id=table_id, image_path=image_path, strategy=self.strategy)
+
+
 def _get_scene_analyzer(mode: str = "plan_b"):
-    """获取场景分析器实例（按 mode 缓存，plan_b 默认）。"""
+    """获取场景分析器（按 mode 缓存）。"""
     if mode not in _scene_analyzers:
-        module_path = str(
-            PROJECT_ROOT / "edge" / "front_hall" / "inference" / "scene_analyzer.py"
-        )
-        spec = importlib.util.spec_from_file_location(
-            f"hotpot_scene_analyzer_{mode}", module_path
-        )
-        module = importlib.util.module_from_spec(spec)
-        spec.loader.exec_module(module)
-        _scene_analyzers[mode] = module.SceneAnalyzer(mode=mode)
+        _scene_analyzers[mode] = _Analyzer(strategy=mode)
     return _scene_analyzers[mode]
 
 def _save_temp_image(img: np.ndarray) -> str:
