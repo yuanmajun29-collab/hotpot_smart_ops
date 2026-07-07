@@ -28,7 +28,7 @@ from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 
 from edge.agent.config import (
-    HUB_URL, GATEWAY_ID, DEVICE_ID, STORE_ID, API_KEY,
+    HUB_URL, DEVICE_ID, STORE_ID, API_KEY,
     SERVER_PORT, SERVER_HOST,
     HEARTBEAT_INTERVAL, CONFIG_POLL_INTERVAL,
     IPC_CONFIG_PATH, DEVICE_CONFIG_PATH,
@@ -51,7 +51,7 @@ app.add_middleware(
 
 # ─── 全局状态 ───
 _device_config: Dict[str, Any] = {}
-_active_zones: List[str] = []
+_active_modules: List[str] = []
 _last_config_hash: str = ""
 
 # ─── Hub 通信 ───
@@ -68,76 +68,74 @@ async def _hub_post(path: str, data: dict) -> dict:
         return resp.json()
 
 
-async def _hub_get(path: str) -> dict:
-    """向 Hub GET，带 X-Api-Key。"""
-    async with httpx.AsyncClient(timeout=10) as client:
-        resp = await client.get(
-            f"{HUB_URL}{path}",
-            headers={"X-Api-Key": API_KEY},
-        )
-        resp.raise_for_status()
-        return resp.json()
-
-
-def _build_box_list() -> list:
-    """构建当前网关所挂盒子列表。未来可从本地注册表/auto-discovery 组装。"""
-    return [{
-        "box_id": DEVICE_ID,
-        "device_type": "jetson",
-        "ip": "192.168.2.240",
-        "active_zones": _active_zones,
-        "status": "online",
-    }]
-
-
 async def register() -> dict:
-    """网关向 Hub 报到，携所挂盒子列表。"""
-    return await _hub_post("/v1/gateways/register", {
-        "gateway_id": GATEWAY_ID,
+    """设备向 Hub 注册，上报当前激活模块。"""
+    return await _hub_post("/v1/devices/register", {
+        "device_id": DEVICE_ID,
         "store_id": STORE_ID,
-        "ip": "192.168.2.240",
+        "ip": _get_local_ip(),
+        "device_type": "jetson",
         "hardware": {"model": "Orin", "jetpack": "5.0"},
-        "boxes": _build_box_list(),
+        "active_modules": _active_modules,
     })
 
 
 async def heartbeat() -> dict:
-    """网关心跳续期，上报盒子当前状态。"""
-    return await _hub_post(f"/v1/gateways/{GATEWAY_ID}/heartbeat", {
-        "gateway_id": GATEWAY_ID,
-        "boxes": _build_box_list(),
+    """设备心跳续期，上报状态。"""
+    return await _hub_post(f"/v1/devices/{DEVICE_ID}/heartbeat", {
+        "device_id": DEVICE_ID,
+        "active_modules": _active_modules,
+        "inference_count": 0,
+        "metrics": {"ip": _get_local_ip()},
     })
 
 
 async def pull_config() -> dict:
-    """网关级配置拉取：从 Hub 拉所有盒子的待下发配置。"""
-    return await _hub_post(f"/v1/gateways/{GATEWAY_ID}/pull-config", {})
+    """设备级配置拉取：从 Hub 拉模块配置。"""
+    return await _hub_post(f"/v1/devices/{DEVICE_ID}/pull-config", {})
+
+
+def _get_local_ip() -> str:
+    """获取本地 IP。"""
+    try:
+        import socket
+        s = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
+        s.connect(("192.168.2.85", 1))
+        ip = s.getsockname()[0]
+        s.close()
+        return ip
+    except Exception:
+        return "127.0.0.1"
 
 
 # ─── 配置应用 ───
 
 def _config_hash(config: dict) -> str:
-    """配置摘要 hash，用于变更检测。"""
-    streams = config.get("rtsp_streams", [])
-    zones = sorted({s.get("zone", "unknown") for s in streams})
-    return json.dumps(zones, sort_keys=True)
+    """配置摘要 hash，用于变更检测（模块名+启用状态+camera数量）。"""
+    modules = config.get("modules", {})
+    sig = sorted(
+        (name, m.get("enabled", False), len(m.get("cameras", [])))
+        for name, m in modules.items()
+    )
+    return json.dumps(sig, sort_keys=True)
 
 
-def _extract_zones(config: dict) -> List[str]:
-    """从 rtsp_streams 提取唯一 zone 列表。"""
-    streams = config.get("rtsp_streams", [])
-    return sorted({s["zone"] for s in streams if s.get("zone")})
+def _extract_active_modules(config: dict) -> List[str]:
+    """从 module 配置提取已启用的模块名列表。"""
+    modules = config.get("modules", {})
+    return sorted(name for name, m in modules.items() if m.get("enabled"))
 
 
 def _write_ipc_config(config: dict) -> None:
-    """将 RTSP 流配置写入 IPC 配置文件。"""
-    streams = config.get("rtsp_streams", [])
+    """将模块配置中所有 camera 写入 IPC 配置文件。"""
+    modules = config.get("modules", {})
     Path(IPC_CONFIG_PATH).parent.mkdir(parents=True, exist_ok=True)
 
     lines = []
-    for s in streams:
-        if s.get("enabled") and s.get("url"):
-            lines.append(f"{s['zone']}: {s['url']}")
+    for mod_name, mod in modules.items():
+        if mod.get("enabled"):
+            for cam in mod.get("cameras", []):
+                lines.append(f"{mod_name}: {cam}")
 
     Path(IPC_CONFIG_PATH).write_text("\n".join(lines))
 
@@ -148,59 +146,43 @@ def _save_device_config(config: dict) -> None:
     Path(DEVICE_CONFIG_PATH).write_text(json.dumps(config, indent=2, ensure_ascii=False))
 
 
-def apply_box_config(box_id: str, config: dict) -> bool:
-    """对单个盒子应用配置：写 IPC 配置、按 zone 激活/停用模块。
+def apply_device_config(config: dict) -> bool:
+    """应用模块化配置：按 enabled 启停模块、写 IPC 配置。
 
-    平台推送 → 网关透传 → 本地应用（当前单 Jetson 部署，所有盒子共享模块）
-    Returns: True 表示 zone 列表有变化。
+    平台推送 → Hub → 设备直拉 → 本地应用。
+    Returns: True 表示模块列表有变化。
     """
-    global _active_zones, _last_config_hash, _device_config
+    global _active_modules, _last_config_hash, _device_config
 
-    if not config:
-        logger.info(f"盒子 {box_id} 无配置，跳过")
+    if not config or not config.get("modules"):
+        logger.info("无有效模块配置，跳过")
         return False
 
     new_hash = _config_hash(config)
-    new_zones = _extract_zones(config)
+    new_modules = _extract_active_modules(config)
 
-    zone_changed = (new_hash != _last_config_hash)
+    changed = (new_hash != _last_config_hash)
 
-    if zone_changed:
-        logger.info(f"配置变更 [盒子={box_id}]: zones {_active_zones} → {new_zones}")
+    if changed:
+        logger.info(f"模块变更: {_active_modules} → {new_modules}")
 
-        # 按 zone 激活/停用模块
-        kitchen_infer._active = "kitchen" in new_zones
-        front_hall_infer._active = "front_hall" in new_zones
+        kitchen_infer._active = "kitchen" in new_modules
+        front_hall_infer._active = "front_hall" in new_modules
 
-        _active_zones = new_zones
+        _active_modules = new_modules
         _last_config_hash = new_hash
 
-        if kitchen_infer._active:
-            kitchen_infer._zone = "kitchen"
-            logger.info("✓ kitchen 模块已激活")
-        else:
-            logger.info("✗ kitchen 模块已停用")
-
-        if front_hall_infer._active:
-            logger.info("✓ front-hall 模块已激活")
-        else:
-            logger.info("✗ front-hall 模块已停用")
+        for mod_name in new_modules:
+            logger.info(f"✓ {mod_name} 模块已激活")
+        for mod_name in ["kitchen", "front_hall"]:
+            if mod_name not in new_modules:
+                logger.info(f"✗ {mod_name} 模块已停用")
 
     # 始终写 IPC 配置和设备配置
     _write_ipc_config(config)
     _save_device_config(config)
     _device_config = config
 
-    return zone_changed
-
-
-def apply_all_box_configs(box_configs: dict) -> bool:
-    """应用所有盒子的配置（平台→网关透传→本地）。"""
-    changed = False
-    for box_id, config in box_configs.items():
-        logger.info(f"应用配置 [盒子={box_id}]: zones={config.get('active_zones', [])}")
-        if apply_box_config(box_id, config):
-            changed = True
     return changed
 
 
@@ -211,26 +193,26 @@ async def heartbeat_loop():
     while True:
         try:
             hb = await heartbeat()
-            pending = hb.get("pending_configs", {})
-            if pending:
-                logger.info(f"心跳返回 {len(pending)} 个待下发配置")
-                apply_all_box_configs(pending)
+            config = hb.get("config")
+            if config:
+                logger.info("心跳返回待下发配置")
+                apply_device_config(config)
         except Exception as e:
             logger.warning(f"心跳失败: {e}")
         await asyncio.sleep(HEARTBEAT_INTERVAL)
 
 
 async def config_poll_loop():
-    """配置轮询协程：每 CONFIG_POLL_INTERVAL 秒网关级拉配置并热重载。"""
+    """配置轮询协程：每 CONFIG_POLL_INTERVAL 秒设备级拉配置并热重载。"""
     # 首次等 5s，确保 register 先完成
     await asyncio.sleep(5)
 
     while True:
         try:
             resp = await pull_config()
-            box_configs = resp.get("box_configs", {})
-            if box_configs:
-                changed = apply_all_box_configs(box_configs)
+            config = resp.get("config")
+            if config:
+                changed = apply_device_config(config)
                 if changed:
                     logger.info("配置已热重载")
         except Exception as e:
@@ -258,7 +240,7 @@ def health():
                 "active": front_hall_infer._active,
             },
         },
-        "active_zones": _active_zones,
+        "active_modules": _active_modules,
         "port": SERVER_PORT,
     }
 
@@ -281,9 +263,12 @@ async def startup():
     # ① 注册到 Hub
     try:
         resp = await register()
-        box_configs = resp.get("box_configs", {})
-        logger.info(f"注册成功，获取到 {len(box_configs)} 个盒子配置")
-        apply_all_box_configs(box_configs)
+        config = resp.get("config")
+        if config:
+            logger.info(f"注册成功，获取到模块配置: {list(config.get('modules', {}).keys())}")
+            apply_device_config(config)
+        else:
+            logger.info("注册成功，无已有配置（等待平台推送）")
     except Exception as e:
         logger.error(f"注册失败，将以无配置模式运行: {e}")
 

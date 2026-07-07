@@ -4,9 +4,8 @@ import os
 
 # ─── Hub 连接 + 设备标识 ───
 HUB_URL = os.environ.get("HOTPOT_HUB_URL", "http://192.168.2.85:8098")
-GATEWAY_ID = os.environ.get("HOTPOT_GATEWAY_ID", os.environ.get("HOTPOT_DEVICE_ID", "gateway-yuhuan-01"))
-STORE_ID = os.environ.get("HOTPOT_STORE_ID", "store_yuhuan")
 DEVICE_ID = os.environ.get("HOTPOT_DEVICE_ID", "jetson-yuhuan-01")
+STORE_ID = os.environ.get("HOTPOT_STORE_ID", "store_yuhuan")
 API_KEY = os.environ.get("HOTPOT_API_KEY", "test-key")
 
 # ─── 服务端口 ───

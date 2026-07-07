@@ -73,32 +73,45 @@ hotpot_smart_ops/
 cd <project_root> && python3 -m uvicorn edge.agent.server:app --host 0.0.0.0 --port 9100
 ```
 
-## 设备管理层级 + 配置透传
+## 设备管理层级 + 模块化配置
 
 ```
-大区(Zone) → 区域(Region) → 门店(Store) → 网关(Gateway, 1个) → 推理盒子(Box, N个同构)
+大区(Zone) → 区域(Region) → 门店(Store) → Device(推理设备, N个)
+                                               └── modules:
+                                                     kitchen: [cam1, cam2]
+                                                     front_hall: [cam3]
 ```
 
-盒子功能完全相同（厨房+前厅推理），加盒子只为扩容更多摄像头/算力。
+设备直连 Hub，按模块配置。平台端可随时增减模块或调整 camera 列表。
 
-**配置下发流**（平台→Hub→网关→盒子透传）：
+**配置下发流**（平台→Hub→设备）：
 
 ```
-管理员 PUT /v1/gateways/{id}/boxes/{bid}/config
+管理员 PUT /v1/devices/{id}/config → modules 配置
        ↓ Hub 标记 config_pending=True
-网关 register → 返回 box_configs（登录即加载已有配置）
-网关 heartbeat → 返回 pending_configs（运行时增量推送）
-网关 POST /v1/gateways/{id}/pull-config → 主动拉取（更及时）
-       ↓ 网关透传 → apply_box_config(box_id, config)
-       ↓ 写 IPC 配置 + 激活/停用推理模块
+设备 register → 返回已有 config（登录即加载）
+设备 heartbeat → 返回待下发 config（运行时增量推送）
+设备 POST /v1/devices/{id}/pull-config → 主动拉取（更及时）
+       ↓ apply_device_config(config)
+       ↓ 按 enabled 启停模块 + 写 IPC 配置
 ```
 
 | 端点 | 说明 |
 |------|------|
-| `POST /v1/gateways/register` | 网关注册，返回 `box_configs` |
-| `POST /v1/gateways/{id}/heartbeat` | 心跳续期，返回 `pending_configs` |
-| `POST /v1/gateways/{id}/pull-config` | 网关主动拉配置 |
-| `PUT /v1/gateways/{id}/boxes/{bid}/config` | 管理员推送盒子配置 |
-| `GET /v1/gateways/{id}/boxes` | 列出网关下盒子 |
-| `GET /v1/gateways/{id}/overview` | 网关+盒子运行概览 |
+| `POST /v1/devices/register` | 设备注册，返回 config.modules |
+| `POST /v1/devices/{id}/heartbeat` | 心跳续期，返回待下发 config |
+| `POST /v1/devices/{id}/pull-config` | 设备主动拉配置 |
+| `PUT /v1/devices/{id}/config` | 管理员推送模块化配置 |
+| `GET /v1/devices/{id}` | 设备详情+当前配置 |
 | `GET /v1/devices?zone_id=&region_id=&store_id=` | 按层级过滤设备 |
+
+**模块配置格式**（Platform→设备下发）：
+
+```json
+{
+  "modules": {
+    "kitchen": {"enabled": true, "cameras": ["rtsp://..."], "inference_interval": 30, "rules": {}},
+    "front_hall": {"enabled": false, "cameras": [], "inference_interval": 30, "rules": {}}
+  }
+}
+```
