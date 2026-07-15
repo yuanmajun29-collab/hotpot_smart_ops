@@ -30,6 +30,7 @@ for _f in sorted(_current_dir.glob("*.py")):
     if _name in _exclude:
         continue
     _mod = importlib.import_module(f".{_name}", __package__)
+    globals()[_name] = _mod
     if hasattr(_mod, "router"):
         _registry.append({
             "name": _name,

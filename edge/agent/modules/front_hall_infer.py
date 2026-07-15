@@ -9,6 +9,9 @@ import base64
 import importlib.util
 import json
 import os
+import logging
+
+logger = logging.getLogger(__name__)
 import sys
 import time
 from pathlib import Path
@@ -158,6 +161,7 @@ def inference_log(limit: int = Query(20, ge=1, le=100)):
 # ── 每桌场景分析 (YOLO + CLIP 双模式) ──
 
 import tempfile
+from edge.front_hall.inference.pipeline import analyze_table as _analyze_table
 
 _scene_analyzers: Dict[str, Any] = {}
 
@@ -167,8 +171,7 @@ class _Analyzer:
         self.strategy = strategy
 
     def analyze_table(self, img, table_id="", image_path=""):
-        from edge.front_hall.inference.pipeline import analyze_table
-        return analyze_table(img, table_id=table_id, image_path=image_path, strategy=self.strategy)
+        return _analyze_table(img, table_id=table_id, image_path=image_path, strategy=self.strategy)
 
 
 def _get_scene_analyzer(mode: str = "plan_b"):
@@ -233,10 +236,12 @@ async def scene_analyze(
             contents = await image_file.read()
             arr = np.frombuffer(contents, dtype=np.uint8)
             img = cv2.imdecode(arr, cv2.IMREAD_COLOR)
+            logger.info(f"DEBUG: Image from file (after decode): shape={img.shape}, mean={img.mean():.1f}")
             if img is None:
                 return JSONResponse({"error": "无法解码上传文件"}, status_code=400)
         elif image_base64 is not None:
             img = _decode_image(image_base64)
+            logger.info(f"DEBUG: Image from base64 (after decode): shape={img.shape}, mean={img.mean():.1f}")
         else:
             # 默认用 demo 图片
             demo_path = PROJECT_ROOT / "demo" / "data" / "front_hall.jpg"
@@ -247,12 +252,15 @@ async def scene_analyze(
                 )
             img = cv2.imread(str(demo_path))
             image_path = str(demo_path)
+            logger.info(f"DEBUG: Image from demo (after read): shape={img.shape}, mean={img.mean():.1f}")
             if img is None:
                 return JSONResponse({"error": f"无法读取默认图片 {demo_path}"}, status_code=400)
 
         # plan_a 需要文件路径（非文件来源的图片写临时文件）
         if mode == "plan_a" and not image_path and img is not None:
             image_path = _save_temp_image(img)
+        if img is not None:
+            logger.info(f"DEBUG: Before analyze_table: img shape={img.shape}, mean={img.mean():.1f}")
 
     except Exception as e:
         return JSONResponse({"error": f"图片解码失败: {e}"}, status_code=400)

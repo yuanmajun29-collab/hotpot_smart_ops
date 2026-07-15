@@ -66,6 +66,12 @@ class HubDatabase:
                         updated_at TEXT NOT NULL,
                         PRIMARY KEY (store_id, kind)
                     );
+
+                    CREATE TABLE IF NOT EXISTS device_registry (
+                        device_id TEXT PRIMARY KEY,
+                        payload TEXT NOT NULL,
+                        updated_at TEXT NOT NULL
+                    );
                     """
                     + SQLITE_RECEIVING_SCHEMA
                     + SQLITE_SOP_ASSIGN_SCHEMA
@@ -126,6 +132,37 @@ class HubDatabase:
             finally:
                 conn.close()
 
+    def update_devices(self, devices: Dict[str, Any]) -> None:
+        from datetime import datetime, timezone
+
+        updated_at = datetime.now(timezone.utc).replace(microsecond=0).isoformat()
+        with self._lock:
+            conn = self._connect()
+            try:
+                conn.execute("DELETE FROM device_registry")
+                conn.executemany(
+                    """
+                    INSERT OR REPLACE INTO device_registry(device_id, payload, updated_at)
+                    VALUES (?, ?, ?)
+                    """,
+                    [
+                        (device_id, json.dumps(payload, ensure_ascii=False), updated_at)
+                        for device_id, payload in devices.items()
+                    ],
+                )
+                conn.commit()
+            finally:
+                conn.close()
+
+    def get_devices(self) -> Dict[str, Any]:
+        with self._lock:
+            conn = self._connect()
+            try:
+                rows = conn.execute("SELECT device_id, payload FROM device_registry").fetchall()
+                return {row["device_id"]: json.loads(row["payload"]) for row in rows}
+            finally:
+                conn.close()
+
     def load_store_into(self, hub: Any, store_id: str) -> None:
         store = hub.get_store(store_id)
         with self._lock:
@@ -166,3 +203,130 @@ class HubDatabase:
             self.persist_event(store_id, payload)
         else:
             self.persist_snapshot(store_id, kind, payload)
+
+    def query_waste_count_stats(
+        self, store_id: str, days: int = 7
+    ) -> Dict[str, Any]:
+        """查询最近 N 天的废料计数趋势。
+
+        从 events 表中筛选 vlm_waste_estimate 事件，
+        提取 payload.items[].count 和 payload.total_waste_count，
+        按天聚合。
+
+        Returns:
+            {
+                "store_id": str,
+                "days": int,
+                "daily": [
+                    {
+                        "date": "2026-07-10",
+                        "total_count": 42,
+                        "event_count": 5,
+                        "items": [{"sku": "毛肚", "count": 12, "waste_type": "备餐废弃"}, ...]
+                    },
+                    ...
+                ],
+                "trend": [...],  # 每日 total_count 数组（用于前端折线图）
+            }
+        """
+        from datetime import datetime, timedelta, timezone
+
+        cutoff = (
+            datetime.now(timezone.utc) - timedelta(days=days)
+        ).strftime("%Y-%m-%d")
+
+        with self._lock:
+            conn = self._connect()
+            try:
+                rows = conn.execute(
+                    """
+                    SELECT payload, created_at FROM events
+                    WHERE store_id = ?
+                      AND json_extract(payload, '$.event_type') = 'vlm_waste_estimate'
+                      AND created_at >= ?
+                    ORDER BY created_at DESC
+                    """,
+                    (store_id, cutoff),
+                ).fetchall()
+
+                # ── 按天聚合 ──
+                daily_map: Dict[str, Dict[str, Any]] = {}
+                for row in rows:
+                    try:
+                        payload = json.loads(row["payload"])
+                    except (json.JSONDecodeError, TypeError):
+                        continue
+
+                    meta = payload.get("metadata", {})
+                    items = meta.get("items", [])
+                    total_count = meta.get("total_waste_count", 0)
+
+                    # 如果顶层有 total_waste_count 直接用，否则从 items 累加
+                    if not total_count:
+                        for item in items:
+                            c = item.get("count", 0)
+                            if isinstance(c, (int, float)):
+                                total_count += int(c)
+
+                    # 日期键
+                    date_key = row["created_at"][:10] if row["created_at"] else "unknown"
+
+                    if date_key not in daily_map:
+                        daily_map[date_key] = {
+                            "date": date_key,
+                            "total_count": 0,
+                            "event_count": 0,
+                            "items": [],
+                        }
+
+                    entry = daily_map[date_key]
+                    entry["total_count"] += total_count
+                    entry["event_count"] += 1
+
+                    # 收集 item 级别的计数明细
+                    for item in items:
+                        sku = item.get("sku", "unknown")
+                        count = item.get("count", 0)
+                        if isinstance(count, (int, float)) and count > 0:
+                            entry["items"].append({
+                                "sku": sku,
+                                "count": int(count),
+                                "waste_type": item.get("waste_type", "备餐废弃"),
+                            })
+            finally:
+                conn.close()
+
+        # ── 排序 ──
+        daily = sorted(daily_map.values(), key=lambda d: d["date"])
+
+        # ── 填充缺失日期为 0（防止前端 trend 数组错位）──
+        from datetime import date as date_type
+        today = date_type.today()
+        full_daily: list = []
+        cursor = date_type.fromisoformat(cutoff) if cutoff else today - timedelta(days=days)
+        while cursor <= today:
+            date_key = cursor.isoformat()
+            entry = daily_map.get(date_key)
+            if entry:
+                full_daily.append(entry)
+            else:
+                full_daily.append({
+                    "date": date_key,
+                    "total_count": 0,
+                    "event_count": 0,
+                    "items": [],
+                })
+            cursor += timedelta(days=1)
+        daily = full_daily
+
+        trend = [d["total_count"] for d in daily]
+        dates = [d["date"] for d in daily]
+
+        return {
+            "store_id": store_id,
+            "days": days,
+            "daily": daily,
+            "trend": trend,
+            "dates": dates,
+            "generated_at": datetime.now(timezone.utc).isoformat(),
+        }

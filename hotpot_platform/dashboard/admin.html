@@ -1,0 +1,171 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>权限管理 · 冯校长火锅 · 智能运营</title>
+  <link rel="stylesheet" href="assets/theme.css" />
+  <style>
+    .rbac-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 20px; }
+    @media (max-width: 768px) { .rbac-grid { grid-template-columns: 1fr; } }
+    .usertable { width: 100%; border-collapse: collapse; font-size: 0.9rem; }
+    .usertable th, .usertable td { padding: 8px 10px; border-bottom: 1px solid var(--border); text-align: left; }
+    .usertable th { color: var(--muted); font-weight: 500; font-size: 0.78rem; }
+    .usertable tbody tr:hover { background: var(--card2); }
+    .role-badge { font-size: 0.72rem; padding: 2px 8px; border-radius: 10px; }
+    .role-badge.boss { background: rgba(255,170,0,0.2); color: #fa0; }
+    .role-badge.admin { background: rgba(86,184,132,0.2); color: var(--ok); }
+    .role-badge.normal { background: var(--card2); color: var(--fg); }
+    .form-group { margin-bottom: 12px; }
+    .form-group label { display: block; font-size: 0.82rem; color: var(--muted); margin-bottom: 4px; }
+    .form-group input, .form-group select { width: 100%; padding: 7px 10px; border: 1px solid var(--border); border-radius: 6px; background: var(--bg); color: var(--fg); font-size: 0.88rem; }
+    .toast { position: fixed; top: 16px; right: 16px; padding: 10px 18px; border-radius: 8px; font-size: 0.85rem; z-index: 999; animation: fadeIn 0.3s; }
+    .toast.ok { background: rgba(86,184,132,0.2); border: 1px solid var(--ok); color: var(--ok); }
+    .toast.err { background: rgba(240,71,60,0.18); border: 1px solid var(--accent); color: var(--accent); }
+    @keyframes fadeIn { from{opacity:0;transform:translateY(-8px)} to{opacity:1;transform:translateY(0)} }
+  </style>
+</head>
+<body>
+<div class="app">
+  <aside class="sidebar">
+    <div class="logo">🍲 冯校长火锅</div>
+    <nav>
+      <a href="home.html">首页</a>
+      <a href="kitchen-vision.html">后厨监控</a>
+      <a href="devices.html">设备管理</a>
+      <a href="admin.html" class="active">权限管理</a>
+    </nav>
+  </aside>
+
+  <main class="content">
+    <h2>权限管理</h2>
+    <p style="color:var(--muted);margin-top:-8px;margin-bottom:20px;">用户管理 · 角色权限 · 登录审计</p>
+
+    <div class="rbac-grid">
+      <!-- 用户列表 -->
+      <div class="card">
+        <h4>👥 用户列表</h4>
+        <table class="usertable">
+          <thead><tr><th>用户名</th><th>姓名</th><th>角色</th><th>操作</th></tr></thead>
+          <tbody id="user-tbody"></tbody>
+        </table>
+        <div id="user-count" style="margin-top:8px;color:var(--muted);font-size:0.78rem;"></div>
+      </div>
+
+      <!-- 添加用户 - 仅 boss 可见 -->
+      <div id="add-user-panel" class="card" style="display:none;">
+        <h4>➕ 添加用户</h4>
+        <div class="form-group"><label>用户名</label><input id="new-username" placeholder="拼音" /></div>
+        <div class="form-group"><label>密码</label><input id="new-password" value="demo" /></div>
+        <div class="form-group"><label>姓名</label><input id="new-name" placeholder="中文名" /></div>
+        <div class="form-group"><label>角色</label><select id="new-role"></select></div>
+        <button class="btn" id="btn-add">添加用户</button>
+      </div>
+
+      <!-- 角色说明 -->
+      <div class="card" style="grid-column: 1/-1;">
+        <h4>📋 角色说明</h4>
+        <table class="usertable" style="max-width:500px;">
+          <thead><tr><th>角色</th><th>权限范围</th></tr></thead>
+          <tbody id="role-tbody"></tbody>
+        </table>
+      </div>
+    </div>
+  </main>
+</div>
+
+<div id="toast" class="toast" style="display:none;"></div>
+
+<script>
+const HUB = 'http://192.168.2.240:8098';
+const TOKEN = localStorage.getItem('hotpot_token') || '';
+
+function toast(msg, ok=true) {
+  const el = document.getElementById('toast');
+  el.textContent = msg; el.className = 'toast ' + (ok?'ok':'err'); el.style.display='block';
+  setTimeout(()=>el.style.display='none', 2500);
+}
+
+async function api(path, opts={}) {
+  const h = {...opts.headers, 'Authorization': 'Bearer '+TOKEN, 'Content-Type':'application/json'};
+  const r = await fetch(HUB+path, {...opts, headers:h});
+  if (!r.ok) { const e = await r.text().catch(()=>''); throw new Error(e || r.statusText); }
+  return r.json();
+}
+
+async function loadUsers() {
+  const data = await api('/v1/admin/users');
+  const tbody = document.getElementById('user-tbody');
+  tbody.innerHTML = data.users.map(u => {
+    const cls = u.role==='集团决策者'?'boss': (u.role.includes('总部')||u.role.includes('大区'))?'admin':'normal';
+    return `<tr>
+      <td>${u.username}</td>
+      <td>${u.name||'-'}</td>
+      <td><span class="role-badge ${cls}">${u.role}</span></td>
+      <td><button class="btn-xs" onclick="delUser('${u.username}')" ${u.role==='集团决策者'?'disabled':''}>删除</button></td>
+    </tr>`;
+  }).join('');
+  document.getElementById('user-count').textContent = `共 ${data.users.length} 个用户`;
+
+  // 填充角色下拉
+  const sel = document.getElementById('new-role');
+  if (!sel.options.length) sel.innerHTML = data.available_roles.map(r => `<option>${r}</option>`).join('');
+
+  // 渲染角色说明
+  document.getElementById('role-tbody').innerHTML = data.available_roles.slice(0,8).map(r =>
+    `<tr><td>${r}</td><td>${getRoleDesc(r)}</td></tr>`
+  ).join('');
+}
+
+function getRoleDesc(r) {
+  const m = {'集团决策者':'全平台最高权限','总部PMO':'报表+SOP+管理','总部 IT':'系统配置+管理',
+    '大区运营':'跨店对标+任务','区域督导':'区域门店管理','店长':'本店运营管理',
+    '厨师长':'后厨+收货','前厅领班':'前厅+桌态','收货员':'收货提交','班组长':'班组执行',
+    '营销运营':'营销配置','财务审计':'成本查阅'};
+  return m[r]||'-';
+}
+
+async function addUser() {
+  const body = {
+    username: document.getElementById('new-username').value.trim(),
+    password: document.getElementById('new-password').value.trim()||'demo',
+    name: document.getElementById('new-name').value.trim(),
+    role: document.getElementById('new-role').value,
+  };
+  if (!body.username) return toast('用户名必填', false);
+  try {
+    await api('/v1/admin/users', {method:'POST', body:JSON.stringify(body)});
+    toast('✅ 添加成功');
+    loadUsers();
+    document.getElementById('new-username').value='';
+    document.getElementById('new-name').value='';
+  } catch(e) { toast('❌ '+e.message, false); }
+}
+
+async function delUser(username) {
+  if (!confirm(`确定删除 ${username}？`)) return;
+  try {
+    await api('/v1/admin/users', {method:'DELETE', body:JSON.stringify({username})});
+    toast('✅ 已删除');
+    loadUsers();
+  } catch(e) { toast('❌ '+e.message, false); }
+}
+
+async function init() {
+  // 检查当前用户权限
+  try {
+    const me = await api('/v1/admin/users');
+    // boss角色显示添加面板
+    const isBoss = me.users && me.available_roles;
+    if (isBoss) document.getElementById('add-user-panel').style.display='block';
+    loadUsers();
+  } catch(e) {
+    toast('请先登录', false);
+  }
+}
+
+document.getElementById('btn-add').addEventListener('click', addUser);
+init();
+</script>
+</body>
+</html>

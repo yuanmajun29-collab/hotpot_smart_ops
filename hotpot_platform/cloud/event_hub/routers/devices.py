@@ -31,6 +31,7 @@ router = APIRouter()
 # ─── 持久化存储（线程安全） ───
 _devices: Dict[str, dict] = {}
 _devices_lock = threading.Lock()
+_loaded_db_id: Optional[int] = None
 
 
 def _save_devices():
@@ -38,7 +39,7 @@ def _save_devices():
     with _devices_lock:
         data = {k: v for k, v in _devices.items()}
     try:
-        runtime.hub.db.update_devices(data)
+        runtime.db.update_devices(data)
     except Exception:
         pass  # 持久化是 best-effort，不阻断业务
 
@@ -46,12 +47,27 @@ def _save_devices():
 def _load_devices():
     """Hub 启动时从 SQLite 恢复设备注册表。"""
     try:
-        persisted = runtime.hub.db.get_devices()
-        if persisted:
-            with _devices_lock:
+        persisted = runtime.db.get_devices()
+        with _devices_lock:
+            _devices.clear()
+            if persisted:
                 _devices.update(persisted)
     except Exception:
         pass
+
+
+def _ensure_devices_loaded() -> None:
+    """Load devices once per injected database instance.
+
+    Tests swap runtime.db in-process; tracking the object id keeps the module
+    global from leaking device registrations across isolated app instances.
+    """
+    global _loaded_db_id
+    db_id = id(runtime.db)
+    if _loaded_db_id == db_id:
+        return
+    _load_devices()
+    _loaded_db_id = db_id
 
 
 # ═══════════════════════════════════════════════════════════
@@ -95,6 +111,7 @@ class DeviceHeartbeatRequest(BaseModel):
 @router.post("/v1/devices/register")
 def device_register(body: DeviceRegisterRequest) -> dict:
     """设备注册。启动时向 Hub 报到，返回已有模块配置。"""
+    _ensure_devices_loaded()
     now = utc_now_iso()
     with _devices_lock:
         existing = _devices.get(body.device_id)
@@ -143,6 +160,7 @@ def device_register(body: DeviceRegisterRequest) -> dict:
 @router.post("/v1/devices/{device_id}/heartbeat")
 def device_heartbeat(device_id: str, body: DeviceHeartbeatRequest) -> dict:
     """设备心跳续期 + 状态上报 + 返回待下发配置。"""
+    _ensure_devices_loaded()
     now = utc_now_iso()
     with _devices_lock:
         dev = _devices.get(device_id)
@@ -179,6 +197,7 @@ def device_heartbeat(device_id: str, body: DeviceHeartbeatRequest) -> dict:
 @router.post("/v1/devices/{device_id}/pull-config")
 def device_pull_config(device_id: str) -> dict:
     """设备主动拉取模块配置（不依赖心跳，更及时）。"""
+    _ensure_devices_loaded()
     with _devices_lock:
         dev = _devices.get(device_id)
         if dev is None:
@@ -202,6 +221,7 @@ def device_update_config(
     auth: AuthContext = Depends(get_auth_context),
 ) -> dict:
     """管理员推送模块化配置（平台→Hub→设备下次心跳/拉取时下发）。"""
+    _ensure_devices_loaded()
     with _devices_lock:
         dev = _devices.get(device_id)
         if dev is None:
@@ -237,6 +257,7 @@ def device_list(
     auth: AuthContext = Depends(get_auth_context),
 ) -> dict:
     """列出所有设备。支持按 门店/区域/大区 过滤。"""
+    _ensure_devices_loaded()
     org_tree = runtime.org_registry.get_org_tree()
 
     # 构建 store → region → zone 映射
@@ -284,6 +305,7 @@ def device_list(
 @router.get("/v1/devices/{device_id}")
 def device_detail(device_id: str) -> dict:
     """设备详情 + 当前模块配置。"""
+    _ensure_devices_loaded()
     with _devices_lock:
         dev = _devices.get(device_id)
         if dev is None:

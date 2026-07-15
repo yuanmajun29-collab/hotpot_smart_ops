@@ -12,6 +12,7 @@ from __future__ import annotations
 import asyncio
 import json
 import logging
+import os
 from pathlib import Path
 from typing import Any, Dict, List
 
@@ -136,7 +137,9 @@ def _extract_active_modules(config: dict) -> List[str]:
 
 
 def _write_ipc_config(config: dict) -> None:
-    """将模块配置中所有 camera 写入 IPC 配置文件。"""
+    """将模块配置中所有 camera 写入 IPC 配置文件。DEV_MODE 下跳过。"""
+    if os.environ.get("HOTPOT_DEV_MODE"):
+        return
     modules = config.get("modules", {})
     Path(IPC_CONFIG_PATH).parent.mkdir(parents=True, exist_ok=True)
 
@@ -150,7 +153,10 @@ def _write_ipc_config(config: dict) -> None:
 
 
 def _save_device_config(config: dict) -> None:
-    """持久化设备配置到本地。"""
+    """持久化设备配置到本地。DEV_MODE 下跳过文件写入。"""
+    if os.environ.get("HOTPOT_DEV_MODE"):
+        logger.info("DEV_MODE: 跳过设备配置持久化")
+        return
     Path(DEVICE_CONFIG_PATH).parent.mkdir(parents=True, exist_ok=True)
     Path(DEVICE_CONFIG_PATH).write_text(json.dumps(config, indent=2, ensure_ascii=False))
 
@@ -253,6 +259,35 @@ def health():
         "active_modules": _active_modules,
         "port": SERVER_PORT,
     }
+
+
+@app.get("/debug/engine")
+def debug_engine():
+    """诊断端点：验证引擎导入和 YOLO 加载状态。"""
+    import cv2
+    from pathlib import Path
+    from edge.front_hall.inference.engines import get_engine
+    from edge.common.detector.real_yolo import RealYoloDetector
+
+    project_root = Path(__file__).resolve().parents[2]
+    test_img = cv2.imread(str(project_root / "demo" / "data" / "bus.jpg"))
+
+    info = {
+        "python_path": __import__("sys").path[:3],
+        "edge_pkg": __import__("edge").__file__,
+        "yolo_module": RealYoloDetector.__module__,
+    }
+
+    try:
+        yolo = get_engine("yolo")
+        info["engine_type"] = type(yolo).__name__
+        result = yolo.detect(test_img, zone="front")
+        info["detections"] = result["total_detections"]
+        info["labels"] = result.get("label_counts", {})
+    except Exception as e:
+        info["error"] = str(e)
+
+    return info
 
 
 # ─── 注册路由 ───

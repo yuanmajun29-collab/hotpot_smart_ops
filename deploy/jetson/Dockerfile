@@ -1,7 +1,10 @@
 # ===== 边缘推理服务 Dockerfile =====
 # 构建:
-#   docker build -f deploy/jetson/Dockerfile -t hotpot-edge .
+#   docker build -f deploy/jetson/Dockerfile -t hotpot-kitchen .
+#
 # 模型通过卷挂载: /opt/hotpot-infer/models → /models
+# 数据持久化: /opt/hotpot-infer/data → /data
+# IPC 帧: /tmp/ipc_frames
 
 # ── Stage 1: 编译 llama.cpp ──
 FROM nvcr.io/nvidia/l4t-cuda:12.2.0-runtime-ubuntu22.04 AS llama-builder
@@ -33,25 +36,34 @@ ENV DEBIAN_FRONTEND=noninteractive \
 WORKDIR /workspace
 
 RUN apt-get update && apt-get install -y --no-install-recommends \
-    libglib2.0-0 curl \
+    libglib2.0-0 curl net-tools \
     && rm -rf /var/lib/apt/lists/*
 
 RUN pip install --no-cache-dir \
-    fastapi uvicorn[standard] \
-    opencv-python-headless \
-    httpx pyyaml \
-    ultralytics
+    fastapi uvicorn[standard] httpx pyyaml \
+    opencv-python-headless
 
-# 从 Stage 1 复制编译好的 llama-server
+# 从 Stage 1 复制编译好的 llama-server + 共享库
 COPY --from=llama-builder /opt/llama-server-cuda /opt/hotpot-infer/bin/llama-server-cuda
-# COPY --from=llama-builder /opt/*.so /opt/hotpot-infer/bin/
+COPY --from=llama-builder /opt/*.so /opt/hotpot-infer/bin/
+
+# 入口脚本
+COPY deploy/jetson/entrypoint.sh /opt/hotpot-infer/bin/entrypoint.sh
+RUN chmod +x /opt/hotpot-infer/bin/entrypoint.sh
+
+# 项目源码
+COPY edge/ /workspace/edge/
+COPY common/ /workspace/common/
+COPY hotpot_platform/ /workspace/hotpot_platform/
 
 RUN mkdir -p /models /data /opt/hotpot-infer/bin
 
-ENV PYTHONPATH=/workspace
+ENV PYTHONPATH=/workspace \
+    MODEL_DIR=/opt/hotpot-infer/models
 
 HEALTHCHECK --interval=30s --timeout=10s --retries=3 \
     CMD curl -f http://localhost:9100/health || exit 1
 
-EXPOSE 9100
-CMD ["sleep", "infinity"]
+EXPOSE 9100 8080
+
+ENTRYPOINT ["/opt/hotpot-infer/bin/entrypoint.sh"]

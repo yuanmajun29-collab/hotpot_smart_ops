@@ -1,0 +1,207 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>后厨推理可视化 · 冯校长火锅</title>
+<style>
+:root {
+  --bg: #0d1117; --card: #161b22; --border: #30363d;
+  --text: #c9d1d9; --muted: #8b949e; --accent: #f78166;
+  --ok: #3fb950; --warn: #d2991d; --brand: #e2613a;
+  --s1: #58a6ff; --s2: #bc8cff; --s3: #f0883e;
+}
+* { box-sizing: border-box; margin: 0; padding: 0; }
+body { font-family: -apple-system, system-ui, sans-serif; background: var(--bg); color: var(--text); }
+.header {
+  padding: 16px 24px; border-bottom: 1px solid var(--border); background: var(--card);
+  display: flex; align-items: center; justify-content: space-between;
+}
+.header h1 { font-size: 1.15rem; }
+.badge { background: var(--brand); color: #fff; padding: 4px 12px; border-radius: 12px; font-size: 0.75rem; }
+.main { display: flex; gap: 20px; padding: 20px 24px; align-items: flex-start; }
+.panel-img { flex: 1; min-width: 0; }
+.panel-result { width: 420px; flex: none; }
+.panel-img h2, .panel-result h2 {
+  font-size: 0.9rem; margin-bottom: 12px; padding: 8px 14px; border-radius: 8px; display: inline-block;
+}
+.panel-img h2 { background: rgba(56,139,253,0.15); color: #58a6ff; }
+.panel-result h2 { background: rgba(248,81,73,0.15); color: var(--accent); }
+.img-card {
+  background: var(--card); border: 1px solid var(--border); border-radius: 10px; overflow: hidden;
+  margin-bottom: 16px;
+}
+.img-card img { width: 100%; display: block; }
+.card {
+  background: var(--card); border: 1px solid var(--border);
+  border-radius: 10px; padding: 16px; margin-bottom: 12px;
+}
+.card h3 { font-size: 0.85rem; color: var(--muted); margin-bottom: 10px; }
+.det-row {
+  display: flex; align-items: center; gap: 10px; padding: 8px 0;
+  border-bottom: 1px solid var(--border); font-size: 0.85rem;
+}
+.det-row:last-child { border-bottom: none; }
+.det-color { width: 10px; height: 10px; border-radius: 3px; flex: none; }
+.det-label { flex: 1; }
+.det-conf { color: var(--muted); }
+.summary-text { font-size: 0.9rem; line-height: 1.7; }
+.summary-text strong { color: var(--brand); }
+.stat-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; }
+.stat-item { text-align: center; padding: 12px 8px; background: rgba(255,255,255,0.03); border-radius: 6px; }
+.stat-value { font-size: 1.6rem; font-weight: 700; color: var(--brand); }
+.stat-label { font-size: 0.75rem; color: var(--muted); margin-top: 2px; }
+.model-info { font-size: 0.8rem; color: var(--muted); margin-top: 6px; }
+.alert-row { display: flex; align-items: center; gap: 8px; padding: 6px 0; font-size: 0.85rem; }
+.alert-row .icon { font-size: 1rem; }
+
+.pipeline { display: flex; align-items: center; gap: 6px; margin: 12px 0; font-size: 0.8rem; flex-wrap: wrap; }
+.pipeline .stage { padding: 6px 12px; border-radius: 6px; font-weight: 600; }
+.pipeline .s1 { background: rgba(88,166,255,0.15); color: var(--s1); }
+.pipeline .s2 { background: rgba(188,140,255,0.15); color: var(--s2); }
+.pipeline .s3 { background: rgba(240,136,62,0.15); color: var(--s3); }
+.pipeline .arrow { color: var(--muted); }
+
+.score-big { font-size: 3rem; font-weight: 900; text-align: center; padding: 16px 0; }
+.score-normal { color: var(--ok); }
+.score-anomaly { color: #f85149; }
+
+.compare { display: flex; gap: 12px; }
+.compare .cmp-item { flex: 1; text-align: center; padding: 12px 8px; border-radius: 8px; }
+.compare .cmp-item.clean { background: rgba(63,185,80,0.08); border: 1px solid rgba(63,185,80,0.2); }
+.compare .cmp-item.anomaly { background: rgba(248,81,73,0.08); border: 1px solid rgba(248,81,73,0.2); }
+.compare .cmp-val { font-size: 1.4rem; font-weight: 700; }
+.compare .cmp-item.clean .cmp-val { color: var(--ok); }
+.compare .cmp-item.anomaly .cmp-val { color: #f85149; }
+.compare .cmp-label { font-size: 0.7rem; color: var(--muted); margin-top: 4px; }
+</style>
+</head>
+<body>
+<div class="header">
+  <h1>🔬 后厨推理 · 冯校长火锅</h1>
+  <span class="badge">YOLOv8s → MobileNetV3 Anomaly → Qwen2-VL</span>
+</div>
+
+<div class="main">
+  <!-- 左侧 -->
+  <div class="panel-img">
+    <h2>📷 原始图像</h2>
+    <div class="img-card"><img src="assets/real_scene.jpg" alt="后厨备餐区" /></div>
+    <div class="model-info">门店: store_yuhuan · 后厨备餐区 · 2026-07-12</div>
+
+    <h2 style="margin-top:18px;background:rgba(88,166,255,0.15);color:var(--s1)">🎯 YOLO 检测图</h2>
+    <div class="img-card"><img src="assets/real_scene_annot.jpg" alt="YOLO标注" /></div>
+
+    <h2 style="margin-top:18px;background:rgba(240,136,62,0.15);color:var(--s3)">🔥 异常热力图</h2>
+    <div class="img-card"><img src="assets/anomaly_heatmap.jpg" alt="异常热力图" /></div>
+  </div>
+
+  <!-- 右侧 -->
+  <div class="panel-result">
+    <h2>🧠 三阶推理管线</h2>
+
+    <div class="pipeline">
+      <span class="stage s1">S1 · YOLOv8s</span><span class="arrow">→</span>
+      <span class="stage s3">S2 · Anomaly</span><span class="arrow">→</span>
+      <span class="stage s2">S3 · Qwen2-VL</span>
+    </div>
+
+    <!-- Stage 1: YOLO -->
+    <div class="card">
+      <h3>📊 Stage 1 · YOLO 目标检测</h3>
+      <div class="stat-grid">
+        <div class="stat-item"><div class="stat-value">17</div><div class="stat-label">检测目标</div></div>
+        <div class="stat-item"><div class="stat-value">102ms</div><div class="stat-label">推理耗时</div></div>
+      </div>
+      <div class="det-row"><span class="det-color" style="background:#00FF7F"></span><span class="det-label">碗 bowl</span><span class="det-conf">×15</span></div>
+      <div class="det-row"><span class="det-color" style="background:#FFA500"></span><span class="det-label">锅底 pot</span><span class="det-conf">×1</span></div>
+      <div class="det-row"><span class="det-color" style="background:#FF0000"></span><span class="det-label">设备 oven</span><span class="det-conf">×1</span></div>
+    </div>
+
+    <!-- Stage 2: SuperADD Anomaly -->
+    <div class="card" style="border-color:rgba(240,136,62,0.4)">
+      <h3>🔥 Stage 2 · 零训练异常检测</h3>
+      <div class="model-info" style="margin-bottom:8px">MobileNetV3-Small · Memory Bank · Jetson Orin</div>
+
+      <div class="compare">
+        <div class="cmp-item clean">
+          <div class="cmp-val">0.19</div>
+          <div class="cmp-label">正常后厨</div>
+        </div>
+        <div class="cmp-item anomaly">
+          <div class="cmp-val">1.12</div>
+          <div class="cmp-label">当前画面</div>
+        </div>
+      </div>
+      <div class="model-info" style="margin-top:8px">
+        异常倍率: <strong style="color:#f85149">5.9×</strong> · 阈值: 0.50 · 判定: <strong style="color:#f85149">⚠️ 异常</strong>
+      </div>
+    </div>
+
+    <!-- Stage 3: VLM -->
+    <div class="card" style="border-color:rgba(188,140,255,0.3)">
+      <h3>🧠 Stage 3 · VLM 语义分析</h3>
+      <div style="background:rgba(188,140,255,0.08);border-radius:8px;padding:12px;margin-top:8px">
+        <div style="font-size:0.7rem;color:var(--s2);margin-bottom:4px">Qwen2-VL-2B · Jetson Orin</div>
+        <div style="font-size:0.95rem;font-style:italic">"厨房里有碗，但看起来很脏。"</div>
+      </div>
+      <div class="model-info">3500ms 编码 + 367ms 生成 = 3867ms</div>
+    </div>
+
+    <!-- 融合判定 -->
+    <div class="card">
+      <h3>⚡ 三阶融合判定</h3>
+      <div class="alert-row"><span class="icon">🔴</span> YOLO: 15碗堆积 = 异常</div>
+      <div class="alert-row"><span class="icon">🔴</span> Anomaly: 1.12分 (5.9×正常) = 异常</div>
+      <div class="alert-row"><span class="icon">🔴</span> VLM: "看起来很脏" = 异常</div>
+      <div class="alert-row" style="margin-top:6px;padding-top:8px;border-top:1px solid var(--border)">
+        <span class="icon">🚨</span> <strong>三阶一致判定: 后厨卫生不达标，触发告警</strong>
+      </div>
+    </div>
+
+    <!-- Pipeline timing -->
+    <div class="card">
+      <h3>⚙️ 管线耗时</h3>
+      <div class="summary-text" style="font-size:0.8rem;color:var(--muted)">
+        <span style="color:var(--s1)">YOLOv8s</span> 1536×1024 · 102ms<br>
+        <span style="color:var(--s3)">MobileNetV3 Anomaly</span> 512px · 3164ms<br>
+        <span style="color:var(--s2)">Qwen2-VL-2B</span> 256×170 · 3867ms<br>
+        总耗时: <strong>~7.1s</strong> · 设备: Jetson Orin (CUDA 11.4)
+      </div>
+    </div>
+
+    <div class="card">
+      <h3>📝 推理摘要</h3>
+      <div class="summary-text">
+        <strong>YOLO</strong> 检出15个碗具堆积 + <strong>异常检测</strong> 评分1.12（正常5.9倍）+ <strong>VLM</strong> 确认"看起来很脏"。三阶一致判定后厨卫生不达标，立即触发清理告警。
+      </div>
+    </div>
+  </div>
+</div>
+
+    <!-- 误报反馈 -->
+    <div style="padding:0 24px 20px">
+      <div style="background:var(--card);border:1px solid var(--border);border-radius:10px;padding:14px;text-align:center">
+        <span style="color:var(--warn);font-size:0.82rem;margin-right:10px">📋 推理正确吗？</span>
+        <button onclick="submitFb('correct')" style="padding:5px 14px;border-radius:6px;border:1px solid var(--ok);background:rgba(63,185,80,0.1);color:var(--ok);cursor:pointer;margin:0 4px">✅ 正确</button>
+        <button onclick="submitFb('false_positive')" style="padding:5px 14px;border-radius:6px;border:1px solid #f85149;background:rgba(248,81,73,0.1);color:#f85149;cursor:pointer;margin:0 4px">❌ 误报</button>
+        <button onclick="submitFb('false_negative')" style="padding:5px 14px;border-radius:6px;border:1px solid var(--warn);background:rgba(210,153,29,0.1);color:var(--warn);cursor:pointer;margin:0 4px">⚠️ 漏报</button>
+        <div id="fb-status" style="font-size:0.72rem;color:var(--muted);margin-top:6px"></div>
+      </div>
+    </div>
+
+<script>
+const HUB="http://192.168.2.240:8098";
+function submitFb(type){
+  fetch(HUB+"/v1/feedback",{
+    method:"POST",
+    headers:{"Content-Type":"application/json"},
+    body:JSON.stringify({image_id:"kitchen_01",event_type:type,zone:"备餐废弃区"})
+  }).then(r=>r.json()).then(()=>{
+    document.getElementById("fb-status").innerHTML="✅ 已提交 · 感谢反馈";
+  }).catch(()=>document.getElementById("fb-status").innerHTML="❌ 提交失败");
+}
+</script>
+</body>
+
+</html>

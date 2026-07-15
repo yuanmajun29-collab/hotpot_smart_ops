@@ -65,6 +65,12 @@ class PostgresHubDatabase:
                             updated_at TIMESTAMPTZ NOT NULL,
                             PRIMARY KEY (store_id, kind)
                         );
+
+                        CREATE TABLE IF NOT EXISTS device_registry (
+                            device_id TEXT PRIMARY KEY,
+                            payload JSONB NOT NULL,
+                            updated_at TIMESTAMPTZ NOT NULL
+                        );
                         """
                         + PG_RECEIVING_SCHEMA
                         + PG_SOP_ASSIGN_SCHEMA
@@ -128,6 +134,41 @@ class PostgresHubDatabase:
                         (store_id, kind, json.dumps(payload, ensure_ascii=False), updated_at),
                     )
                 conn.commit()
+            finally:
+                conn.close()
+
+    def update_devices(self, devices: Dict[str, Any]) -> None:
+        updated_at = datetime.now(timezone.utc).replace(microsecond=0).isoformat()
+        with self._lock:
+            conn = self._connect()
+            try:
+                with conn.cursor() as cur:
+                    cur.execute("DELETE FROM device_registry")
+                    for device_id, payload in devices.items():
+                        cur.execute(
+                            """
+                            INSERT INTO device_registry(device_id, payload, updated_at)
+                            VALUES (%s, %s::jsonb, %s)
+                            ON CONFLICT (device_id) DO UPDATE SET
+                                payload = EXCLUDED.payload,
+                                updated_at = EXCLUDED.updated_at
+                            """,
+                            (device_id, json.dumps(payload, ensure_ascii=False), updated_at),
+                        )
+                conn.commit()
+            finally:
+                conn.close()
+
+    def get_devices(self) -> Dict[str, Any]:
+        with self._lock:
+            conn = self._connect()
+            try:
+                with conn.cursor() as cur:
+                    cur.execute("SELECT device_id, payload FROM device_registry")
+                    return {
+                        device_id: payload if isinstance(payload, dict) else json.loads(payload)
+                        for device_id, payload in cur.fetchall()
+                    }
             finally:
                 conn.close()
 

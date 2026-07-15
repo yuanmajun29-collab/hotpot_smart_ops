@@ -9,7 +9,7 @@ import urllib.request
 from pathlib import Path
 from typing import Any, Dict, List, Optional, Tuple
 
-PROJECT_ROOT = Path(__file__).resolve().parents[2]
+PROJECT_ROOT = Path(__file__).resolve().parents[3]
 DEFAULT_SOP_PATH = PROJECT_ROOT / "demo" / "data" / "sop_checklist.json"
 
 
@@ -109,13 +109,19 @@ class SOPKnowledgeBase:
         if scored:
             return [c for _, c in scored[:top_k]]
 
-        # keyword fallback
+        # keyword fallback: first exact token overlap, then substring overlap for
+        # Chinese phrases such as "来料收货" matching an SOP named "来料验收".
         q_set = set(q_tokens)
         for chunk in self.chunks:
             text_tokens = set(_tokenize(chunk["text"]))
             overlap = len(q_set & text_tokens)
             if overlap:
                 scored.append((overlap / len(q_set), chunk))
+            else:
+                text = chunk["text"].lower()
+                sub_overlap = sum(1 for token in q_tokens if token in text)
+                if sub_overlap:
+                    scored.append((sub_overlap / len(q_set), chunk))
         scored.sort(key=lambda x: x[0], reverse=True)
         return [c for _, c in scored[:top_k]]
 

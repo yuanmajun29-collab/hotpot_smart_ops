@@ -31,12 +31,14 @@ def compute_waste_estimate(
     source: str = "mock",
     model: str = "mock-rule",
     image_url: Optional[str] = None,
+    total_waste_count: Optional[int] = None,
 ) -> Dict[str, Any]:
     """Return a structured waste estimate payload.
 
     Edge path: items non-empty → bypass mock, use directly (source from caller).
     Hub path: items None/empty → deterministic mock stub.
     image_url: 可选，边缘图片的静态文件 URL。
+    total_waste_count: 可选，边缘计数的总废料数（Jetson :8100 count API）。
     """
     base: Dict[str, Any] = {
         "store_id": store_id,
@@ -63,6 +65,8 @@ def compute_waste_estimate(
     # ── edge inference path (Jetson/edge box already inferred) ──
     if items:
         base["items"] = items
+        if total_waste_count is not None:
+            base["total_waste_count"] = total_waste_count
         return base
 
     # ── hub mock path ──

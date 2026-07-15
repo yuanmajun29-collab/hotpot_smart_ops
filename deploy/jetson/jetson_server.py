@@ -18,6 +18,14 @@ import cv2, httpx
 from fastapi import FastAPI, HTTPException
 from pydantic import BaseModel
 
+from edge.kitchen.inference.defect_measurement import (
+    DEFAULT_THRESHOLDS,
+    decide_action,
+    estimate_bbox_size_mm,
+    measure_defect,
+    pixels_to_mm,
+)
+
 # ── 配置 ──
 LLAMA_SERVER      = os.environ.get("LLAMA_SERVER", "http://localhost:8080")
 LLAMA_BIN         = os.environ.get("LLAMA_BIN", "/opt/hotpot-infer/bin/llama-server")
@@ -75,7 +83,73 @@ PROMPT = (
 
 # ── 厨房可疑检测规则 ──
 # COCO class IDs: 0=person, 39=bottle, 41=cup, 45=bowl, 47-55=foods
-def _is_suspicious(detections):
+def _defect_calib_mm_per_px() -> float:
+    try:
+        calib = float(os.environ.get("DEFECT_CALIB_MM_PER_PX", "0.05"))
+    except ValueError:
+        calib = 0.05
+    return calib if calib > 0 else 0.05
+
+
+def _defect_thresholds() -> dict:
+    raw = os.environ.get("DEFECT_THRESHOLD_MM", "")
+    thresholds = dict(DEFAULT_THRESHOLDS)
+    if not raw:
+        return thresholds
+
+    try:
+        parts = [float(part.strip()) for part in raw.split(",") if part.strip()]
+    except ValueError:
+        return thresholds
+
+    if len(parts) >= 2:
+        thresholds["warn_manual"] = parts[0]
+        thresholds["auto_reject"] = parts[1]
+    elif len(parts) == 1:
+        thresholds["auto_reject"] = parts[0]
+    return thresholds
+
+
+def _clip_bbox(bbox, width: int, height: int) -> list[int]:
+    x1, y1, x2, y2 = map(int, bbox)
+    return [
+        max(0, min(width, x1)),
+        max(0, min(height, y1)),
+        max(0, min(width, x2)),
+        max(0, min(height, y2)),
+    ]
+
+
+def _add_defect_measurements(detections, image):
+    calib = _defect_calib_mm_per_px()
+    thresholds = _defect_thresholds()
+
+    for detection in detections:
+        size_mm = 0.0
+        source = "unmeasured"
+        bbox = detection.get("bbox", [0, 0, 0, 0])
+
+        if image is not None:
+            height, width = image.shape[:2]
+            x1, y1, x2, y2 = _clip_bbox(bbox, width, height)
+            if x2 > x1 and y2 > y1:
+                measurement = measure_defect(image[y1:y2, x1:x2])
+                if measurement:
+                    size_mm = pixels_to_mm(measurement["diameter_px"], calib)
+                    source = "contour"
+
+        if source == "unmeasured":
+            size_mm = estimate_bbox_size_mm(bbox, calib)
+            source = "bbox_area_estimate"
+
+        detection["defect_size_mm"] = round(size_mm, 3)
+        detection["action"] = decide_action(size_mm, thresholds)
+        detection["measurement_source"] = source
+
+
+def _is_suspicious(detections, image=None):
+    _add_defect_measurements(detections, image)
+
     if not detections:
         return False, "no-objects"
     persons = sum(1 for d in detections if d["cls"] == 0 and d["conf"] >= 0.4)
@@ -198,7 +272,7 @@ def infer(req: InferRequest):
             })
 
     # 2. 规则判断
-    suspicious, reason = _is_suspicious(detections)
+    suspicious, reason = _is_suspicious(detections, img)
 
     # 3. VLM (仅可疑帧)
     items = []

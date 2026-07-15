@@ -3,19 +3,29 @@
 后厨推理规则 — 所有阈值、类别、提示词、降级策略
 
 此文件不含模型加载/引擎/管线调度等"推理内容"，仅含"推理规则"：
-  - YOLO 检测阈值（conf / NMS）
+  - YOLO 检测阈值（conf / NMS / Kalman）
   - CLIP-Adapter 默认类别 & 低置信度阈值
   - VLM 提示词模板
   - 三级过滤降级矩阵
+
+版本: 2.1 — 新增 YOLO26 支持 + Kalman 跟踪参数
 """
 
 # ═══════════════════════════════════════════════════════════
 # 1. YOLO 检测阈值
 # ═══════════════════════════════════════════════════════════
 
-YOLO_CONF_THRESH  = 0.25   # YOLO 置信度阈值
-YOLO_IOU_THRESH   = 0.45   # NMS IoU 阈值
-YOLO_IMG_SIZE     = 640    # 输入分辨率
+YOLO_MODEL_VERSION = "yolo26n"    # 推荐: yolo26n (NMS-free, 2.6M params, STAL小目标优化)
+YOLO_CONF_THRESH  = 0.25          # YOLO 置信度阈值
+YOLO_IOU_THRESH   = 0.45          # NMS IoU 阈值 (YOLO26 不需要 NMS，此值仅用于 v8 回退)
+YOLO_IMG_SIZE     = 640           # 输入分辨率
+YOLO_NMS_FREE     = True          # YOLO26: 端到端无 NMS (v8: False)
+
+# Kalman 跟踪
+ENABLE_KALMAN     = True          # 启用 Kalman 滤波平滑检测框
+KALMAN_MAX_AGE    = 5             # 跟踪目标丢失后保留帧数
+KALMAN_MIN_HITS   = 2             # 最少匹配次数才输出
+KALMAN_IOU_THRESH = 0.25          # 跟踪匹配 IoU 阈值
 
 
 # ═══════════════════════════════════════════════════════════

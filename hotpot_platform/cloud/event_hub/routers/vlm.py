@@ -43,6 +43,8 @@ class WasteEstimateBody(BaseModel):
     items: Optional[List[Dict[str, Any]]] = None
     source: str = "mock"
     model: str = "mock-rule"
+    # ── 边缘计数（Jetson :8100 count API） ──
+    total_waste_count: Optional[int] = None
     # ── 边缘图片（base64 编码） ──
     image_base64: Optional[str] = None
     image_data: Optional[str] = None   # base64 编码图片（新字段）
@@ -103,6 +105,7 @@ def vlm_waste_estimate(
         source=body.source,
         model=body.model,
         image_url=image_url,
+        total_waste_count=body.total_waste_count,
     )
     store = runtime.hub.get_store(sid)
     event = store.add_event(

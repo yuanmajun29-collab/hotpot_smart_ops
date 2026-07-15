@@ -1,0 +1,124 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>前厅监控 · 冯校长火锅 · 智能运营</title>
+  <link rel="stylesheet" href="assets/theme.css" />
+  <style>
+    .table-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(220px, 1fr)); gap: 14px; }
+    .table-card {
+      background: var(--card); border: 1px solid var(--border); border-radius: 10px; padding: 16px;
+      transition: border-color 0.2s;
+    }
+    .table-card:hover { border-color: var(--brand); }
+    .table-card .tnum { font-size: 0.72rem; color: var(--muted); }
+    .table-card .status { font-size: 1.1rem; font-weight: 700; margin: 8px 0; }
+    .table-card .stats { font-size: 0.78rem; color: var(--muted); display: flex; gap: 12px; flex-wrap: wrap; }
+    .table-card .alerts { margin-top: 8px; font-size: 0.75rem; }
+    .status-empty { color: var(--ok); }
+    .status-dining { color: var(--s1); }
+    .status-cleaning { color: var(--warn); }
+    .status-reserved { color: var(--muted); }
+    .alert-item { padding: 3px 0; display: flex; align-items: center; gap: 4px; }
+    .summary-bar { display: flex; gap: 16px; margin: 16px 0; flex-wrap: wrap; }
+    .summary-box { flex: 1; min-width: 120px; background: var(--card); border: 1px solid var(--border); border-radius: 8px; padding: 12px; text-align: center; }
+    .summary-box .val { font-size: 1.8rem; font-weight: 800; }
+    .summary-box .lbl { font-size: 0.72rem; color: var(--muted); }
+    .refresh-bar { display: flex; align-items: center; gap: 10px; margin-bottom: 12px; }
+  </style>
+</head>
+<body>
+<div class="app">
+  <aside class="sidebar">
+    <div class="logo">🍲 冯校长火锅</div>
+    <nav>
+      <a href="home.html">首页</a>
+      <a href="kitchen-vision.html">后厨监控</a>
+      <a href="front-hall.html" class="active">前厅监控</a>
+      <a href="devices.html">设备管理</a>
+      <a href="admin.html">权限管理</a>
+    </nav>
+  </aside>
+  <main class="content">
+    <div class="refresh-bar">
+      <h2>🪑 前厅桌态监控</h2>
+      <small style="color:var(--muted)">门店: store_yuhuan</small>
+    </div>
+
+    <div class="summary-bar" id="summary"></div>
+
+    <div class="table-grid" id="tables"></div>
+  </main>
+</div>
+
+<script>
+const HUB = 'http://192.168.2.240:8098';
+const TABLES = 16;
+const STATUS_MAP = {
+  empty:       {label:'空闲',   cls:'status-empty', icon:'🟢'},
+  dining:      {label:'用餐中', cls:'status-dining',icon:'🔵'},
+  needs_cleaning:{label:'待清理',cls:'status-cleaning',icon:'🟡'},
+  reserved:    {label:'已预订', cls:'status-reserved',icon:'⚪'},
+};
+
+async function refresh() {
+  const tables = [];
+  for (let i = 1; i <= TABLES; i++) {
+    const t = `T${String(i).padStart(2,'0')}`;
+    try {
+      const r = await fetch(`${HUB}/v1/tables/${t}`);
+      if (r.ok) {
+        const d = await r.json();
+        tables.push({id:t, status:d.status||'empty', counts:d.counts||{}, alerts:d.alerts||[]});
+      }
+    } catch(e) {}
+  }
+
+  // If hub not available, show demo data
+  if (!tables.length) {
+    const demos = [
+      {s:'dining',c:{person:4,food:2,tableware:6}},
+      {s:'dining',c:{person:2,food:2,tableware:4}},
+      {s:'needs_cleaning',c:{person:0,food:0,tableware:8}},
+      {s:'empty',c:{person:0,food:0,tableware:1}},
+      {s:'dining',c:{person:6,food:3,tableware:8}},
+      {s:'empty',c:{person:0,food:0,tableware:0}},
+      {s:'needs_cleaning',c:{person:0,food:0,tableware:12}},
+      {s:'dining',c:{person:3,food:2,tableware:5}},
+    ];
+    for (let i=1;i<=TABLES;i++){
+      const d = demos[(i-1)%demos.length];
+      tables.push({id:'T'+String(i).padStart(2,'0'),status:d.s,counts:d.c,alerts:[]});
+    }
+  }
+
+  // Stats
+  const counts = {};
+  tables.forEach(t=>{counts[t.status]=(counts[t.status]||0)+1;});
+  document.getElementById('summary').innerHTML =
+    `<div class="summary-box"><div class="val" style="color:var(--ok)">${counts.empty||0}</div><div class="lbl">空闲</div></div>`+
+    `<div class="summary-box"><div class="val" style="color:var(--s1)">${counts.dining||0}</div><div class="lbl">用餐中</div></div>`+
+    `<div class="summary-box"><div class="val" style="color:var(--warn)">${counts.needs_cleaning||0}</div><div class="lbl">待清理</div></div>`+
+    `<div class="summary-box"><div class="val" style="color:var(--muted)">${counts.reserved||0}</div><div class="lbl">已预订</div></div>`;
+
+  document.getElementById('tables').innerHTML = tables.map(t=>{
+    const m = STATUS_MAP[t.status]||STATUS_MAP.empty;
+    return `<div class="table-card">
+      <div class="tnum">${t.id}</div>
+      <div class="status ${m.cls}">${m.icon} ${m.label}</div>
+      <div class="stats">
+        ${t.counts.person!=null?`<span>👤 ${t.counts.person}</span>`:''}
+        ${t.counts.food!=null?`<span>🍽️ ${t.counts.food}</span>`:''}
+        ${t.counts.tableware!=null?`<span>🥢 ${t.counts.tableware}</span>`:''}
+      </div>
+      ${t.alerts.length?`<div class="alerts">${t.alerts.map(a=>`<div class="alert-item">⚠️ ${a}</div>`).join('')}</div>`:''}
+    </div>`;
+  }).join('');
+}
+
+refresh();
+setInterval(refresh, 30000);
+</script>
+</body>
+</html>

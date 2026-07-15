@@ -66,9 +66,9 @@ const HotpotApp = (() => {
     if (stored) return stored.replace(/\/$/, "");
     const port = window.location.port;
     if (port === "3000" || port === "3001") {
-      return `${currentOrigin()}/api`;
+      return "http://192.168.2.240:8098";
     }
-    return "http://127.0.0.1:8088";
+    return "http://192.168.2.240:8098";
   }
 
   function setHubUrl(url) {

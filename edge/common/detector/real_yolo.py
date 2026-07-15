@@ -4,11 +4,14 @@
 from __future__ import annotations
 
 import time
+import logging
 from pathlib import Path
 from typing import Any, Dict, List, Optional, Tuple
 
 import cv2
 import numpy as np
+
+logger = logging.getLogger(__name__)
 
 PROJECT_ROOT = Path(__file__).resolve().parents[2]
 
@@ -110,9 +113,11 @@ class RealYoloDetector:
         zone: str = "kitchen",
     ) -> Dict[str, Any]:
         """Run inference, return structured results."""
+        logger.info(f"YOLO Detect Input (in RealYoloDetector): shape={image.shape}, mean={image.mean():.1f}, zone={zone}")
         t0 = time.perf_counter()
         self._warmup()
         results = self.model(image, conf=self.conf, verbose=False)
+        logger.info(f"YOLO Raw Results: found={len(results) if results else 0}, boxes={len(results[0].boxes) if (results and results[0].boxes) else 0}")
         elapsed_ms = (time.perf_counter() - t0) * 1000
 
         detections: List[Dict[str, Any]] = []
@@ -129,6 +134,8 @@ class RealYoloDetector:
                 coco_name = COCO_NAMES.get(cls_id, f"cls_{cls_id}")
                 hotpot_label = zone_map.get(coco_name, coco_name)
                 color = LABEL_COLORS.get(hotpot_label, (0, 255, 0))
+
+                logger.info(f"  Box: cls={cls_id} ({coco_name}), conf={conf_val:.2f}, xyxy={[round(x1), round(y1), round(x2), round(y2)]}")
 
                 detections.append({
                     "class_id": cls_id,

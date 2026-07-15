@@ -8,7 +8,10 @@ import threading
 from datetime import datetime
 from pathlib import Path
 from typing import Any, Callable, Dict, List, NamedTuple, Optional
-from zoneinfo import ZoneInfo
+try:
+    from zoneinfo import ZoneInfo
+except ImportError:
+    from backports.zoneinfo import ZoneInfo
 
 PROJECT_ROOT = Path(__file__).resolve().parents[2]
 DEFAULT_TZ = os.environ.get("HOTPOT_STORE_TZ", "Asia/Shanghai")

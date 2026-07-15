@@ -12,36 +12,32 @@
     .device-table tr { cursor: pointer; transition: background 0.15s; }
     .device-table tbody tr:hover { background: var(--card2); }
     .device-table tr.expanded { background: var(--card2); }
-    .status-dot-inline { display: inline-block; width: 8px; height: 8px; border-radius: 50%; margin-right: 6px; }
-    .status-dot-inline.online { background: var(--ok); }
-    .status-dot-inline.offline { background: var(--accent); }
+    .status-dot { display: inline-block; width: 8px; height: 8px; border-radius: 50%; margin-right: 6px; }
+    .status-dot.online { background: var(--ok); }
+    .status-dot.offline { background: var(--accent); }
     .expand-row { display: none; }
     .expand-row.open { display: table-row; }
     .expand-row td { padding: 0 12px 14px 12px; border-bottom: 1px solid var(--border); }
     .expand-card { background: var(--bg); border: 1px solid var(--border); border-radius: 8px; padding: 14px 16px; }
-    .expand-card h4 { font-size: 0.85rem; color: var(--muted); margin-bottom: 10px; display: flex; align-items: center; gap: 6px; }
-    .stream-list { display: flex; flex-direction: column; gap: 6px; margin-bottom: 12px; }
-    .stream-item { display: flex; align-items: center; gap: 10px; font-size: 0.82rem; padding: 6px 10px; background: var(--card); border-radius: 6px; border: 1px solid var(--border); }
-    .stream-item .zone-tag { font-size: 0.7rem; padding: 2px 8px; border-radius: 10px; background: var(--brand); color: #fff; white-space: nowrap; }
-    .stream-item .zone-tag.front_hall { background: var(--info); }
-    .stream-item .url-text { flex: 1; word-break: break-all; color: var(--muted); }
-    .stream-item .badge { font-size: 0.68rem; padding: 2px 7px; border-radius: 8px; }
-    .stream-item .badge.enabled { background: rgba(86,184,132,0.18); color: var(--ok); }
-    .stream-item .badge.disabled { background: rgba(240,71,60,0.15); color: var(--accent); }
-    .config-meta { display: flex; gap: 20px; font-size: 0.82rem; color: var(--muted); flex-wrap: wrap; }
-    .config-meta span strong { color: var(--text); }
+    .module-box { background: var(--card); border: 1px solid var(--border); border-radius: 6px; padding: 10px; margin-bottom: 8px; }
+    .module-box h5 { margin: 0 0 6px; font-size: 0.85rem; display: flex; align-items: center; gap: 8px; }
+    .module-cams { display: flex; flex-wrap: wrap; gap: 4px; margin-top: 4px; }
+    .module-cams code { font-size: 0.72rem; background: var(--bg); padding: 2px 8px; border-radius: 4px; }
+    .badge { font-size: 0.68rem; padding: 2px 7px; border-radius: 8px; }
+    .badge.on { background: rgba(86,184,132,0.18); color: var(--ok); }
+    .badge.off { background: rgba(240,71,60,0.15); color: var(--accent); }
     .action-btns { display: flex; gap: 6px; }
     .btn-xs { padding: 4px 10px; font-size: 0.75rem; }
-    .btn-danger { background: var(--accent); }
+    .btn-danger { background: var(--accent); border-color: var(--accent); }
     .btn-danger:hover { opacity: 0.9; }
     .store-filter { display: flex; align-items: center; gap: 8px; margin-bottom: 16px; }
     .store-filter select { background: var(--bg); border: 1px solid var(--border); color: var(--text); padding: 8px 12px; border-radius: 6px; font-size: 0.9rem; }
     .store-filter label { color: var(--muted); font-size: 0.85rem; }
-    .modal-body .stream-edit-item { display: flex; flex-direction: column; gap: 6px; padding: 10px; background: var(--bg); border-radius: 8px; border: 1px solid var(--border); margin-bottom: 8px; }
-    .stream-edit-item .row { display: flex; gap: 8px; align-items: center; flex-wrap: wrap; }
-    .stream-edit-item .row input, .stream-edit-item .row select { flex: 1; min-width: 80px; }
-    .stream-edit-item .row label { min-width: auto; margin-bottom: 0; }
-    .modal-body { max-height: 70vh; overflow-y: auto; }
+    .modal-body .mod-edit-box { background: var(--card); border: 1px solid var(--border); border-radius: 8px; padding: 12px; margin-bottom: 10px; }
+    .mod-edit-box .row { display: flex; gap: 8px; align-items: center; flex-wrap: wrap; margin-bottom: 4px; }
+    .mod-edit-box .row label { min-width: auto; margin-bottom: 0; font-size: 0.78rem; color: var(--muted); }
+    .mod-edit-box input[type="text"] { flex: 1; min-width: 100px; }
+    .modal-body { max-height: 70vh; overflow-y: auto; min-width: 460px; }
     .toast { position: fixed; top: 20px; right: 20px; padding: 12px 20px; border-radius: 8px; font-size: 0.9rem; z-index: 9999; animation: slideIn 0.3s ease; }
     .toast.success { background: var(--ok); color: #fff; }
     .toast.error { background: var(--accent); color: #fff; }
@@ -52,13 +48,13 @@
   <div class="app-shell">
     <aside class="sidebar">
       <div class="sidebar-brand"><h1>冯校长火锅</h1><p>智能运营 · MVP</p></div>
-      <a class="nav-item" data-nav="home" href="home.html">首页概览</a>
-      <a class="nav-item" data-nav="tables" href="tables.html">前厅 · 桌态</a>
-      <a class="nav-item" data-nav="kitchen" href="kitchen.html">后厨 · IoT</a>
-      <a class="nav-item" data-nav="sop" href="sop.html">SOP 执行</a>
-      <a class="nav-item" data-nav="cost" href="cost.html">来料 · 成本</a>
-      <a class="nav-item" data-nav="alerts" href="alerts.html">告警中心</a>
-      <a class="nav-item" data-nav="report" href="report.html">运营日报</a>
+      <a class="nav-item" href="home.html">首页概览</a>
+      <a class="nav-item" href="tables.html">前厅 · 桌态</a>
+      <a class="nav-item" href="kitchen.html">后厨 · IoT</a>
+      <a class="nav-item" href="sop.html">SOP 执行</a>
+      <a class="nav-item" href="cost.html">来料 · 成本</a>
+      <a class="nav-item" href="alerts.html">告警中心</a>
+      <a class="nav-item" href="report.html">运营日报</a>
       <a class="nav-item active" data-nav="devices" href="devices.html">设备管理</a>
       <a class="nav-item" href="mobile/index.html">📱 手机版</a>
     </aside>
@@ -66,7 +62,7 @@
       <header class="topbar">
         <div class="topbar-left">
           <h2>设备管理</h2>
-          <div class="topbar-meta">边缘设备注册 · RTSP 流配置 · 在线监控</div>
+          <div class="topbar-meta">边缘设备注册 · 模块配置 · 在线监控</div>
         </div>
         <div class="topbar-right">
           <input class="hub-input" id="hub-url" type="text" title="Event Hub URL" />
@@ -77,28 +73,18 @@
       <main class="content">
         <div class="store-filter">
           <label for="store-filter-select">门店：</label>
-          <select id="store-filter-select">
-            <option value="">全部门店</option>
-          </select>
+          <select id="store-filter-select"><option value="">全部门店</option></select>
           <button class="btn btn-sm" id="btn-refresh">刷新</button>
           <span style="color:var(--muted);font-size:0.82rem;margin-left:8px" id="device-count"></span>
         </div>
         <div class="card" style="overflow-x:auto">
           <table class="device-table">
-            <thead>
-              <tr>
-                <th style="width:24px"></th>
-                <th>设备 ID</th>
-                <th>门店</th>
-                <th>类型</th>
-                <th>IP 地址</th>
-                <th>状态</th>
-                <th>最后心跳</th>
-                <th>操作</th>
-              </tr>
-            </thead>
+            <thead><tr>
+              <th style="width:24px"></th><th>设备 ID</th><th>门店</th><th>类型</th>
+              <th>IP</th><th>状态</th><th>模块</th><th>最后心跳</th><th>操作</th>
+            </tr></thead>
             <tbody id="device-tbody">
-              <tr><td colspan="8" style="text-align:center;color:var(--muted);padding:40px">加载中…</td></tr>
+              <tr><td colspan="9" style="text-align:center;color:var(--muted);padding:40px">加载中…</td></tr>
             </tbody>
           </table>
         </div>
@@ -109,36 +95,13 @@
   <!-- Edit Config Modal -->
   <dialog class="modal" id="edit-modal">
     <div class="modal-body">
-      <h3 style="margin:0 0 4px">编辑设备配置</h3>
+      <h3 style="margin:0 0 4px">编辑设备模块配置</h3>
       <p style="color:var(--muted);font-size:0.82rem;margin:0" id="modal-device-id">—</p>
-
-      <div>
-        <label>RTSP 视频流</label>
-        <div id="stream-editor"></div>
-        <button class="btn btn-sm btn-ghost" id="btn-add-stream" style="margin-top:6px">+ 添加 RTSP 流</button>
-      </div>
-
-      <div>
-        <label for="edit-interval">推理间隔（秒）</label>
-        <input type="number" id="edit-interval" min="1" max="3600" value="15" />
-      </div>
+      <div style="margin-top:14px" id="module-editor"></div>
     </div>
     <div class="modal-foot">
       <button class="btn btn-ghost" id="btn-cancel-edit">取消</button>
       <button class="btn" id="btn-save-config">保存配置</button>
-    </div>
-  </dialog>
-
-  <!-- Delete Confirm Modal -->
-  <dialog class="modal" id="delete-modal">
-    <div class="modal-body">
-      <h3 style="margin:0">确认删除设备</h3>
-      <p style="color:var(--muted);font-size:0.9rem" id="delete-device-name">—</p>
-      <p style="color:var(--accent);font-size:0.82rem">此操作不可撤销，设备的所有配置将被永久删除。</p>
-    </div>
-    <div class="modal-foot">
-      <button class="btn btn-ghost" id="btn-cancel-delete">取消</button>
-      <button class="btn btn-danger" id="btn-confirm-delete">确认删除</button>
     </div>
   </dialog>
 
@@ -152,6 +115,9 @@
     let devices = [];
     let expandedRow = null;
     let editingDevice = null;
+    let editModules = {};
+
+    const MODULE_LABELS = { kitchen: "后厨推理", front_hall: "前厅推理" };
 
     // --- Toast ---
     function toast(msg, type) {
@@ -164,47 +130,30 @@
 
     // --- Store filter ---
     async function loadStores() {
+      const sel = document.getElementById("store-filter-select");
+      const known = { yuhuan: "冯校长火锅·玉环店", jiaojiang: "冯校长火锅·椒江店" };
       try {
         const data = await app.fetchStores();
-        const stores = data.stores || [];
-        const sel = document.getElementById("store-filter-select");
-        stores.forEach((s) => {
+        (data.stores || []).forEach((s) => {
           const opt = document.createElement("option");
           opt.value = s.store_id;
           opt.textContent = s.store_name || s.store_id;
           sel.appendChild(opt);
+          delete known[s.store_id];
         });
-        // Add known stores if not in response
-        const known = [
-          { id: "yuhuan", name: "冯校长火锅·玉环店" },
-          { id: "jiaojiang", name: "冯校长火锅·椒江店" },
-        ];
-        known.forEach((k) => {
-          if (!stores.find((s) => s.store_id === k.id)) {
-            const opt = document.createElement("option");
-            opt.value = k.id;
-            opt.textContent = k.name;
-            sel.appendChild(opt);
-          }
-        });
-      } catch (e) {
-        // Fallback: add known stores
-        const sel = document.getElementById("store-filter-select");
-        ["yuhuan", "jiaojiang"].forEach((id) => {
-          if (!sel.querySelector(`option[value="${id}"]`)) {
-            const opt = document.createElement("option");
-            opt.value = id;
-            opt.textContent = id === "yuhuan" ? "冯校长火锅·玉环店" : "冯校长火锅·椒江店";
-            sel.appendChild(opt);
-          }
-        });
-      }
+      } catch (e) { /* fallback */ }
+      Object.entries(known).forEach(([id, name]) => {
+        if (!sel.querySelector(`option[value="${id}"]`)) {
+          const opt = document.createElement("option");
+          opt.value = id; opt.textContent = name; sel.appendChild(opt);
+        }
+      });
     }
 
     document.getElementById("store-filter-select").onchange = () => refresh();
     document.getElementById("btn-refresh").onclick = () => refresh();
 
-    // --- Fetch devices ---
+    // --- API ---
     async function fetchDevices(storeId) {
       let url = base + "/v1/devices";
       if (storeId) url += "?store_id=" + encodeURIComponent(storeId);
@@ -213,16 +162,6 @@
       return res.json();
     }
 
-    // --- Fetch device config ---
-    async function fetchDeviceConfig(deviceId) {
-      const res = await fetch(base + "/v1/devices/" + encodeURIComponent(deviceId) + "/config", {
-        headers: app.authHeaders(),
-      });
-      if (!res.ok) throw new Error(res.statusText);
-      return res.json();
-    }
-
-    // --- Update device config (requires JWT) ---
     async function updateDeviceConfig(deviceId, config) {
       const res = await fetch(base + "/v1/devices/" + encodeURIComponent(deviceId) + "/config", {
         method: "PUT",
@@ -237,268 +176,210 @@
       return res.json();
     }
 
-    // --- Delete device (requires JWT) ---
-    async function deleteDevice(deviceId) {
-      const res = await fetch(base + "/v1/devices/" + encodeURIComponent(deviceId), {
-        method: "DELETE",
-        headers: app.authHeaders(),
-      });
-      if (!res.ok) {
-        let detail = res.statusText;
-        try { detail = (await res.json()).detail || detail; } catch {}
-        throw new Error(detail);
-      }
-      return res.json();
+    // --- Formatters ---
+    function fmtTime(ts) { if (!ts) return "—"; try { return new Date(ts).toLocaleString("zh-CN"); } catch { return ts; } }
+    function modLabel(m) { return MODULE_LABELS[m] || m; }
+    function typeLabel(t) { return ({ jetson: "Jetson", rk3588: "RK3588" })[t] || t; }
+
+    // --- Render ---
+    async function loadDeviceConfig(d) {
+      try {
+        const res = await fetch(base + "/v1/devices/" + encodeURIComponent(d.device_id), { headers: app.authHeaders() });
+        if (res.ok) {
+          const detail = await res.json();
+          d._config = detail.config || {};
+        }
+      } catch (e) { d._config = {}; }
+      return d;
     }
 
-    // --- Format helpers ---
-    function fmtTime(ts) {
-      if (!ts) return "—";
-      try { return new Date(ts).toLocaleString("zh-CN"); } catch { return ts; }
-    }
-
-    function zoneLabel(zone) {
-      return zone === "kitchen" ? "后厨" : zone === "front_hall" ? "前厅" : zone;
-    }
-
-    function statusDot(online) {
-      const cls = online ? "online" : "offline";
-      const text = online ? "在线" : "离线";
-      return `<span class="status-dot-inline ${cls}"></span>${text}`;
-    }
-
-    function typeLabel(t) {
-      const map = { jetson: "Jetson", rk3588: "RK3588", "iot-gateway": "IoT 网关" };
-      return map[t] || t;
-    }
-
-    // --- Render table ---
-    function render() {
+    async function render() {
       const tbody = document.getElementById("device-tbody");
       const countEl = document.getElementById("device-count");
-      countEl.textContent = `共 ${devices.length} 台设备`;
 
+      // Load full config for each device
+      await Promise.all(devices.map(loadDeviceConfig));
+
+      countEl.textContent = `共 ${devices.length} 台设备`;
       if (!devices.length) {
-        tbody.innerHTML = `<tr><td colspan="8" style="text-align:center;color:var(--muted);padding:40px">暂无设备</td></tr>`;
+        tbody.innerHTML = `<tr><td colspan="9" style="text-align:center;color:var(--muted);padding:40px">暂无设备 — 盒子启动后在此注册</td></tr>`;
         return;
       }
 
       tbody.innerHTML = devices.map((d, i) => {
-        const cfg = d.config || {};
-        const streams = cfg.rtsp_streams || [];
-        const interval = cfg.inference_interval ?? "—";
+        const cfg = d._config || {};
+        const mods = cfg.modules || {};
+        const modNames = Object.keys(mods).length ? Object.keys(mods) : ["kitchen", "front_hall"];
         const rowId = "dev-" + i;
 
-        return `
-          <tr id="${rowId}" data-index="${i}" onclick="toggleRow(${i})">
-            <td><span style="font-size:0.7rem;color:var(--muted)">▶</span></td>
-            <td><code>${app.esc(d.device_id)}</code></td>
-            <td>${app.esc(d.store_id)}</td>
-            <td>${app.esc(typeLabel(d.device_type))}</td>
-            <td><code>${app.esc(d.ip)}</code></td>
-            <td>${statusDot(d.online)}</td>
-            <td style="font-size:0.8rem;color:var(--muted)">${fmtTime(d.last_heartbeat)}</td>
-            <td>
-              <div class="action-btns">
-                <button class="btn btn-sm" onclick="event.stopPropagation();openEdit('${app.esc(d.device_id)}')">编辑</button>
-                <button class="btn btn-sm btn-danger" onclick="event.stopPropagation();openDelete('${app.esc(d.device_id)}')">删除</button>
+        return `<tr id="${rowId}" data-index="${i}" onclick="toggleRow(${i})">
+          <td><span style="font-size:0.7rem;color:var(--muted)">▶</span></td>
+          <td><code>${app.esc(d.device_id)}</code></td>
+          <td>${app.esc(d.store_id)}</td>
+          <td>${app.esc(typeLabel(d.device_type))}</td>
+          <td><code style="font-size:0.8rem">${app.esc(d.ip || "—")}</code></td>
+          <td><span class="status-dot ${d.online ? 'online' : 'offline'}"></span>${d.online ? '在线' : '离线'}</td>
+          <td>${d.active_modules.map(modLabel).join(", ") || "—"}</td>
+          <td style="font-size:0.78rem;color:var(--muted)">${fmtTime(d.last_heartbeat)}</td>
+          <td>
+            <div class="action-btns">
+              <button class="btn btn-sm" onclick="event.stopPropagation();openEdit('${app.esc(d.device_id)}')">配置</button>
+            </div>
+          </td>
+        </tr>
+        <tr class="expand-row" id="${rowId}-expand">
+          <td colspan="9">
+            <div class="expand-card">
+              <h4 style="font-size:0.85rem;color:var(--muted);margin-bottom:10px">📦 模块配置</h4>
+              ${modNames.map((mod) => {
+                const mc = mods[mod] || { enabled: false, cameras: [], inference_interval: 30 };
+                const cams = mc.cameras || [];
+                return `<div class="module-box">
+                  <h5><span class="badge ${mc.enabled ? 'on' : 'off'}">${mc.enabled ? '启用' : '停用'}</span> ${modLabel(mod)}</h5>
+                  <div style="font-size:0.78rem;color:var(--muted)">
+                    推理间隔：<strong>${mc.inference_interval || 30}s</strong> ·
+                    摄像头：<strong>${cams.length} 路</strong>
+                    ${cams.length ? `<div class="module-cams">${cams.map(u => `<code>${app.esc(u)}</code>`).join("")}</div>` : `<span style="color:var(--accent)"> 未配置</span>`}
+                  </div>
+                </div>`;
+              }).join("")}
+              <div style="margin-top:8px;font-size:0.72rem;color:var(--muted)">
+                注册时间：${fmtTime(d.registered_at)} · 推理次数：${d.inference_count || 0}
+                ${d.config_pending ? ' · <span style="color:var(--accent)">配置待下发</span>' : ''}
               </div>
-            </td>
-          </tr>
-          <tr class="expand-row" id="${rowId}-expand">
-            <td colspan="8">
-              <div class="expand-card">
-                <h4>📡 RTSP 视频流（${streams.length} 路）</h4>
-                <div class="stream-list">
-                  ${streams.map((s) => `
-                    <div class="stream-item">
-                      <span class="zone-tag ${s.zone}">${zoneLabel(s.zone)}</span>
-                      <span class="url-text">${app.esc(s.url)}</span>
-                      <span style="font-size:0.75rem;color:var(--muted)">📷 ${app.esc(s.camera_id)}</span>
-                      <span class="badge ${s.enabled ? 'enabled' : 'disabled'}">${s.enabled ? '启用' : '停用'}</span>
-                    </div>
-                  `).join("")}
-                </div>
-                <div class="config-meta">
-                  <span>⚙️ 推理间隔：<strong>${interval} 秒</strong></span>
-                  <span>🔗 Hub 地址：<code style="font-size:0.78rem">${app.esc(cfg.push_hub_url || "—")}</code></span>
-                  ${cfg.labels && cfg.labels.length ? `<span>🏷️ 标签：${app.esc(cfg.labels.join(", "))}</span>` : ""}
-                </div>
-                <div style="margin-top:8px;font-size:0.75rem;color:var(--muted)">
-                  注册时间：${fmtTime(d.registered_at)}
-                </div>
-              </div>
-            </td>
-          </tr>
-        `;
+            </div>
+          </td>
+        </tr>`;
       }).join("");
 
-      // Re-expand previously expanded row
       if (expandedRow !== null && expandedRow < devices.length) {
-        const expandRow = document.getElementById("dev-" + expandedRow + "-expand");
-        if (expandRow) expandRow.classList.add("open");
-        const mainRow = document.getElementById("dev-" + expandedRow);
-        if (mainRow) mainRow.classList.add("expanded");
+        const er = document.getElementById("dev-" + expandedRow + "-expand");
+        if (er) er.classList.add("open");
+        const mr = document.getElementById("dev-" + expandedRow);
+        if (mr) mr.classList.add("expanded");
       }
     }
 
     function toggleRow(idx) {
-      const expandRow = document.getElementById("dev-" + idx + "-expand");
-      const mainRow = document.getElementById("dev-" + idx);
-      if (!expandRow) return;
-
+      const er = document.getElementById("dev-" + idx + "-expand");
+      const mr = document.getElementById("dev-" + idx);
+      if (!er) return;
       if (expandedRow === idx) {
-        expandRow.classList.remove("open");
-        if (mainRow) mainRow.classList.remove("expanded");
-        expandedRow = null;
+        er.classList.remove("open"); if (mr) mr.classList.remove("expanded"); expandedRow = null;
       } else {
-        // Close previous
         if (expandedRow !== null) {
-          const prevExpand = document.getElementById("dev-" + expandedRow + "-expand");
-          const prevMain = document.getElementById("dev-" + expandedRow);
-          if (prevExpand) prevExpand.classList.remove("open");
-          if (prevMain) prevMain.classList.remove("expanded");
+          const pe = document.getElementById("dev-" + expandedRow + "-expand");
+          const pm = document.getElementById("dev-" + expandedRow);
+          if (pe) pe.classList.remove("open"); if (pm) pm.classList.remove("expanded");
         }
-        expandRow.classList.add("open");
-        if (mainRow) mainRow.classList.add("expanded");
-        expandedRow = idx;
+        er.classList.add("open"); if (mr) mr.classList.add("expanded"); expandedRow = idx;
       }
     }
 
-    // --- Edit modal ---
-    let editStreams = [];
-
+    // --- Edit modal (module-based) ---
     function openEdit(deviceId) {
       const device = devices.find((d) => d.device_id === deviceId);
       if (!device) return;
       editingDevice = device;
-      const cfg = device.config || {};
-
+      const cfg = device._config || {};
       document.getElementById("modal-device-id").textContent = deviceId;
-      document.getElementById("edit-interval").value = cfg.inference_interval || 15;
 
-      editStreams = (cfg.rtsp_streams || []).map((s) => ({ ...s }));
-      renderStreamEditor();
-
+      editModules = {};
+      ["kitchen", "front_hall"].forEach((mod) => {
+        editModules[mod] = cfg.modules && cfg.modules[mod]
+          ? JSON.parse(JSON.stringify(cfg.modules[mod]))
+          : { enabled: false, cameras: [], inference_interval: 30, rules: {} };
+      });
+      if (cfg.modules) {
+        Object.keys(cfg.modules).forEach((m) => {
+          if (!editModules[m]) editModules[m] = JSON.parse(JSON.stringify(cfg.modules[m]));
+        });
+      }
+      renderModuleEditor();
       document.getElementById("edit-modal").showModal();
     }
 
-    function renderStreamEditor() {
-      const editor = document.getElementById("stream-editor");
-      if (!editStreams.length) {
-        editor.innerHTML = `<p style="color:var(--muted);font-size:0.82rem;padding:8px 0">暂无 RTSP 流</p>`;
-      } else {
-        editor.innerHTML = editStreams.map((s, i) => `
-          <div class="stream-edit-item">
-            <div class="row">
-              <label style="flex:0 0 auto">区域</label>
-              <select onchange="editStreams[${i}].zone=this.value">
-                <option value="kitchen" ${s.zone === "kitchen" ? "selected" : ""}>后厨 (kitchen)</option>
-                <option value="front_hall" ${s.zone === "front_hall" ? "selected" : ""}>前厅 (front_hall)</option>
-              </select>
-              <label style="flex:0 0 auto">摄像头 ID</label>
-              <input type="text" value="${app.esc(s.camera_id)}" onchange="editStreams[${i}].camera_id=this.value" />
-            </div>
-            <div class="row">
-              <label style="flex:0 0 auto">URL</label>
-              <input type="text" value="${app.esc(s.url)}" onchange="editStreams[${i}].url=this.value" style="flex:3" />
-            </div>
-            <div class="row">
-              <label style="display:flex;align-items:center;gap:6px;cursor:pointer">
-                <input type="checkbox" ${s.enabled ? "checked" : ""} onchange="editStreams[${i}].enabled=this.checked" />
-                启用
-              </label>
-              <button class="btn btn-sm btn-danger" onclick="editStreams.splice(${i},1);renderStreamEditor()" style="margin-left:auto">删除此流</button>
-            </div>
+    function renderModuleEditor() {
+      const editor = document.getElementById("module-editor");
+      editor.innerHTML = Object.keys(editModules).map((mod) => {
+        const m = editModules[mod];
+        const cams = m.cameras || [];
+        return `<div class="mod-edit-box">
+          <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:8px">
+            <strong>📦 ${modLabel(mod)}</strong>
+            <label style="display:flex;align-items:center;gap:6px;cursor:pointer;font-size:0.82rem">
+              <input type="checkbox" ${m.enabled ? "checked" : ""}
+                onchange="editModules['${mod}'].enabled=this.checked" /> 启用
+            </label>
           </div>
-        `).join("");
-      }
+          <div class="row">
+            <label>推理间隔</label>
+            <input type="number" value="${m.inference_interval || 30}" min="1" max="3600"
+              onchange="editModules['${mod}'].inference_interval=parseInt(this.value)" style="width:80px" />
+            <span style="font-size:0.75rem;color:var(--muted)">秒</span>
+          </div>
+          <label style="font-size:0.78rem;color:var(--muted);display:block;margin:6px 0 4px">摄像头 RTSP 地址</label>
+          ${cams.map((url, ci) => `
+            <div class="row">
+              <input type="text" value="${app.esc(url)}"
+                onchange="editModules['${mod}'].cameras[${ci}]=this.value" style="flex:1" />
+              <button class="btn btn-sm btn-danger" style="flex:0"
+                onclick="editModules['${mod}'].cameras.splice(${ci},1);renderModuleEditor()">✕</button>
+            </div>
+          `).join("")}
+          <button class="btn btn-sm btn-ghost" style="margin-top:4px"
+            onclick="editModules['${mod}'].cameras.push('rtsp://');renderModuleEditor()">+ 添加摄像头</button>
+        </div>`;
+      }).join("");
     }
-
-    document.getElementById("btn-add-stream").onclick = () => {
-      editStreams.push({ zone: "kitchen", url: "rtsp://", enabled: true, camera_id: "cam" + (editStreams.length + 1) });
-      renderStreamEditor();
-    };
 
     document.getElementById("btn-cancel-edit").onclick = () => {
       document.getElementById("edit-modal").close();
       editingDevice = null;
-      editStreams = [];
+      editModules = {};
     };
 
     document.getElementById("btn-save-config").onclick = async () => {
       if (!editingDevice) return;
       const btn = document.getElementById("btn-save-config");
-      btn.disabled = true;
-      btn.textContent = "保存中…";
-
+      btn.disabled = true; btn.textContent = "保存中…";
       try {
-        const config = {
-          rtsp_streams: editStreams,
-          inference_interval: parseInt(document.getElementById("edit-interval").value) || 15,
-          push_hub_url: editingDevice.config?.push_hub_url || base,
-        };
-        await updateDeviceConfig(editingDevice.device_id, config);
+        const modules = {};
+        Object.keys(editModules).forEach((mod) => {
+          modules[mod] = {
+            enabled: editModules[mod].enabled,
+            cameras: editModules[mod].cameras || [],
+            inference_interval: editModules[mod].inference_interval || 30,
+            rules: editModules[mod].rules || {},
+          };
+        });
+        await updateDeviceConfig(editingDevice.device_id, { modules });
         document.getElementById("edit-modal").close();
-        toast("配置已保存", "success");
-        editingDevice = null;
-        editStreams = [];
+        toast("配置已保存 ✓ 设备下次心跳时下发", "success");
+        editingDevice = null; editModules = {};
         await refresh();
       } catch (e) {
         toast("保存失败：" + e.message, "error");
       } finally {
-        btn.disabled = false;
-        btn.textContent = "保存配置";
+        btn.disabled = false; btn.textContent = "保存配置";
       }
     };
 
-    // --- Delete modal ---
-    function openDelete(deviceId) {
-      document.getElementById("delete-device-name").textContent = "设备：" + deviceId;
-      document.getElementById("delete-modal").dataset.deviceId = deviceId;
-      document.getElementById("delete-modal").showModal();
-    }
-
-    document.getElementById("btn-cancel-delete").onclick = () => {
-      document.getElementById("delete-modal").close();
-    };
-
-    document.getElementById("btn-confirm-delete").onclick = async () => {
-      const deviceId = document.getElementById("delete-modal").dataset.deviceId;
-      const btn = document.getElementById("btn-confirm-delete");
-      btn.disabled = true;
-      btn.textContent = "删除中…";
-
-      try {
-        await deleteDevice(deviceId);
-        document.getElementById("delete-modal").close();
-        toast("设备 " + deviceId + " 已删除", "success");
-        expandedRow = null;
-        await refresh();
-      } catch (e) {
-        toast("删除失败：" + e.message, "error");
-      } finally {
-        btn.disabled = false;
-        btn.textContent = "确认删除";
-      }
-    };
-
-    // --- Main refresh ---
+    // --- Main ---
     async function refresh() {
       try {
         const storeId = document.getElementById("store-filter-select").value;
         const data = await fetchDevices(storeId);
         devices = data.devices || [];
         expandedRow = null;
-        render();
+        await render();
       } catch (e) {
         document.getElementById("device-tbody").innerHTML =
-          `<tr><td colspan="8" style="text-align:center;color:var(--accent);padding:40px">加载失败：${app.esc(e.message)}</td></tr>`;
+          `<tr><td colspan="9" style="text-align:center;color:var(--accent);padding:40px">加载失败：${app.esc(e.message)}<br><small>确认 Hub :8098 已启动</small></td></tr>`;
         document.getElementById("device-count").textContent = "加载失败";
       }
     }
 
-    // --- Init ---
     loadStores().then(() => refresh());
   </script>
 </body>

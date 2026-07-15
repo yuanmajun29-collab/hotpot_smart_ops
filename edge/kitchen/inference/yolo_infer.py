@@ -39,12 +39,17 @@ def build_engine(onnx_path, engine_path, fp16=True):
             raise RuntimeError("ONNX parsing failed")
 
     config = builder.create_builder_config()
-    config.set_memory_pool_limit(trt.MemoryPoolType.WORKSPACE, 2 << 30)  # 2GB
+    config.set_memory_pool_limit(trt.MemoryPoolType.WORKSPACE, 1 << 30)  # 1GB (Industrial-YOLO推荐: Jetson Orin 1GB够用，2GB浪费)
+    config.set_flag(trt.BuilderFlag.FP16)
 
-    if fp16:
-        config.set_flag(trt.BuilderFlag.FP16)
+    # ── Industrial-YOLO 参考: 针对 Jetson Orin 优化 ──
+    # 启用 TF32 精度 (Ampere+ 支持，比 FP32 快 2-4x，比 FP16 稳定)
+    config.set_flag(trt.BuilderFlag.TF32)
+    # 严格类型约束减少层融合失败
+    config.set_flag(trt.BuilderFlag.STRICT_TYPES)
 
     profile = builder.create_optimization_profile()
+    # 动态 batch 范围: 1-4 (Industrial-YOLO 验证: batch=1 时延迟最优)
     profile.set_shape("images", (1, 3, 640, 640), (1, 3, 640, 640), (4, 3, 640, 640))
     config.add_optimization_profile(profile)
 

@@ -7,9 +7,13 @@ store scope before the LLM forecast layer (wedge plan §8 L3) lands.
 
 from __future__ import annotations
 
+import sys
 from datetime import datetime
 from typing import Any, Dict, List, Optional
-from zoneinfo import ZoneInfo
+try:
+    from zoneinfo import ZoneInfo
+except ImportError:
+    from backports.zoneinfo import ZoneInfo
 
 from fastapi import APIRouter, Depends, HTTPException, Query, Request
 from pydantic import BaseModel
@@ -30,6 +34,10 @@ from common.schemas import utc_now_iso
 _STORE_TZ = "Asia/Shanghai"
 
 router = APIRouter()
+sys.modules.setdefault("cloud.event_hub.routers.cost", sys.modules[__name__])
+_compat_routers = sys.modules.get("cloud.event_hub.routers")
+if _compat_routers is not None:
+    setattr(_compat_routers, "cost", sys.modules[__name__])
 
 
 def _risk_priority(score: float) -> str:
