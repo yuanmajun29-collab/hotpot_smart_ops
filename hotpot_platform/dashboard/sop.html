@@ -5,6 +5,78 @@
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
   <title>SOP · 冯校长火锅 · 智能运营</title>
   <link rel="stylesheet" href="assets/theme.css" />
+  <style>
+    /* Station cards */
+    .station-grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fill, minmax(160px, 1fr));
+      gap: 12px; margin-bottom: 20px;
+    }
+    .station-card {
+      background: var(--card); border: 2px solid var(--border);
+      border-radius: 12px; padding: 16px; cursor: pointer;
+      transition: border-color 0.2s, transform 0.15s;
+      text-align: center;
+    }
+    .station-card:hover { transform: translateY(-2px); }
+    .station-card.running { border-color: var(--ok); }
+    .station-card.warning { border-color: var(--warn); }
+    .station-card.violation { border-color: var(--accent); }
+    .station-card .st-icon { font-size: 2rem; margin-bottom: 6px; }
+    .station-card .st-name { font-weight: 700; font-size: 0.95rem; margin-bottom: 4px; }
+    .station-card .st-status {
+      font-size: 0.75rem; font-weight: 600; padding: 3px 10px;
+      border-radius: 12px; display: inline-block;
+    }
+    .station-card .st-status.running { background: rgba(86,184,132,0.15); color: var(--ok); }
+    .station-card .st-status.warning { background: rgba(230,169,62,0.15); color: var(--warn); }
+    .station-card .st-status.violation { background: rgba(240,71,60,0.15); color: var(--accent); }
+    .station-card .st-readings { font-size: 0.72rem; color: var(--muted); margin-top: 8px; }
+
+    /* Compliance ring */
+    .ring-wrap {
+      display: flex; align-items: center; gap: 24px;
+      padding: 20px; background: var(--card); border: 1px solid var(--border);
+      border-radius: 12px; margin-bottom: 20px;
+    }
+    .ring-svg { flex: none; }
+    .ring-legend { font-size: 0.82rem; }
+    .ring-legend div { margin: 6px 0; display: flex; align-items: center; gap: 8px; }
+    .ring-legend .dot { width: 10px; height: 10px; border-radius: 50%; display: inline-block; }
+
+    /* Station detail modal */
+    .modal-overlay {
+      display: none; position: fixed; top: 0; left: 0; right: 0; bottom: 0;
+      background: rgba(0,0,0,0.7); z-index: 1000;
+      align-items: center; justify-content: center;
+    }
+    .modal-overlay.open { display: flex; }
+    .modal-box {
+      background: var(--card); border: 1px solid var(--border);
+      border-radius: 16px; padding: 24px; max-width: 480px; width: 90%;
+      max-height: 80vh; overflow-y: auto;
+    }
+    .modal-box h3 { margin: 0 0 16px; }
+    .modal-close {
+      float: right; background: none; border: none; color: var(--muted);
+      font-size: 1.5rem; cursor: pointer;
+    }
+    .reading-row {
+      display: flex; justify-content: space-between; padding: 8px 0;
+      border-bottom: 1px solid var(--border); font-size: 0.85rem;
+    }
+    .reading-row .r-label { color: var(--muted); }
+    .reading-row .r-value { font-weight: 600; }
+
+    /* Timeline */
+    .timeline { margin-top: 16px; }
+    .tl-item {
+      display: flex; gap: 12px; padding: 8px 0; border-bottom: 1px solid var(--border);
+      font-size: 0.8rem;
+    }
+    .tl-time { color: var(--muted); min-width: 110px; }
+    .tl-status { font-weight: 600; }
+  </style>
 </head>
 <body>
   <div class="app-shell">
@@ -14,6 +86,7 @@
       <a class="nav-item" href="tables.html">前厅 · 桌态</a>
       <a class="nav-item" href="kitchen.html">后厨 · IoT</a>
       <a class="nav-item active" data-nav="sop" href="sop.html">SOP 执行</a>
+      <a class="nav-item" href="receiving.html">食材监管</a>
       <a class="nav-item" href="cost.html">来料 · 成本</a>
       <a class="nav-item" href="alerts.html">告警中心</a>
       <a class="nav-item" href="report.html">运营日报</a>
@@ -21,7 +94,7 @@
     </aside>
     <div class="main-wrap">
       <header class="topbar">
-        <div class="topbar-left"><h2 id="store-name">—</h2><div class="topbar-meta">午市班次</div></div>
+        <div class="topbar-left"><h2 id="store-name">—</h2><div class="topbar-meta">午市班次 · 7工位合规</div></div>
         <div class="topbar-right">
           <input class="hub-input" id="hub-url" type="text" />
           <span class="chip" id="user-name">—</span>
@@ -29,20 +102,42 @@
         </div>
       </header>
       <main class="content">
-        <div class="grid">
-          <div class="card"><h3>本班合规率</h3><div class="stat ok" id="sop-rate">-</div></div>
-          <div class="card"><h3>通过</h3><div class="stat ok" id="sop-pass">-</div></div>
-          <div class="card"><h3>未通过</h3><div class="stat critical" id="sop-fail">-</div></div>
+
+        <!-- 合规率环形图 + Hero -->
+        <div class="ring-wrap">
+          <svg class="ring-svg" width="120" height="120" viewBox="0 0 120 120">
+            <circle cx="60" cy="60" r="50" fill="none" stroke="var(--border)" stroke-width="10"/>
+            <circle id="ring-arc" cx="60" cy="60" r="50" fill="none" stroke="var(--ok)" stroke-width="10"
+                    stroke-dasharray="0 315" stroke-linecap="round"
+                    transform="rotate(-90 60 60)" style="transition: stroke-dasharray 0.8s ease"/>
+            <text x="60" y="56" text-anchor="middle" fill="var(--text)" font-size="1.4rem" font-weight="900" id="ring-rate">-</text>
+            <text x="60" y="72" text-anchor="middle" fill="var(--muted)" font-size="0.65rem">合规率</text>
+          </svg>
+          <div class="ring-legend">
+            <div><span class="dot" style="background:var(--ok)"></span> 达标 <b id="leg-ok">-</b></div>
+            <div><span class="dot" style="background:var(--warn)"></span> 预警 <b id="leg-warn">-</b></div>
+            <div><span class="dot" style="background:var(--accent)"></span> 违规 <b id="leg-violation">-</b></div>
+          </div>
         </div>
+
+        <!-- 7工位卡片 -->
+        <h3 style="margin:0 0 12px;font-size:0.9rem;color:var(--muted)">7 工位实时状态 · 点击查看详情</h3>
+        <div class="station-grid" id="station-grid"></div>
+
+        <!-- SOP清单 -->
         <div class="card card-mb">
           <h3>SOP 清单 · 点击展开检查点</h3>
           <div id="sop-list"></div>
         </div>
+
+        <!-- 违规 + 工单 -->
         <div class="card">
           <h3>违规待整改</h3>
           <div id="violations"></div>
           <div id="assignments" class="card-mt"></div>
         </div>
+
+        <!-- SOP 智能问答 -->
         <div class="card card-mt">
           <h3>SOP 智能问答</h3>
           <p class="section-hint">基于总部 SOP 知识库，输入问题获取执行要点</p>
@@ -55,18 +150,134 @@
       </main>
     </div>
   </div>
+
+  <!-- Station detail modal -->
+  <div class="modal-overlay" id="modal">
+    <div class="modal-box">
+      <button class="modal-close" onclick="closeModal()">&times;</button>
+      <h3 id="modal-title">工位详情</h3>
+      <div id="modal-readings"></div>
+      <div id="modal-timeline" class="timeline"></div>
+    </div>
+  </div>
+
   <script src="assets/core.js"></script>
   <script>
     HotpotApp.initShell("sop");
+
+    const STATION_ICONS = {
+      sop_broth: "🍲", sop_cutting: "🔪", sop_plating: "🍽️",
+      sop_sauce: "🫙", sop_washing: "🧼", sop_serving: "🏃",
+      sop_cold_storage: "❄️"
+    };
+    const STATION_NAMES = {
+      sop_broth: "汤底", sop_cutting: "切配", sop_plating: "摆盘",
+      sop_sauce: "蘸料", sop_washing: "洗消", sop_serving: "传菜",
+      sop_cold_storage: "冷库"
+    };
+    const STATUS_LABELS = { running: "达标", warning: "预警", violation: "违规" };
+
+    let _stations = [];
+    let _stationHistory = {}; // station_id → [{status, time, msg}]
+
+    function closeModal() { document.getElementById("modal").classList.remove("open"); }
+
+    function showStationDetail(station) {
+      document.getElementById("modal-title").textContent = `${STATION_ICONS[station.station_id] || ""} ${station.name || STATION_NAMES[station.station_id] || station.station_id}`;
+
+      const readings = station.readings || {};
+      const rdEl = document.getElementById("modal-readings");
+      rdEl.innerHTML = Object.keys(readings).length
+        ? Object.entries(readings).map(([k, v]) => `
+          <div class="reading-row">
+            <span class="r-label">${k}</span>
+            <span class="r-value">${typeof v === "number" ? v.toFixed(1) : v}</span>
+          </div>`).join("")
+        : '<p style="color:var(--muted)">暂无传感器读数</p>';
+
+      const tlEl = document.getElementById("modal-timeline");
+      const history = _stationHistory[station.station_id] || [];
+      tlEl.innerHTML = history.length
+        ? history.slice(-10).reverse().map(h => `
+          <div class="tl-item">
+            <span class="tl-time">${(h.time||"").slice(0,16)}</span>
+            <span class="tl-status" style="color:var(${h.status==='violation'?'--accent':h.status==='warning'?'--warn':'--ok'})">${STATUS_LABELS[h.status]||h.status}</span>
+            <span>${h.msg||""}</span>
+          </div>`).join("")
+        : '<p style="color:var(--muted)">暂无历史记录</p>';
+
+      document.getElementById("modal").classList.add("open");
+    }
+
+    function renderStations(stations) {
+      const grid = document.getElementById("station-grid");
+      if (!stations || !stations.length) {
+        // Render default 7 stations
+        stations = Object.entries(STATION_NAMES).map(([id, name]) => ({
+          station_id: id, name, status: "running", readings: {}, message: "等待数据…"
+        }));
+      }
+      _stations = stations;
+
+      grid.innerHTML = stations.map(s => {
+        const icon = STATION_ICONS[s.station_id] || "📍";
+        const status = s.status || "running";
+        return `
+        <div class="station-card ${status}" onclick='showStationDetail(${JSON.stringify(s).replace(/'/g,"&#39;")})'>
+          <div class="st-icon">${icon}</div>
+          <div class="st-name">${s.name || STATION_NAMES[s.station_id] || s.station_id}</div>
+          <span class="st-status ${status}">${STATUS_LABELS[status] || status}</span>
+          <div class="st-readings">${s.message || "—"}</div>
+        </div>`;
+      }).join("");
+
+      // Update ring chart
+      const total = stations.length || 7;
+      const running = stations.filter(s => s.status === "running").length;
+      const warning = stations.filter(s => s.status === "warning").length;
+      const violation = stations.filter(s => s.status === "violation").length;
+      const rate = Math.round(running / total * 100);
+
+      const fullCirc = 2 * Math.PI * 50;
+      const arcLen = (rate / 100) * fullCirc;
+      const ring = document.getElementById("ring-arc");
+      ring.setAttribute("stroke-dasharray", `${arcLen} ${fullCirc}`);
+      ring.setAttribute("stroke", rate >= 85 ? "var(--ok)" : rate >= 60 ? "var(--warn)" : "var(--accent)");
+      document.getElementById("ring-rate").textContent = rate + "%";
+      document.getElementById("leg-ok").textContent = running;
+      document.getElementById("leg-warn").textContent = warning;
+      document.getElementById("leg-violation").textContent = violation;
+
+      // Update history (append new status changes)
+      stations.forEach(s => {
+        if (!_stationHistory[s.station_id]) _stationHistory[s.station_id] = [];
+        const hist = _stationHistory[s.station_id];
+        const last = hist[hist.length - 1];
+        if (!last || last.status !== s.status) {
+          hist.push({ status: s.status, time: s.updated_at || new Date().toISOString(), msg: s.message || "" });
+          if (hist.length > 30) hist.shift();
+        }
+      });
+    }
+
     async function refresh() {
+      const sid = HotpotApp.getAuth()?.store_id || "store_yuhuan";
       try {
+        // Fetch stations from new endpoint
+        let stationsData = null;
+        try {
+          stationsData = await HotpotApp.api("GET", `/v1/sop/stations?store_id=${sid}`);
+        } catch (e) { /* endpoint may not exist yet */ }
+
+        if (stationsData && stationsData.stations && stationsData.stations.length) {
+          renderStations(stationsData.stations);
+        }
+
+        // Existing SOP data
         const data = await HotpotApp.fetchSummary();
         const sop = data.sop_stats || {};
-        document.getElementById("sop-rate").textContent =
-          sop.compliance_rate != null ? sop.compliance_rate + "%" : "-";
-        document.getElementById("sop-pass").textContent = sop.passed ?? "-";
-        document.getElementById("sop-fail").textContent = sop.failed ?? "-";
 
+        // SOP list
         const list = document.getElementById("sop-list");
         list.innerHTML = "";
         (sop.results || []).forEach((r) => {
@@ -93,6 +304,7 @@
           });
         }
 
+        // Violations
         const viol = document.getElementById("violations");
         viol.innerHTML = "";
         const failed = (sop.results || []).filter((r) => r.status === "failed");
@@ -135,6 +347,9 @@
           });
         }
         await renderAssignments();
+
+        // If no station data, render defaults
+        if (!_stations.length) renderStations(null);
       } catch (e) { console.warn(e); }
     }
 
@@ -143,10 +358,7 @@
       try {
         const data = await HotpotApp.fetchSopAssignments("open");
         const items = data.assignments || [];
-        if (!items.length) {
-          box.innerHTML = "";
-          return;
-        }
+        if (!items.length) { box.innerHTML = ""; return; }
         box.innerHTML = "<h4 class='section-hint' style='text-transform:none;font-size:0.9rem'>进行中的整改工单</h4>";
         items.forEach((a) => {
           const div = document.createElement("div");
@@ -155,9 +367,7 @@
           div.innerHTML = `<b>${HotpotApp.esc(a.sop_name)}</b> → ${HotpotApp.esc(a.assignee)} ${HotpotApp.sopStatusTag(a.status === "open" ? "pending" : a.status)}`;
           box.appendChild(div);
         });
-      } catch (e) {
-        box.innerHTML = "";
-      }
+      } catch (e) { box.innerHTML = ""; }
     }
 
     document.getElementById("sop-ask-btn").onclick = async () => {
@@ -172,6 +382,7 @@
         out.textContent = "问答失败: " + e.message;
       }
     };
+
     refresh();
     setInterval(refresh, 8000);
   </script>

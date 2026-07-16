@@ -10,9 +10,15 @@
         {"ready": true}  ← 启动完成信号
 """
 import sys, json, os
+from pathlib import Path
 
-# 确保不乱导入 hotpot 项目
-sys.path = [p for p in sys.path if 'hotpot' not in str(p).lower()]
+# 确保能导入同项目的 rules.py（子进程 cwd=/tmp）
+_inference_dir = str(Path(__file__).resolve().parents[1])
+if _inference_dir not in sys.path:
+    sys.path.insert(0, _inference_dir)
+
+# 确保不乱导入 hotpot 项目其他部分
+sys.path = [p for p in sys.path if 'hotpot' not in str(p).lower() or p == _inference_dir]
 
 import torch
 from PIL import Image

@@ -1,0 +1,287 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>食材监管 · 冯校长火锅 · 智能运营</title>
+  <link rel="stylesheet" href="assets/theme.css" />
+  <style>
+    .flow-diagram {
+      background: var(--card); border: 1px solid var(--border);
+      border-radius: 12px; padding: 20px; margin-bottom: 20px;
+      overflow-x: auto;
+    }
+    .flow-diagram h3 { margin: 0 0 16px; font-size: 0.9rem; color: var(--muted); }
+    .flow-steps {
+      display: flex; align-items: center; gap: 12px; flex-wrap: wrap;
+      font-size: 0.8rem;
+    }
+    .flow-step {
+      background: var(--card2); border: 1px solid var(--border);
+      border-radius: 10px; padding: 12px 16px; text-align: center;
+      min-width: 100px;
+    }
+    .flow-step .step-icon { font-size: 1.5rem; margin-bottom: 4px; }
+    .flow-step .step-label { color: var(--muted); }
+    .flow-arrow { color: var(--brand); font-size: 1.2rem; }
+    .ingredient-table { width: 100%; margin-top: 8px; }
+    .ingredient-table th { font-size: 0.75rem; color: var(--muted); text-align: left; padding: 6px 8px; }
+    .ingredient-table td { padding: 8px; font-size: 0.85rem; border-bottom: 1px solid var(--border); }
+    .confidence-bar {
+      display: inline-block; height: 6px; border-radius: 3px;
+      background: var(--brand); vertical-align: middle; margin-right: 6px;
+    }
+    .batch-row {
+      display: flex; align-items: center; gap: 12px; padding: 10px 0;
+      border-bottom: 1px solid var(--border); cursor: pointer;
+    }
+    .batch-row:hover { background: rgba(226,97,58,0.05); }
+    .batch-row .batch-id { font-weight: 600; font-size: 0.85rem; min-width: 180px; }
+    .batch-row .batch-sku { flex: 1; font-size: 0.82rem; }
+    .batch-row .batch-variance { min-width: 80px; text-align: right; font-weight: 600; }
+    .batch-detail { 
+      padding: 12px 16px; margin: 8px 0; background: var(--card2);
+      border-radius: 8px; display: none;
+    }
+    .batch-detail.open { display: block; }
+    .weight-chart-wrap { overflow-x: auto; margin-top: 12px; }
+    .weight-chart-wrap svg { width: 100%; min-width: 500px; height: 140px; }
+    .checkin-status { font-size: 0.72rem; padding: 2px 8px; border-radius: 4px; }
+    .checkin-status.ok { background: rgba(86,184,132,0.15); color: var(--ok); }
+    .checkin-status.warn { background: rgba(230,169,62,0.15); color: var(--warn); }
+    .checkin-status.critical { background: rgba(240,71,60,0.15); color: var(--accent); }
+  </style>
+</head>
+<body>
+  <div class="app-shell">
+    <aside class="sidebar">
+      <div class="sidebar-brand"><h1>冯校长火锅</h1><p>智能运营 · MVP</p></div>
+      <a class="nav-item" href="home.html">首页概览</a>
+      <a class="nav-item" href="tables.html">前厅 · 桌态</a>
+      <a class="nav-item" href="kitchen.html">后厨 · IoT</a>
+      <a class="nav-item" href="sop.html">SOP 执行</a>
+      <a class="nav-item active" data-nav="receiving" href="receiving.html">食材监管</a>
+      <a class="nav-item" href="cost.html">来料 · 成本</a>
+      <a class="nav-item" href="alerts.html">告警中心</a>
+      <a class="nav-item" href="report.html">运营日报</a>
+      <a class="nav-item" href="pda/receiving.html">收货 PDA</a>
+    </aside>
+    <div class="main-wrap">
+      <header class="topbar">
+        <div class="topbar-left"><h2 id="store-name">—</h2><div class="topbar-meta">进货口 · 食材监管</div></div>
+        <div class="topbar-right">
+          <input class="hub-input" id="hub-url" type="text" />
+          <span class="chip" id="user-name">—</span>
+          <button class="btn btn-sm btn-ghost" id="btn-logout">退出</button>
+        </div>
+      </header>
+      <main class="content">
+
+        <!-- 流程图 -->
+        <div class="flow-diagram">
+          <h3>📋 进货口检测流程</h3>
+          <div class="flow-steps">
+            <div class="flow-step"><div class="step-icon">📦</div><div class="step-label">到货</div></div>
+            <span class="flow-arrow">→</span>
+            <div class="flow-step"><div class="step-icon">📷</div><div class="step-label">YOLO检测</div></div>
+            <span class="flow-arrow">→</span>
+            <div class="flow-step"><div class="step-icon">⚖️</div><div class="step-label">电子秤称重</div></div>
+            <span class="flow-arrow">→</span>
+            <div class="flow-step"><div class="step-icon">🌡️</div><div class="step-label">冷链测温</div></div>
+            <span class="flow-arrow">→</span>
+            <div class="flow-step"><div class="step-icon">☁️</div><div class="step-label">Hub记录</div></div>
+            <span class="flow-arrow">→</span>
+            <div class="flow-step"><div class="step-icon">✅</div><div class="step-label">入库</div></div>
+          </div>
+        </div>
+
+        <!-- Hero cards -->
+        <div class="grid">
+          <div class="card"><h3>今日收货批次</h3><div class="stat brand" id="recv-batches">-</div></div>
+          <div class="card"><h3>累计收货重量</h3><div class="stat" id="recv-weight">- kg</div></div>
+          <div class="card"><h3>重量偏差率</h3><div class="stat" id="recv-variance">-%</div></div>
+          <div class="card"><h3>质检通过率</h3><div class="stat ok" id="recv-pass-rate">-%</div></div>
+        </div>
+
+        <!-- 最近检测明细 -->
+        <div class="card" style="margin:20px 0">
+          <h3>📋 最近进货检测 <span style="font-size:0.75rem;color:var(--muted)">按批次展开</span></h3>
+          <div id="checkin-list"><p style="color:var(--muted)">加载中…</p></div>
+        </div>
+
+        <!-- 收货批次 -->
+        <div class="grid grid-2" style="margin:20px 0">
+          <div class="card">
+            <h3>📦 入库批次</h3>
+            <div id="batch-list"><p style="color:var(--muted)">加载中…</p></div>
+          </div>
+          <div class="card">
+            <h3>⚖️ 重量偏差趋势（近7天）</h3>
+            <div class="weight-chart-wrap">
+              <svg id="weight-chart" viewBox="0 0 500 140" preserveAspectRatio="none"></svg>
+            </div>
+            <p style="font-size:0.72rem;color:var(--muted);margin-top:8px;text-align:center">
+              ● 实收重量  ·  ● PO下单重量
+            </p>
+          </div>
+        </div>
+
+        <!-- 食材统计 -->
+        <div class="card" style="margin:20px 0">
+          <h3>🥬 食材类别统计（今日）</h3>
+          <div id="ingredient-stats"><p style="color:var(--muted)">加载中…</p></div>
+        </div>
+      </main>
+    </div>
+  </div>
+
+  <script src="assets/core.js"></script>
+  <script>
+    HotpotApp.initShell("receiving");
+
+    function fmtPct(v) { return v != null ? (v >= 0 ? "+" : "") + v.toFixed(1) + "%" : "—"; }
+    function levelClass(l) { return l === "critical" ? "critical" : l === "warn" ? "warn" : "ok"; }
+
+    async function refresh() {
+      const sid = HotpotApp.getAuth()?.store_id || "store_yuhuan";
+      try {
+        // Fetch checkins
+        const ciResp = await HotpotApp.api("GET", `/v1/receiving/checkins?store_id=${sid}&limit=20`);
+        const checkins = ciResp.checkins || [];
+
+        // Fetch batches
+        const bResp = await HotpotApp.api("GET", `/v1/receiving/batches?store_id=${sid}&limit=20`);
+        const batches = bResp.batches || [];
+
+        // Hero stats
+        document.getElementById("recv-batches").textContent = batches.length;
+        const totalWeight = batches.reduce((s, b) => s + (b.weight_kg || 0), 0);
+        document.getElementById("recv-weight").textContent = totalWeight.toFixed(1) + " kg";
+        const vars = batches.map(b => b.variance_pct).filter(v => v != null);
+        const avgVar = vars.length ? vars.reduce((s, v) => s + v, 0) / vars.length : null;
+        document.getElementById("recv-variance").textContent = avgVar != null ? fmtPct(avgVar) : "—";
+        const passCount = checkins.filter(c => c.level === "info").length;
+        document.getElementById("recv-pass-rate").textContent = checkins.length ? Math.round(passCount / checkins.length * 100) + "%" : "—";
+
+        // Checkin list
+        const ciList = document.getElementById("checkin-list");
+        ciList.innerHTML = "";
+        if (!checkins.length) {
+          ciList.innerHTML = '<p style="color:var(--muted);text-align:center;padding:24px">暂无进货检测记录</p>';
+        } else {
+          checkins.slice(0, 10).forEach(ci => {
+            const div = document.createElement("div");
+            div.className = "batch-row";
+            const ingList = (ci.ingredients || []).map(i => `${i.class_name || i.class}×${i.count}`).join(" · ");
+            div.innerHTML = `
+              <span class="batch-id">${ci.checkin_id || ci.event_id?.slice(0,8) || "—"}</span>
+              <span class="batch-sku">${ci.message || ingList || "—"}</span>
+              <span class="checkin-status ${levelClass(ci.level)}">${ci.level === "critical" ? "严重偏差" : ci.level === "warn" ? "注意" : "正常"}</span>
+              <span style="font-size:0.72rem;color:var(--muted);min-width:120px;text-align:right">${(ci.timestamp || "").slice(0,16)}</span>`;
+
+            // Detail panel
+            const detail = document.createElement("div");
+            detail.className = "batch-detail";
+            const ings = ci.ingredients || [];
+            detail.innerHTML = `
+              <table class="ingredient-table">
+                <tr><th>食材类别</th><th>数量</th><th>置信度</th></tr>
+                ${ings.map(i => `
+                <tr>
+                  <td>${i.class_name || i.class || "—"}</td>
+                  <td>${i.count || 0}</td>
+                  <td><span class="confidence-bar" style="width:${(i.confidence||0)*100}px"></span>${((i.confidence||0)*100).toFixed(0)}%</td>
+                </tr>`).join("")}
+              </table>
+              ${ci.weight_kg != null ? `<p style="font-size:0.8rem;color:var(--muted);margin-top:8px">实收: ${ci.weight_kg}kg · 偏差: ${fmtPct(ci.variance_pct)}</p>` : ""}
+            `;
+            div.onclick = () => { detail.classList.toggle("open"); };
+            ciList.appendChild(div);
+            ciList.appendChild(detail);
+          });
+        }
+
+        // Batch list
+        const bList = document.getElementById("batch-list");
+        bList.innerHTML = "";
+        if (!batches.length) {
+          bList.innerHTML = '<p style="color:var(--muted);text-align:center;padding:24px">暂无入库批次</p>';
+        } else {
+          batches.forEach(b => {
+            const row = document.createElement("div");
+            row.className = "batch-row";
+            row.innerHTML = `
+              <span class="batch-id">${b.batch_id}</span>
+              <span class="batch-sku">${b.sku || "—"}</span>
+              <span class="batch-variance" style="color:var(${(b.variance_pct||0)>5 ? '--accent' : (b.variance_pct||0)>3 ? '--warn' : '--ok'})">${fmtPct(b.variance_pct)}</span>
+            `;
+            bList.appendChild(row);
+          });
+        }
+
+        // Ingredient stats
+        const ingStats = document.getElementById("ingredient-stats");
+        const allIngs = {};
+        checkins.forEach(ci => {
+          (ci.ingredients || []).forEach(i => {
+            const name = i.class_name || i.class || "未知";
+            allIngs[name] = (allIngs[name] || 0) + (i.count || 0);
+          });
+        });
+        const maxCount = Math.max(1, ...Object.values(allIngs));
+        ingStats.innerHTML = Object.entries(allIngs).length
+          ? Object.entries(allIngs).map(([name, count]) => `
+            <div class="sku-row">
+              <span class="sku-name">${name}</span>
+              <span class="sku-bar-bg"><span class="sku-bar-fill" style="width:${(count/maxCount*100).toFixed(0)}%"></span></span>
+              <span class="sku-count">${count}</span>
+            </div>`).join("")
+          : '<p style="color:var(--muted);text-align:center;padding:24px">暂无食材统计</p>';
+
+        // Weight trend chart (mock — uses batch data)
+        renderWeightChart(batches);
+      } catch (e) {
+        console.warn("refresh failed:", e);
+        document.getElementById("checkin-list").innerHTML = '<p style="color:var(--accent)">加载失败: ' + e.message + '</p>';
+      }
+    }
+
+    function renderWeightChart(batches) {
+      const svg = document.getElementById("weight-chart");
+      if (!batches.length) {
+        svg.innerHTML = '<text x="250" y="70" text-anchor="middle" fill="#8b949e" font-size="12">暂无数据</text>';
+        return;
+      }
+      const W = 500, H = 140, pad = 20;
+      const maxW = Math.max(...batches.map(b => Math.max(b.weight_kg||0, b.po_weight_kg||0)), 1);
+      const n = Math.min(batches.length, 20);
+      const pts = batches.slice(0, n).reverse();
+
+      const x = i => pad + (i * (W - 2 * pad)) / (n - 1);
+      const y = v => pad + (H - 2 * pad) * (1 - v / maxW);
+
+      const actualLine = pts.map((b, i) => `${i ? "L" : "M"}${x(i).toFixed(1)},${y(b.weight_kg||0).toFixed(1)}`).join(" ");
+      const poLine = pts.map((b, i) => `${i ? "L" : "M"}${x(i).toFixed(1)},${y(b.po_weight_kg||0).toFixed(1)}`).join(" ");
+
+      svg.innerHTML = `
+        <line x1="${pad}" y1="${H-pad}" x2="${W-pad}" y2="${H-pad}" stroke="#30363d" stroke-width="1"/>
+        <line x1="${pad}" y1="${pad}" x2="${pad}" y2="${H-pad}" stroke="#30363d" stroke-width="1"/>
+        <path d="${poLine}" fill="none" stroke="#8b949e" stroke-width="1.5" stroke-dasharray="4,3"/>
+        <path d="${actualLine}" fill="none" stroke="var(--brand)" stroke-width="2"/>
+        ${pts.map((b, i) => {
+          const actualY = y(b.weight_kg||0);
+          const poY = y(b.po_weight_kg||0);
+          const isWarn = b.variance_pct && Math.abs(b.variance_pct) > 3;
+          return `
+          <circle cx="${x(i).toFixed(1)}" cy="${actualY.toFixed(1)}" r="3" fill="var(--brand)"/>
+          <circle cx="${x(i).toFixed(1)}" cy="${poY.toFixed(1)}" r="2" fill="#8b949e"/>
+          ${isWarn ? `<circle cx="${x(i).toFixed(1)}" cy="${actualY.toFixed(1)}" r="5" fill="none" stroke="var(--warn)" stroke-width="1"/>` : ""}
+        `;}).join("")}
+      `;
+    }
+
+    refresh();
+    setInterval(refresh, 30000);
+  </script>
+</body>
+</html>

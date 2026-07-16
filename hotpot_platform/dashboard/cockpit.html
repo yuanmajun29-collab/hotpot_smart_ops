@@ -76,6 +76,49 @@
       border-radius: 4px; background: rgba(127,176,206,0.15); color: var(--info); margin-left: 8px;
     }
     .schematic-tag { font-size: 0.7rem; color: var(--muted); border: 1px dashed var(--border); border-radius: 4px; padding: 1px 6px; }
+    /* Multi-store comparison */
+    .compare-selector {
+      display: flex; align-items: center; gap: 12px; margin-bottom: 16px; flex-wrap: wrap;
+    }
+    .compare-selector .store-chips { display: flex; gap: 6px; flex-wrap: wrap; }
+    .store-chip {
+      padding: 5px 14px; border-radius: 20px; font-size: 0.78rem; cursor: pointer;
+      border: 1px solid var(--border); background: var(--card2); color: var(--muted);
+      transition: all 0.15s; white-space: nowrap;
+    }
+    .store-chip.selected { background: rgba(226,97,58,0.15); color: var(--brand); border-color: var(--brand); }
+    .compare-cards { display: grid; grid-template-columns: repeat(auto-fill, minmax(260px, 1fr)); gap: 14px; margin-bottom: 20px; }
+    .compare-card {
+      background: var(--card); border: 1px solid var(--border);
+      border-radius: 12px; padding: 18px;
+    }
+    .compare-card .cc-name { font-weight: 700; font-size: 0.95rem; margin-bottom: 12px; display: flex; align-items: center; gap: 8px; }
+    .compare-card .cc-metrics { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; }
+    .cc-metric { text-align: center; }
+    .cc-metric .cc-val { font-size: 1.3rem; font-weight: 700; }
+    .cc-metric .cc-label { font-size: 0.7rem; color: var(--muted); }
+    .compare-card .cc-vs {
+      font-size: 0.72rem; color: var(--muted); margin-top: 10px;
+      padding-top: 8px; border-top: 1px solid var(--border);
+    }
+    .cc-better { color: var(--ok); }
+    .cc-worse { color: var(--accent); }
+
+    /* Spider chart */
+    .spider-wrap { display: flex; align-items: center; gap: 20px; overflow-x: auto; }
+    .spider-legend { font-size: 0.75rem; min-width: 140px; }
+    .spider-legend .sl-item { display: flex; align-items: center; gap: 6px; padding: 3px 0; }
+    .spider-legend .sl-dot { width: 8px; height: 8px; border-radius: 50%; }
+
+    /* Waste ranking */
+    .waste-ranking { margin-top: 12px; }
+    .waste-rank-row {
+      display: grid; grid-template-columns: 30px 1fr 80px 60px; gap: 8px; align-items: center;
+      padding: 8px 0; border-bottom: 1px solid var(--border); font-size: 0.82rem;
+    }
+    .waste-rank-row.header { color: var(--muted); font-size: 0.72rem; font-weight: 600; }
+    .waste-rank-row .wr-rank { text-align: center; font-weight: 600; }
+    .waste-rank-row .wr-diff { text-align: right; }
     @media (max-width: 1100px) { .hero-stats { grid-template-columns: repeat(2, 1fr); } }
   </style>
 </head>
@@ -126,6 +169,39 @@
           <div class="kpi-tile"><span class="cell-muted">异常店</span><b id="kpi-critical" class="cell-critical">—</b></div>
           <div class="kpi-tile"><span class="cell-muted">严重告警</span><b id="kpi-alerts">—</b></div>
           <div class="kpi-tile"><span class="cell-muted">均 SOP</span><b id="kpi-sop">—</b></div>
+        </div>
+
+        <!-- 多店对比 -->
+        <div class="card" style="margin:20px 0">
+          <div style="display:flex;justify-content:space-between;align-items:center">
+            <h3 style="margin:0">🔍 多店对比 · 指标横评</h3>
+            <button class="btn btn-sm btn-ghost" onclick="toggleView()" id="view-toggle-btn">切换总代视角</button>
+          </div>
+          <div class="compare-selector">
+            <span style="font-size:0.78rem;color:var(--muted)">选择门店:</span>
+            <div class="store-chips" id="store-chips"></div>
+          </div>
+          <div class="compare-cards" id="compare-cards"><p style="color:var(--muted)">选择门店开始对比…</p></div>
+        </div>
+
+        <!-- 门店健康雷达图 -->
+        <div class="card" style="margin:20px 0">
+          <h3>🕸️ 门店健康雷达图 <span class="schematic-tag">5维度对比</span></h3>
+          <div class="spider-wrap">
+            <svg id="spider-svg" viewBox="0 0 280 280" width="280" height="280"></svg>
+            <div class="spider-legend" id="spider-legend"></div>
+          </div>
+        </div>
+
+        <!-- 废料排名对比 -->
+        <div class="card" style="margin:20px 0">
+          <h3>🗑️ 废料率排名 · 全店对比</h3>
+          <div class="waste-ranking">
+            <div class="waste-rank-row header">
+              <span>#</span><span>门店</span><span>废料率</span><span class="wr-diff">vs均值</span>
+            </div>
+            <div id="waste-ranking-list"><p style="color:var(--muted)">加载中…</p></div>
+          </div>
         </div>
 
         <!-- 趋势折线图 -->
@@ -345,7 +421,210 @@
       renderTrend(7);
     }
 
-    loadCockpit().catch((e) => {
+    // ── Multi-store comparison ──
+    let _selectedStores = new Set();
+    let _franchiseView = false;
+
+    function toggleView() {
+      _franchiseView = !_franchiseView;
+      const btn = document.getElementById("view-toggle-btn");
+      btn.textContent = _franchiseView ? "切换店长视角" : "切换总代视角";
+      if (_franchiseView) {
+        // Select all stores
+        _selectedStores = new Set(_stores.map(s => s.store_id));
+      } else {
+        _selectedStores = new Set([_stores[0]?.store_id].filter(Boolean));
+      }
+      renderStoreChips();
+      renderComparison();
+      renderSpider();
+      renderWasteRanking();
+    }
+
+    function renderStoreChips() {
+      const chipsEl = document.getElementById("store-chips");
+      chipsEl.innerHTML = _stores.map(s => {
+        const sel = _selectedStores.has(s.store_id) ? " selected" : "";
+        return `<span class="store-chip${sel}" data-store="${s.store_id}" onclick="toggleStore('${s.store_id}')">${shortName(s.store_name)}</span>`;
+      }).join("");
+    }
+
+    window.toggleStore = function(storeId) {
+      if (_selectedStores.has(storeId)) {
+        _selectedStores.delete(storeId);
+      } else {
+        _selectedStores.add(storeId);
+      }
+      renderStoreChips();
+      renderComparison();
+      renderSpider();
+    };
+
+    function renderComparison() {
+      const el = document.getElementById("compare-cards");
+      const selected = _stores.filter(s => _selectedStores.has(s.store_id));
+      if (!selected.length) {
+        el.innerHTML = '<p style="color:var(--muted);text-align:center;padding:24px">请选择至少一家门店</p>';
+        return;
+      }
+
+      // Compute group averages for vs comparison
+      const allStores = _stores.length ? _stores : selected;
+      const groupAvg = (key) => {
+        const vals = allStores.map(s => s.metrics?.[key]).filter(v => v != null);
+        return vals.length ? vals.reduce((a, b) => a + b, 0) / vals.length : 0;
+      };
+      const avgRevenue = groupAvg("daily_revenue");
+      const avgTurnover = groupAvg("turnover_rate");
+      const avgLoss = groupAvg("cost_variance_pct");
+      const avgSop = groupAvg("sop_compliance_rate");
+
+      el.innerHTML = selected.map(s => {
+        const m = s.metrics || {};
+        const h = s.health || {};
+        const rev = m.daily_revenue || 0;
+        const turn = m.turnover_rate || 0;
+        const loss = m.cost_variance_pct || 0;
+        const sop = m.sop_compliance_rate || 0;
+
+        const vsRevenue = avgRevenue ? ((rev - avgRevenue) / avgRevenue * 100) : 0;
+        const vsLoss = avgLoss ? ((avgLoss - loss) / Math.abs(avgLoss) * 100) : 0; // lower loss is better
+        const vsSop = avgSop ? (sop - avgSop) : 0;
+
+        return `
+        <div class="compare-card" style="border-color:var(${healthColorVar(h.status)})">
+          <div class="cc-name">
+            <span class="dot" style="display:inline-block;width:8px;height:8px;border-radius:50%;background:var(${healthColorVar(h.status)})"></span>
+            ${shortName(s.store_name)}
+          </div>
+          <div class="cc-metrics">
+            <div class="cc-metric">
+              <div class="cc-val" style="color:var(--brand)">${fmtMoney(rev)}</div>
+              <div class="cc-label">日营收</div>
+            </div>
+            <div class="cc-metric">
+              <div class="cc-val">${turn.toFixed(1)}</div>
+              <div class="cc-label">翻台率</div>
+            </div>
+            <div class="cc-metric">
+              <div class="cc-val" style="color:${loss > 5 ? 'var(--accent)' : loss > 3 ? 'var(--warn)' : 'var(--ok)'}">${fmtPct(loss)}</div>
+              <div class="cc-label">损耗率</div>
+            </div>
+            <div class="cc-metric">
+              <div class="cc-val">${fmtPct(sop)}</div>
+              <div class="cc-label">SOP合规</div>
+            </div>
+          </div>
+          <div class="cc-vs">
+            营收 ${vsRevenue >= 0 ? '<span class="cc-better">↑' : '<span class="cc-worse">↓'}${Math.abs(vsRevenue).toFixed(1)}%</span>
+            · 损耗 ${vsLoss > 0 ? '<span class="cc-better">优于' : '<span class="cc-worse">差于'}均值</span>
+            · SOP ${vsSop >= 0 ? '<span class="cc-better">↑' : '<span class="cc-worse">↓'}${Math.abs(vsSop).toFixed(1)}pp</span>
+          </div>
+        </div>`;
+      }).join("");
+    }
+
+    // Spider/radar chart
+    function renderSpider() {
+      const svg = document.getElementById("spider-svg");
+      const legend = document.getElementById("spider-legend");
+      const selected = _stores.filter(s => _selectedStores.has(s.store_id));
+      if (!selected.length) {
+        svg.innerHTML = '<text x="140" y="140" text-anchor="middle" fill="#8b949e" font-size="12">请选择门店</text>';
+        legend.innerHTML = "";
+        return;
+      }
+
+      const dims = ["营收", "翻台", "SOP", "告警", "健康"];
+      const colors = ["#E2613A", "#56B884", "#58A6FF", "#BC8CFF", "#E6A93E"];
+
+      // Normalize values to 0-1
+      const maxVals = { revenue: Math.max(..._stores.map(s => s.metrics?.daily_revenue || 0), 1) };
+      const getVal = (s, dim) => {
+        switch (dim) {
+          case "营收": return (s.metrics?.daily_revenue || 0) / maxVals.revenue;
+          case "翻台": return (s.metrics?.turnover_rate || 0) / 5; // max ~5
+          case "SOP": return (s.metrics?.sop_compliance_rate || 0) / 100;
+          case "告警": return 1 - Math.min((s.metrics?.critical_alerts || 0) / 10, 1); // inverted: fewer = better
+          case "健康": return (s.health?.score || 50) / 100;
+          default: return 0;
+        }
+      };
+
+      const cx = 140, cy = 140, R = 100, n = dims.length;
+      const angle = i => (i / n) * 2 * Math.PI - Math.PI / 2;
+
+      // Grid
+      let gridHtml = "";
+      for (let r = 0.2; r <= 1; r += 0.2) {
+        const pts = dims.map((_, i) => {
+          const a = angle(i);
+          return `${(cx + R * r * Math.cos(a)).toFixed(1)},${(cy + R * r * Math.sin(a)).toFixed(1)}`;
+        }).join(" ");
+        gridHtml += `<polygon points="${pts}" fill="none" stroke="#30363d" stroke-width="0.5"/>`;
+      }
+      // Axes
+      dims.forEach((d, i) => {
+        const a = angle(i);
+        gridHtml += `<line x1="${cx}" y1="${cy}" x2="${(cx+R*Math.cos(a)).toFixed(1)}" y2="${(cy+R*Math.sin(a)).toFixed(1)}" stroke="#30363d" stroke-width="0.5"/>`;
+        gridHtml += `<text x="${(cx+(R+18)*Math.cos(a)).toFixed(1)}" y="${(cy+(R+18)*Math.sin(a)+4).toFixed(1)}" text-anchor="middle" fill="#8b949e" font-size="9">${d}</text>`;
+      });
+
+      // Store polygons
+      let storeHtml = "";
+      selected.forEach((s, si) => {
+        const pts = dims.map((d, i) => {
+          const a = angle(i);
+          const v = Math.max(getVal(s, d), 0.02);
+          return `${(cx + R * v * Math.cos(a)).toFixed(1)},${(cy + R * v * Math.sin(a)).toFixed(1)}`;
+        }).join(" ");
+        const color = colors[si % colors.length];
+        storeHtml += `<polygon points="${pts}" fill="${color}" fill-opacity="0.25" stroke="${color}" stroke-width="1.5"/>`;
+      });
+
+      svg.innerHTML = gridHtml + storeHtml;
+      legend.innerHTML = selected.map((s, si) => `
+        <div class="sl-item">
+          <span class="sl-dot" style="background:${colors[si % colors.length]}"></span>
+          ${shortName(s.store_name)}
+        </div>`).join("");
+    }
+
+    // Waste ranking
+    function renderWasteRanking() {
+      const el = document.getElementById("waste-ranking-list");
+      const withLoss = _stores.filter(s => s.metrics?.cost_variance_pct != null);
+      if (!withLoss.length) {
+        el.innerHTML = '<p style="color:var(--muted);text-align:center;padding:16px">暂无废料数据</p>';
+        return;
+      }
+      const sorted = [...withLoss].sort((a, b) => (b.metrics.cost_variance_pct || 0) - (a.metrics.cost_variance_pct || 0));
+      const avgLoss = sorted.reduce((s, x) => s + (x.metrics.cost_variance_pct || 0), 0) / sorted.length;
+
+      el.innerHTML = sorted.map((s, i) => {
+        const loss = s.metrics.cost_variance_pct || 0;
+        const diff = loss - avgLoss;
+        const color = loss > 5 ? "var(--accent)" : loss > 3 ? "var(--warn)" : "var(--ok)";
+        return `
+        <div class="waste-rank-row">
+          <span class="wr-rank">${i + 1}</span>
+          <span>${shortName(s.store_name)}</span>
+          <span style="color:${color}">${fmtPct(loss)}</span>
+          <span class="wr-diff" style="color:${diff > 0 ? 'var(--accent)' : 'var(--ok)'}">${diff >= 0 ? '+' : ''}${diff.toFixed(1)}pp</span>
+        </div>`;
+      }).join("");
+    }
+
+    loadCockpit().then(() => {
+      // Init default comparison with first store
+      if (_stores.length) {
+        _selectedStores = new Set([_stores[0].store_id]);
+        renderStoreChips();
+        renderComparison();
+        renderSpider();
+        renderWasteRanking();
+      }
+    }).catch((e) => {
       document.getElementById("hero-narrative").textContent = "加载失败: " + e.message;
     });
   </script>

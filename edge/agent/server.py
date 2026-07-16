@@ -47,6 +47,7 @@ _last_config_hash: str = ""
 _MODULE_REGISTRY: Dict[str, Any] = {
     "kitchen": kitchen_infer,
     "front_hall": front_hall_infer,
+    "receiving": None,  # receiving module uses its own MQTT/detector processes
 }
 # 新场景只需在此注册表加一行即可自动激活
 
@@ -316,6 +317,17 @@ async def startup():
             logger.info("注册成功，无已有配置（等待平台推送）")
     except Exception as e:
         logger.error(f"注册失败，将以无配置模式运行: {e}")
+
+    # DEV_MODE 兜底：自动激活所有模块以便本地调试
+    if os.environ.get("HOTPOT_DEV_MODE") and not _active_modules:
+        default_cfg = {
+            "modules": {
+                "kitchen": {"enabled": False, "cameras": [], "inference_interval": 30},
+                "front_hall": {"enabled": True, "cameras": [], "inference_interval": 30},
+            }
+        }
+        logger.info("DEV_MODE: 自动激活 front_hall 模块（kitchen 保持关闭）")
+        apply_device_config(default_cfg)
 
     # ② 启动后台协程
     asyncio.create_task(heartbeat_loop())

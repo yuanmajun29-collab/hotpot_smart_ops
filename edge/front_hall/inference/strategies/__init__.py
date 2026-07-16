@@ -25,7 +25,7 @@ STRATEGIES: Dict[str, BaseStrategy] = {}
 _current_dir = Path(__file__).parent
 for _f in sorted(_current_dir.glob("*.py")):
     _name = _f.stem
-    if _name.startswith("_") or _name == "base":
+    if _name.startswith("_") or _name.startswith("._") or _name == "base":
         continue
     _mod = importlib.import_module(f".{_name}", __package__)
     for _attr_name in dir(_mod):

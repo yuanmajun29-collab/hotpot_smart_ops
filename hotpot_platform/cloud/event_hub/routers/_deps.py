@@ -104,6 +104,25 @@ class ReceivingSubmitBody(BaseModel):
     signatures: List[SignatureInput]
 
 
+class ReceivingCheckinIngredient(BaseModel):
+    class_name: str = ""
+    count: int = 0
+    confidence: float = 0.0
+
+
+class ReceivingCheckinBody(BaseModel):
+    store_id: str
+    device_id: Optional[str] = None
+    ingredients: List[ReceivingCheckinIngredient]
+    weight_kg: Optional[float] = None
+    po_weight_kg: Optional[float] = None
+    temp_c: Optional[float] = None
+    batch_ref: Optional[str] = None
+    image_ref: Optional[str] = None
+    source: str = "edge_yolo_v2"
+    timestamp: Optional[str] = None
+
+
 class SopAssignBody(BaseModel):
     store_id: Optional[str] = None
     sop_id: str
@@ -117,6 +136,23 @@ class SopAssignBody(BaseModel):
 class SopAssignStatusBody(BaseModel):
     status: str
     store_id: Optional[str] = None
+
+
+class SopComplianceStation(BaseModel):
+    station_id: str
+    name: str = ""
+    status: str = "running"
+    readings: Optional[Dict[str, Any]] = None
+    message: str = ""
+    updated_at: Optional[str] = None
+
+
+class SopComplianceBody(BaseModel):
+    store_id: str
+    device_id: Optional[str] = None
+    timestamp: Optional[str] = None
+    stations: List[SopComplianceStation]
+    summary: Optional[Dict[str, Any]] = None
 
 
 class IotReadingInput(BaseModel):

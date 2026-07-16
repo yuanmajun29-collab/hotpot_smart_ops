@@ -4,13 +4,15 @@ from __future__ import annotations
 from typing import Any, Dict, Optional
 
 from fastapi import APIRouter, Depends, HTTPException, Query, Request
+from datetime import datetime, timezone
 
 from hotpot_platform.cloud.event_hub import runtime
 from hotpot_platform.cloud.event_hub.auth import AuthContext, get_auth_context, enforce_store_write, enforce_action
-from hotpot_platform.cloud.event_hub.routers._deps import resolve_store_id as _resolve_store_id, SopAssignBody, SopAssignStatusBody, SopAskBody
+from hotpot_platform.cloud.event_hub.routers._deps import resolve_store_id as _resolve_store_id, SopAssignBody, SopAssignStatusBody, SopAskBody, SopComplianceBody
 from hotpot_platform.cloud.event_hub.sop_assign_store import sop_assign_store
 from hotpot_platform.cloud.event_hub import task_factory
 from hotpot_platform.cloud.event_hub.hub_core import DEFAULT_STORE_ID
+from typing import List
 
 router = APIRouter()
 
@@ -99,6 +101,89 @@ def sop_assignment_status(
     if not row:
         raise HTTPException(status_code=404, detail="工单不存在")
     return {"ok": True, "assignment": row}
+
+
+@router.post("/v1/sop/compliance")
+def sop_compliance(
+    body: SopComplianceBody,
+    auth: AuthContext = Depends(get_auth_context),
+) -> Dict[str, Any]:
+    """Edge SOP compliance report — 7 workstation state machine push.
+
+    Accepts per-station status + readings, creates events for violations,
+    and returns aggregate compliance rate.
+    """
+    sid = body.store_id or auth.store_id or DEFAULT_STORE_ID
+    enforce_store_write(auth, sid)
+    enforce_action(auth, "sop_assign")
+    store = runtime.hub.get_store(sid)
+
+    compliance_rate = body.summary.get("compliance_rate", 0) if body.summary else 0
+    violations = [s for s in body.stations if s.status == "violation"]
+    warnings_list = [s for s in body.stations if s.status == "warning"]
+
+    events_created = 0
+    for station in body.stations:
+        level = "info"
+        if station.status == "violation":
+            level = "critical"
+        elif station.status == "warning":
+            level = "warn"
+
+        store.add_event({
+            "event_type": "sop_compliance",
+            "source": "edge_compliance",
+            "level": level,
+            "message": f"SOP {station.name}({station.station_id}): {station.status} — {station.message}",
+            "metadata": {
+                "station_id": station.station_id,
+                "station_name": station.name,
+                "status": station.status,
+                "readings": station.readings,
+                "message": station.message,
+                "device_id": body.device_id,
+            },
+        })
+        events_created += 1
+
+    # Update store SOP stats
+    store.sop_stats = {
+        "compliance_rate": compliance_rate,
+        "total_stations": len(body.stations),
+        "running": body.summary.get("running", 0) if body.summary else 0,
+        "warning": body.summary.get("warning", 0) if body.summary else 0,
+        "violation": body.summary.get("violation", 0) if body.summary else 0,
+        "last_updated": body.timestamp or datetime.now(timezone.utc).replace(microsecond=0).isoformat(),
+        "stations": [s.model_dump() for s in body.stations],
+    }
+
+    return {
+        "ok": True,
+        "store_id": sid,
+        "compliance_rate": compliance_rate,
+        "violations": [s.station_id for s in violations],
+        "warnings": [s.station_id for s in warnings_list],
+        "events_created": events_created,
+    }
+
+
+@router.get("/v1/sop/stations")
+def sop_stations(
+    request: Request,
+    store_id: Optional[str] = Query(None),
+    auth: AuthContext = Depends(get_auth_context),
+) -> Dict[str, Any]:
+    """Get current 7-workstation compliance status."""
+    sid = _resolve_store_id(store_id, None, request.headers.get("X-Store-Id"), auth)
+    store = runtime.hub.get_store(sid)
+    sop = store.sop_stats or {}
+    return {
+        "store_id": sid,
+        "compliance_rate": sop.get("compliance_rate", 0),
+        "total_stations": sop.get("total_stations", 7),
+        "stations": sop.get("stations", []),
+        "last_updated": sop.get("last_updated"),
+    }
 
 
 @router.post("/sop/ask", deprecated=True)

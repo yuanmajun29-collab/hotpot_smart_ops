@@ -23,7 +23,7 @@ class ClipClient:
     def __init__(self):
         self._proc: Optional[subprocess.Popen] = None
         self._server_path = str(
-            Path(__file__).resolve().parents[1] / "clip_server.py"
+            Path(__file__).resolve().parent / "clip_server.py"
         )
 
     def _ensure_started(self):
