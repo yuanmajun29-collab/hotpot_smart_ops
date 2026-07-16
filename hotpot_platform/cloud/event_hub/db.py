@@ -218,6 +218,15 @@ class HubDatabase:
             finally:
                 conn.close()
 
+    def _check_connectivity(self) -> None:
+        """Lightweight connectivity probe — raises on failure."""
+        with self._lock:
+            conn = self._connect()
+            try:
+                conn.execute("SELECT 1")
+            finally:
+                conn.close()
+
     def is_empty(self) -> bool:
         with self._lock:
             conn = self._connect()

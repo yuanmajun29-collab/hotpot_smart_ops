@@ -92,7 +92,8 @@ def export_sqlite(db_path: str) -> Dict[str, Any]:
         "iot_readings": [],
         "daily_reports": [],
         "tasks": [],
-        "org_stores": [],
+        "waste_timeseries": [],
+        "waste_alerts": [],
     }
 
     tables_to_export = {
@@ -114,14 +115,6 @@ def export_sqlite(db_path: str) -> Dict[str, Any]:
             print(f"  [Export] {db_table}: {len(rows)} rows")
         except Exception as e:
             print(f"  [Export] {db_table}: SKIP ({e})")
-
-    # Org stores
-    try:
-        cursor = conn.execute("SELECT * FROM stores")
-        data["org_stores"] = [dict(row) for row in cursor.fetchall()]
-        print(f"  [Export] stores: {len(data['org_stores'])} rows")
-    except Exception:
-        pass
 
     # Waste timeseries
     try:
@@ -147,48 +140,37 @@ def export_sqlite(db_path: str) -> Dict[str, Any]:
 
 # ── Multi-tenant Schema ──────────────────────────────────────────
 
+# Schema mirrors pg_db.PostgresHubDatabase._init_schema exactly —
+# the migration script creates identical tables so the app can pick up
+# where the migration left off with zero friction.
 MULTI_TENANT_SCHEMA_SQL = """
--- ============================================================
--- Hotpot Smart Ops — PostgreSQL Multi‑Tenant Schema
--- Strategy: column-based isolation (tenant_id column)
--- ============================================================
-
 CREATE TABLE IF NOT EXISTS events (
-    event_id TEXT NOT NULL,
-    tenant_id TEXT NOT NULL,  -- store_id for multi-tenant isolation
+    event_id TEXT PRIMARY KEY,
+    store_id TEXT NOT NULL,
     level TEXT,
     source TEXT,
-    event_type TEXT DEFAULT '',
-    message TEXT DEFAULT '',
-    payload JSONB NOT NULL DEFAULT '{}',
-    created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
-    PRIMARY KEY (event_id, tenant_id)
+    payload JSONB NOT NULL,
+    created_at TIMESTAMPTZ NOT NULL
 );
-CREATE INDEX IF NOT EXISTS idx_events_tenant_ts
-    ON events(tenant_id, created_at DESC);
-CREATE INDEX IF NOT EXISTS idx_events_tenant_type
-    ON events(tenant_id, event_type) WHERE event_type IS NOT NULL AND event_type != '';
+CREATE INDEX IF NOT EXISTS idx_events_store ON events(store_id, created_at DESC);
 
 CREATE TABLE IF NOT EXISTS store_snapshots (
-    tenant_id TEXT NOT NULL,
+    store_id TEXT NOT NULL,
     kind TEXT NOT NULL,
-    payload JSONB NOT NULL DEFAULT '{}',
-    updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
-    PRIMARY KEY (tenant_id, kind)
+    payload JSONB NOT NULL,
+    updated_at TIMESTAMPTZ NOT NULL,
+    PRIMARY KEY (store_id, kind)
 );
 
 CREATE TABLE IF NOT EXISTS device_registry (
-    device_id TEXT NOT NULL,
-    tenant_id TEXT NOT NULL,
-    payload JSONB NOT NULL DEFAULT '{}',
-    updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
-    PRIMARY KEY (device_id, tenant_id)
+    device_id TEXT PRIMARY KEY,
+    payload JSONB NOT NULL,
+    updated_at TIMESTAMPTZ NOT NULL
 );
-CREATE INDEX IF NOT EXISTS idx_devices_tenant ON device_registry(tenant_id);
 
 CREATE TABLE IF NOT EXISTS receiving_records (
-    id SERIAL,
-    tenant_id TEXT NOT NULL,
+    id SERIAL PRIMARY KEY,
+    store_id TEXT NOT NULL,
     batch_id TEXT,
     sku TEXT,
     quantity REAL,
@@ -196,105 +178,87 @@ CREATE TABLE IF NOT EXISTS receiving_records (
     supplier TEXT DEFAULT '',
     received_at TIMESTAMPTZ,
     payload JSONB DEFAULT '{}',
-    created_at TIMESTAMPTZ DEFAULT NOW(),
-    PRIMARY KEY (id, tenant_id)
+    created_at TIMESTAMPTZ DEFAULT NOW()
 );
-CREATE INDEX IF NOT EXISTS idx_receiving_tenant ON receiving_records(tenant_id, received_at DESC);
+CREATE INDEX IF NOT EXISTS idx_receiving_store ON receiving_records(store_id, received_at DESC);
 
 CREATE TABLE IF NOT EXISTS sop_assignments (
-    id SERIAL,
-    tenant_id TEXT NOT NULL,
+    id SERIAL PRIMARY KEY,
+    store_id TEXT NOT NULL,
     task_id TEXT,
     assignee TEXT,
     zone TEXT,
     status TEXT DEFAULT 'pending',
     deadline TIMESTAMPTZ,
     payload JSONB DEFAULT '{}',
-    created_at TIMESTAMPTZ DEFAULT NOW(),
-    PRIMARY KEY (id, tenant_id)
+    created_at TIMESTAMPTZ DEFAULT NOW()
 );
-CREATE INDEX IF NOT EXISTS idx_sop_tenant ON sop_assignments(tenant_id, status);
+CREATE INDEX IF NOT EXISTS idx_sop_store ON sop_assignments(store_id, status);
 
 CREATE TABLE IF NOT EXISTS iot_readings (
-    id SERIAL,
-    tenant_id TEXT NOT NULL,
-    device_id TEXT,
-    metric TEXT,
-    value REAL,
+    id SERIAL PRIMARY KEY,
+    store_id TEXT NOT NULL,
+    sensor_id TEXT NOT NULL,
+    sensor_type TEXT NOT NULL,
+    value DOUBLE PRECISION,
     unit TEXT DEFAULT '',
-    recorded_at TIMESTAMPTZ DEFAULT NOW(),
-    payload JSONB DEFAULT '{}',
-    created_at TIMESTAMPTZ DEFAULT NOW(),
-    PRIMARY KEY (id, tenant_id)
+    recorded_at TIMESTAMPTZ NOT NULL
 );
-CREATE INDEX IF NOT EXISTS idx_iot_tenant_ts ON iot_readings(tenant_id, recorded_at DESC);
+CREATE INDEX IF NOT EXISTS idx_iot_store ON iot_readings(store_id, sensor_id, recorded_at DESC);
 
 CREATE TABLE IF NOT EXISTS daily_reports (
-    id SERIAL,
-    tenant_id TEXT NOT NULL,
+    id SERIAL PRIMARY KEY,
+    store_id TEXT NOT NULL,
     report_date DATE NOT NULL,
     report_type TEXT DEFAULT 'daily',
     payload JSONB NOT NULL DEFAULT '{}',
-    generated_at TIMESTAMPTZ DEFAULT NOW(),
-    PRIMARY KEY (id, tenant_id)
+    generated_at TIMESTAMPTZ DEFAULT NOW()
 );
-CREATE INDEX IF NOT EXISTS idx_daily_tenant_date ON daily_reports(tenant_id, report_date DESC);
+CREATE INDEX IF NOT EXISTS idx_daily_store_date ON daily_reports(store_id, report_date DESC);
 
 CREATE TABLE IF NOT EXISTS tasks (
-    id SERIAL,
-    tenant_id TEXT NOT NULL,
+    id SERIAL PRIMARY KEY,
+    store_id TEXT NOT NULL,
     task_type TEXT,
     status TEXT DEFAULT 'pending',
     priority TEXT DEFAULT 'normal',
     payload JSONB DEFAULT '{}',
     due_at TIMESTAMPTZ,
-    created_at TIMESTAMPTZ DEFAULT NOW(),
-    PRIMARY KEY (id, tenant_id)
+    created_at TIMESTAMPTZ DEFAULT NOW()
 );
-CREATE INDEX IF NOT EXISTS idx_tasks_tenant_status ON tasks(tenant_id, status);
-
-CREATE TABLE IF NOT EXISTS org_stores (
-    store_id TEXT NOT NULL,
-    tenant_id TEXT NOT NULL,
-    name TEXT DEFAULT '',
-    region TEXT DEFAULT '',
-    zone TEXT DEFAULT '',
-    payload JSONB DEFAULT '{}',
-    created_at TIMESTAMPTZ DEFAULT NOW(),
-    PRIMARY KEY (store_id, tenant_id)
-);
+CREATE INDEX IF NOT EXISTS idx_tasks_store_status ON tasks(store_id, status);
 
 CREATE TABLE IF NOT EXISTS waste_timeseries (
-    id SERIAL,
-    tenant_id TEXT NOT NULL,
-    date DATE NOT NULL,
-    total_count INTEGER DEFAULT 0,
-    event_count INTEGER DEFAULT 0,
-    items JSONB DEFAULT '[]',
-    created_at TIMESTAMPTZ DEFAULT NOW(),
-    PRIMARY KEY (id, tenant_id),
-    UNIQUE (tenant_id, date)
+    id SERIAL PRIMARY KEY,
+    store_id TEXT NOT NULL,
+    date TEXT NOT NULL,
+    total_count INTEGER NOT NULL DEFAULT 0,
+    event_count INTEGER NOT NULL DEFAULT 0,
+    top_skus TEXT NOT NULL DEFAULT '[]',
+    generated_at TIMESTAMPTZ NOT NULL,
+    UNIQUE(store_id, date)
 );
-CREATE INDEX IF NOT EXISTS idx_waste_ts_tenant ON waste_timeseries(tenant_id, date DESC);
+CREATE INDEX IF NOT EXISTS idx_wts_store_date ON waste_timeseries(store_id, date DESC);
 
 CREATE TABLE IF NOT EXISTS waste_alerts (
-    id SERIAL,
-    tenant_id TEXT NOT NULL,
-    date DATE NOT NULL,
-    alert_type TEXT DEFAULT 'spike',
-    severity TEXT DEFAULT 'warning',
-    message TEXT DEFAULT '',
-    acked BOOLEAN DEFAULT FALSE,
-    created_at TIMESTAMPTZ DEFAULT NOW(),
-    PRIMARY KEY (id, tenant_id)
+    id SERIAL PRIMARY KEY,
+    store_id TEXT NOT NULL,
+    date TEXT NOT NULL,
+    alert_type TEXT NOT NULL DEFAULT 'spike',
+    current_count INTEGER NOT NULL,
+    baseline_avg REAL NOT NULL,
+    ratio REAL NOT NULL,
+    message TEXT NOT NULL,
+    created_at TIMESTAMPTZ NOT NULL,
+    acknowledged INTEGER NOT NULL DEFAULT 0,
+    UNIQUE(store_id, date, alert_type)
 );
-CREATE INDEX IF NOT EXISTS idx_waste_alerts_tenant ON waste_alerts(tenant_id, created_at DESC);
 """
 
 
 def init_pg_schema(conn) -> None:
-    """Create multi-tenant schema in PostgreSQL."""
-    print("[Schema] Creating multi-tenant tables...")
+    """Create PG schema (identical to what pg_db creates at startup)."""
+    print("[Schema] Creating PostgreSQL tables...")
     with conn.cursor() as cur:
         cur.execute(MULTI_TENANT_SCHEMA_SQL)
     conn.commit()
@@ -304,9 +268,9 @@ def init_pg_schema(conn) -> None:
 # ── Import ───────────────────────────────────────────────────────
 
 
-def get_tenant_id(row: Dict[str, Any]) -> str:
-    """Extract tenant_id from a row, trying multiple column names."""
-    for col in ("tenant_id", "store_id", "store"):
+def get_store_id(row: Dict[str, Any]) -> str:
+    """Extract store_id from a row, trying multiple column names."""
+    for col in ("store_id", "tenant_id", "store"):
         if col in row and row[col]:
             return row[col]
     return "unknown"
@@ -318,16 +282,16 @@ def import_data(conn, data: Dict[str, Any], dry_run: bool = False) -> None:
 
     table_map = {
         "events": {
-            "columns": ["event_id", "tenant_id", "level", "source", "payload", "created_at"],
-            "conflict": "ON CONFLICT (event_id, tenant_id) DO UPDATE SET payload=EXCLUDED.payload, level=EXCLUDED.level, source=EXCLUDED.source",
+            "columns": ["event_id", "store_id", "level", "source", "payload", "created_at"],
+            "conflict": "ON CONFLICT (event_id) DO UPDATE SET payload=EXCLUDED.payload, level=EXCLUDED.level, source=EXCLUDED.source",
         },
         "snapshots": {
-            "columns": ["tenant_id", "kind", "payload", "updated_at"],
-            "conflict": "ON CONFLICT (tenant_id, kind) DO UPDATE SET payload=EXCLUDED.payload, updated_at=EXCLUDED.updated_at",
+            "columns": ["store_id", "kind", "payload", "updated_at"],
+            "conflict": "ON CONFLICT (store_id, kind) DO UPDATE SET payload=EXCLUDED.payload, updated_at=EXCLUDED.updated_at",
         },
         "devices": {
-            "columns": ["device_id", "tenant_id", "payload", "updated_at"],
-            "conflict": "ON CONFLICT (device_id, tenant_id) DO UPDATE SET payload=EXCLUDED.payload, updated_at=EXCLUDED.updated_at",
+            "columns": ["device_id", "payload", "updated_at"],
+            "conflict": "ON CONFLICT (device_id) DO UPDATE SET payload=EXCLUDED.payload, updated_at=EXCLUDED.updated_at",
         },
     }
 
@@ -349,7 +313,7 @@ def import_data(conn, data: Dict[str, Any], dry_run: bool = False) -> None:
             sql = f"INSERT INTO {pg_table} ({', '.join(columns)}) VALUES %s {conflict}"
             values = []
             for row in rows:
-                tenant = get_tenant_id(row)
+                store = get_store_id(row)
                 payload = row.get("payload")
                 if isinstance(payload, dict):
                     payload = json.dumps(payload, ensure_ascii=False)
@@ -363,7 +327,7 @@ def import_data(conn, data: Dict[str, Any], dry_run: bool = False) -> None:
                 if pg_table == "events":
                     values.append((
                         row.get("event_id", ""),
-                        tenant,
+                        store,
                         row.get("level"),
                         row.get("source"),
                         payload,
@@ -371,7 +335,7 @@ def import_data(conn, data: Dict[str, Any], dry_run: bool = False) -> None:
                     ))
                 elif pg_table == "store_snapshots":
                     values.append((
-                        tenant,
+                        store,
                         row.get("kind", ""),
                         payload,
                         ts,
@@ -379,7 +343,6 @@ def import_data(conn, data: Dict[str, Any], dry_run: bool = False) -> None:
                 elif pg_table == "device_registry":
                     values.append((
                         row.get("device_id", ""),
-                        tenant,
                         payload,
                         ts,
                     ))
@@ -389,28 +352,44 @@ def import_data(conn, data: Dict[str, Any], dry_run: bool = False) -> None:
 
         conn.commit()
 
-    # Import org stores
-    org_rows = data.get("org_stores", [])
-    if org_rows:
-        print(f"  [Import] org_stores: {len(org_rows)} rows" + (" (DRY RUN)" if dry_run else ""))
+    # Import waste_timeseries if available
+    waste_ts = data.get("waste_timeseries", [])
+    if waste_ts:
+        print(f"  [Import] waste_timeseries: {len(waste_ts)} rows" + (" (DRY RUN)" if dry_run else ""))
         if not dry_run:
             with conn.cursor() as cur:
-                for row in org_rows:
-                    tenant = get_tenant_id(row)
-                    sid = row.get("store_id") or row.get("id") or tenant
+                for row in waste_ts:
+                    store = get_store_id(row)
                     cur.execute(
-                        """INSERT INTO org_stores (store_id, tenant_id, name, region, zone, payload)
-                           VALUES (%s, %s, %s, %s, %s, %s::jsonb)
-                           ON CONFLICT (store_id, tenant_id) DO UPDATE SET
-                             name=EXCLUDED.name, region=EXCLUDED.region, zone=EXCLUDED.zone, payload=EXCLUDED.payload""",
-                        (
-                            sid,
-                            tenant,
-                            row.get("name", sid),
-                            row.get("region", ""),
-                            row.get("zone", ""),
-                            json.dumps(dict(row), ensure_ascii=False, default=str),
-                        ),
+                        """INSERT INTO waste_timeseries (store_id, date, total_count, event_count, top_skus, generated_at)
+                           VALUES (%s, %s, %s, %s, %s, %s)
+                           ON CONFLICT (store_id, date) DO UPDATE SET
+                             total_count=EXCLUDED.total_count, event_count=EXCLUDED.event_count,
+                             top_skus=EXCLUDED.top_skus, generated_at=EXCLUDED.generated_at""",
+                        (store, row.get("date", ""), row.get("total_count", 0),
+                         row.get("event_count", 0), row.get("top_skus", "[]"),
+                         row.get("generated_at") or datetime.now(timezone.utc).isoformat()),
+                    )
+            conn.commit()
+
+    # Import waste_alerts if available
+    waste_alerts = data.get("waste_alerts", [])
+    if waste_alerts:
+        print(f"  [Import] waste_alerts: {len(waste_alerts)} rows" + (" (DRY RUN)" if dry_run else ""))
+        if not dry_run:
+            with conn.cursor() as cur:
+                for row in waste_alerts:
+                    store = get_store_id(row)
+                    cur.execute(
+                        """INSERT INTO waste_alerts (store_id, date, alert_type, current_count,
+                             baseline_avg, ratio, message, created_at, acknowledged)
+                           VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s)
+                           ON CONFLICT (store_id, date, alert_type) DO NOTHING""",
+                        (store, row.get("date", ""), row.get("alert_type", "spike"),
+                         row.get("current_count", 0), row.get("baseline_avg", 0.0),
+                         row.get("ratio", 0.0), row.get("message", ""),
+                         row.get("created_at") or datetime.now(timezone.utc).isoformat(),
+                         row.get("acknowledged", 0)),
                     )
             conn.commit()
 

@@ -21,16 +21,46 @@ _START_TIME = time.time()
 def health() -> Dict[str, Any]:
     _database_url = os.environ.get("HOTPOT_DATABASE_URL", "")
     backend = "postgresql" if _database_url else "sqlite"
+
+    # ── DB connectivity check ──
+    db_status = "ok"
+    db_error = None
+    if runtime.db is not None:
+        try:
+            # Try a lightweight query to verify DB is reachable
+            runtime.db._check_connectivity()
+            db_status = "ok"
+        except Exception as exc:
+            db_status = "error"
+            db_error = str(exc)[:200]
+    else:
+        db_status = "unavailable"
+        db_error = "db instance not initialized"
+
+    # ── event count ──
+    event_count = 0
+    if runtime.hub is not None:
+        try:
+            for sid in runtime.hub._registry:
+                store = runtime.hub.get_store(sid)
+                event_count += store.get_summary().get("total_events", 0)
+        except Exception:
+            pass
+
     return {
-        "status": "ok",
+        "status": "ok" if db_status == "ok" else "degraded",
+        "db_status": db_status,
+        "db_error": db_error,
+        "db_backend": backend,
+        "event_count": event_count,
+        "last_heartbeat": time.time(),
+        "uptime_sec": round(time.time() - _START_TIME, 1),
         "multi_tenant": True,
         "engine": "fastapi",
         "auth_mode": auth_mode(),
         "persistent": True,
         "alert_gateway": True,
-        "db_backend": backend,
         "daily_report_scheduler": os.environ.get("HOTPOT_DAILY_REPORT_SCHEDULER", "1") == "1",
-        "uptime_sec": round(time.time() - _START_TIME, 1),
     }
 
 

@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import os
+import time
 from contextlib import asynccontextmanager
 from pathlib import Path
 from typing import AsyncIterator, Optional
@@ -94,6 +95,12 @@ def startup() -> None:
         print(f"[EventHub] Seeded {n} store(s) from {seed_dir}")
     else:
         print("[EventHub] Started empty (no DB data, no seed dir)")
+
+    # ── ALIVE_TIMESTAMP: mark successful start for watchdog ──
+    _alive_file = Path(os.environ.get("HOTPOT_ALIVE_FILE", "/tmp/hotpot-hub-alive.timestamp"))
+    _alive_file.parent.mkdir(parents=True, exist_ok=True)
+    _alive_file.write_text(str(time.time()))
+    print(f"[EventHub] ALIVE_TIMESTAMP written to {_alive_file}")
 
     if os.environ.get("HOTPOT_DAILY_REPORT_SCHEDULER", "1") == "1":
         from hotpot_platform.cloud.event_hub.tasks import get_dispatch
