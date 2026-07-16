@@ -17,7 +17,7 @@ from typing import List
 router = APIRouter()
 
 
-@router.post("/v1/sop/assign")
+@router.post("/api/v1/sop/assign")
 def sop_assign(
     body: SopAssignBody,
     auth: AuthContext = Depends(get_auth_context),
@@ -73,7 +73,7 @@ def sop_assign(
     }
 
 
-@router.get("/v1/sop/assignments")
+@router.get("/api/v1/sop/assignments")
 def sop_assignments(
     request: Request,
     store_id: Optional[str] = Query(None),
@@ -86,7 +86,7 @@ def sop_assignments(
     return {"store_id": sid, "assignments": items, "count": len(items)}
 
 
-@router.put("/v1/sop/assignments/{assignment_id}/status")
+@router.put("/api/v1/sop/assignments/{assignment_id}/status")
 def sop_assignment_status(
     assignment_id: str,
     body: SopAssignStatusBody,
@@ -103,7 +103,7 @@ def sop_assignment_status(
     return {"ok": True, "assignment": row}
 
 
-@router.post("/v1/sop/compliance")
+@router.post("/api/v1/sop/compliance")
 def sop_compliance(
     body: SopComplianceBody,
     auth: AuthContext = Depends(get_auth_context),
@@ -167,7 +167,7 @@ def sop_compliance(
     }
 
 
-@router.get("/v1/sop/stations")
+@router.get("/api/v1/sop/stations")
 def sop_stations(
     request: Request,
     store_id: Optional[str] = Query(None),
@@ -201,4 +201,4 @@ def sop_ask(
     return result
 
 
-router.add_api_route("/v1/sop/ask", sop_ask, methods=["POST"])
+router.add_api_route("/api/v1/sop/ask", sop_ask, methods=["POST"])

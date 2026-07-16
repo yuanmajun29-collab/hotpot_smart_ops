@@ -28,6 +28,7 @@ from edge.agent.config import (
     IPC_CONFIG_PATH, DEVICE_CONFIG_PATH,
 )
 from edge.agent.modules import kitchen_infer, front_hall_infer
+from edge.agent.buffer import InferenceBuffer
 
 # ─── 日志 ───
 logging.basicConfig(level=logging.INFO, format="%(asctime)s [%(levelname)s] %(message)s")
@@ -43,7 +44,14 @@ _device_config: Dict[str, Any] = {}
 _active_modules: List[str] = []
 _last_config_hash: str = ""
 
-# ─── 模块注册表（替代硬编码激活） ───
+# ─── 推断缓冲层（离线缓冲 + 自动重试）───
+_buffer: InferenceBuffer = InferenceBuffer(
+    db_path=os.environ.get("HOTPOT_BUFFER_DIR", "/tmp/hotpot_buffer") + "/inference.db",
+    hub_url=HUB_URL,
+    api_key=API_KEY,
+)
+
+# ─── 模块注册表（替代硬编码激活）───
 _MODULE_REGISTRY: Dict[str, Any] = {
     "kitchen": kitchen_infer,
     "front_hall": front_hall_infer,
@@ -81,7 +89,7 @@ async def _hub_post(path: str, data: dict) -> dict:
 
 async def register() -> dict:
     """设备向 Hub 注册，上报当前激活模块。"""
-    return await _hub_post("/v1/devices/register", {
+    return await _hub_post("/api/v1/devices/register", {
         "device_id": DEVICE_ID,
         "store_id": STORE_ID,
         "ip": _get_local_ip(),
@@ -93,7 +101,7 @@ async def register() -> dict:
 
 async def heartbeat() -> dict:
     """设备心跳续期，上报状态。"""
-    return await _hub_post(f"/v1/devices/{DEVICE_ID}/heartbeat", {
+    return await _hub_post(f"/api/v1/devices/{DEVICE_ID}/heartbeat", {
         "device_id": DEVICE_ID,
         "active_modules": _active_modules,
         "inference_count": 0,
@@ -103,7 +111,7 @@ async def heartbeat() -> dict:
 
 async def pull_config() -> dict:
     """设备级配置拉取：从 Hub 拉模块配置。"""
-    return await _hub_post(f"/v1/devices/{DEVICE_ID}/pull-config", {})
+    return await _hub_post(f"/api/v1/devices/{DEVICE_ID}/pull-config", {})
 
 
 def _get_local_ip() -> str:
@@ -291,6 +299,12 @@ def debug_engine():
     return info
 
 
+@app.get("/buffer/stats")
+async def buffer_stats():
+    """推断缓冲状态：队列长度、发送统计等。"""
+    return await _buffer.stats()
+
+
 # ─── 注册路由 ───
 app.include_router(kitchen_infer.router)
 app.include_router(front_hall_infer.router)
@@ -306,7 +320,13 @@ async def startup():
     """启动：注册 → 拿配置 → 激活模块 → 起后台协程。"""
     logger.info(f"Edge Agent 启动 — device={DEVICE_ID}, store={STORE_ID}, hub={HUB_URL}")
 
-    # ① 注册到 Hub
+    # ① 启动推断缓冲层
+    await _buffer.start()
+    # 暴露给模块使用
+    kitchen_infer.buffer = _buffer
+    front_hall_infer.buffer = _buffer
+
+    # ② 注册到 Hub
     try:
         resp = await register()
         config = resp.get("config")
@@ -329,11 +349,11 @@ async def startup():
         logger.info("DEV_MODE: 自动激活 front_hall 模块（kitchen 保持关闭）")
         apply_device_config(default_cfg)
 
-    # ② 启动后台协程
+    # ③ 启动后台协程
     asyncio.create_task(heartbeat_loop())
     asyncio.create_task(config_poll_loop())
 
-    logger.info(f"Edge Agent 就绪 — 端口 {SERVER_PORT}")
+    logger.info(f"Edge Agent 就绪 — 端口 {SERVER_PORT}, buffer 已启用")
 
 
 # ─── 主入口 ───

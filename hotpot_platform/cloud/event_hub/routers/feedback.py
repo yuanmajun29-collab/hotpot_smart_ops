@@ -21,7 +21,7 @@ from pydantic import BaseModel
 
 from hotpot_platform.cloud.event_hub.auth import get_auth_context, AuthContext
 
-router = APIRouter(prefix="/v1/feedback", tags=["feedback"])
+router = APIRouter(prefix="/api/v1/feedback", tags=["feedback"])
 
 FEEDBACK_DIR = Path(os.environ.get("HOTPOT_FEEDBACK_DIR", "/tmp/hotpot_feedback"))
 FEEDBACK_DIR.mkdir(parents=True, exist_ok=True)

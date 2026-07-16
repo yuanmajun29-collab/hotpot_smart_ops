@@ -258,19 +258,28 @@ def kitchen_infer(req: InferRequest):
     result = run_pipeline(str(img_path), skip_vlm=not VLM_ENABLED)
     total_ms = (time.perf_counter() - t_start) * 1000
 
-    # ── 推 Hub（带重试 3 次） ──
+    # ── 推 Hub（缓冲层优先，降级为直接POST） ──
     pushed = False
     hub_error = ""
-    for attempt in range(3):
-        try:
-            post_result = post_to_hub(result)
-            if post_result.get("status") == "ok":
-                pushed = True
-                break
-            hub_error = post_result.get("error", "")
-        except Exception as e:
-            hub_error = str(e)
-            time.sleep(1)
+    try:
+        import sys, asyncio
+        this_module = sys.modules[__name__]
+        if hasattr(this_module, 'buffer') and this_module.buffer is not None:
+            asyncio.create_task(this_module.buffer.enqueue("/api/v1/vlm/waste-estimate", result))
+            pushed = True
+        else:
+            for attempt in range(3):
+                try:
+                    post_result = post_to_hub(result)
+                    if post_result.get("status") == "ok":
+                        pushed = True
+                        break
+                    hub_error = post_result.get("error", "")
+                except Exception as e:
+                    hub_error = str(e)
+                    time.sleep(1)
+    except Exception as e:
+        hub_error = str(e)
 
     # ── 标注图（可选） ──
     stages_info = {}

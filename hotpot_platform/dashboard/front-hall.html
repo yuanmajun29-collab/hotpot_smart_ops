@@ -5,6 +5,7 @@
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
   <title>前厅监控 · 冯校长火锅 · 智能运营</title>
   <link rel="stylesheet" href="assets/theme.css" />
+  <script src="/config.js"></script>
   <style>
     .table-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(220px, 1fr)); gap: 14px; }
     .table-card {
@@ -53,7 +54,7 @@
 </div>
 
 <script>
-const HUB = 'http://192.168.2.240:8098';
+const HUB = (window.HOTPOT_CONFIG && window.HOTPOT_CONFIG.hubUrl) || 'http://127.0.0.1:8098';
 const TABLES = 16;
 const STATUS_MAP = {
   empty:       {label:'空闲',   cls:'status-empty', icon:'🟢'},

@@ -59,7 +59,7 @@ class StaffBehaviorStatsQuery(BaseModel):
 # ── Routes ───────────────────────────────────────────────────────
 
 
-@router.post("/api/staff-behavior/event")
+@router.post("/api/v1/staff-behavior/event")
 def ingest_staff_behavior_event(
     body: StaffBehaviorEventBody,
     auth: AuthContext = Depends(get_auth_context),
@@ -130,7 +130,7 @@ def ingest_staff_behavior_event(
     return {"ok": True, "event_id": body.event_id}
 
 
-@router.get("/api/staff-behavior/stats")
+@router.get("/api/v1/staff-behavior/stats")
 def staff_behavior_stats(
     store_id: Optional[str] = Query(None, description="门店 ID"),
     days: int = Query(7, ge=1, le=90, description="查询天数"),
@@ -226,7 +226,7 @@ def staff_behavior_stats(
     }
 
 
-@router.get("/api/staff-behavior/alerts")
+@router.get("/api/v1/staff-behavior/alerts")
 def staff_behavior_alerts(
     store_id: Optional[str] = Query(None, description="门店 ID"),
     days: int = Query(7, ge=1, le=90, description="查询天数"),
@@ -277,7 +277,7 @@ def staff_behavior_alerts(
     }
 
 
-@router.get("/api/staff-behavior/timeline")
+@router.get("/api/v1/staff-behavior/timeline")
 def staff_behavior_timeline(
     store_id: Optional[str] = Query(None, description="门店 ID"),
     limit: int = Query(50, ge=1, le=200, description="返回条数"),

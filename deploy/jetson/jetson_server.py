@@ -297,7 +297,7 @@ def infer(req: InferRequest):
     if items:
         try:
             httpx.post(
-                f"{HUB_URL}/v1/vlm/waste-estimate",
+                f"{HUB_URL}/api/v1/vlm/waste-estimate",
                 json={
                     "store_id": STORE_ID,
                     "zone": ZONE,

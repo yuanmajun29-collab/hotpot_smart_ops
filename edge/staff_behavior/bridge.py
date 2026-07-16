@@ -76,7 +76,7 @@ def post_to_hub(result: DetectionResult, hub_url: str, timeout: int = 10) -> boo
 
     try:
         resp = requests.post(
-            f"{hub_url.rstrip('/')}/api/staff-behavior/event",
+            f"{hub_url.rstrip('/')}/api/v1/staff-behavior/event",
             json=payload,
             timeout=timeout,
         )

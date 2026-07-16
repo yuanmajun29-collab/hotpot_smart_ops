@@ -48,7 +48,7 @@ def _business_date(date: Optional[str]) -> str:
 
 # ── 已有端点: waste/stats ─────────────────────────────────────
 
-@router.get("/api/kitchen/waste/stats")
+@router.get("/api/v1/kitchen/waste/stats")
 def kitchen_waste_stats(
     store_id: Optional[str] = Query(None, description="门店 ID，默认当前门店"),
     days: int = Query(7, ge=1, le=90, description="查询天数 (1-90)"),
@@ -113,7 +113,7 @@ def kitchen_waste_stats(
 
 # ── K-002: 趋势 API ───────────────────────────────────────────
 
-@router.get("/api/kitchen/waste/trend")
+@router.get("/api/v1/kitchen/waste/trend")
 def kitchen_waste_trend(
     store_id: Optional[str] = Query(None, description="门店 ID"),
     days: int = Query(30, ge=1, le=90, description="查询天数 (1-90)"),
@@ -133,7 +133,7 @@ def kitchen_waste_trend(
 
 # ── K-002: 告警 API ───────────────────────────────────────────
 
-@router.get("/api/kitchen/waste/alerts")
+@router.get("/api/v1/kitchen/waste/alerts")
 def kitchen_waste_alerts(
     store_id: Optional[str] = Query(None, description="门店 ID"),
     days: int = Query(7, ge=1, le=90, description="查询天数"),
@@ -151,7 +151,7 @@ def kitchen_waste_alerts(
     }
 
 
-@router.post("/api/kitchen/waste/alerts/check")
+@router.post("/api/v1/kitchen/waste/alerts/check")
 def kitchen_waste_alerts_check(
     body: Optional[AlertCheckBody] = None,
     store_id: Optional[str] = Query(None, description="门店 ID"),
@@ -178,7 +178,7 @@ def kitchen_waste_alerts_check(
     return runtime.db.check_and_create_waste_alert(sid, bdate)
 
 
-@router.post("/api/kitchen/waste/alerts/{alert_id}/ack")
+@router.post("/api/v1/kitchen/waste/alerts/{alert_id}/ack")
 def kitchen_waste_alert_ack(
     alert_id: int,
     auth: AuthContext = Depends(get_auth_context),

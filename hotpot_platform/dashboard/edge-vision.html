@@ -4,6 +4,7 @@
 <meta charset="UTF-8" />
 <meta name="viewport" content="width=device-width, initial-scale=1.0" />
 <title>火锅智能 · 边缘推理 + Hub 图库</title>
+<script src="/config.js"></script>
 <style>
 :root {
   --bg: #0d1117; --card: #161b22; --border: #30363d;
@@ -192,7 +193,7 @@ body { font-family: -apple-system, system-ui, sans-serif; background: var(--bg);
 
 <script>
 const EDGE_API = 'http://127.0.0.1:8090';
-const HUB_API = 'http://127.0.0.1:8098';
+const HUB_API = (window.HOTPOT_CONFIG && window.HOTPOT_CONFIG.hubUrl) || 'http://127.0.0.1:8098';
 let autoTimer = null;
 let currentTab = 'edge';
 

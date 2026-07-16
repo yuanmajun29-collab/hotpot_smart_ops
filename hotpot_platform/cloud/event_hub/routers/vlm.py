@@ -74,7 +74,7 @@ def _save_base64_image(b64: str, store_id: str = "default", zone: str = "unknown
     return f"{_HUB_BASE_URL}/static/images/{store_id}/{zone}/{ts}_{img_id}.jpg"
 
 
-@router.post("/v1/vlm/waste-estimate")
+@router.post("/api/v1/vlm/waste-estimate")
 def vlm_waste_estimate(
     body: WasteEstimateBody,
     auth: AuthContext = Depends(get_auth_context),
@@ -155,7 +155,7 @@ def vlm_waste_estimate(
     }
 
 
-@router.get("/v1/vlm/images/{event_id}")
+@router.get("/api/v1/vlm/images/{event_id}")
 def get_waste_image(event_id: str):
     """返回废料识别对应的原始图片。先查新目录（static/images/{store}/{zone}/），再查旧目录（demo/data/images/）。"""
     # 新路径：递归搜索 static/images/

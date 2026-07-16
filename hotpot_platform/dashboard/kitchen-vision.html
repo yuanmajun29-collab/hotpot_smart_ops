@@ -4,6 +4,7 @@
 <meta charset="UTF-8" />
 <meta name="viewport" content="width=device-width, initial-scale=1.0" />
 <title>后厨推理可视化 · 冯校长火锅</title>
+<script src="/config.js"></script>
 <style>
 :root {
   --bg: #0d1117; --card: #161b22; --border: #30363d;
@@ -191,9 +192,10 @@ body { font-family: -apple-system, system-ui, sans-serif; background: var(--bg);
     </div>
 
 <script>
-const HUB="http://192.168.2.240:8098";
+const HUB=(window.HOTPOT_CONFIG && window.HOTPOT_CONFIG.hubUrl)||"http://127.0.0.1:8098";
+const API=(window.HOTPOT_CONFIG && window.HOTPOT_CONFIG.apiPrefix)||"/api/v1";
 function submitFb(type){
-  fetch(HUB+"/v1/feedback",{
+  fetch(HUB+API+"/feedback",{
     method:"POST",
     headers:{"Content-Type":"application/json"},
     body:JSON.stringify({image_id:"kitchen_01",event_type:type,zone:"备餐废弃区"})

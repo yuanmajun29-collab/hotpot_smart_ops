@@ -78,7 +78,7 @@ def _business_date(date: Optional[str]) -> str:
     return date or datetime.now(ZoneInfo(_STORE_TZ)).strftime("%Y-%m-%d")
 
 
-@router.get("/v1/cost/loss-risk")
+@router.get("/api/v1/cost/loss-risk")
 def cost_loss_risk(
     request: Request,
     store_id: Optional[str] = Query(None),
@@ -107,7 +107,7 @@ def cost_loss_risk(
     }
 
 
-@router.get("/v1/cost/loss-budget")
+@router.get("/api/v1/cost/loss-budget")
 def cost_loss_budget(
     request: Request,
     store_id: Optional[str] = Query(None),
@@ -144,7 +144,7 @@ def cost_loss_budget(
     }
 
 
-@router.get("/v1/cost/loss-features")
+@router.get("/api/v1/cost/loss-features")
 def cost_loss_features(
     request: Request,
     store_id: Optional[str] = Query(None),
@@ -187,7 +187,7 @@ def cost_loss_features(
     }
 
 
-@router.post("/v1/cost/loss-features/rebuild")
+@router.post("/api/v1/cost/loss-features/rebuild")
 def cost_loss_features_rebuild(
     request: Request,
     store_id: Optional[str] = Query(None),
@@ -209,7 +209,7 @@ def cost_loss_features_rebuild(
     return {"ok": True, "store_id": sid, **features}
 
 
-@router.post("/v1/cost/loss-risk/{batch_id}/task")
+@router.post("/api/v1/cost/loss-risk/{batch_id}/task")
 def loss_risk_to_task(
     batch_id: str,
     body: RiskToTaskBody,

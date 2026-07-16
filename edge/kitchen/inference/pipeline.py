@@ -151,7 +151,7 @@ def post_to_hub(result: dict, hub_url: str = HUB_URL, max_retries: int = 3) -> d
     import httpx
 
     payload = json.dumps(result).encode("utf-8")
-    url = f"{hub_url}/v1/vlm/waste-estimate"
+    url = f"{hub_url}/api/v1/vlm/waste-estimate"
 
     last_error = ""
     for attempt in range(max_retries):

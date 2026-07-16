@@ -46,7 +46,7 @@ def _upsert_cost_grade(store: Any, batch_id: str, sku: Optional[str], grade: str
     store.set_cost_stats(cost)
 
 
-@router.post("/v1/receiving/quality-tap")
+@router.post("/api/v1/receiving/quality-tap")
 def receiving_quality_tap(
     body: QualityTapBody,
     auth: AuthContext = Depends(get_auth_context),
@@ -91,7 +91,7 @@ def receiving_quality_tap(
     }
 
 
-@router.post("/v1/receiving/submit")
+@router.post("/api/v1/receiving/submit")
 def receiving_submit(
     body: ReceivingSubmitBody,
     auth: AuthContext = Depends(get_auth_context),
@@ -151,7 +151,7 @@ def receiving_submit(
     }
 
 
-@router.post("/v1/receiving/checkin")
+@router.post("/api/v1/receiving/checkin")
 def receiving_checkin(
     body: ReceivingCheckinBody,
     auth: AuthContext = Depends(get_auth_context),
@@ -254,7 +254,7 @@ def receiving_checkin(
     }
 
 
-@router.get("/v1/receiving/checkins")
+@router.get("/api/v1/receiving/checkins")
 def receiving_checkins(
     request: Request,
     store_id: Optional[str] = Query(None),
@@ -285,7 +285,7 @@ def receiving_checkins(
     return {"store_id": sid, "checkins": checkins, "count": len(checkins)}
 
 
-@router.get("/v1/receiving/batches")
+@router.get("/api/v1/receiving/batches")
 def receiving_batches(
     request: Request,
     store_id: Optional[str] = Query(None),
@@ -297,7 +297,7 @@ def receiving_batches(
     return {"store_id": sid, "batches": batches, "count": len(batches)}
 
 
-@router.get("/v1/audit/signatures")
+@router.get("/api/v1/audit/signatures")
 def audit_signatures(
     request: Request,
     store_id: Optional[str] = Query(None),

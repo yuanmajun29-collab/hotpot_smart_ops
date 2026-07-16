@@ -153,6 +153,10 @@ async def _mark_deprecated(request, call_next):
 
 
 
+# ── 统一错误处理 ──
+from hotpot_platform.cloud.event_hub.common.errors import register_error_handlers
+register_error_handlers(app)
+
 # ── 路由器自动发现（新增路由 = 在 routers/ 丢一个 .py 文件，导出 router 实例）──
 from hotpot_platform.cloud.event_hub.routers import auto_include_routers
 auto_include_routers(app)

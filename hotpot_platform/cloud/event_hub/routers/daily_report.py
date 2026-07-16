@@ -59,7 +59,7 @@ def _live_waste_count_for_date(store_id: str, date: str) -> int:
     return live_total
 
 
-@router.get("/api/daily-report")
+@router.get("/api/v1/daily/report")
 def daily_report(
     store_id: Optional[str] = Query(None),
     date: Optional[str] = Query(None),

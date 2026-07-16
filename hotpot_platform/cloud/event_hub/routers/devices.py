@@ -108,7 +108,7 @@ class DeviceHeartbeatRequest(BaseModel):
 # 设备注册
 # ═══════════════════════════════════════════════════════════
 
-@router.post("/v1/devices/register")
+@router.post("/api/v1/devices/register")
 def device_register(body: DeviceRegisterRequest) -> dict:
     """设备注册。启动时向 Hub 报到，返回已有模块配置。"""
     _ensure_devices_loaded()
@@ -157,7 +157,7 @@ def device_register(body: DeviceRegisterRequest) -> dict:
 # 心跳
 # ═══════════════════════════════════════════════════════════
 
-@router.post("/v1/devices/{device_id}/heartbeat")
+@router.post("/api/v1/devices/{device_id}/heartbeat")
 def device_heartbeat(device_id: str, body: DeviceHeartbeatRequest) -> dict:
     """设备心跳续期 + 状态上报 + 返回待下发配置。"""
     _ensure_devices_loaded()
@@ -194,7 +194,7 @@ def device_heartbeat(device_id: str, body: DeviceHeartbeatRequest) -> dict:
 # 配置拉取 + 下发
 # ═══════════════════════════════════════════════════════════
 
-@router.post("/v1/devices/{device_id}/pull-config")
+@router.post("/api/v1/devices/{device_id}/pull-config")
 def device_pull_config(device_id: str) -> dict:
     """设备主动拉取模块配置（不依赖心跳，更及时）。"""
     _ensure_devices_loaded()
@@ -214,7 +214,7 @@ def device_pull_config(device_id: str) -> dict:
     }
 
 
-@router.put("/v1/devices/{device_id}/config")
+@router.put("/api/v1/devices/{device_id}/config")
 def device_update_config(
     device_id: str,
     body: DeviceConfig,
@@ -249,7 +249,7 @@ def device_update_config(
 # 设备列表 + 详情
 # ═══════════════════════════════════════════════════════════
 
-@router.get("/v1/devices")
+@router.get("/api/v1/devices")
 def device_list(
     store_id: str = "",
     region_id: str = "",
@@ -302,7 +302,7 @@ def device_list(
     return {"devices": devices, "total": len(devices)}
 
 
-@router.get("/v1/devices/{device_id}")
+@router.get("/api/v1/devices/{device_id}")
 def device_detail(device_id: str) -> dict:
     """设备详情 + 当前模块配置。"""
     _ensure_devices_loaded()

@@ -201,7 +201,7 @@ def _decode_image(data_b64: str) -> np.ndarray:
     return img
 
 
-@router.post("/api/scene/analyze")
+@router.post("/api/v1/scene/analyze")
 async def scene_analyze(
     table_id: str = Query("", description="桌号，如 T12"),
     mode: str = Query("plan_b", description="plan_b(YOLO规则) 或 plan_a(YOLO+CLIP)"),
@@ -274,7 +274,7 @@ async def scene_analyze(
         return JSONResponse({"error": f"场景分析失败: {e}"}, status_code=500)
 
 
-@router.get("/api/scene/batch")
+@router.get("/api/v1/scene/batch")
 def scene_batch(
     table_prefix: str = Query("T", description="桌号前缀"),
     mode: str = Query("plan_b", description="plan_b(YOLO规则) 或 plan_a(YOLO+CLIP)"),

@@ -22,7 +22,7 @@ from hotpot_platform.cloud.event_hub.auth import (
 )
 from hotpot_platform.cloud.event_hub.rbac import ROLE_POLICIES
 
-router = APIRouter(prefix="/v1/admin", tags=["admin"])
+router = APIRouter(prefix="/api/v1/admin", tags=["admin"])
 
 ROLE_NAMES = list(ROLE_POLICIES.keys())
 

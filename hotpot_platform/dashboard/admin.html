@@ -5,6 +5,7 @@
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
   <title>权限管理 · 冯校长火锅 · 智能运营</title>
   <link rel="stylesheet" href="assets/theme.css" />
+  <script src="/config.js"></script>
   <style>
     .rbac-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 20px; }
     @media (max-width: 768px) { .rbac-grid { grid-template-columns: 1fr; } }
@@ -77,7 +78,7 @@
 <div id="toast" class="toast" style="display:none;"></div>
 
 <script>
-const HUB = 'http://192.168.2.240:8098';
+const HUB = (window.HOTPOT_CONFIG && window.HOTPOT_CONFIG.hubUrl) || 'http://127.0.0.1:8098';
 const TOKEN = localStorage.getItem('hotpot_token') || '';
 
 function toast(msg, ok=true) {

@@ -210,7 +210,7 @@ def submit_to_hub(
 ) -> Dict[str, Any]:
     """提交 VLM 结果到 Hub."""
     token = get_token(store)
-    url = f"{HUB_URL}/v1/vlm/waste-estimate"
+    url = f"{HUB_URL}/api/v1/vlm/waste-estimate"
 
     payload: Dict[str, Any] = {
         "store_id": store,
