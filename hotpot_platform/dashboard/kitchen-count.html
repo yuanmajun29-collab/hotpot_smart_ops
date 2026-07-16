@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8" />
 <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-<title>废料计数看板 · 冯校长火锅</title>
+<title>废料看板 · 趋势预警 · 冯校长火锅</title>
 <style>
 :root {
   --bg: #0d1117; --card: #161b22; --border: #30363d;
@@ -17,51 +17,72 @@ body {
   background: var(--bg); color: var(--text); min-height: 100vh;
 }
 .header {
-  padding: 16px 24px; border-bottom: 1px solid var(--border);
-  background: var(--card); display: flex; align-items: center; justify-content: space-between; flex-wrap: wrap; gap: 12px;
+  padding: 14px 24px; border-bottom: 1px solid var(--border);
+  background: var(--card); display: flex; align-items: center;
+  justify-content: space-between; flex-wrap: wrap; gap: 12px;
 }
-.header h1 { font-size: 1.15rem; }
-.header .meta { font-size: 0.8rem; color: var(--muted); }
+.header h1 { font-size: 1.1rem; }
+.header .meta { font-size: 0.78rem; color: var(--muted); }
 .badge { background: var(--brand); color: #fff; padding: 4px 12px; border-radius: 12px; font-size: 0.75rem; }
 .badge.live { background: var(--ok); animation: pulse 2s infinite; }
+.badge.alert { background: var(--accent); animation: pulse 1s infinite; }
 @keyframes pulse { 0%,100%{opacity:1} 50%{opacity:0.6} }
-.content { padding: 24px; max-width: 1200px; margin: 0 auto; }
-/* Big count card */
-.hero { display: flex; gap: 20px; margin-bottom: 24px; flex-wrap: wrap; }
+.content { padding: 24px; max-width: 1300px; margin: 0 auto; }
+
+/* Hero cards */
+.hero { display: flex; gap: 16px; margin-bottom: 20px; flex-wrap: wrap; }
 .hero-card {
-  flex: 1; min-width: 200px; background: var(--card); border: 1px solid var(--border);
-  border-radius: 12px; padding: 24px; text-align: center;
+  flex: 1; min-width: 180px; background: var(--card); border: 1px solid var(--border);
+  border-radius: 12px; padding: 20px; text-align: center;
 }
-.hero-card .label { font-size: 0.8rem; color: var(--muted); margin-bottom: 8px; }
-.hero-card .value { font-size: 3rem; font-weight: 900; line-height: 1; }
+.hero-card .label { font-size: 0.78rem; color: var(--muted); margin-bottom: 6px; }
+.hero-card .value { font-size: 2.2rem; font-weight: 900; line-height: 1.2; }
 .hero-card .value.accent { color: var(--accent); }
 .hero-card .value.ok { color: var(--ok); }
 .hero-card .value.brand { color: var(--brand); }
-.hero-card .sub { font-size: 0.75rem; color: var(--muted); margin-top: 6px; }
-/* Trend chart */
+.hero-card .value.warn { color: var(--warn); }
+.hero-card .sub { font-size: 0.72rem; color: var(--muted); margin-top: 4px; }
+.hero-card .change { font-size: 0.78rem; margin-top: 4px; font-weight: 600; }
+.hero-card .change.up { color: var(--accent); }
+.hero-card .change.down { color: var(--ok); }
+.hero-card .change.flat { color: var(--muted); }
+
+/* Alert bar */
+.alert-bar {
+  background: linear-gradient(135deg, #3d1111, #1f1813); border: 1px solid var(--accent);
+  border-radius: 12px; padding: 14px 20px; margin-bottom: 20px;
+  display: flex; align-items: center; gap: 12px; font-size: 0.88rem;
+}
+.alert-bar .alert-icon { font-size: 1.4rem; }
+.alert-bar .alert-msg { flex: 1; }
+.alert-bar .alert-dismiss {
+  background: rgba(255,255,255,0.1); border: 1px solid var(--border);
+  color: var(--muted); padding: 4px 12px; border-radius: 8px; cursor: pointer; font-size: 0.75rem;
+}
+
+/* Chart */
 .chart-card {
   background: var(--card); border: 1px solid var(--border);
-  border-radius: 12px; padding: 24px; margin-bottom: 24px;
+  border-radius: 12px; padding: 24px; margin-bottom: 20px;
 }
-.chart-card h2 { font-size: 0.9rem; color: var(--muted); margin-bottom: 16px; }
-.chart-row { display: flex; align-items: flex-end; gap: 12px; height: 160px; padding: 0 4px; flex-wrap: wrap; }
-.chart-bar-wrap { flex: 1; display: flex; flex-direction: column; align-items: center; min-width: 40px; }
-.chart-bar {
-  width: 100%; max-width: 60px; border-radius: 4px 4px 0 0;
-  background: linear-gradient(to top, var(--brand), var(--accent));
-  transition: height 0.5s ease; min-height: 4px;
-}
-.chart-bar.empty { background: rgba(255,255,255,0.05); }
-.chart-val { font-size: 0.75rem; font-weight: 600; margin-top: 6px; }
-.chart-label { font-size: 0.65rem; color: var(--muted); margin-top: 4px; }
-/* SKU breakdown */
-.grid-2 { display: grid; grid-template-columns: 1fr 1fr; gap: 24px; margin-bottom: 24px; }
+.chart-card h2 { font-size: 0.88rem; color: var(--muted); margin-bottom: 16px; display: flex; justify-content: space-between; }
+.chart-svg-wrap { overflow-x: auto; }
+.chart-svg-wrap svg { width: 100%; min-width: 700px; }
+.chart-legend { display: flex; gap: 16px; font-size: 0.72rem; color: var(--muted); }
+.chart-legend span::before { content: '● '; font-size: 0.9rem; }
+.chart-legend .line-count::before { color: var(--brand); }
+.chart-legend .line-7d::before { color: var(--warn); }
+.chart-legend .line-30d::before { color: var(--blue); }
+
+/* Grid */
+.grid-2 { display: grid; grid-template-columns: 1fr 1fr; gap: 20px; margin-bottom: 20px; }
 @media(max-width:768px){ .grid-2 { grid-template-columns: 1fr; } }
-.sku-card {
+
+.sku-card, .log-card {
   background: var(--card); border: 1px solid var(--border);
   border-radius: 12px; padding: 20px;
 }
-.sku-card h3 { font-size: 0.85rem; color: var(--muted); margin-bottom: 16px; }
+.sku-card h3, .log-card h3 { font-size: 0.85rem; color: var(--muted); margin-bottom: 14px; }
 .sku-row {
   display: flex; align-items: center; gap: 12px; padding: 10px 0;
   border-bottom: 1px solid var(--border);
@@ -69,21 +90,14 @@ body {
 .sku-row:last-child { border-bottom: none; }
 .sku-bar-bg { flex: 1; height: 8px; background: rgba(255,255,255,0.05); border-radius: 4px; overflow: hidden; }
 .sku-bar-fill { height: 100%; border-radius: 4px; background: var(--brand); transition: width 0.5s ease; }
-.sku-name { width: 60px; font-size: 0.85rem; }
-.sku-count { width: 40px; text-align: right; font-size: 0.85rem; font-weight: 600; color: var(--brand); }
-/* Event log */
-.log-card {
-  background: var(--card); border: 1px solid var(--border);
-  border-radius: 12px; padding: 20px;
-}
-.log-card h3 { font-size: 0.85rem; color: var(--muted); margin-bottom: 12px; }
-.log-list { max-height: 300px; overflow-y: auto; font-size: 0.82rem; }
+.sku-name { width: 60px; font-size: 0.82rem; }
+.sku-count { width: 40px; text-align: right; font-size: 0.82rem; font-weight: 600; color: var(--brand); }
+.log-list { max-height: 300px; overflow-y: auto; font-size: 0.8rem; }
 .log-row {
   display: flex; gap: 12px; padding: 8px 0;
-  border-bottom: 1px solid rgba(255,255,255,0.04);
-  align-items: center;
+  border-bottom: 1px solid rgba(255,255,255,0.04); align-items: center;
 }
-.log-time { color: var(--muted); font-size: 0.72rem; width: 70px; flex: none; }
+.log-time { color: var(--muted); font-size: 0.7rem; width: 70px; flex: none; }
 .log-count { color: var(--brand); font-weight: 700; width: 40px; text-align: right; flex: none; }
 .log-items { flex: 1; color: var(--text); }
 .empty { text-align: center; padding: 40px; color: var(--muted); }
@@ -95,58 +109,78 @@ body {
 <body>
 <div class="header">
   <div>
-    <h1>🗑️ 废料计数看板 · 冯校长火锅</h1>
-    <div class="meta">Jetson Count API :8100 → Pipeline → Hub :8098 → Dashboard :3000</div>
+    <h1>🗑️ 废料趋势预警 · 冯校长火锅</h1>
+    <div class="meta">Edge :8100 → Hub :8098 → Dashboard :3000 · K-002 趋势预警</div>
   </div>
   <div>
     <span id="conn-badge" class="badge">⏳ 连接中...</span>
     <span id="live-badge" class="badge live" style="margin-left:8px;display:none">● LIVE</span>
+    <span id="alert-badge" class="badge alert" style="margin-left:8px;display:none">⚠ 告警</span>
   </div>
 </div>
 
 <div class="content">
+  <!-- Alert bar -->
+  <div class="alert-bar" id="alert-bar" style="display:none">
+    <span class="alert-icon">🚨</span>
+    <span class="alert-msg" id="alert-msg"></span>
+    <button class="alert-dismiss" onclick="dismissAlert()">知道了</button>
+  </div>
+
   <!-- Hero cards -->
   <div class="hero">
     <div class="hero-card">
       <div class="label">📦 今日废料总数</div>
       <div class="value brand" id="hero-total">--</div>
-      <div class="sub">store_yuhuan · 备餐废弃区</div>
+      <div class="sub">今日事件数: <span id="hero-today-events">--</span></div>
     </div>
     <div class="hero-card">
       <div class="label">📊 7日均值</div>
-      <div class="value ok" id="hero-avg">--</div>
-      <div class="sub">日均废料件数</div>
+      <div class="value ok" id="hero-avg7">--</div>
+      <div class="sub">非零日移动均值</div>
     </div>
     <div class="hero-card">
-      <div class="label">📈 今日事件数</div>
-      <div class="value" id="hero-events">--</div>
-      <div class="sub">推理上报次数</div>
+      <div class="label">📈 日环比 (vs 昨日)</div>
+      <div class="value" id="hero-dod" style="font-size:1.5rem">--</div>
+      <div class="change flat" id="hero-dod-pct">--</div>
     </div>
     <div class="hero-card">
-      <div class="label">🔴 峰值日</div>
-      <div class="value accent" id="hero-peak">--</div>
-      <div class="sub" id="hero-peak-date">--</div>
+      <div class="label">📉 周环比 (7d vs 前7d)</div>
+      <div class="value" id="hero-wow" style="font-size:1.5rem">--</div>
+      <div class="change flat" id="hero-wow-pct">--</div>
+    </div>
+    <div class="hero-card">
+      <div class="label">🔴 30日均值</div>
+      <div class="value warn" id="hero-avg30">--</div>
+      <div class="sub">长期趋势基线</div>
     </div>
   </div>
 
   <!-- Trend chart -->
   <div class="chart-card">
-    <h2>📈 7日废料趋势 (count per day)</h2>
-    <div class="chart-row" id="chart">
-      <div class="empty" style="width:100%"><span class="spinner"></span> 加载中...</div>
+    <h2>
+      <span>📈 30日废料趋势</span>
+      <span class="chart-legend">
+        <span class="line-count">废料计数</span>
+        <span class="line-7d">7日均线</span>
+        <span class="line-30d">30日均线</span>
+      </span>
+    </h2>
+    <div class="chart-svg-wrap" id="chart">
+      <div class="empty"><span class="spinner"></span> 加载中...</div>
     </div>
   </div>
 
   <div class="grid-2">
     <!-- SKU breakdown -->
     <div class="sku-card">
-      <h3>🏷️ 废料品类分布</h3>
+      <h3>🏷️ 废料品类分布 (30天累计)</h3>
       <div id="sku-list"><div class="empty"><div class="icon">📦</div>暂无数据</div></div>
     </div>
     <!-- Recent events log -->
     <div class="log-card">
-      <h3>📋 最近上报事件</h3>
-      <div class="log-list" id="event-log"><div class="empty"><div class="icon">📝</div>暂无事件</div></div>
+      <h3>📋 每日事件日志</h3>
+      <div class="log-list" id="event-log"><div class="empty"><div class="icon">📝</div>暂无数据</div></div>
     </div>
   </div>
 </div>
@@ -154,100 +188,195 @@ body {
 <script>
 const HUB = window.location.origin.replace(':3000', ':8098') || 'http://localhost:8098';
 const STORE = 'store_yuhuan';
-const DAYS = 7;
-const REFRESH_MS = 30000;
+const DAYS = 30;
+const REFRESH_MS = 60000;  // 1 min
 
 let loading = false;
+let currentAlerts = [];
 
-async function fetchStats() {
+async function fetchData() {
   if (loading) return;
   loading = true;
   try {
-    const resp = await fetch(`${HUB}/api/kitchen/waste/stats?store_id=${STORE}&days=${DAYS}`);
-    if (!resp.ok) throw new Error(`HTTP ${resp.status}`);
-    const data = await resp.json();
+    // 并行请求趋势和告警
+    const [trendRes, alertsRes] = await Promise.all([
+      fetch(`${HUB}/api/kitchen/waste/trend?store_id=${STORE}&days=${DAYS}&include_compare=true`),
+      fetch(`${HUB}/api/kitchen/waste/alerts?store_id=${STORE}&days=7`)
+    ]);
+
+    if (!trendRes.ok && !alertsRes.ok) throw new Error('All APIs failed');
 
     document.getElementById('conn-badge').textContent = '✅ Hub 在线';
     document.getElementById('conn-badge').className = 'badge';
     document.getElementById('live-badge').style.display = 'inline-block';
 
-    renderHero(data);
-    renderChart(data);
-    renderSkuBreakdown(data);
-    renderEventLog(data);
+    const trend = trendRes.ok ? await trendRes.json() : null;
+    const alertsData = alertsRes.ok ? await alertsRes.json() : null;
+
+    if (trend) renderTrend(trend);
+    if (alertsData) renderAlerts(alertsData);
   } catch (e) {
     document.getElementById('conn-badge').textContent = '❌ Hub 离线';
     document.getElementById('conn-badge').className = 'badge';
     document.getElementById('live-badge').style.display = 'none';
-    console.warn('fetchStats error:', e);
+    console.warn('fetchData error:', e);
   }
   loading = false;
 }
 
-function renderHero(data) {
+function renderTrend(data) {
   const daily = data.daily || [];
-  const trend = data.trend || [];
-  const today = daily.length > 0 ? daily[daily.length - 1] : null;
-
-  document.getElementById('hero-total').textContent = today ? today.total_count : '--';
-  document.getElementById('hero-events').textContent = today ? today.event_count : '--';
-
-  const nonZero = trend.filter(v => v > 0);
-  const avg = nonZero.length > 0 ? Math.round(nonZero.reduce((a,b)=>a+b,0) / nonZero.length) : 0;
-  document.getElementById('hero-avg').textContent = avg;
-
-  const maxVal = trend.length > 0 ? Math.max(...trend) : 0;
-  const maxIdx = trend.indexOf(maxVal);
-  document.getElementById('hero-peak').textContent = maxVal || '--';
-  document.getElementById('hero-peak-date').textContent = maxVal ? (data.dates?.[maxIdx] || '--') : '--';
-}
-
-function renderChart(data) {
-  const chart = document.getElementById('chart');
   const trend = data.trend || [];
   const dates = data.dates || [];
-  const maxVal = Math.max(1, ...trend);
+  const cmp = data.comparison || {};
 
-  if (dates.length === 0) {
-    chart.innerHTML = '<div class="empty" style="width:100%"><div class="icon">📊</div>暂无趋势数据</div>';
-    return;
-  }
+  // ── Hero cards ──
+  const today = daily.length > 0 ? daily[daily.length - 1] : null;
+  document.getElementById('hero-total').textContent = today ? today.total_count : '--';
+  document.getElementById('hero-today-events').textContent = today ? today.event_count : '--';
+  document.getElementById('hero-avg7').textContent = cmp.seven_day_avg != null ? cmp.seven_day_avg : '--';
+  document.getElementById('hero-avg30').textContent = cmp.thirty_day_avg != null ? cmp.thirty_day_avg : '--';
 
-  chart.innerHTML = dates.map((date, i) => {
-    const val = trend[i] || 0;
-    const h = Math.max(4, Math.round((val / maxVal) * 140));
-    const cls = val === 0 ? ' empty' : '';
-    const shortDate = date.slice(5); // MM-DD
-    return `<div class="chart-bar-wrap">
-      <div class="chart-bar${cls}" style="height:${h}px"></div>
-      <div class="chart-val">${val}</div>
-      <div class="chart-label">${shortDate}</div>
-    </div>`;
-  }).join('');
-}
-
-function renderSkuBreakdown(data) {
-  const container = document.getElementById('sku-list');
-  const daily = data.daily || [];
-
-  // Aggregate SKU counts across all days
-  const skuMap = {};
-  for (const day of daily) {
-    for (const item of (day.items || [])) {
-      const sku = item.sku || 'unknown';
-      skuMap[sku] = (skuMap[sku] || 0) + item.count;
+  // 日环比
+  const dod = cmp.day_over_day;
+  if (dod) {
+    const pct = dod.change_pct;
+    document.getElementById('hero-dod').textContent = dod.today != null ? dod.today : '--';
+    const dodPct = document.getElementById('hero-dod-pct');
+    if (pct != null) {
+      const arrow = pct > 0 ? '▲' : (pct < 0 ? '▼' : '→');
+      dodPct.textContent = `${arrow} ${Math.abs(pct)}%`;
+      dodPct.className = `change ${dod.direction}`;
+    } else {
+      dodPct.textContent = '无对比';
+      dodPct.className = 'change flat';
     }
   }
 
+  // 周环比
+  const wow = cmp.week_over_week;
+  if (wow) {
+    document.getElementById('hero-wow').textContent = `${wow.current_avg}`;
+    const pct = wow.change_pct;
+    const wowPct = document.getElementById('hero-wow-pct');
+    const arrow = pct > 0 ? '▲' : (pct < 0 ? '▼' : '→');
+    wowPct.textContent = `${arrow} ${Math.abs(pct)}%`;
+    wowPct.className = `change ${wow.direction}`;
+  } else {
+    document.getElementById('hero-wow').textContent = '--';
+    document.getElementById('hero-wow-pct').textContent = '数据不足(需14天)';
+    document.getElementById('hero-wow-pct').className = 'change flat';
+  }
+
+  // ── SVG 折线图 ──
+  renderLineChart(dates, trend, cmp.seven_day_avg, cmp.thirty_day_avg);
+
+  // ── SKU breakdown ──
+  renderSkuBreakdown(daily);
+
+  // ── Event log ──
+  renderEventLog(daily);
+}
+
+function renderLineChart(dates, trend, avg7, avg30) {
+  const chart = document.getElementById('chart');
+  if (!dates || dates.length === 0) {
+    chart.innerHTML = '<div class="empty"><div class="icon">📊</div>暂无数据</div>';
+    return;
+  }
+
+  const W = 700, H = 200;
+  const pad = { top: 10, right: 10, bottom: 30, left: 45 };
+  const pw = W - pad.left - pad.right;
+  const ph = H - pad.top - pad.bottom;
+
+  const maxVal = Math.max(1, ...trend);
+  const xStep = pw / (dates.length - 1 || 1);
+
+  function x(i) { return pad.left + i * xStep; }
+  function y(v) { return pad.top + ph - (v / maxVal) * ph; }
+
+  // Y轴刻度
+  let yTicks = '';
+  for (let i = 0; i <= 4; i++) {
+    const val = Math.round(maxVal * i / 4);
+    const yy = y(val);
+    yTicks += `<line x1="${pad.left - 5}" x2="${W - pad.right}" y1="${yy}" y2="${yy}" stroke="rgba(255,255,255,0.06)" />`;
+    yTicks += `<text x="${pad.left - 8}" y="${yy + 4}" text-anchor="end" fill="#8b949e" font-size="10">${val}</text>`;
+  }
+
+  // X轴标签
+  let xLabels = '';
+  const labelStride = Math.max(1, Math.floor(dates.length / 10));
+  for (let i = 0; i < dates.length; i += labelStride) {
+    const short = dates[i].slice(5);
+    xLabels += `<text x="${x(i)}" y="${H - 6}" text-anchor="middle" fill="#8b949e" font-size="9">${short}</text>`;
+  }
+
+  // Trend polyline
+  let trendPoints = '';
+  for (let i = 0; i < dates.length; i++) {
+    trendPoints += `${x(i)},${y(trend[i])} `;
+  }
+
+  // 7-day and 30-day avg lines
+  let avg7Path = '', avg30Path = '';
+  if (avg7 > 0) {
+    const ay7 = y(avg7);
+    avg7Path = `<line x1="${pad.left}" x2="${W - pad.right}" y1="${ay7}" y2="${ay7}" stroke="var(--warn)" stroke-dasharray="4,4" stroke-width="1.5" />`;
+  }
+  if (avg30 > 0) {
+    const ay30 = y(avg30);
+    avg30Path = `<line x1="${pad.left}" x2="${W - pad.right}" y1="${ay30}" y2="${ay30}" stroke="var(--blue)" stroke-dasharray="6,3" stroke-width="1.5" />`;
+  }
+
+  // Bar fills under the trend line
+  let areaPoints = `${x(0)},${y(0)} ` + trendPoints + `${x(dates.length - 1)},${y(0)}`;
+
+  chart.innerHTML = `
+    <svg viewBox="0 0 ${W} ${H}" xmlns="http://www.w3.org/2000/svg">
+      ${yTicks}
+      ${xLabels}
+      <!-- Area fill -->
+      <polygon points="${areaPoints}" fill="url(#grad)" opacity="0.15" />
+      <!-- 30d avg -->
+      ${avg30Path}
+      <!-- 7d avg -->
+      ${avg7Path}
+      <!-- Trend line -->
+      <polyline points="${trendPoints}" fill="none" stroke="var(--brand)" stroke-width="2.5" stroke-linejoin="round" />
+      <!-- Dots -->
+      ${dates.map((_, i) => {
+        const val = trend[i];
+        if (val === 0) return '';
+        return `<circle cx="${x(i)}" cy="${y(val)}" r="2.5" fill="var(--brand)" />`;
+      }).join('')}
+      <defs>
+        <linearGradient id="grad" x1="0" y1="0" x2="0" y2="1">
+          <stop offset="0%" stop-color="var(--brand)" stop-opacity="0.4" />
+          <stop offset="100%" stop-color="var(--brand)" stop-opacity="0" />
+        </linearGradient>
+      </defs>
+    </svg>`;
+}
+
+function renderSkuBreakdown(daily) {
+  const container = document.getElementById('sku-list');
+  const skuMap = {};
+  for (const day of daily) {
+    for (const item of (day.top_skus || day.items || [])) {
+      const sku = item.sku || 'unknown';
+      skuMap[sku] = (skuMap[sku] || 0) + (item.count || 0);
+    }
+  }
   const entries = Object.entries(skuMap).sort((a, b) => b[1] - a[1]);
   if (entries.length === 0) {
     container.innerHTML = '<div class="empty"><div class="icon">📦</div>暂无数据</div>';
     return;
   }
-
   const maxCount = entries[0][1];
   container.innerHTML = entries.slice(0, 8).map(([sku, count]) => {
-    const pct = Math.round((count / maxCount) * 100);
+    const pct = Math.max(2, Math.round((count / maxCount) * 100));
     return `<div class="sku-row">
       <span class="sku-name">${sku}</span>
       <div class="sku-bar-bg"><div class="sku-bar-fill" style="width:${pct}%"></div></div>
@@ -256,35 +385,54 @@ function renderSkuBreakdown(data) {
   }).join('');
 }
 
-function renderEventLog(data) {
+function renderEventLog(daily) {
   const container = document.getElementById('event-log');
-  const daily = data.daily || [];
-
-  if (daily.length === 0) {
-    container.innerHTML = '<div class="empty"><div class="icon">📝</div>暂无事件</div>';
-    return;
-  }
-
-  // Show recent days with events
   const withEvents = daily.filter(d => d.event_count > 0).reverse();
   if (withEvents.length === 0) {
     container.innerHTML = '<div class="empty"><div class="icon">📝</div>暂无事件</div>';
     return;
   }
-
   container.innerHTML = withEvents.slice(0, 20).map(day => {
-    const topItems = (day.items || []).slice(0, 3).map(i => `${i.sku}×${i.count}`).join(', ');
+    const topItems = (day.top_skus || []).slice(0, 3).map(i => `${i.sku}×${i.count}`).join(', ');
     return `<div class="log-row">
       <span class="log-time">${day.date}</span>
       <span class="log-count">${day.total_count}</span>
-      <span class="log-items">${topItems || '—'} · ${day.event_count}次推理</span>
+      <span class="log-items">${topItems || '—'} · ${day.event_count}次</span>
     </div>`;
   }).join('');
 }
 
-// Initial load + periodic refresh
-fetchStats();
-setInterval(fetchStats, REFRESH_MS);
+function renderAlerts(data) {
+  const alerts = data.alerts || [];
+  currentAlerts = alerts;
+  const unacked = alerts.filter(a => !a.acknowledged);
+
+  if (unacked.length > 0) {
+    document.getElementById('alert-badge').style.display = 'inline-block';
+    const latest = unacked[0];
+    document.getElementById('alert-bar').style.display = 'flex';
+    document.getElementById('alert-msg').textContent = latest.message;
+  } else {
+    document.getElementById('alert-badge').style.display = 'none';
+    document.getElementById('alert-bar').style.display = 'none';
+  }
+}
+
+async function dismissAlert() {
+  const unacked = currentAlerts.filter(a => !a.acknowledged);
+  for (const a of unacked) {
+    try {
+      await fetch(`${HUB}/api/kitchen/waste/alerts/${a.id}/ack`, { method: 'POST' });
+    } catch (e) { console.warn('ack error:', e); }
+  }
+  document.getElementById('alert-bar').style.display = 'none';
+  document.getElementById('alert-badge').style.display = 'none';
+  currentAlerts = currentAlerts.map(a => ({...a, acknowledged: 1}));
+}
+
+// Start
+fetchData();
+setInterval(fetchData, REFRESH_MS);
 </script>
 </body>
 </html>

@@ -10,6 +10,12 @@ from pathlib import Path
 from typing import Any, Dict, List, Optional, Union
 
 from hotpot_platform.cloud.event_hub.daily_report_store import SQLITE_DAILY_REPORTS_SCHEMA
+from hotpot_platform.cloud.event_hub.domain.waste_timeseries import (
+    aggregate_waste_events,
+    check_alert,
+    compute_trend_comparison,
+    format_alert_message,
+)
 from hotpot_platform.cloud.event_hub.iot_readings_store import SQLITE_IOT_READINGS_SCHEMA
 from hotpot_platform.cloud.event_hub.receiving_store import SQLITE_RECEIVING_SCHEMA
 from hotpot_platform.cloud.event_hub.sop_assign_store import SQLITE_SOP_ASSIGN_SCHEMA
@@ -78,6 +84,34 @@ class HubDatabase:
                     + SQLITE_TASKS_SCHEMA
                     + SQLITE_IOT_READINGS_SCHEMA
                     + SQLITE_DAILY_REPORTS_SCHEMA
+                    + """
+                    CREATE TABLE IF NOT EXISTS waste_timeseries (
+                        id INTEGER PRIMARY KEY AUTOINCREMENT,
+                        store_id TEXT NOT NULL,
+                        date TEXT NOT NULL,
+                        total_count INTEGER NOT NULL DEFAULT 0,
+                        event_count INTEGER NOT NULL DEFAULT 0,
+                        top_skus TEXT NOT NULL DEFAULT '[]',
+                        generated_at TEXT NOT NULL,
+                        UNIQUE(store_id, date)
+                    );
+                    CREATE INDEX IF NOT EXISTS idx_wts_store_date
+                        ON waste_timeseries(store_id, date DESC);
+
+                    CREATE TABLE IF NOT EXISTS waste_alerts (
+                        id INTEGER PRIMARY KEY AUTOINCREMENT,
+                        store_id TEXT NOT NULL,
+                        date TEXT NOT NULL,
+                        alert_type TEXT NOT NULL DEFAULT 'spike',
+                        current_count INTEGER NOT NULL,
+                        baseline_avg REAL NOT NULL,
+                        ratio REAL NOT NULL,
+                        message TEXT NOT NULL,
+                        created_at TEXT NOT NULL,
+                        acknowledged INTEGER NOT NULL DEFAULT 0,
+                        UNIQUE(store_id, date, alert_type)
+                    );
+                    """
                 )
                 conn.commit()
             finally:
@@ -330,3 +364,215 @@ class HubDatabase:
             "dates": dates,
             "generated_at": datetime.now(timezone.utc).isoformat(),
         }
+
+    # ── K-002: waste_timeseries + alerts ──────────────────────────
+
+    def upsert_waste_timeseries(
+        self, store_id: str, date: str, total_count: int,
+        event_count: int, top_skus: list,
+    ) -> None:
+        """UPSERT waste_timeseries 行。"""
+        from datetime import datetime, timezone
+        generated_at = datetime.now(timezone.utc).isoformat()
+        top_skus_json = json.dumps(top_skus, ensure_ascii=False)
+        with self._lock:
+            conn = self._connect()
+            try:
+                conn.execute(
+                    """
+                    INSERT INTO waste_timeseries
+                        (store_id, date, total_count, event_count, top_skus, generated_at)
+                    VALUES (?, ?, ?, ?, ?, ?)
+                    ON CONFLICT(store_id, date) DO UPDATE SET
+                        total_count = excluded.total_count,
+                        event_count = excluded.event_count,
+                        top_skus = excluded.top_skus,
+                        generated_at = excluded.generated_at
+                    """,
+                    (store_id, date, total_count, event_count, top_skus_json, generated_at),
+                )
+                conn.commit()
+            finally:
+                conn.close()
+
+    def query_waste_trend(
+        self, store_id: str, days: int = 30, include_compare: bool = True,
+    ) -> dict:
+        """查询趋势，返回 daily/trend/dates/comparison。缺失日期用0填充。"""
+        from datetime import date as date_type, datetime, timedelta, timezone
+
+        cutoff_dt = date_type.today() - timedelta(days=days - 1)
+        cutoff = cutoff_dt.isoformat()
+
+        daily_map: Dict[str, Dict[str, Any]] = {}
+        with self._lock:
+            conn = self._connect()
+            try:
+                rows = conn.execute(
+                    """
+                    SELECT date, total_count, event_count, top_skus
+                    FROM waste_timeseries
+                    WHERE store_id = ? AND date >= ?
+                    ORDER BY date ASC
+                    """,
+                    (store_id, cutoff),
+                ).fetchall()
+            finally:
+                conn.close()
+
+        for row in rows:
+            try:
+                top_skus = json.loads(row["top_skus"]) if row["top_skus"] else []
+            except (json.JSONDecodeError, TypeError):
+                top_skus = []
+            daily_map[row["date"]] = {
+                "date": row["date"],
+                "total_count": row["total_count"],
+                "event_count": row["event_count"],
+                "top_skus": top_skus,
+            }
+
+        # 填充缺失日期
+        today = date_type.today()
+        cursor = cutoff_dt
+        full_daily: list = []
+        while cursor <= today:
+            date_key = cursor.isoformat()
+            entry = daily_map.get(date_key)
+            if entry:
+                full_daily.append(entry)
+            else:
+                full_daily.append({
+                    "date": date_key,
+                    "total_count": 0,
+                    "event_count": 0,
+                    "top_skus": [],
+                })
+            cursor += timedelta(days=1)
+
+        trend = [d["total_count"] for d in full_daily]
+        dates = [d["date"] for d in full_daily]
+
+        result: Dict[str, Any] = {
+            "store_id": store_id,
+            "days": days,
+            "daily": full_daily,
+            "trend": trend,
+            "dates": dates,
+            "generated_at": datetime.now(timezone.utc).isoformat(),
+        }
+
+        if include_compare:
+            result["comparison"] = compute_trend_comparison(full_daily)
+
+        return result
+
+    def check_and_create_waste_alert(
+        self, store_id: str, date: str,
+    ) -> dict:
+        """检查今日是否需要告警，如果需要则创建（幂等）。"""
+        from datetime import datetime, timezone
+
+        # 获取今日 count
+        today_count = 0
+        seven_day_avg = 0.0
+        with self._lock:
+            conn = self._connect()
+            try:
+                # 今日数据
+                row = conn.execute(
+                    "SELECT total_count FROM waste_timeseries WHERE store_id = ? AND date = ?",
+                    (store_id, date),
+                ).fetchone()
+                if row:
+                    today_count = row["total_count"]
+
+                # 7日均值（不含今日，前7天非零日均值）
+                rows_7d = conn.execute(
+                    """
+                    SELECT total_count FROM waste_timeseries
+                    WHERE store_id = ? AND date < ? AND total_count > 0
+                    ORDER BY date DESC LIMIT 7
+                    """,
+                    (store_id, date),
+                ).fetchall()
+                vals_7d = [r["total_count"] for r in rows_7d]
+                seven_day_avg = sum(vals_7d) / len(vals_7d) if vals_7d else 0.0
+            finally:
+                conn.close()
+
+        triggered, ratio = check_alert(today_count, seven_day_avg)
+        alert_id = None
+
+        if triggered:
+            message = format_alert_message(date, today_count, seven_day_avg, ratio)
+            created_at = datetime.now(timezone.utc).isoformat()
+            with self._lock:
+                conn = self._connect()
+                try:
+                    conn.execute(
+                        """
+                        INSERT OR IGNORE INTO waste_alerts
+                            (store_id, date, alert_type, current_count,
+                             baseline_avg, ratio, message, created_at)
+                        VALUES (?, ?, 'spike', ?, ?, ?, ?, ?)
+                        """,
+                        (store_id, date, today_count, round(seven_day_avg, 1), ratio, message, created_at),
+                    )
+                    conn.commit()
+                    # 获取刚插入或已存在的 alert_id
+                    row = conn.execute(
+                        "SELECT id FROM waste_alerts WHERE store_id = ? AND date = ? AND alert_type = 'spike'",
+                        (store_id, date),
+                    ).fetchone()
+                    if row:
+                        alert_id = row["id"]
+                finally:
+                    conn.close()
+
+        return {
+            "store_id": store_id,
+            "date": date,
+            "alert_triggered": triggered,
+            "current_count": today_count,
+            "seven_day_avg": round(seven_day_avg, 1),
+            "ratio": ratio,
+            "threshold": 1.5,
+            "alert_id": alert_id,
+        }
+
+    def list_waste_alerts(self, store_id: str, days: int = 7) -> list:
+        """列出最近 N 天的告警。"""
+        from datetime import date as date_type, timedelta
+
+        cutoff = (date_type.today() - timedelta(days=days - 1)).isoformat()
+        with self._lock:
+            conn = self._connect()
+            try:
+                rows = conn.execute(
+                    """
+                    SELECT id, store_id, date, alert_type, current_count,
+                           baseline_avg, ratio, message, created_at, acknowledged
+                    FROM waste_alerts
+                    WHERE store_id = ? AND date >= ?
+                    ORDER BY date DESC, id DESC
+                    """,
+                    (store_id, cutoff),
+                ).fetchall()
+                return [dict(r) for r in rows]
+            finally:
+                conn.close()
+
+    def ack_waste_alert(self, alert_id: int) -> bool:
+        """确认告警。返回是否成功。"""
+        with self._lock:
+            conn = self._connect()
+            try:
+                cur = conn.execute(
+                    "UPDATE waste_alerts SET acknowledged = 1 WHERE id = ?",
+                    (alert_id,),
+                )
+                conn.commit()
+                return cur.rowcount > 0
+            finally:
+                conn.close()
