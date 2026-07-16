@@ -1,0 +1,292 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>员工行为看板 · 冯校长火锅 · 智能运营</title>
+  <link rel="stylesheet" href="assets/theme.css" />
+  <style>
+    .hero-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); gap: 16px; margin-bottom: 24px; }
+    .hero-card { background: var(--card); border: 1px solid var(--border); border-radius: 10px; padding: 20px; text-align: center; }
+    .hero-card .hero-val { font-size: 2.4rem; font-weight: 700; margin: 8px 0; }
+    .hero-card .hero-label { color: var(--muted); font-size: 0.85rem; text-transform: uppercase; letter-spacing: 0.5px; }
+    .hero-card.critical { border-color: var(--accent); }
+    .hero-card.critical .hero-val { color: var(--accent); }
+    .hero-card.warning { border-color: var(--warn); }
+    .hero-card.warning .hero-val { color: var(--warn); }
+    .hero-card.ok .hero-val { color: var(--ok); }
+
+    .chart-row { display: flex; gap: 20px; margin-bottom: 20px; }
+    .chart-row .card { flex: 1; min-width: 0; }
+    .chart-row .card canvas { width: 100%; max-height: 240px; }
+
+    .alert-list { max-height: 320px; overflow-y: auto; }
+    .alert-row { display: flex; align-items: center; gap: 12px; padding: 10px 0; border-bottom: 1px solid var(--border); }
+    .alert-row:last-child { border-bottom: none; }
+    .alert-badge { padding: 2px 8px; border-radius: 4px; font-size: 0.75rem; font-weight: 600; text-transform: uppercase; }
+    .alert-badge.critical { background: var(--accent); color: #fff; }
+    .alert-badge.warning { background: var(--warn); color: #000; }
+    .alert-badge.info { background: var(--info); color: #000; }
+    .alert-time { color: var(--muted); font-size: 0.8rem; white-space: nowrap; }
+
+    .ppe-ring { position: relative; width: 120px; height: 120px; margin: 0 auto; }
+    .ppe-ring svg { transform: rotate(-90deg); }
+    .ppe-ring .ring-val { position: absolute; inset: 0; display: flex; align-items: center; justify-content: center; font-size: 1.6rem; font-weight: 700; }
+    .zone-chip { display: inline-block; padding: 4px 10px; border-radius: 12px; font-size: 0.8rem; background: var(--card2); border: 1px solid var(--border); cursor: pointer; }
+    .zone-chip.active { background: var(--brand); border-color: var(--brand); }
+
+    @media (max-width: 768px) {
+      .chart-row { flex-direction: column; }
+      .hero-grid { grid-template-columns: repeat(2, 1fr); }
+    }
+  </style>
+</head>
+<body>
+  <div class="app-shell">
+    <aside class="sidebar">
+      <div class="sidebar-brand"><h1>冯校长火锅</h1><p>智能运营 · 员工行为</p></div>
+      <a class="nav-item" data-nav="home" href="home.html">首页概览</a>
+      <a class="nav-item" data-nav="tables" href="tables.html">前厅 · 桌态</a>
+      <a class="nav-item" data-nav="kitchen" href="kitchen.html">后厨 · IoT</a>
+      <a class="nav-item" data-nav="sop" href="sop.html">SOP 执行</a>
+      <a class="nav-item" data-nav="cost" href="cost.html">来料 · 成本</a>
+      <a class="nav-item active" data-nav="staff" href="staff-behavior.html">员工 · 行为</a>
+      <a class="nav-item" data-nav="alerts" href="alerts.html">告警中心</a>
+      <a class="nav-item" data-nav="report" href="report.html">运营日报</a>
+    </aside>
+    <div class="main-wrap">
+      <header class="topbar">
+        <div class="topbar-left">
+          <h2 id="store-name">—</h2>
+          <div class="topbar-meta">员工行为检测 · <span id="conn-status">检测中</span></div>
+        </div>
+        <div class="topbar-right">
+          <input class="hub-input" id="hub-url" type="text" title="Event Hub URL" />
+          <span class="chip" id="user-name">—</span>
+          <button class="btn btn-sm btn-ghost" id="btn-logout">退出</button>
+        </div>
+      </header>
+      <main class="content">
+        <!-- Zone picker -->
+        <div style="margin-bottom:16px;">
+          <span class="zone-chip active" data-zone="">全部区域</span>
+          <span class="zone-chip" data-zone="kitchen">后厨</span>
+          <span class="zone-chip" data-zone="front_hall">前厅</span>
+          <span class="zone-chip" data-zone="storage">仓库</span>
+          <span class="zone-chip" data-zone="entrance">入口</span>
+          <button class="btn btn-sm btn-ghost" id="btn-refresh" style="float:right;">🔄 刷新</button>
+        </div>
+
+        <!-- Hero cards -->
+        <div class="hero-grid" id="hero-grid">
+          <div class="hero-card ok">
+            <div class="hero-label">当前在场人数</div>
+            <div class="hero-val" id="h-person">—</div>
+          </div>
+          <div class="hero-card ok">
+            <div class="hero-label">PPE 合规率</div>
+            <div class="ppe-ring"><svg viewBox="0 0 120 120"><circle cx="60" cy="60" r="52" fill="none" stroke="var(--border)" stroke-width="8"/><circle cx="60" cy="60" r="52" fill="none" stroke="var(--ok)" stroke-width="8" stroke-dasharray="0 327" id="ppe-ring"/></svg><div class="ring-val" id="h-ppe">—%</div></div>
+          </div>
+          <div class="hero-card warning" id="hc-loiter">
+            <div class="hero-label">异常逗留</div>
+            <div class="hero-val" id="h-loiter">—</div>
+          </div>
+          <div class="hero-card warning" id="hc-whisper">
+            <div class="hero-label">交头接耳</div>
+            <div class="hero-val" id="h-whisper">—</div>
+          </div>
+        </div>
+
+        <!-- Charts row -->
+        <div class="chart-row">
+          <div class="card">
+            <h3>PPE 合规趋势 (7天)</h3>
+            <canvas id="chart-ppe"></canvas>
+          </div>
+          <div class="card">
+            <h3>异常行为趋势 (7天)</h3>
+            <canvas id="chart-alerts"></canvas>
+          </div>
+        </div>
+
+        <!-- Alert list + latest detection -->
+        <div class="chart-row">
+          <div class="card">
+            <h3>最新行为告警</h3>
+            <div class="alert-list" id="alert-list">
+              <div style="color:var(--muted);text-align:center;padding:40px;">加载中...</div>
+            </div>
+          </div>
+          <div class="card">
+            <h3>最近检测快照</h3>
+            <div id="latest-snapshot" style="color:var(--muted);text-align:center;padding:40px;">加载中...</div>
+          </div>
+        </div>
+      </main>
+    </div>
+  </div>
+  <script src="assets/core.js"></script>
+  <script>
+    HotpotApp.initShell("staff");
+
+    let currentZone = "";
+
+    // Zone chip click
+    document.querySelectorAll(".zone-chip").forEach(chip => {
+      chip.addEventListener("click", () => {
+        document.querySelectorAll(".zone-chip").forEach(c => c.classList.remove("active"));
+        chip.classList.add("active");
+        currentZone = chip.dataset.zone;
+        refresh();
+      });
+    });
+
+    document.getElementById("btn-refresh").addEventListener("click", refresh);
+
+    // Simple chart renderer (no chart.js dependency)
+    function drawLineChart(canvas, labels, datasets) {
+      const ctx = canvas.getContext("2d");
+      const W = canvas.parentElement.clientWidth - 32;
+      const H = 200;
+      canvas.width = W;
+      canvas.height = H;
+      canvas.style.width = W + "px";
+      canvas.style.height = H + "px";
+
+      ctx.clearRect(0, 0, W, H);
+      if (!labels.length) {
+        ctx.fillStyle = "#8A7B6E";
+        ctx.font = "14px sans-serif";
+        ctx.textAlign = "center";
+        ctx.fillText("暂无数据", W/2, H/2);
+        return;
+      }
+
+      const pad = { top: 20, right: 20, bottom: 40, left: 50 };
+      const pw = W - pad.left - pad.right;
+      const ph = H - pad.top - pad.bottom;
+
+      // Y axis
+      let allVals = datasets.flatMap(d => d.data);
+      let yMin = 0, yMax = Math.max(...allVals, 1) * 1.15;
+
+      // Grid
+      ctx.strokeStyle = "#3A2E25";
+      ctx.lineWidth = 0.5;
+      for (let i = 0; i <= 4; i++) {
+        const y = pad.top + ph * (1 - i/4);
+        ctx.beginPath(); ctx.moveTo(pad.left, y); ctx.lineTo(W - pad.right, y); ctx.stroke();
+        ctx.fillStyle = "#8A7B6E"; ctx.font = "10px sans-serif"; ctx.textAlign = "right";
+        ctx.fillText(Math.round(yMin + (yMax-yMin)*i/4), pad.left - 6, y + 3);
+      }
+
+      // X labels
+      ctx.fillStyle = "#8A7B6E"; ctx.font = "10px sans-serif"; ctx.textAlign = "center";
+      labels.forEach((l, i) => {
+        const x = pad.left + (pw / (labels.length - 1 || 1)) * i;
+        ctx.fillText(l.slice(5), x, H - pad.bottom + 16);
+      });
+
+      // Lines
+      const colors = ["#E2613A", "#56B884", "#E6A93E", "#7FB0CE"];
+      datasets.forEach((ds, di) => {
+        ctx.strokeStyle = colors[di % colors.length];
+        ctx.lineWidth = 2;
+        ctx.beginPath();
+        ds.data.forEach((v, i) => {
+          const x = pad.left + (pw / (ds.data.length - 1 || 1)) * i;
+          const y = pad.top + ph * (1 - (v - yMin) / (yMax - yMin || 1));
+          if (i === 0) ctx.moveTo(x, y);
+          else ctx.lineTo(x, y);
+        });
+        ctx.stroke();
+
+        // Legend
+        ctx.fillStyle = colors[di % colors.length];
+        ctx.font = "11px sans-serif";
+        ctx.textAlign = "left";
+        ctx.fillText(ds.label, pad.left + di * 120, pad.top - 4);
+      });
+    }
+
+    async function refresh() {
+      try {
+        const H = HotpotApp.hubUrl();
+        const sid = HotpotApp.storeId();
+
+        let params = `store_id=${encodeURIComponent(sid)}&days=7`;
+        if (currentZone) params += `&zone=${encodeURIComponent(currentZone)}`;
+
+        const [statsResp, alertsResp] = await Promise.all([
+          fetch(`${H}/api/staff-behavior/stats?${params}`),
+          fetch(`${H}/api/staff-behavior/alerts?store_id=${encodeURIComponent(sid)}&days=3`),
+        ]);
+
+        const stats = await statsResp.json();
+        const alertsData = await alertsResp.json();
+
+        // Hero cards
+        const latest = stats.latest_detection || {};
+        document.getElementById("h-person").textContent = latest.person_count ?? "—";
+        const ppe = latest.ppe_compliance_rate ?? 0;
+        document.getElementById("h-ppe").textContent = ppe ? ppe + "%" : "—";
+        document.getElementById("h-loiter").textContent = latest.loitering_count ?? "—";
+        document.getElementById("h-whisper").textContent = latest.whispering_pairs ?? "—";
+
+        // Hero card colors
+        document.getElementById("hc-loiter").className = "hero-card " + (latest.loitering_count > 0 ? "critical" : "ok");
+        document.getElementById("hc-whisper").className = "hero-card " + (latest.whispering_pairs > 0 ? "warning" : "ok");
+
+        // PPE ring
+        const ring = document.querySelector("#ppe-ring");
+        const circ = 2 * Math.PI * 52; // 326.7
+        ring.setAttribute("stroke-dasharray", (circ * ppe / 100) + " " + circ);
+
+        // Charts
+        drawLineChart(document.getElementById("chart-ppe"), stats.dates || [], [
+          { label: "PPE合规率%", data: stats.ppe_compliance_trend || [] },
+        ]);
+        drawLineChart(document.getElementById("chart-alerts"), stats.dates || [], [
+          { label: "异常逗留", data: stats.loitering_trend || [] },
+        ]);
+
+        // Alert list
+        const alertList = document.getElementById("alert-list");
+        const alerts = alertsData.alerts || [];
+        if (!alerts.length) {
+          alertList.innerHTML = '<div style="color:var(--ok);text-align:center;padding:40px;">✅ 近期无行为告警</div>';
+        } else {
+          alertList.innerHTML = alerts.slice(0, 20).map(a => {
+            const cls = a.level === "critical" ? "critical" : a.level === "warning" ? "warning" : "info";
+            return `<div class="alert-row">
+              <span class="alert-badge ${cls}">${a.level}</span>
+              <span style="flex:1;">${HotpotApp.esc(a.message || a.type || "")}</span>
+              <span class="alert-time">${(a.timestamp || "").slice(0,19).replace("T"," ")}</span>
+            </div>`;
+          }).join("");
+        }
+
+        // Latest snapshot
+        const snap = document.getElementById("latest-snapshot");
+        if (latest && latest.timestamp) {
+          snap.innerHTML = `
+            <div style="display:grid;grid-template-columns:1fr 1fr;gap:12px;">
+              <div><span style="color:var(--muted);">检测时间</span><br>${(latest.timestamp||"").slice(0,19).replace("T"," ")}</div>
+              <div><span style="color:var(--muted);">在场人数</span><br><span style="font-size:1.3rem;font-weight:700;">${latest.person_count}</span></div>
+              <div><span style="color:var(--muted);">PPE合规</span><br><span style="font-size:1.3rem;font-weight:700;color:var(--ok);">${latest.ppe_compliance_rate}%</span></div>
+              <div><span style="color:var(--muted);">异常告警</span><br><span style="font-size:1.3rem;font-weight:700;color:var(--warn);">${latest.alert_count}</span></div>
+            </div>
+          `;
+        } else {
+          snap.innerHTML = '<div style="color:var(--muted);text-align:center;padding:40px;">暂无检测数据</div>';
+        }
+      } catch (err) {
+        console.error("Staff behavior refresh error:", err);
+      }
+    }
+
+    refresh();
+    setInterval(refresh, 15000);
+  </script>
+</body>
+</html>

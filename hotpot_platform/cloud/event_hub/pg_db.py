@@ -219,3 +219,144 @@ class PostgresHubDatabase:
             self.persist_event(store_id, payload)
         else:
             self.persist_snapshot(store_id, kind, payload)
+
+    # ── Multi-Tenant Query Helpers ─────────────────────────────
+
+    def query_events_by_tenant(
+        self,
+        tenant_id: str,
+        limit: int = 100,
+        event_type: Optional[str] = None,
+        level: Optional[str] = None,
+        since: Optional[str] = None,
+    ) -> List[Dict[str, Any]]:
+        """Tenant-scoped event query with optional filters."""
+        with self._lock:
+            conn = self._connect()
+            try:
+                with conn.cursor() as cur:
+                    conditions = ["tenant_id = %s"]
+                    params: List[Any] = [tenant_id]
+
+                    if event_type:
+                        conditions.append("event_type = %s")
+                        params.append(event_type)
+                    if level:
+                        conditions.append("level = %s")
+                        params.append(level)
+                    if since:
+                        conditions.append("created_at >= %s")
+                        params.append(since)
+
+                    where = " AND ".join(conditions)
+                    cur.execute(
+                        f"""SELECT payload FROM events
+                            WHERE {where}
+                            ORDER BY created_at DESC LIMIT %s""",
+                        params + [limit],
+                    )
+                    return [
+                        row[0] if isinstance(row[0], dict) else json.loads(row[0])
+                        for row in cur.fetchall()
+                    ]
+            finally:
+                conn.close()
+
+    def query_tenant_stats(
+        self, tenant_id: str, days: int = 7
+    ) -> Dict[str, Any]:
+        """Aggregated stats for a tenant across all event types."""
+        from datetime import datetime as dt, timedelta
+
+        with self._lock:
+            conn = self._connect()
+            try:
+                with conn.cursor() as cur:
+                    cutoff = dt.now(timezone.utc) - timedelta(days=days)
+                    cur.execute(
+                        """SELECT level, COUNT(*) as cnt
+                           FROM events WHERE tenant_id = %s
+                           AND created_at >= %s
+                           GROUP BY level""",
+                        (tenant_id, cutoff.isoformat()),
+                    )
+                    by_level = {row[0]: row[1] for row in cur.fetchall()}
+
+                    cur.execute(
+                        """SELECT event_type, COUNT(*) as cnt
+                           FROM events WHERE tenant_id = %s
+                           AND created_at >= %s
+                           GROUP BY event_type""",
+                        (tenant_id, cutoff.isoformat()),
+                    )
+                    by_type = {row[0]: row[1] for row in cur.fetchall()}
+
+                    return {
+                        "tenant_id": tenant_id,
+                        "days": days,
+                        "by_level": by_level,
+                        "by_type": by_type,
+                        "total": sum(by_level.values()),
+                    }
+            finally:
+                conn.close()
+
+    def list_tenants(self) -> List[Dict[str, Any]]:
+        """List all tenants (store_ids) with event counts."""
+        with self._lock:
+            conn = self._connect()
+            try:
+                with conn.cursor() as cur:
+                    cur.execute(
+                        """SELECT tenant_id, COUNT(*) as event_count,
+                                  MAX(created_at) as last_seen
+                           FROM events GROUP BY tenant_id
+                           ORDER BY last_seen DESC"""
+                    )
+                    return [
+                        {"tenant_id": row[0], "event_count": row[1], "last_seen": row[2].isoformat() if row[2] else None}
+                        for row in cur.fetchall()
+                    ]
+            finally:
+                conn.close()
+
+    def multi_tenant_summary(self) -> Dict[str, Any]:
+        """Cross-tenant summary for the unified dashboard."""
+        with self._lock:
+            conn = self._connect()
+            try:
+                with conn.cursor() as cur:
+                    # Total tenants
+                    cur.execute("SELECT COUNT(DISTINCT tenant_id) FROM events")
+                    total_tenants = cur.fetchone()[0]
+
+                    # Recent alerts (last 24h)
+                    from datetime import datetime as dt, timedelta
+                    cutoff = dt.now(timezone.utc) - timedelta(hours=24)
+                    cur.execute(
+                        """SELECT level, COUNT(*) as cnt
+                           FROM events WHERE created_at >= %s
+                           AND level IN ('critical','warning')
+                           GROUP BY level""",
+                        (cutoff.isoformat(),),
+                    )
+                    alert_counts = {row[0]: row[1] for row in cur.fetchall()}
+
+                    # Total events today
+                    today = dt.now(timezone.utc).strftime("%Y-%m-%d")
+                    cur.execute(
+                        """SELECT COUNT(*) FROM events
+                           WHERE created_at::date = %s""",
+                        (today,),
+                    )
+                    today_events = cur.fetchone()[0]
+
+                    return {
+                        "total_tenants": total_tenants,
+                        "critical_alerts_24h": alert_counts.get("critical", 0),
+                        "warning_alerts_24h": alert_counts.get("warning", 0),
+                        "events_today": today_events,
+                        "generated_at": dt.now(timezone.utc).isoformat(),
+                    }
+            finally:
+                conn.close()
