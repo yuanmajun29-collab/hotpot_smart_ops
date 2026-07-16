@@ -61,10 +61,11 @@ def due_profiles(profiles: List[ScheduleProfile], now: datetime) -> List[Schedul
 
 
 def default_loss_profiles() -> List[ScheduleProfile]:
-    """三时段损耗调度：15:00 备货建议 / 22:00 损耗复盘 / 周一 09:00 损耗趋势周报。"""
+    """三时段损耗调度 + 废料日报：15:00 备货建议 / 22:00 损耗复盘+废料日报 / 周一 09:00 损耗趋势周报。"""
     return [
         ScheduleProfile("restock", 15, 0, None, "restock"),
         ScheduleProfile("daily_loss", 22, 0, None, "daily"),
+        ScheduleProfile("waste_daily", 22, 0, None, "waste_daily"),
         ScheduleProfile("weekly", 9, 0, 0, "weekly"),
     ]
 
