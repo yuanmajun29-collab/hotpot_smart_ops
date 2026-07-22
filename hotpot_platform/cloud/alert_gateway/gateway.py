@@ -124,7 +124,7 @@ class AlertGateway:
 
         defaults = self._routes.get("defaults", {})
         global_env = defaults.get("webhook_env", "HOTPOT_WECHAT_WEBHOOK")
-        return os.environ.get(global_env, "")
+        return os.environ.get(global_env, "") or os.environ.get("WECHAT_WEBHOOK_URL", "")
 
     def route_status(self, store_id: str) -> Dict[str, Any]:
         route = self._store_route(store_id)
@@ -143,7 +143,10 @@ class AlertGateway:
                 else "env_store"
                 if os.environ.get(overlay.get("webhook_env") or _store_webhook_env_key(store_id), "")
                 else "env_global"
-                if os.environ.get(self._routes.get("defaults", {}).get("webhook_env", "HOTPOT_WECHAT_WEBHOOK"), "")
+                if (
+                    os.environ.get(self._routes.get("defaults", {}).get("webhook_env", "HOTPOT_WECHAT_WEBHOOK"), "")
+                    or os.environ.get("WECHAT_WEBHOOK_URL", "")
+                )
                 else "none"
             ),
             "push_warn": bool(route.get("push_warn")),
@@ -154,7 +157,7 @@ class AlertGateway:
     def _store_route(self, store_id: str) -> Dict[str, Any]:
         route = dict(self._routes.get(store_id, {}))
         overlay = self._uat_alert_overlay(store_id)
-        route.update({k: v for k, v in overlay.items() if k not in ("webhook_env",)})
+        route.update({k: v for k, v in overlay.items() if k not in ("webhook_env", "push_warn")})
         defaults = self._routes.get("defaults", {})
         route.setdefault("store_name", overlay.get("store_name") or store_id)
         route.setdefault("dashboard_url", overlay.get("dashboard_url", "http://127.0.0.1:3000/alerts.html"))
@@ -162,7 +165,7 @@ class AlertGateway:
         push_warn_env = overlay.get("push_warn_env") or defaults.get("push_warn_env", "HOTPOT_PUSH_WARN")
         route.setdefault(
             "push_warn",
-            overlay.get("push_warn", os.environ.get(push_warn_env, "") == "1"),
+            os.environ.get(push_warn_env, "") == "1",
         )
         route["webhook_url"] = self.resolve_webhook_url(store_id, route)
         return route
@@ -417,7 +420,7 @@ class AlertGateway:
         Otherwise falls back to a single direct POST (backward compat).
         """
         notifier = self._get_notifier()
-        if notifier is not None and notifier.enabled:
+        if notifier is not None:
             return notifier.send_markdown(
                 card.get("markdown", card.get("body", "")),
                 target_key="alert_gateway",

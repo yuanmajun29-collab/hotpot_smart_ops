@@ -111,8 +111,8 @@ async def post_seed(
 
 class TestNotifyRequest(BaseModel):
     """Request body for sending a test WeChat notification."""
-    message: str = "【测试】企微通知联调探针 — 请忽略"
-    msgtype: str = "markdown"  # text, markdown, image
+    message: str = "【测试】企微通知联调探针 - 请忽略"
+    msgtype: str = "markdown"  # text, markdown
     webhook_url: Optional[str] = None  # override env-configured webhook
 
 
@@ -138,7 +138,7 @@ def notify_test(
         return {
             "ok": False,
             "error": (
-                "webhook_url not configured — set WECHAT_WEBHOOK_URL "
+                "webhook_url not configured - set WECHAT_WEBHOOK_URL "
                 "or provide webhook_url in request body"
             ),
         }
@@ -146,16 +146,10 @@ def notify_test(
     sent = False
     if body.msgtype == "text":
         sent = notifier.send_text(body.message, webhook_url=webhook_url)
-    elif body.msgtype == "image":
-        sent = notifier.send_image(
-            base64_data="",
-            md5_hash="",
-            webhook_url=webhook_url,
-        )
-        if sent:
-            pass  # image requires real data; will fail with errcode
-    else:
+    elif body.msgtype == "markdown":
         sent = notifier.send_markdown(body.message, webhook_url=webhook_url)
+    else:
+        return {"ok": False, "error": "msgtype must be text or markdown", "msgtype": body.msgtype}
 
     return {
         "ok": sent,
@@ -279,4 +273,3 @@ def turnover_rate(
         "store_id": sid,
         **result,
     }
-
