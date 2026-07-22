@@ -38,10 +38,13 @@ CREATE TABLE IF NOT EXISTS receiving_batches (
     vlm_grade TEXT,
     temp_c REAL,
     status TEXT NOT NULL DEFAULT 'submitted',
+    supplier_id TEXT DEFAULT '',
     created_at TEXT NOT NULL
 );
 CREATE INDEX IF NOT EXISTS idx_receiving_batches_store
     ON receiving_batches(store_id, created_at DESC);
+CREATE INDEX IF NOT EXISTS idx_receiving_batches_supplier
+    ON receiving_batches(supplier_id, created_at DESC);
 
 CREATE TABLE IF NOT EXISTS receiving_signatures (
     batch_id TEXT NOT NULL,

@@ -1,6 +1,7 @@
 """Receiving routes."""
 from __future__ import annotations
 
+import os
 from typing import Any, Dict, Literal, Optional
 
 from fastapi import APIRouter, Depends, HTTPException, Query, Request
@@ -13,6 +14,10 @@ from hotpot_platform.cloud.event_hub.routers._deps import resolve_store_id as _r
 from hotpot_platform.cloud.event_hub.receiving_store import new_batch_id, receiving_store, variance_pct
 from hotpot_platform.cloud.event_hub.hub_core import DEFAULT_STORE_ID
 import uuid
+
+# ── 缺斤少两阈值配置 ──
+WEIGHT_ALERT_THRESHOLD_PCT = float(os.environ.get("HOTPOT_WEIGHT_ALERT_PCT", "5.0"))    # 告警阈值 (%)
+WEIGHT_REJECT_THRESHOLD_PCT = float(os.environ.get("HOTPOT_WEIGHT_REJECT_PCT", "10.0"))  # 拒收阈值 (%)
 
 router = APIRouter()
 
@@ -176,10 +181,26 @@ def receiving_checkin(
     # Calculate variance if weights provided
     var = variance_pct(body.weight_kg, body.po_weight_kg) if body.weight_kg is not None and body.po_weight_kg else None
 
+    # ── 缺斤少两自动拦截（K-004）──
+    alert_reason = None
+    reject_reason = None
+    status = "ok"
+
+    if var is not None:
+        abs_var = abs(var)
+        if abs_var >= WEIGHT_REJECT_THRESHOLD_PCT:
+            status = "rejected"
+            reject_reason = f"重量偏差{var:+.1f}%，超出容忍上限{WEIGHT_REJECT_THRESHOLD_PCT}%"
+        elif abs_var >= WEIGHT_ALERT_THRESHOLD_PCT:
+            status = "alert"
+            alert_reason = f"重量偏差{var:+.1f}%"
+
     # Determine event level
-    if var is not None and abs(var) > 10:
+    if status == "rejected":
         level = "critical"
-    elif var is not None and abs(var) > 5:
+    elif status == "alert":
+        level = "warn"
+    elif var is not None and abs(var) > 3:
         level = "warn"
     else:
         level = "info"
@@ -218,12 +239,18 @@ def receiving_checkin(
                 batch_id = body.batch_ref  # batch may have failed duplicate, still track
 
     # Create event
+    event_msg = f"进货口检测: {total_items}件, {len(ingredient_classes)}类食材" + \
+                (f", 偏差{var:+.1f}%" if var is not None else "")
+    if reject_reason:
+        event_msg += f" — 已拒收({reject_reason})"
+    elif alert_reason:
+        event_msg += f" — 需审核({alert_reason})"
+
     event = store.add_event({
         "event_type": "receiving_checkin",
         "source": body.source,
         "level": level,
-        "message": f"进货口检测: {total_items}件, {len(ingredient_classes)}类食材" +
-                   (f", 偏差{var:+.1f}%" if var is not None else ""),
+        "message": event_msg,
         "metadata": {
             "checkin_id": checkin_id,
             "batch_ref": body.batch_ref,
@@ -240,13 +267,36 @@ def receiving_checkin(
         },
     })
 
+    # ── 告警级别自动推送给 AlertGateway ──
+    if status == "alert":
+        try:
+            runtime.alert_gateway.create_alert(
+                store_id=sid,
+                event_id=event.get("event_id", ""),
+                alert_type="receiving_weight_variance",
+                level="warn",
+                message=alert_reason or "重量偏差超告警阈值",
+                metadata={
+                    "checkin_id": checkin_id,
+                    "variance_pct": var,
+                    "batch_ref": body.batch_ref,
+                },
+            )
+        except Exception:
+            pass  # 告警推送失败不影响主流程
+
     return {
-        "ok": True,
+        "ok": status != "rejected",
+        "status": status,
         "checkin_id": checkin_id,
         "store_id": sid,
         "batch_id": batch_id,
         "variance_pct": var,
         "event_id": event.get("event_id"),
+        "alert_reason": alert_reason,
+        "reject_reason": reject_reason,
+        "auto_review": status == "alert",
+        "blocked": status == "rejected",
         "ingredient_summary": {
             "total_items": total_items,
             "classes": len(ingredient_classes),
@@ -308,3 +358,59 @@ def audit_signatures(
     sid = _resolve_store_id(store_id, None, request.headers.get("X-Store-Id"), auth)
     signatures = receiving_store(runtime.db).list_signatures(sid, batch_id=batch_id, limit=limit)
     return {"store_id": sid, "signatures": signatures, "count": len(signatures)}
+
+
+@router.get("/api/v1/receiving/supplier-stats")
+def receiving_supplier_stats(
+    request: Request,
+    store_id: Optional[str] = Query(None, description="门店 ID"),
+    supplier_id: str = Query(..., description="供应商 ID"),
+    limit: int = Query(50, ge=1, le=200, description="查询最近 N 批"),
+    auth: AuthContext = Depends(get_auth_context),
+) -> Dict[str, Any]:
+    """查询供应商历史合格率统计。
+
+    返回该供应商历史上所有批次的统计：
+    - total_batches: 总批次数
+    - pass_rate: 合格率（偏差 < alert_threshold 的批次占比）
+    - avg_variance_pct: 平均重量偏差
+    - recent_batches: 最近批次明细
+    """
+    sid = _resolve_store_id(store_id, None, request.headers.get("X-Store-Id"), auth)
+    batches = receiving_store(runtime.db).list_batches(sid, limit=500)
+    supplier_batches = [b for b in batches if b.get("supplier_id") == supplier_id]
+
+    if not supplier_batches:
+        return {
+            "store_id": sid,
+            "supplier_id": supplier_id,
+            "total_batches": 0,
+            "pass_rate": None,
+            "avg_variance_pct": None,
+            "message": "该供应商暂无历史记录",
+        }
+
+    total = len(supplier_batches)
+    threshold = WEIGHT_ALERT_THRESHOLD_PCT
+    passed = sum(
+        1 for b in supplier_batches
+        if b.get("variance_pct") is not None and abs(b["variance_pct"]) < threshold
+    )
+    variances = [
+        b["variance_pct"]
+        for b in supplier_batches
+        if b.get("variance_pct") is not None
+    ]
+    avg_var = round(sum(variances) / len(variances), 2) if variances else None
+
+    return {
+        "store_id": sid,
+        "supplier_id": supplier_id,
+        "total_batches": total,
+        "pass_rate": round(passed / total * 100, 1),
+        "alert_threshold_pct": threshold,
+        "avg_variance_pct": avg_var,
+        "passed_count": passed,
+        "failed_count": total - passed,
+        "recent_batches": supplier_batches[:limit],
+    }

@@ -27,7 +27,7 @@ from edge.agent.config import (
     HEARTBEAT_INTERVAL, CONFIG_POLL_INTERVAL,
     IPC_CONFIG_PATH, DEVICE_CONFIG_PATH,
 )
-from edge.agent.modules import kitchen_infer, front_hall_infer
+from edge.agent.modules import kitchen_infer, front_hall_infer, sop_infer, staff_behavior_infer
 from edge.agent.buffer import InferenceBuffer
 
 # ─── 日志 ───
@@ -55,7 +55,9 @@ _buffer: InferenceBuffer = InferenceBuffer(
 _MODULE_REGISTRY: Dict[str, Any] = {
     "kitchen": kitchen_infer,
     "front_hall": front_hall_infer,
-    "receiving": None,  # receiving module uses its own MQTT/detector processes
+    "sop": sop_infer,
+    "staff_behavior": staff_behavior_infer,
+    "receiving": None,
 }
 # 新场景只需在此注册表加一行即可自动激活
 
@@ -264,6 +266,13 @@ def health():
             "front_hall": {
                 "active": front_hall_infer._active,
             },
+            "sop": {
+                "active": sop_infer._active,
+                "zone": sop_infer._zone,
+            },
+            "staff_behavior": {
+                "active": staff_behavior_infer._active,
+            },
         },
         "active_modules": _active_modules,
         "port": SERVER_PORT,
@@ -308,6 +317,8 @@ async def buffer_stats():
 # ─── 注册路由 ───
 app.include_router(kitchen_infer.router)
 app.include_router(front_hall_infer.router)
+app.include_router(sop_infer.router)
+app.include_router(staff_behavior_infer.router)
 
 # 挂载 /output 静态目录
 front_hall_infer.mount_static(app)
@@ -325,6 +336,8 @@ async def startup():
     # 暴露给模块使用
     kitchen_infer.buffer = _buffer
     front_hall_infer.buffer = _buffer
+    sop_infer.buffer = _buffer
+    staff_behavior_infer.buffer = _buffer
 
     # ② 注册到 Hub
     try:

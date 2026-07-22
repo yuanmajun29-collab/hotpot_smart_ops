@@ -1,0 +1,816 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no" />
+  <title>火瞳 · 门店智能运营驾驶舱</title>
+  <link rel="stylesheet" href="assets/theme.css" />
+  <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.7/dist/chart.umd.min.js"></script>
+  <style>
+    /* ===== CEO Cockpit – Mobile-first, one-page dashboard ===== */
+
+    .cockpit-body {
+      background: var(--bg);
+      min-height: 100vh;
+      font-family: "Segoe UI", "PingFang SC", system-ui, sans-serif;
+      color: var(--text);
+      padding: 12px;
+      max-width: 520px;
+      margin: 0 auto;
+    }
+
+    /* ---- Header ---- */
+    .cc-header {
+      text-align: center;
+      padding: 12px 0 16px;
+    }
+    .cc-header h1 {
+      font-size: 1.3rem;
+      font-weight: 700;
+      margin: 0;
+      background: linear-gradient(135deg, #E2613A, #F7A43A);
+      -webkit-background-clip: text;
+      -webkit-text-fill-color: transparent;
+      background-clip: text;
+    }
+    .cc-header .cc-meta {
+      font-size: 0.78rem;
+      color: var(--muted);
+      margin-top: 4px;
+    }
+    .cc-header .cc-meta select {
+      background: var(--card2);
+      border: 1px solid var(--border);
+      color: var(--text);
+      padding: 3px 8px;
+      border-radius: 6px;
+      font-size: 0.78rem;
+      margin-left: 4px;
+    }
+
+    /* ---- Status bar ---- */
+    .cc-status-bar {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      font-size: 0.72rem;
+      color: var(--muted);
+      margin-bottom: 12px;
+    }
+    .cc-dot {
+      width: 8px;
+      height: 8px;
+      border-radius: 50%;
+      display: inline-block;
+      margin-right: 4px;
+    }
+    .cc-dot.live { background: var(--ok); animation: pulse-dot 2s infinite; }
+    .cc-dot.stale { background: var(--warn); }
+    .cc-dot.off { background: var(--accent); }
+    @keyframes pulse-dot {
+      0%, 100% { opacity: 1; }
+      50% { opacity: 0.4; }
+    }
+
+    /* ---- KPI cards grid ---- */
+    .cc-kpi-grid {
+      display: grid;
+      grid-template-columns: repeat(4, 1fr);
+      gap: 8px;
+      margin-bottom: 16px;
+    }
+    .cc-kpi-card {
+      background: var(--card);
+      border: 1px solid var(--border);
+      border-radius: 10px;
+      padding: 12px 8px;
+      text-align: center;
+      position: relative;
+      overflow: hidden;
+      transition: border-color 0.3s;
+    }
+    .cc-kpi-card.warn-card  { border-left: 3px solid var(--warn); }
+    .cc-kpi-card.ok-card    { border-left: 3px solid var(--ok); }
+    .cc-kpi-card.info-card  { border-left: 3px solid var(--info); }
+    .cc-kpi-card.accent-card { border-left: 3px solid var(--accent); }
+    .cc-kpi-card .kpi-icon {
+      font-size: 1.1rem;
+      margin-bottom: 2px;
+    }
+    .cc-kpi-card .kpi-label {
+      font-size: 0.68rem;
+      color: var(--muted);
+      line-height: 1.2;
+    }
+    .cc-kpi-card .kpi-value {
+      font-size: 1.5rem;
+      font-weight: 700;
+      line-height: 1.15;
+      margin-top: 2px;
+    }
+    .cc-kpi-card .kpi-sub {
+      font-size: 0.62rem;
+      color: var(--muted);
+      margin-top: 2px;
+    }
+    .kpi-trend-up   { color: var(--ok); }
+    .kpi-trend-down { color: var(--accent); }
+    .kpi-trend-flat { color: var(--muted); }
+
+    /* ---- Section card ---- */
+    .cc-section {
+      background: var(--card);
+      border: 1px solid var(--border);
+      border-radius: 12px;
+      padding: 16px;
+      margin-bottom: 12px;
+    }
+    .cc-section-header {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      margin-bottom: 12px;
+    }
+    .cc-section-title {
+      font-weight: 700;
+      font-size: 0.9rem;
+      display: flex;
+      align-items: center;
+      gap: 6px;
+    }
+    .cc-section-badge {
+      font-size: 0.65rem;
+      background: var(--card2);
+      color: var(--muted);
+      padding: 2px 8px;
+      border-radius: 10px;
+    }
+
+    /* ---- Chart container ---- */
+    .cc-chart-wrap {
+      position: relative;
+      width: 100%;
+      height: 200px;
+    }
+    .cc-chart-wrap canvas { width: 100% !important; height: 100% !important; }
+
+    /* ---- Alerts list ---- */
+    .cc-alert-item {
+      display: flex;
+      align-items: flex-start;
+      gap: 8px;
+      padding: 10px 0;
+      border-bottom: 1px solid var(--border);
+      font-size: 0.82rem;
+    }
+    .cc-alert-item:last-child { border-bottom: none; }
+    .cc-alert-dot {
+      width: 10px;
+      height: 10px;
+      border-radius: 50%;
+      flex-shrink: 0;
+      margin-top: 3px;
+    }
+    .cc-alert-dot.critical { background: var(--accent); }
+    .cc-alert-dot.warning  { background: var(--warn); }
+    .cc-alert-dot.info     { background: var(--info); }
+    .cc-alert-time {
+      font-size: 0.7rem;
+      color: var(--muted);
+      white-space: nowrap;
+      min-width: 42px;
+    }
+    .cc-alert-msg { flex: 1; line-height: 1.3; }
+    .cc-alert-empty {
+      text-align: center;
+      color: var(--muted);
+      padding: 16px;
+      font-size: 0.82rem;
+    }
+
+    /* ---- Cross-store comparison ---- */
+    .cc-compare-list {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 8px;
+    }
+    .cc-compare-chip {
+      flex: 1 0 auto;
+      min-width: 90px;
+      background: var(--card2);
+      border: 1px solid var(--border);
+      border-radius: 10px;
+      padding: 10px 12px;
+      text-align: center;
+      transition: border-color 0.2s;
+    }
+    .cc-compare-chip.current {
+      border-color: var(--brand);
+      background: rgba(226, 97, 58, 0.12);
+    }
+    .cc-compare-chip .cp-name {
+      font-size: 0.75rem;
+      font-weight: 600;
+      margin-bottom: 4px;
+      white-space: nowrap;
+      overflow: hidden;
+      text-overflow: ellipsis;
+    }
+    .cc-compare-chip .cp-score {
+      font-size: 1.1rem;
+      font-weight: 700;
+    }
+    .cc-compare-chip .cp-sub {
+      font-size: 0.62rem;
+      color: var(--muted);
+    }
+    .cp-score.high  { color: var(--ok); }
+    .cp-score.med   { color: var(--warn); }
+    .cp-score.low   { color: var(--accent); }
+
+    /* ---- ROI section ---- */
+    .cc-roi-row {
+      display: flex;
+      justify-content: space-around;
+      text-align: center;
+      gap: 12px;
+    }
+    .cc-roi-item {
+      flex: 1;
+    }
+    .cc-roi-value {
+      font-size: 1.2rem;
+      font-weight: 700;
+      color: var(--ok);
+    }
+    .cc-roi-label {
+      font-size: 0.72rem;
+      color: var(--muted);
+      margin-top: 2px;
+    }
+
+    /* ---- Loading skeleton ---- */
+    .cc-loading {
+      text-align: center;
+      color: var(--muted);
+      padding: 20px;
+    }
+    .cc-spinner {
+      display: inline-block;
+      width: 24px;
+      height: 24px;
+      border: 2px solid var(--border);
+      border-top-color: var(--brand);
+      border-radius: 50%;
+      animation: spin 0.8s linear infinite;
+    }
+    @keyframes spin { to { transform: rotate(360deg); } }
+
+    /* ---- Footer refreshed timestamp ---- */
+    .cc-footer {
+      text-align: center;
+      font-size: 0.7rem;
+      color: var(--faint);
+      padding: 12px 0 24px;
+    }
+
+    /* ---- Mobile responsiveness ---- */
+    @media (max-width: 400px) {
+      .cc-kpi-grid {
+        grid-template-columns: repeat(2, 1fr);
+        gap: 6px;
+      }
+      .cc-kpi-card { padding: 10px 6px; }
+      .cc-kpi-card .kpi-value { font-size: 1.3rem; }
+      .cc-header h1 { font-size: 1.15rem; }
+      .cc-chart-wrap { height: 160px; }
+    }
+
+    @media (min-width: 768px) {
+      .cockpit-body {
+        max-width: 640px;
+        padding: 20px;
+      }
+      .cc-kpi-grid { gap: 12px; }
+      .cc-kpi-card { padding: 16px 12px; }
+      .cc-kpi-card .kpi-value { font-size: 1.8rem; }
+      .cc-chart-wrap { height: 240px; }
+    }
+  </style>
+</head>
+<body class="cockpit-body">
+
+<!-- ===== HEADER ===== -->
+<div class="cc-header">
+  <h1>🔥 火瞳 · 门店智能运营驾驶舱</h1>
+  <div class="cc-meta">
+    <span id="cc-date">—</span>
+    &nbsp;|&nbsp;
+    <select id="cc-store-select" onchange="onStoreChange()">
+      <option value="">加载中…</option>
+    </select>
+  </div>
+</div>
+
+<!-- ===== STATUS BAR ===== -->
+<div class="cc-status-bar">
+  <span><span class="cc-dot live" id="cc-live-dot"></span><span id="cc-status-text">连接中…</span></span>
+  <span id="cc-refresh-countdown">30s 后刷新</span>
+</div>
+
+<!-- ===== KPI CARDS ===== -->
+<div class="cc-kpi-grid" id="cc-kpi-grid">
+  <div class="cc-kpi-card warn-card">
+    <div class="kpi-icon">🔔</div>
+    <div class="kpi-label">本月预警</div>
+    <div class="kpi-value" id="kpi-alerts">-</div>
+    <div class="kpi-sub" id="kpi-alerts-trend"></div>
+  </div>
+  <div class="cc-kpi-card ok-card">
+    <div class="kpi-icon">🛡️</div>
+    <div class="kpi-label">安全分</div>
+    <div class="kpi-value" id="kpi-health">-</div>
+    <div class="kpi-sub" id="kpi-health-trend"></div>
+  </div>
+  <div class="cc-kpi-card info-card">
+    <div class="kpi-icon">🔄</div>
+    <div class="kpi-label">翻台率</div>
+    <div class="kpi-value" id="kpi-turnover">-</div>
+    <div class="kpi-sub" id="kpi-turnover-trend"></div>
+  </div>
+  <div class="cc-kpi-card accent-card">
+    <div class="kpi-icon">📉</div>
+    <div class="kpi-label">损耗预算</div>
+    <div class="kpi-value" id="kpi-budget">-</div>
+    <div class="kpi-sub" id="kpi-budget-trend"></div>
+  </div>
+</div>
+
+<!-- ===== TURNOVER TREND CHART ===== -->
+<div class="cc-section">
+  <div class="cc-section-header">
+    <span class="cc-section-title">📊 翻台趋势（近7日）</span>
+    <span class="cc-section-badge" id="cc-chart-badge">日视图</span>
+  </div>
+  <div class="cc-chart-wrap">
+    <canvas id="cc-turnover-chart"></canvas>
+  </div>
+</div>
+
+<!-- ===== REAL-TIME ALERTS ===== -->
+<div class="cc-section" id="cc-alerts-section">
+  <div class="cc-section-header">
+    <span class="cc-section-title">⚠️ 实时告警</span>
+    <span class="cc-section-badge" id="cc-alert-count">最近3条</span>
+  </div>
+  <div id="cc-alerts-list">
+    <div class="cc-loading"><span class="cc-spinner"></span></div>
+  </div>
+</div>
+
+<!-- ===== CROSS-STORE COMPARISON ===== -->
+<div class="cc-section" id="cc-compare-section">
+  <div class="cc-section-header">
+    <span class="cc-section-title">🏪 跨店对比</span>
+    <span class="cc-section-badge">健康分</span>
+  </div>
+  <div class="cc-compare-list" id="cc-compare-list">
+    <div class="cc-loading"><span class="cc-spinner"></span></div>
+  </div>
+</div>
+
+<!-- ===== ROI SECTION ===== -->
+<div class="cc-section">
+  <div class="cc-section-header">
+    <span class="cc-section-title">💰 本月 ROI 估算</span>
+  </div>
+  <div class="cc-roi-row">
+    <div class="cc-roi-item">
+      <div class="cc-roi-value" id="roi-saved">¥0</div>
+      <div class="cc-roi-label">🛡️ 避免损失</div>
+    </div>
+    <div class="cc-roi-item">
+      <div class="cc-roi-value" id="roi-revenue">¥0</div>
+      <div class="cc-roi-label">🔄 翻台增收</div>
+    </div>
+    <div class="cc-roi-item">
+      <div class="cc-roi-value" id="roi-total" style="color: var(--brand);">¥0</div>
+      <div class="cc-roi-label">📊 合计</div>
+    </div>
+  </div>
+</div>
+
+<div class="cc-footer">
+  火瞳智能运营 · 数据每30秒自动刷新 · 最近更新 <span id="cc-last-update">—</span>
+</div>
+
+<!-- ===== SCRIPTS ===== -->
+<script src="config.js"></script>
+<script>
+// ====================================================================
+// CEO Cockpit – Self-contained dashboard logic
+// ====================================================================
+
+(function() {
+  'use strict';
+
+  // ---- Configuration ----
+  const REFRESH_SECONDS = 30;
+  const API_PREFIX = (window.HOTPOT_CONFIG?.apiPrefix) || '/api/v1';
+
+  function hubUrl() {
+    if (window.HOTPOT_CONFIG?.hubUrl) return window.HOTPOT_CONFIG.hubUrl;
+    // Fallback: use same host on port 8098
+    const proto = window.location.protocol;
+    const host = window.location.hostname;
+    return proto + '//' + host + ':8098';
+  }
+
+  // ---- State ----
+  let _currentStoreId = '';
+  let _stores = [];
+  let _refreshTimer = null;
+  let _countdownTimer = null;
+  let _countdown = REFRESH_SECONDS;
+  let _turnoverChart = null;
+
+  // ---- Helper: fetch with timeout ----
+  async function apiFetch(path, timeoutMs = 8000) {
+    const controller = new AbortController();
+    const timer = setTimeout(() => controller.abort(), timeoutMs);
+    try {
+      const url = hubUrl() + (path.startsWith('/') ? '' : '/') + path;
+      const res = await fetch(url, { signal: controller.signal });
+      clearTimeout(timer);
+      if (!res.ok) throw new Error(`HTTP ${res.status}`);
+      return await res.json();
+    } catch (e) {
+      clearTimeout(timer);
+      throw e;
+    }
+  }
+
+  // ---- Store selection ----
+  async function loadStores() {
+    try {
+      const data = await apiFetch('/v1/stores');
+      _stores = Array.isArray(data) ? data : (data.stores || []);
+      renderStoreSelect();
+      if (_stores.length > 0 && !_currentStoreId) {
+        _currentStoreId = _stores[0].store_id || _stores[0].id;
+        const sel = document.getElementById('cc-store-select');
+        if (sel) sel.value = _currentStoreId;
+      }
+    } catch (e) {
+      console.warn('加载门店列表失败:', e.message);
+      // Fallback: use hardcoded store_id
+      if (!_currentStoreId) _currentStoreId = 'store_jiaojiang';
+      renderStoreSelect();
+    }
+  }
+
+  function renderStoreSelect() {
+    const sel = document.getElementById('cc-store-select');
+    if (!sel) return;
+    if (_stores.length === 0) {
+      sel.innerHTML = '<option value="store_jiaojiang">椒江店</option>';
+      if (!_currentStoreId) _currentStoreId = 'store_jiaojiang';
+      sel.value = _currentStoreId;
+      return;
+    }
+    sel.innerHTML = _stores.map(s => {
+      const id = s.store_id || s.id;
+      const name = s.store_name || s.name || id;
+      const selAttr = id === _currentStoreId ? ' selected' : '';
+      return `<option value="${escHtml(id)}"${selAttr}>${escHtml(name)}</option>`;
+    }).join('');
+    sel.value = _currentStoreId;
+  }
+
+  window.onStoreChange = function() {
+    const sel = document.getElementById('cc-store-select');
+    _currentStoreId = sel.value;
+    refreshAll();
+  };
+
+  // ---- Escaping ----
+  function escHtml(s) {
+    return String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');
+  }
+
+  // ---- Formatting ----
+  function fmtMoney(n) {
+    if (n == null || isNaN(n)) return '¥0';
+    return '¥' + Number(n).toLocaleString('zh-CN');
+  }
+
+  function fmtPct(n) {
+    if (n == null || isNaN(n)) return '—';
+    return Number(n).toFixed(1) + '%';
+  }
+
+  // ---- Color helpers ----
+  function scoreColor(score) {
+    if (score >= 85) return 'var(--ok)';
+    if (score >= 70) return 'var(--warn)';
+    return 'var(--accent)';
+  }
+
+  function scoreClass(score) {
+    if (score >= 85) return 'high';
+    if (score >= 70) return 'med';
+    return 'low';
+  }
+
+  function alertLevelClass(level) {
+    if (level === 'critical' || level === 'red') return 'critical';
+    if (level === 'warning' || level === 'yellow' || level === 'warn') return 'warning';
+    return 'info';
+  }
+
+  function alertLevelDot(level) {
+    const cls = alertLevelClass(level);
+    if (cls === 'critical') return '🔴';
+    if (cls === 'warning') return '🟡';
+    return '🟢';
+  }
+
+  // ---- Main data refresh ----
+  async function refreshAll() {
+    updateStatus('connecting');
+    const storeId = _currentStoreId;
+
+    // Fire all API calls in parallel
+    const [healthR, alertsR, turnoverR, budgetR, compareR, costBudgetR] = await Promise.allSettled([
+      apiFetch(`/v1/health/${encodeURIComponent(storeId)}`).catch(() => null),
+      apiFetch(`/v1/alerts?store_id=${encodeURIComponent(storeId)}&limit=3`).catch(() => null),
+      apiFetch(`/v1/turnover/rate?store_id=${encodeURIComponent(storeId)}&window=daily`).catch(() => null),
+      apiFetch(`/v1/waste/budget?store_id=${encodeURIComponent(storeId)}`).catch(() => null),
+      apiFetch(`/v1/health/compare?store_id=${encodeURIComponent(storeId)}`).catch(() => null),
+      apiFetch(`/v1/cost/budget-summary?store_id=${encodeURIComponent(storeId)}`).catch(() => null),
+    ]);
+
+    const healthData     = healthR.status === 'fulfilled' ? healthR.value : null;
+    const alertsData     = alertsR.status === 'fulfilled' ? alertsR.value : null;
+    const turnoverData   = turnoverR.status === 'fulfilled' ? turnoverR.value : null;
+    const budgetData     = budgetR.status === 'fulfilled' ? budgetR.value : null;
+    const compareData    = compareR.status === 'fulfilled' ? compareR.value : null;
+    const costBudgetData = costBudgetR.status === 'fulfilled' ? costBudgetR.value : null;
+
+    renderKpiCards(healthData, alertsData, turnoverData, budgetData);
+    renderAlerts(alertsData);
+    renderTurnoverChart(turnoverData);
+    renderCompare(compareData);
+    renderRoi(costBudgetData, turnoverData);
+    updateLastUpdate();
+
+    updateStatus('live');
+  }
+
+  // ---- Render KPI cards ----
+  function renderKpiCards(health, alerts, turnover, budget) {
+    // 1. Monthly alerts count
+    const alertCount = alerts?.total ?? alerts?.count ?? '-';
+    document.getElementById('kpi-alerts').textContent = alertCount === '-' ? '-' : (alertCount + '次');
+    document.getElementById('kpi-alerts-trend').innerHTML = alerts?.trend
+      ? trendBadge(alerts.trend)
+      : '';
+
+    // 2. Health score
+    const healthScore = health?.score ?? health?.health_score ?? '-';
+    const healthEl = document.getElementById('kpi-health');
+    healthEl.textContent = healthScore;
+    if (healthScore !== '-' && !isNaN(healthScore)) {
+      healthEl.style.color = scoreColor(Number(healthScore));
+    } else {
+      healthEl.style.color = '';
+    }
+    document.getElementById('kpi-health-trend').innerHTML = health?.trend
+      ? trendBadge(health.trend)
+      : '';
+
+    // 3. Turnover rate
+    const turnoverRate = turnover?.rate ?? turnover?.turnover_rate ?? turnover?.daily_rate ?? '-';
+    document.getElementById('kpi-turnover').textContent = turnoverRate !== '-' ? turnoverRate : '-';
+    document.getElementById('kpi-turnover-trend').innerHTML = turnover?.trend
+      ? trendBadge(turnover.trend)
+      : '';
+
+    // 4. Budget usage
+    const budgetPct = budget?.used_pct ?? budget?.budget_usage_pct ?? budget?.percentage ?? '-';
+    document.getElementById('kpi-budget').textContent = budgetPct !== '-' ? budgetPct + '%' : '-';
+    document.getElementById('kpi-budget-trend').innerHTML = budget?.trend
+      ? trendBadge(budget.trend)
+      : '';
+  }
+
+  function trendBadge(trend) {
+    const t = String(trend).toLowerCase();
+    if (t === 'up' || t === 'increase' || t === 'rising')   return '<span class="kpi-trend-up">↑</span>';
+    if (t === 'down' || t === 'decrease' || t === 'falling') return '<span class="kpi-trend-down">↓</span>';
+    return '<span class="kpi-trend-flat">→</span>';
+  }
+
+  // ---- Render alerts ----
+  function renderAlerts(data) {
+    const container = document.getElementById('cc-alerts-list');
+    if (!container) return;
+
+    const items = data?.items ?? data?.alerts ?? data?.events ?? [];
+    if (!Array.isArray(items) || items.length === 0) {
+      container.innerHTML = '<div class="cc-alert-empty">✅ 暂无告警，门店运行正常</div>';
+      document.getElementById('cc-alert-count').textContent = '0条';
+      return;
+    }
+
+    document.getElementById('cc-alert-count').textContent = items.length + '条';
+    container.innerHTML = items.map(a => {
+      const level = a.level || a.severity || 'info';
+      const dot = alertLevelDot(level);
+      const cls = alertLevelClass(level);
+      const time = a.time || a.timestamp || a.created_at || '';
+      const timeStr = time ? time.replace(/^.*T/, '').substring(0, 5) : '—';
+      const msg = a.message || a.title || a.summary || a.event_type || '告警';
+      return `<div class="cc-alert-item">
+        <span class="cc-alert-dot ${cls}"></span>
+        <span class="cc-alert-time">${escHtml(timeStr)}</span>
+        <span class="cc-alert-msg">${dot} ${escHtml(msg)}</span>
+      </div>`;
+    }).join('');
+  }
+
+  // ---- Render turnover Chart.js ----
+  function renderTurnoverChart(data) {
+    const canvas = document.getElementById('cc-turnover-chart');
+    if (!canvas) return;
+
+    const ctx = canvas.getContext('2d');
+
+    const days   = data?.days   ?? data?.labels ?? ['一','二','三','四','五','六','日'];
+    const values = data?.values ?? data?.rates  ?? data?.data ?? [0, 0, 0, 0, 0, 0, 0];
+    const dailyRate = data?.rate ?? data?.current_rate;
+
+    if (_turnoverChart) _turnoverChart.destroy();
+
+    _turnoverChart = new Chart(ctx, {
+      type: 'line',
+      data: {
+        labels: days,
+        datasets: [{
+          label: '翻台率',
+          data: values,
+          borderColor: '#E2613A',
+          backgroundColor: 'rgba(226, 97, 58, 0.08)',
+          borderWidth: 2.5,
+          fill: true,
+          tension: 0.35,
+          pointRadius: 4,
+          pointBackgroundColor: '#E2613A',
+          pointBorderColor: '#1F1813',
+          pointBorderWidth: 2,
+          pointHoverRadius: 6,
+        }]
+      },
+      options: {
+        responsive: true,
+        maintainAspectRatio: false,
+        plugins: {
+          legend: { display: false },
+          tooltip: {
+            backgroundColor: '#2A201A',
+            titleColor: '#F4ECE3',
+            bodyColor: '#B2A294',
+            borderColor: '#3A2E25',
+            borderWidth: 1,
+            callbacks: {
+              label: ctx => ctx.parsed.y + ' 次/天'
+            }
+          }
+        },
+        scales: {
+          x: {
+            ticks: { color: '#8A7B6E', font: { size: 11 } },
+            grid: { color: 'rgba(58, 46, 37, 0.4)' }
+          },
+          y: {
+            beginAtZero: true,
+            ticks: {
+              color: '#8A7B6E',
+              font: { size: 11 },
+              callback: v => v + '次'
+            },
+            grid: { color: 'rgba(58, 46, 37, 0.4)' }
+          }
+        }
+      }
+    });
+  }
+
+  // ---- Render cross-store comparison ----
+  function renderCompare(data) {
+    const container = document.getElementById('cc-compare-list');
+    if (!container) return;
+
+    const stores = data?.stores ?? data?.results ?? data?.items ?? data ?? [];
+    if (!Array.isArray(stores) || stores.length === 0) {
+      container.innerHTML = '<div class="cc-alert-empty">暂无跨店数据</div>';
+      return;
+    }
+
+    container.innerHTML = stores.map(s => {
+      const id    = s.store_id || s.id || '';
+      const name  = (s.store_name || s.name || id).replace(/店$/, '');
+      const score = s.score ?? s.health_score ?? s.health ?? '-';
+      const isCurrent = id === _currentStoreId;
+      const cls  = isCurrent ? ' current' : '';
+      const sCls = score !== '-' && !isNaN(score) ? scoreClass(Number(score)) : '';
+      return `<div class="cc-compare-chip${cls}">
+        <div class="cp-name" title="${escHtml(name)}">${escHtml(name)}</div>
+        <div class="cp-score ${sCls}">${score !== '-' ? score + '分' : '—'}</div>
+        <div class="cp-sub">健康分</div>
+      </div>`;
+    }).join('');
+  }
+
+  // ---- Render ROI ----
+  function renderRoi(costBudget, turnover) {
+    const avoidLoss = costBudget?.avoided_loss ?? costBudget?.saved_amount ?? 0;
+    const extraRevenue = turnover?.extra_revenue ?? turnover?.revenue_gain ?? 0;
+    const total = Number(avoidLoss) + Number(extraRevenue);
+
+    document.getElementById('roi-saved').textContent = fmtMoney(avoidLoss);
+    document.getElementById('roi-revenue').textContent = fmtMoney(extraRevenue);
+    document.getElementById('roi-total').textContent = fmtMoney(total);
+  }
+
+  // ---- Status management ----
+  function updateStatus(state) {
+    const dot = document.getElementById('cc-live-dot');
+    const txt = document.getElementById('cc-status-text');
+    dot.className = 'cc-dot';
+    switch (state) {
+      case 'live':        dot.classList.add('live');  txt.textContent = '实时'; break;
+      case 'connecting':  dot.classList.add('stale'); txt.textContent = '刷新中'; break;
+      case 'offline':     dot.classList.add('off');   txt.textContent = '离线'; break;
+    }
+  }
+
+  function updateLastUpdate() {
+    const now = new Date();
+    const ts = now.toLocaleTimeString('zh-CN', { hour12: false });
+    document.getElementById('cc-last-update').textContent = ts;
+    document.getElementById('cc-date').textContent = now.toISOString().substring(0, 10);
+  }
+
+  // ---- Countdown timer ----
+  function startCountdown() {
+    _countdown = REFRESH_SECONDS;
+    updateCountdownDisplay();
+    if (_countdownTimer) clearInterval(_countdownTimer);
+    _countdownTimer = setInterval(() => {
+      _countdown--;
+      updateCountdownDisplay();
+      if (_countdown <= 0) {
+        _countdown = REFRESH_SECONDS;
+        refreshAll();
+      }
+    }, 1000);
+  }
+
+  function updateCountdownDisplay() {
+    document.getElementById('cc-refresh-countdown').textContent = _countdown + 's 后刷新';
+  }
+
+  // ---- Initialization ----
+  async function init() {
+    updateLastUpdate();
+    await loadStores();
+    await refreshAll();
+    startCountdown();
+
+    // Full refresh every 30s
+    _refreshTimer = setInterval(() => {
+      _countdown = REFRESH_SECONDS;
+      updateCountdownDisplay();
+      refreshAll();
+    }, REFRESH_SECONDS * 1000);
+  }
+
+  // ---- Start ----
+  init().catch(err => {
+    console.error('CEO Cockpit init failed:', err);
+    updateStatus('offline');
+    document.getElementById('cc-status-text').textContent = '初始化失败';
+    // Still try to render with defaults
+    renderKpiCards({}, {}, {}, {});
+    renderAlerts({items: []});
+    renderTurnoverChart({});
+    renderCompare([]);
+    renderRoi({}, {});
+    updateLastUpdate();
+    startCountdown();
+  });
+})();
+</script>
+</body>
+</html>

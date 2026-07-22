@@ -58,6 +58,7 @@ class EventStore:
         self._lock = threading.Lock()
         self.events: Deque[Dict[str, Any]] = deque(maxlen=MAX_EVENTS)
         self.table_states: Dict[str, Dict[str, Any]] = {}
+        self.table_history: Dict[str, List[Dict[str, Any]]] = {}  # table_id → [{status, changed_at, duration_min}]
         self.pos_stats: Dict[str, Any] = {}
         self.sop_stats: Dict[str, Any] = {}
         self.cost_stats: Dict[str, Any] = {}
@@ -79,13 +80,46 @@ class EventStore:
             event["store_id"] = self.store_id
             self.events.appendleft(event)
             if event.get("table_id") and event.get("event_type", "").startswith("table_"):
+                table_id = event["table_id"]
                 state = event["event_type"].replace("table_", "")
-                self.table_states[event["table_id"]] = {
-                    "table_id": event["table_id"],
+                old_state = self.table_states.get(table_id, {})
+                old_state_name = old_state.get("state", "empty")
+
+                self.table_states[table_id] = {
+                    "table_id": table_id,
                     "state": state,
                     "confidence": event.get("confidence", 1.0),
                     "updated_at": event["timestamp"],
                 }
+
+                # ── 翻台率：记录桌态变化历史 ──
+                if table_id not in self.table_history:
+                    self.table_history[table_id] = []
+
+                if state != old_state_name:
+                    # 计算上次状态的持续时间
+                    duration_min = 0.0
+                    if self.table_history[table_id]:
+                        last_entry = self.table_history[table_id][-1]
+                        try:
+                            from datetime import datetime as _dt
+                            prev_ts = _dt.fromisoformat(last_entry["changed_at"])
+                            curr_ts = _dt.fromisoformat(event["timestamp"])
+                            duration_min = round((curr_ts - prev_ts).total_seconds() / 60, 1)
+                        except Exception:
+                            duration_min = 0.0
+
+                    self.table_history[table_id].append({
+                        "status": state,
+                        "from_status": old_state_name,
+                        "changed_at": event["timestamp"],
+                        "duration_min": duration_min,
+                    })
+
+                    # 限制历史长度（每桌最多500条）
+                    if len(self.table_history[table_id]) > 500:
+                        self.table_history[table_id] = self.table_history[table_id][-500:]
+
                 self._persist("tables", list(self.table_states.values()))
             self._persist("event", event)
             return event

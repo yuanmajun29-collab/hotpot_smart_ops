@@ -63,6 +63,7 @@ def main() -> None:
     print(f"[Dashboard] API Prefix: {DEFAULT_API_PREFIX}")
     print(f"[Dashboard] MVP 入口: http://{args.host}:{args.port}/login.html")
     print(f"[Dashboard] 手机 H5:  http://{args.host}:{args.port}/mobile/index.html")
+    print(f"[Dashboard] CEO驾驶舱: http://{args.host}:{args.port}/ceo-cockpit.html")
     print(f"[Dashboard] 配置注入: http://{args.host}:{args.port}/config.js")
     server.serve_forever()
 

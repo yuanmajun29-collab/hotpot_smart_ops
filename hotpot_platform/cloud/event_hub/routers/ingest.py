@@ -130,6 +130,7 @@ async def post_event(
             "pushed": True,
             "channel": push.get("channel"),
             "webhook_sent": push.get("webhook_sent", False),
+            "delivery": push.get("delivery"),
         }
     return event
 

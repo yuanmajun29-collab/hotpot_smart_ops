@@ -147,6 +147,28 @@ def vlm_waste_estimate(
     features["waste_source"] = result["source"]
     persist_loss_features(store, features)
 
+    # K-002: 写入废料时序表（每次 pipeline 结果聚合到 waste_timeseries）
+    try:
+        from hotpot_platform.cloud.event_hub.routers.waste_trend import record_waste_to_timeseries
+        from datetime import date as _date_type
+
+        today_str = _date_type.today().isoformat()
+        for item in (result.get("items") or []):
+            sku = item.get("sku", "unknown")
+            count = item.get("count", 0)
+            if isinstance(count, (int, float)) and count > 0:
+                loss = item.get("estimated_loss_amount", 0.0) or 0.0
+                record_waste_to_timeseries(
+                    store_id=sid,
+                    date=today_str,
+                    zone=result.get("zone", "后厨"),
+                    item_class=sku,
+                    item_count=int(count),
+                    estimated_loss_amount=float(loss),
+                )
+    except Exception:
+        pass  # 时序写入失败不影响主流程
+
     return {
         "ok": True,
         "event_id": event.get("event_id"),

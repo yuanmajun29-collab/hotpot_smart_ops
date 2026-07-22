@@ -247,12 +247,119 @@ def one_scan() -> Dict[str, Any]:
 
 # ── Main loop ──
 
+def _load_frames_from_dir(frame_dir: str) -> Dict[str, str]:
+    """从帧目录加载每个工位对应的最新帧。
+
+    帧命名约定: {station_id}.jpg 或 {station_id}_latest.jpg
+    Returns:
+        {station_id: frame_path}
+    """
+    result: Dict[str, str] = {}
+    dir_path = Path(frame_dir)
+    if not dir_path.is_dir():
+        logger.warning("帧目录不存在: %s", frame_dir)
+        return result
+
+    for station_id in [s.station_id for s in STATIONS]:
+        # 查找 {station_id}.jpg 或 {station_id}_latest.jpg
+        candidates = [
+            dir_path / f"{station_id}.jpg",
+            dir_path / f"{station_id}_latest.jpg",
+            dir_path / f"{station_id}.jpeg",
+        ]
+        for candidate in candidates:
+            if candidate.exists():
+                result[station_id] = str(candidate)
+                break
+
+    return result
+
+
+def _vision_readings(station: Station, frame_path: str = "") -> Dict[str, Any]:
+    """使用 stage_sop 视觉推理获取工位合规读数，替代 mock 传感器。
+
+    Args:
+        station: 工位对象
+        frame_path: IPC 摄像头帧路径（默认为空时使用 mock 回退）
+    Returns:
+        readings dict，含 vision_compliant 和 vision_violations 字段
+    """
+    if not frame_path or not Path(frame_path).exists():
+        logger.warning("vision 模式无有效帧，回退 mock")
+        return _mock_readings(station)
+
+    try:
+        from edge.kitchen.inference.stages.stage_sop import run as sop_stage_run
+
+        ctx = {"station_id": station.station_id, "zone": "kitchen"}
+        result = sop_stage_run(frame_path, ctx)
+
+        # 将视觉结果映射为工位 sensor 级别 readings
+        compliant = result.get("compliant", True)
+        violations = result.get("violations", [])
+
+        # 映射到各工位的 sensor 读数
+        readings: Dict[str, Any] = {
+            "vision_compliant": compliant,
+            "vision_violations": [v["type"] for v in violations],
+            "person_count": result.get("person_count", 0),
+        }
+
+        # 根据工位类型补充默认传感器读数（从视觉推断）
+        if station.station_id == "sop_broth":
+            readings["temp_c"] = 88.0 if compliant else 80.0
+        elif station.station_id == "sop_cutting":
+            readings["knife_detected"] = compliant
+            readings["board_clean"] = compliant
+        elif station.station_id == "sop_plating":
+            readings["weight_deviation_g"] = 3.0 if compliant else 8.0
+            readings["spacing_uniform"] = compliant
+        elif station.station_id == "sop_sauce":
+            readings["fill_pct"] = 50.0 if compliant else 15.0
+        elif station.station_id == "sop_washing":
+            readings["temp_c"] = 85.0 if compliant else 78.0
+            readings["detergent_pct"] = 15.0 if compliant else 5.0
+        elif station.station_id == "sop_serving":
+            readings["elapsed_s"] = 60.0 if compliant else 210.0
+            readings["tray_stable"] = compliant
+        elif station.station_id == "sop_cold_storage":
+            readings["temp_c"] = -20.0 if compliant else -15.0
+            readings["labels_valid"] = compliant
+
+        return readings
+    except Exception as e:
+        logger.warning("视觉推理异常，回退 mock: %s", e)
+        return _mock_readings(station)
+
+
+def one_scan_vision(frame_paths: Dict[str, str]) -> Dict[str, Any]:
+    """Run one scan with vision mode — IPC frames → YOLO+PPE → state machines.
+
+    Args:
+        frame_paths: {station_id: frame_path} 映射，每工位一帧
+    """
+    for station in STATIONS:
+        fp = frame_paths.get(station.station_id, "")
+        readings = _vision_readings(station, fp)
+        ok = station.evaluate(readings)
+        msg = "OK" if ok else "不合格"
+        station.tick(ok, msg)
+        logger.debug("%s: %s (vision, readings=%s)", station.name, station.status.value,
+                     json.dumps(readings, ensure_ascii=False))
+
+    return push_compliance(STATIONS)
+
+
 def main():
     parser = argparse.ArgumentParser(description="SOP 7-station compliance monitor")
     parser.add_argument("--store-id", default=_STORE_ID)
     parser.add_argument("--interval", type=int, default=SCAN_INTERVAL)
     parser.add_argument("--once", action="store_true", help="Run one scan and exit")
     parser.add_argument("--json", action="store_true", help="JSON output")
+    parser.add_argument("--mode", default="mock", choices=["mock", "vision"],
+                        help="传感器模式: mock(默认) / vision(IPC帧→YOLO+PPE)")
+    parser.add_argument("--frame-dir", default="",
+                        help="vision 模式下的 IPC 帧目录")
 
     args = parser.parse_args()
     logging.basicConfig(level=logging.INFO, format="%(asctime)s [%(levelname)s] %(message)s")
@@ -262,7 +369,12 @@ def main():
         mod._STORE_ID = args.store_id
 
     if args.once:
-        result = one_scan()
+        if args.mode == "vision" and args.frame_dir:
+            # vision 模式单次：从目录加载帧
+            frame_paths = _load_frames_from_dir(args.frame_dir)
+            result = one_scan_vision(frame_paths)
+        else:
+            result = one_scan()
         if args.json:
             print(json.dumps(result, ensure_ascii=False, indent=2))
         else:
@@ -282,12 +394,17 @@ def main():
     signal.signal(signal.SIGINT, _shutdown)
     signal.signal(signal.SIGTERM, _shutdown)
 
-    logger.info("SOP compliance monitor started — %d stations, interval=%ds, hub=%s",
-                 len(STATIONS), args.interval, HUB_URL)
+    mode_str = f"vision({args.frame_dir})" if args.mode == "vision" else "mock"
+    logger.info("SOP compliance monitor started — %d stations, interval=%ds, mode=%s, hub=%s",
+                 len(STATIONS), args.interval, mode_str, HUB_URL)
 
     while running:
         try:
-            result = one_scan()
+            if args.mode == "vision" and args.frame_dir:
+                frame_paths = _load_frames_from_dir(args.frame_dir)
+                result = one_scan_vision(frame_paths)
+            else:
+                result = one_scan()
             rate = result.get("compliance_rate", "?")
             violations = result.get("violations", [])
             logger.info("Scan complete — compliance=%s%% violations=%d",

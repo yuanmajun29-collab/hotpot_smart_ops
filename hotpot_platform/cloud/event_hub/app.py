@@ -3,6 +3,17 @@
 from __future__ import annotations
 
 import os
+import sys
+
+# 云部署: 确保项目根目录(hotpot_smart_ops/)在 Python 路径中且始终排第一
+# app.py 路径: _BASE/cloud/event_hub/app.py → 上溯 4 层到 _BASE
+# 注意: .pth 可能先加入 _BASE，但 CWD 可能排在更前面导致 common/ 被 event_hub/common/ 遮蔽
+_BASE = os.path.dirname(os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__)))))
+if _BASE in sys.path:
+    sys.path.remove(_BASE)  # 先移除避免重复
+if _BASE not in sys.path:
+    sys.path.insert(0, _BASE)
+
 import time
 from contextlib import asynccontextmanager
 from pathlib import Path

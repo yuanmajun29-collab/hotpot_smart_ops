@@ -1,4 +1,4 @@
-"""Alert gateway — WeChat Work webhook mock + push log (DEV-306)."""
+"""Alert gateway — WeChat Work webhook + push log + production wechat_notifier (DEV-306, DEV-5xx)."""
 
 from __future__ import annotations
 
@@ -10,7 +10,10 @@ import urllib.error
 import urllib.request
 from datetime import datetime, timezone
 from pathlib import Path
-from typing import Any, Dict, List, Optional
+from typing import Any, Dict, List, Optional, TYPE_CHECKING
+
+if TYPE_CHECKING:
+    from hotpot_platform.cloud.event_hub.wechat_notifier import WechatNotifier
 
 PROJECT_ROOT = Path(__file__).resolve().parents[2]
 ROUTES_FILE = PROJECT_ROOT / "demo" / "data" / "alert_routes.json"
@@ -37,13 +40,24 @@ def utc_now_iso() -> str:
 
 
 class AlertGateway:
-    """Route critical/warn events to WeChat Work (mock file + optional webhook)."""
+    """Route critical/warn events to WeChat Work (mock file + optional webhook).
 
-    def __init__(self, db_path: Path) -> None:
+    Integrates with WechatNotifier for production-grade delivery with retry
+    and rate limiting. Critical alerts are pushed immediately; non-critical
+    alerts are enqueued for batched delivery via flush_pending_queue().
+    """
+
+    def __init__(
+        self,
+        db_path: Path,
+        notifier: Optional["WechatNotifier"] = None,
+    ) -> None:
         self.db_path = db_path
         self._lock = threading.Lock()
         self._routes = self._load_routes()
         self._init_schema()
+        # Lazy-init wechat notifier if not provided
+        self._notifier: Optional["WechatNotifier"] = notifier
 
     def _load_routes(self) -> Dict[str, Any]:
         if ROUTES_FILE.exists():
@@ -201,20 +215,37 @@ class AlertGateway:
 
         card = self.format_wechat_card(event, store_id)
         route = self._store_route(store_id)
+        level = event.get("level", "info")
         result = {
             "event_id": event.get("event_id"),
             "store_id": store_id,
-            "level": event.get("level"),
+            "level": level,
             "channel": "wechat_work",
             "recipients": route.get("recipients", []),
             "card": card,
             "webhook_sent": False,
+            "delivery": "immediate" if level == "critical" else "queued",
         }
 
         if self._record_push(event, store_id, card):
             self._append_file_log(card, store_id, event)
             if route.get("webhook_url"):
-                result["webhook_sent"] = self._post_webhook(route["webhook_url"], card)
+                if level == "critical":
+                    # 致命告警 → 即时微信推送
+                    result["webhook_sent"] = self._post_webhook(route["webhook_url"], card)
+                else:
+                    # 一般告警 → 缓存到待发送队列
+                    notifier = self._get_notifier()
+                    if notifier is not None:
+                        payload = {
+                            "msgtype": "markdown",
+                            "markdown": {"content": card["markdown"]},
+                        }
+                        notifier.enqueue(
+                            payload,
+                            target_key=f"store:{store_id}",
+                            webhook_url=route["webhook_url"],
+                        )
         return result
 
     def _record_push(self, event: Dict[str, Any], store_id: str, card: Dict[str, str]) -> bool:
@@ -369,7 +400,30 @@ class AlertGateway:
             "error": error or None,
         }
 
+    def _get_notifier(self) -> Optional["WechatNotifier"]:
+        """Lazy-init the WechatNotifier singleton if not already set."""
+        if self._notifier is None:
+            try:
+                from hotpot_platform.cloud.event_hub.wechat_notifier import get_notifier
+                self._notifier = get_notifier()
+            except Exception:
+                pass
+        return self._notifier
+
     def _post_webhook(self, url: str, card: Dict[str, str]) -> bool:
+        """Post a markdown card to the webhook.
+
+        If WechatNotifier is available, delegates to it for retry + rate-limiting.
+        Otherwise falls back to a single direct POST (backward compat).
+        """
+        notifier = self._get_notifier()
+        if notifier is not None and notifier.enabled:
+            return notifier.send_markdown(
+                card.get("markdown", card.get("body", "")),
+                target_key="alert_gateway",
+                webhook_url=url,
+            )
+        # Fallback: direct POST (legacy path)
         payload = {
             "msgtype": "markdown",
             "markdown": {"content": card["markdown"]},
@@ -635,3 +689,34 @@ class AlertGateway:
             if dt <= cutoff:
                 pending.append(e)
         return {"count": len(pending), "threshold_minutes": minutes, "events": pending}
+
+    # ------------------------------------------------------------------
+    # Pending queue delegation (WechatNotifier integration)
+    # ------------------------------------------------------------------
+
+    def flush_pending_queue(self, *, max_batch: int = 50) -> int:
+        """Deliver all queued non-critical alerts via the WechatNotifier.
+
+        Returns the number of successfully delivered messages.
+        """
+        notifier = self._get_notifier()
+        if notifier is None:
+            return 0
+        return notifier.flush_queue(max_batch=max_batch)
+
+    @property
+    def pending_count(self) -> int:
+        """Number of queued non-critical alerts awaiting delivery."""
+        notifier = self._get_notifier()
+        if notifier is None:
+            return 0
+        return notifier.pending_count
+
+    def get_notify_status(self) -> Dict[str, Any]:
+        """Return WechatNotifier status including push statistics."""
+        notifier = self._get_notifier()
+        if notifier is None:
+            return {"available": False, "reason": "wechat_notifier not importable"}
+        status = notifier.get_status()
+        status["available"] = True
+        return status

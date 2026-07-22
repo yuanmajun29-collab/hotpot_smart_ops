@@ -7,7 +7,11 @@ store scope before the LLM forecast layer (wedge plan §8 L3) lands.
 
 from __future__ import annotations
 
-import sys
+import sys, os
+_sys_base = os.path.dirname(os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__)))))
+if _sys_base not in sys.path:
+    sys.path.insert(0, _sys_base)
+
 from datetime import datetime
 from typing import Any, Dict, List, Optional
 try:
