@@ -10,17 +10,24 @@ SHARED PROJECT STATE (from other AI tools):
 ---
 
 Current State:
-- CODEX_REVIEW_CLAUDE_LOSS_BUDGET_SOLUTION: ✅ 已收敛。kitchen_loss_budget_solution.md 降级为 SSOT 从属执行附录，硬件口径/编号/持久化全部对齐 ADR-019。
+- hermes/sync-timestamp: 20260716-163043
+  (Set by: hermes)
+  (Reason: 进化同步完成: 6/9 维度变化)
 
 Recent Decisions:
-- hermes: 前厅场景分析双模式落地（plan_b YOLO规则 40ms + plan_a YOLO+CLIP混合 ~190ms）
-- hermes: Edge 服务器必须从 /tmp 启动绕开 hotpot_platform/ 目录污染
+- hermes: state_change - hermes/sync-timestamp
+- hermes: state_change - hermes/sync-timestamp
+- hermes: state_change - hermes/sync-timestamp
+- hermes: state_change - hermes/sync-timestamp
+- hermes: state_change - hermes/sync-timestamp
 
 ---
 IMPORTANT: Before making changes that affect these values, coordinate with other tools.
 If you change any of these, declare it using: declareStateChange(key, oldValue, newValue)
 ---
 
+
+---
 
 ## 项目架构
 
@@ -111,7 +118,42 @@ cd <project_root> && python3 -m uvicorn edge.agent.server:app --host 0.0.0.0 --p
 {
   "modules": {
     "kitchen": {"enabled": true, "cameras": ["rtsp://..."], "inference_interval": 30, "rules": {}},
-    "front_hall": {"enabled": false, "cameras": [], "inference_interval": 30, "rules": {}}
+    "front_hall": {"enabled": false, "cameras": [], "inference_interval": 30, "rules": {}},
+    "sop": {"enabled": false, "cameras": [], "inference_interval": 30, "rules": {}},
+    "staff_behavior": {"enabled": false, "cameras": [], "inference_interval": 30, "rules": {}},
+    "receiving": {"enabled": false, "cameras": [], "inference_interval": 30, "rules": {}},
+    "iot_food_safety": {"enabled": false, "sensors": [], "alert_thresholds": {}}
   }
 }
 ```
+
+## 已实现模块清单 (2026-07-23)
+
+| 模块 | 路径 | 规模 | PRD ID |
+|------|------|------|--------|
+| 后厨损耗检测 | `edge/kitchen/inference/` + `capture/` | pipeline+stages | K01-K03 |
+| 前厅桌态分析 | `edge/front_hall/inference/` | plan_a/b + CLIP | K04-K05 |
+| 设备管理 | `hotpot_platform/` | Hub+层级配置 | K08 |
+| SOP 合规检测 | `edge/agent/modules/sop_infer.py` + `kitchen/inference/stages/stage_sop.py` | 248+ 行 | K09-K10 |
+| 员工行为识别 | `edge/agent/modules/staff_behavior_infer.py` + `edge/staff_behavior/` | 173+ 行 | K25-K26 |
+| 收货质检 | `edge/receiving/sop_compliance.py` | — | K11 延伸 |
+| IoT 基础设施 | `edge/iot_mock/` + `edge/front_hall/iot/` | 桥接+模拟+规则 | K19-K22 骨架 |
+
+## 待建模块 (PRD v3.0 差距)
+
+| 模块 | PRD ID | 现状 | 差距 |
+|------|--------|:---:|------|
+| IoT 食安传感器 | `edge/iot_food_safety/` + `edge/agent/modules/iot_food_safety_infer.py` | 805 行 | K19-K22 |
+| 数据分析层 | `hotpot_platform/analytics/` | 948 行 | K23-K24 |
+| 设备健康 IoT | `edge/common/device_health.py` | 227 行 | K28 |
+
+## 待建模块 (PRD v3.0 差距)
+
+| 模块 | PRD ID | 差距 |
+|------|--------|------|
+| 翻台率分析 | K13 | Dashboard 前端 + 时序计算 |
+| 加汤提醒 | K14 | 视觉检测汤位 <1/3 |
+| 多店对比 Dashboard | K15 | Dashboard 前端 |
+| 进货称重/食材对比 | K11/K12 | 电子秤驱动 + CV 品质对比 |
+| 服务响应/微笑识别 | K26/K30 | 视觉检测 |
+| SOP评分系统 | K27 | 后端评分引擎 |

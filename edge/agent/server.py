@@ -27,7 +27,15 @@ from edge.agent.config import (
     HEARTBEAT_INTERVAL, CONFIG_POLL_INTERVAL,
     IPC_CONFIG_PATH, DEVICE_CONFIG_PATH,
 )
-from edge.agent.modules import kitchen_infer, front_hall_infer, sop_infer, staff_behavior_infer
+from edge.agent.modules import (
+    front_hall_infer,
+    iot_food_safety_infer,
+    kitchen_infer,
+    receiving_infer,
+    sop_infer,
+    staff_behavior_infer,
+    turnover_infer,
+)
 from edge.agent.buffer import InferenceBuffer
 
 # ─── 日志 ───
@@ -57,7 +65,9 @@ _MODULE_REGISTRY: Dict[str, Any] = {
     "front_hall": front_hall_infer,
     "sop": sop_infer,
     "staff_behavior": staff_behavior_infer,
-    "receiving": None,
+    "iot_food_safety": iot_food_safety_infer,
+    "receiving": receiving_infer,
+    "turnover": turnover_infer,
 }
 # 新场景只需在此注册表加一行即可自动激活
 
@@ -273,6 +283,15 @@ def health():
             "staff_behavior": {
                 "active": staff_behavior_infer._active,
             },
+            "iot_food_safety": {
+                "active": iot_food_safety_infer._active,
+            },
+            "receiving": {
+                "active": receiving_infer._active,
+            },
+            "turnover": {
+                "active": turnover_infer._active,
+            },
         },
         "active_modules": _active_modules,
         "port": SERVER_PORT,
@@ -319,6 +338,10 @@ app.include_router(kitchen_infer.router)
 app.include_router(front_hall_infer.router)
 app.include_router(sop_infer.router)
 app.include_router(staff_behavior_infer.router)
+app.include_router(iot_food_safety_infer.router)
+app.include_router(receiving_infer.router)
+app.include_router(receiving_infer.status_router)
+app.include_router(turnover_infer.router)
 
 # 挂载 /output 静态目录
 front_hall_infer.mount_static(app)
@@ -338,6 +361,9 @@ async def startup():
     front_hall_infer.buffer = _buffer
     sop_infer.buffer = _buffer
     staff_behavior_infer.buffer = _buffer
+    iot_food_safety_infer.buffer = _buffer
+    receiving_infer.buffer = _buffer
+    turnover_infer.buffer = _buffer
 
     # ② 注册到 Hub
     try:

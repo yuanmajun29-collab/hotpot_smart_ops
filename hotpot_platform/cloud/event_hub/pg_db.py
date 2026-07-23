@@ -204,6 +204,26 @@ class PostgresHubDatabase:
         finally:
             self._putconn(conn)
 
+    def get_snapshot(self, store_id: str, kind: str) -> Optional[Any]:
+        """Read a persisted store snapshot payload by kind."""
+        conn = self._getconn()
+        try:
+            with conn.cursor() as cur:
+                cur.execute(
+                    """
+                    SELECT payload FROM store_snapshots
+                    WHERE store_id = %s AND kind = %s
+                    """,
+                    (store_id, kind),
+                )
+                row = cur.fetchone()
+                if not row:
+                    return None
+                payload = row[0]
+                return payload if isinstance(payload, dict) else json.loads(payload)
+        finally:
+            self._putconn(conn)
+
     def update_devices(self, devices: Dict[str, Any]) -> None:
         updated_at = datetime.now(timezone.utc).replace(microsecond=0).isoformat()
         conn = self._getconn()

@@ -166,6 +166,24 @@ class HubDatabase:
             finally:
                 conn.close()
 
+    def get_snapshot(self, store_id: str, kind: str) -> Optional[Any]:
+        """Read a persisted store snapshot payload by kind."""
+        with self._lock:
+            conn = self._connect()
+            try:
+                row = conn.execute(
+                    """
+                    SELECT payload FROM store_snapshots
+                    WHERE store_id = ? AND kind = ?
+                    """,
+                    (store_id, kind),
+                ).fetchone()
+                if not row:
+                    return None
+                return json.loads(row["payload"])
+            finally:
+                conn.close()
+
     def update_devices(self, devices: Dict[str, Any]) -> None:
         from datetime import datetime, timezone
 

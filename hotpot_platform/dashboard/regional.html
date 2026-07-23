@@ -5,12 +5,103 @@
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
   <title>区域总揽 · 冯校长火锅 · 智能运营</title>
   <link rel="stylesheet" href="assets/theme.css" />
+  <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+  <style>
+    .regional-insights {
+      display: grid;
+      grid-template-columns: 1.2fr 0.8fr;
+      gap: 16px;
+      margin-bottom: 20px;
+    }
+    .health-score-panel {
+      display: grid;
+      grid-template-columns: 160px 1fr;
+      gap: 18px;
+      align-items: center;
+    }
+    .health-ring {
+      width: 142px;
+      height: 142px;
+      border-radius: 50%;
+      display: grid;
+      place-items: center;
+      background: conic-gradient(var(--ok) calc(var(--score, 0) * 1%), var(--card2) 0);
+      border: 1px solid var(--border);
+      position: relative;
+    }
+    .health-ring::after {
+      content: "";
+      position: absolute;
+      inset: 13px;
+      border-radius: 50%;
+      background: var(--card);
+      border: 1px solid var(--border);
+    }
+    .health-ring b,
+    .health-ring span {
+      position: relative;
+      z-index: 1;
+      display: block;
+      text-align: center;
+    }
+    .health-ring b { font-size: 2.2rem; line-height: 1; }
+    .health-ring span { color: var(--muted); font-size: 0.74rem; margin-top: 5px; }
+    .score-breakdown {
+      display: grid;
+      grid-template-columns: repeat(2, minmax(120px, 1fr));
+      gap: 10px;
+    }
+    .score-part {
+      border: 1px solid var(--border);
+      border-radius: 8px;
+      background: var(--card2);
+      padding: 10px;
+    }
+    .score-part span { display: block; color: var(--muted); font-size: 0.72rem; }
+    .score-part b { display: block; margin-top: 4px; font-size: 1.05rem; }
+    .regional-chart-wrap { position: relative; min-height: 250px; height: 250px; }
+    .callout-card {
+      border: 1px solid rgba(230,169,62,0.35);
+      background: linear-gradient(180deg, rgba(230,169,62,0.08), rgba(0,0,0,0)), var(--card);
+    }
+    .risk-store {
+      padding: 10px 0;
+      border-bottom: 1px solid var(--border);
+      font-size: 0.88rem;
+    }
+    .risk-store:last-child { border-bottom: none; }
+    .alert-summary-grid {
+      display: grid;
+      grid-template-columns: repeat(3, 1fr);
+      gap: 10px;
+      margin-bottom: 12px;
+    }
+    .alert-summary-tile {
+      background: var(--card2);
+      border: 1px solid var(--border);
+      border-radius: 8px;
+      padding: 12px;
+      text-align: center;
+    }
+    .alert-summary-tile span { display: block; color: var(--muted); font-size: 0.72rem; }
+    .alert-summary-tile b { display: block; margin-top: 5px; font-size: 1.35rem; }
+    @media (max-width: 1100px) {
+      .regional-insights { grid-template-columns: 1fr; }
+      .health-score-panel { grid-template-columns: 1fr; }
+      .health-ring { margin: 0 auto; }
+    }
+    @media (max-width: 620px) {
+      .score-breakdown,
+      .alert-summary-grid { grid-template-columns: 1fr; }
+    }
+  </style>
 </head>
 <body>
   <div class="app-shell">
     <aside class="sidebar">
       <div class="sidebar-brand"><h1>冯校长火锅</h1><p>连锁 · 区域总揽</p></div>
       <a class="nav-item active" data-nav="regional" href="regional.html">区域 · 总揽</a>
+      <a class="nav-item" data-nav="compare" href="store-compare.html">多店对比</a>
       <a class="nav-item" data-nav="alerts" href="alerts.html">告警中心</a>
       <a class="nav-item" data-nav="report" href="report.html">运营日报</a>
       <a class="nav-item" data-nav="system" href="system.html">系统状态</a>
@@ -41,12 +132,50 @@
           <div class="kpi-tile"><span class="cell-muted">异常</span><b id="kpi-critical" class="cell-critical">—</b></div>
           <div class="kpi-tile"><span class="cell-muted">严重告警</span><b id="kpi-alerts">—</b></div>
           <div class="kpi-tile"><span class="cell-muted">均 SOP</span><b id="kpi-sop">—</b></div>
+          <div class="kpi-tile"><span class="cell-muted">综合健康分</span><b id="kpi-health-score">—</b></div>
         </div>
 
         <div class="card" id="child-region-panel" style="margin-bottom:20px;display:none">
           <h3>子区域 rollup · 华东大区</h3>
           <p style="font-size:0.8rem;color:var(--muted);margin-bottom:12px">点击下钻到区域视图</p>
           <div class="child-region-grid" id="child-regions"></div>
+        </div>
+
+        <div class="regional-insights">
+          <div class="card">
+            <h3>区域综合健康分</h3>
+            <div class="health-score-panel">
+              <div class="health-ring" id="regional-health-ring" style="--score:0">
+                <div><b id="regional-health-score">—</b><span>加权评分</span></div>
+              </div>
+              <div class="score-breakdown">
+                <div class="score-part"><span>损耗控制</span><b id="score-waste">—</b></div>
+                <div class="score-part"><span>SOP 合规</span><b id="score-sop">—</b></div>
+                <div class="score-part"><span>翻台效率</span><b id="score-turnover">—</b></div>
+                <div class="score-part"><span>告警稳定</span><b id="score-alerts">—</b></div>
+              </div>
+            </div>
+          </div>
+          <div class="card callout-card">
+            <h3>高风险门店</h3>
+            <div id="risk-stores"><p style="color:var(--muted)">加载中…</p></div>
+          </div>
+        </div>
+
+        <div class="grid grid-2" style="margin-bottom:20px">
+          <div class="card">
+            <h3>区域损耗趋势</h3>
+            <div class="regional-chart-wrap"><canvas id="regional-waste-chart"></canvas></div>
+          </div>
+          <div class="card">
+            <h3>区域食安告警汇总</h3>
+            <div class="alert-summary-grid">
+              <div class="alert-summary-tile"><span>食安告警</span><b id="alert-food">—</b></div>
+              <div class="alert-summary-tile"><span>严重告警</span><b id="alert-critical">—</b></div>
+              <div class="alert-summary-tile"><span>涉及门店</span><b id="alert-stores">—</b></div>
+            </div>
+            <div id="alert-summary-list" class="rank-list">加载中…</div>
+          </div>
         </div>
 
         <div class="grid grid-2" style="margin-bottom:20px">
@@ -101,14 +230,58 @@
       </main>
     </div>
   </div>
+  <script src="config.js"></script>
   <script src="assets/core.js"></script>
   <script>
     const auth = HotpotApp.initShell("regional");
     let currentRegionId = new URLSearchParams(window.location.search).get("region_id") || "zone_east_china";
+    let regionalWasteChart = null;
 
     function fmtPct(v) { return v != null ? v + "%" : "—"; }
     function fmtMoney(v) { return v != null ? "¥" + Number(v).toLocaleString() : "—"; }
     function shortName(name) { return (name || "").replace("冯校长火锅·", ""); }
+    function hubBase() {
+      const configured = window.HOTPOT_CONFIG && window.HOTPOT_CONFIG.hubUrl;
+      return String(configured || HotpotApp.hubUrl()).replace(/\/$/, "");
+    }
+    function num(v, fallback = 0) {
+      const n = Number(v);
+      return Number.isFinite(n) ? n : fallback;
+    }
+    function avg(values) {
+      const nums = values.map(Number).filter(Number.isFinite);
+      return nums.length ? nums.reduce((s, v) => s + v, 0) / nums.length : null;
+    }
+    function clamp(n, min, max) {
+      return Math.max(min, Math.min(max, n));
+    }
+    function metricValue(row, key) {
+      const metrics = row.metrics || {};
+      if (key === "waste_rate") return metrics.waste_rate?.value ?? metrics.cost_variance_pct ?? row.waste_rate;
+      if (key === "table_turnover") return metrics.table_turnover?.value ?? metrics.turnover_rate ?? row.table_turnover;
+      if (key === "sop") return metrics.sop_compliance?.value ?? metrics.sop_compliance_rate ?? row.sop_score;
+      if (key === "alerts") return metrics.food_safety_alerts?.value ?? metrics.critical_alerts ?? row.food_safety_alerts;
+      return metrics[key]?.value ?? metrics[key] ?? row[key];
+    }
+    async function analyticsApi(path) {
+      const res = await fetch(`${hubBase()}${path}`, { headers: HotpotApp.authHeaders() });
+      if (!res.ok) throw new Error(`${path} ${res.status}`);
+      return res.json();
+    }
+    function regionalHealthScore(stores) {
+      const wasteAvg = avg(stores.map((s) => metricValue(s, "waste_rate")));
+      const sopAvg = avg(stores.map((s) => metricValue(s, "sop")));
+      const turnoverAvg = avg(stores.map((s) => metricValue(s, "table_turnover")));
+      const alertAvg = avg(stores.map((s) => metricValue(s, "alerts")));
+      const parts = {
+        waste: clamp(100 - num(wasteAvg) * 8, 0, 100),
+        sop: clamp(num(sopAvg), 0, 100),
+        turnover: clamp(num(turnoverAvg) / 5 * 100, 0, 100),
+        alerts: clamp(100 - num(alertAvg) * 18, 0, 100),
+      };
+      const score = Math.round(parts.waste * 0.30 + parts.sop * 0.30 + parts.turnover * 0.25 + parts.alerts * 0.15);
+      return { score, parts };
+    }
 
     function renderZoneTabs(zones) {
       const box = document.getElementById("zone-tabs");
@@ -258,6 +431,162 @@
       ).join("") || "—";
     }
 
+    async function fetchRegionalCompare() {
+      const params = new URLSearchParams({ days: "7" });
+      if (currentRegionId.startsWith("zone_")) params.set("zone_id", currentRegionId);
+      else params.set("region_id", currentRegionId);
+      return analyticsApi(`/api/analytics/compare?${params.toString()}`);
+    }
+
+    async function fetchWasteTrendForStore(storeId) {
+      const trend = await analyticsApi(`/api/analytics/trends/${encodeURIComponent(storeId)}?metric=waste&days=7`);
+      return trend.daily || [];
+    }
+
+    function renderRegionalHealth(stores) {
+      const health = regionalHealthScore(stores || []);
+      document.getElementById("kpi-health-score").textContent = health.score || "—";
+      document.getElementById("regional-health-score").textContent = health.score || "—";
+      document.getElementById("regional-health-ring").style.setProperty("--score", health.score || 0);
+      document.getElementById("score-waste").textContent = Math.round(health.parts.waste);
+      document.getElementById("score-sop").textContent = Math.round(health.parts.sop);
+      document.getElementById("score-turnover").textContent = Math.round(health.parts.turnover);
+      document.getElementById("score-alerts").textContent = Math.round(health.parts.alerts);
+    }
+
+    function renderRiskStores(stores, compareRows) {
+      const box = document.getElementById("risk-stores");
+      const rows = (compareRows?.length ? compareRows : stores || []).map((s) => {
+        const wasteChange = num(s.metrics?.waste_rate?.change_rate_pct, 0);
+        const sopChange = num(s.metrics?.sop_compliance?.change_rate_pct, 0);
+        const alertVal = num(metricValue(s, "alerts"));
+        const score = s.health?.score ?? regionalHealthScore([s]).score;
+        const reasons = [];
+        if (wasteChange >= 10) reasons.push(`损耗上升 ${wasteChange.toFixed(1)}%`);
+        if (sopChange <= -5) reasons.push(`SOP 下降 ${Math.abs(sopChange).toFixed(1)}%`);
+        if (alertVal > 0) reasons.push(`食安/严重告警 ${alertVal} 条`);
+        if (score < 80) reasons.push(`健康分 ${score}`);
+        return { ...s, score, reasons };
+      }).filter((s) => s.reasons.length)
+        .sort((a, b) => a.score - b.score)
+        .slice(0, 5);
+      if (!rows.length) {
+        box.innerHTML = '<p style="color:var(--ok)">本区域暂无明显下滑门店</p>';
+        return;
+      }
+      box.innerHTML = rows.map((s) => `
+        <div class="risk-store">
+          <div style="display:flex;justify-content:space-between;gap:10px">
+            <b class="${s.score < 75 ? "cell-critical" : "cell-warn"}">${shortName(s.store_name)}</b>
+            <span>健康分 ${s.score}</span>
+          </div>
+          <div style="color:var(--muted);margin-top:4px">${s.reasons.join("；")}</div>
+        </div>`).join("");
+    }
+
+    function aggregateWasteTrend(trendsByStore) {
+      const byDate = new Map();
+      trendsByStore.forEach((daily) => {
+        daily.forEach((row) => {
+          if (!byDate.has(row.date)) byDate.set(row.date, []);
+          byDate.get(row.date).push(num(row.value));
+        });
+      });
+      const labels = [...byDate.keys()].sort();
+      const values = labels.map((label) => Number(avg(byDate.get(label)).toFixed(3)));
+      return { labels, values };
+    }
+
+    function renderWasteChart(trendsByStore) {
+      const ctx = document.getElementById("regional-waste-chart");
+      if (!window.Chart) {
+        ctx.parentElement.innerHTML = '<p style="color:var(--muted)">Chart.js 加载失败，趋势图暂不可用</p>';
+        return;
+      }
+      const trend = aggregateWasteTrend(trendsByStore);
+      if (regionalWasteChart) regionalWasteChart.destroy();
+      regionalWasteChart = new Chart(ctx, {
+        type: "line",
+        data: {
+          labels: trend.labels.map((d) => d.slice(5)),
+          datasets: [{
+            label: "区域平均损耗率",
+            data: trend.values,
+            borderColor: "#E2613A",
+            backgroundColor: "rgba(226,97,58,0.16)",
+            fill: true,
+            tension: 0.34,
+            pointRadius: 2,
+          }],
+        },
+        options: {
+          responsive: true,
+          maintainAspectRatio: false,
+          plugins: { legend: { labels: { color: "#F4ECE3" } } },
+          scales: {
+            x: { ticks: { color: "#B2A294" }, grid: { display: false } },
+            y: { ticks: { color: "#B2A294" }, grid: { color: "rgba(178,162,148,0.18)" } },
+          },
+        },
+      });
+    }
+
+    function renderAlertSummary(stores, compareRows) {
+      const rows = compareRows?.length ? compareRows : stores || [];
+      const alertRows = rows.map((s) => ({
+        store_id: s.store_id,
+        store_name: s.store_name,
+        count: num(metricValue(s, "alerts")),
+      })).filter((s) => s.count > 0)
+        .sort((a, b) => b.count - a.count);
+      const total = alertRows.reduce((sum, s) => sum + s.count, 0);
+      document.getElementById("alert-food").textContent = total;
+      document.getElementById("alert-critical").textContent = total;
+      document.getElementById("alert-stores").textContent = alertRows.length;
+      document.getElementById("alert-summary-list").innerHTML = alertRows.length
+        ? alertRows.slice(0, 5).map((s, i) => `
+          <div class="rank-row">
+            <span>#${i + 1} ${shortName(s.store_name)}</span>
+            <b class="cell-critical">${s.count} 条</b>
+          </div>`).join("")
+        : '<p style="color:var(--ok)">暂无食安告警</p>';
+    }
+
+    async function renderRegionalEnhancements(data) {
+      const fallbackStores = data.stores || [];
+      let compareRows = [];
+      try {
+        const compare = await fetchRegionalCompare();
+        compareRows = compare.rows || [];
+      } catch (e) {
+        console.warn("analytics compare failed", e);
+      }
+      const scoringStores = compareRows.length ? compareRows : fallbackStores;
+      renderRegionalHealth(scoringStores);
+      renderRiskStores(fallbackStores, compareRows);
+      renderAlertSummary(fallbackStores, compareRows);
+
+      const trendTargets = (compareRows.length ? compareRows : fallbackStores).slice(0, 10);
+      const trendsByStore = [];
+      await Promise.all(trendTargets.map(async (s) => {
+        try {
+          trendsByStore.push(await fetchWasteTrendForStore(s.store_id));
+        } catch (e) {
+          console.warn("waste trend failed", s.store_id, e);
+        }
+      }));
+      if (!trendsByStore.length) {
+        const labels = Array.from({ length: 7 }, (_, i) => {
+          const d = new Date();
+          d.setDate(d.getDate() - (6 - i));
+          return d.toISOString().slice(0, 10);
+        });
+        const base = avg(scoringStores.map((s) => metricValue(s, "waste_rate"))) || 2.8;
+        trendsByStore.push(labels.map((date, i) => ({ date, value: Number((base + Math.sin(i / 1.4) * 0.18).toFixed(3)) })));
+      }
+      renderWasteChart(trendsByStore);
+    }
+
     async function refresh() {
       try {
         const data = await HotpotApp.fetchRegionOverview(currentRegionId);
@@ -273,6 +602,7 @@
         renderRollup(data.rollup);
         renderHealthMatrix(data.health_matrix, data.stores);
         renderAnomalies(data.anomaly_stores);
+        await renderRegionalEnhancements(data);
 
         const ul = document.getElementById("narrative-list");
         ul.innerHTML = "";

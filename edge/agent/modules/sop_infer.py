@@ -21,12 +21,16 @@ from fastapi.responses import JSONResponse
 from pydantic import BaseModel
 
 from edge.agent.config import PROJECT_ROOT, HUB_URL, STORE_ID, API_KEY, OUTPUT_DIR
+from edge.common.sop_scorer import SopScorer
+from edge.common.turnover_analyzer import HubEventPoster
 
 router = APIRouter(prefix="/infer", tags=["sop"])
 
 # 由 server.py 在配置驱动下设置
 _active = False
 _zone = "sop"
+buffer = None
+_sop_scorer: Optional[SopScorer] = None
 
 # ── 7 工位定义 ──
 STATION_IDS = [
@@ -161,6 +165,35 @@ def push_sop_result_to_hub(result: SopVisionResult) -> Dict[str, Any]:
         return {"ok": False, "error": str(e)}
 
 
+def _get_sop_scorer() -> SopScorer:
+    """Return process-local SOP scorer wired to the Agent offline buffer."""
+    global _sop_scorer
+    if _sop_scorer is None:
+        _sop_scorer = SopScorer(
+            store_id=STORE_ID,
+            hub_poster=HubEventPoster(hub_url=HUB_URL, api_key=API_KEY, inference_buffer=buffer),
+        )
+    elif _sop_scorer.hub_poster is not None:
+        _sop_scorer.hub_poster.inference_buffer = buffer
+    return _sop_scorer
+
+
+async def score_and_push_sop_result(result: SopVisionResult) -> Dict[str, Any]:
+    """Record SOP violations, build today's scorecard, and post it to Hub."""
+    scorer = _get_sop_scorer()
+    scorer.record_sop_infer_result(
+        {
+            "store_id": STORE_ID,
+            "station_id": result.station_id,
+            "timestamp": result.timestamp,
+            "violations": result.violations,
+        }
+    )
+    scorecard = scorer.daily_scorecard(store_id=STORE_ID, day=result.timestamp[:10])
+    hub_result = await scorer.post_scorecard(scorecard)
+    return {"scorecard": scorecard, "hub": hub_result}
+
+
 # ═══════════════════════════════════════════════════════════════
 # API 端点
 # ═══════════════════════════════════════════════════════════════
@@ -184,7 +217,7 @@ def sop_health():
 
 
 @router.post("/sop")
-def sop_infer(req: SopInferRequest):
+async def sop_infer(req: SopInferRequest):
     """SOP 视觉合规检测端点。
 
     接收图片路径或 base64 帧 → YOLO+PPE检测 → 返回合规结果。
@@ -222,6 +255,7 @@ def sop_infer(req: SopInferRequest):
 
     # 推送到 Hub（best-effort）
     hub_result = push_sop_result_to_hub(result)
+    score_result = await score_and_push_sop_result(result)
 
     return {
         "ok": True,
@@ -234,6 +268,8 @@ def sop_infer(req: SopInferRequest):
         "timestamp": result.timestamp,
         "inference_ms": total_ms,
         "hub_pushed": hub_result.get("ok", False),
+        "sop_score": score_result["scorecard"]["score"],
+        "scorecard_hub_pushed": score_result["hub"].get("ok", False),
     }
 
 

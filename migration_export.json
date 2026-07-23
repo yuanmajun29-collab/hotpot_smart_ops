@@ -1,0 +1,76 @@
+{
+  "exported_at": "2026-07-16T07:38:23.748260+00:00",
+  "source": "/tmp/test_migration.db",
+  "events": [
+    {
+      "event_id": "ev-001",
+      "store_id": "store_test",
+      "level": "info",
+      "source": "test",
+      "payload": "{\"event_id\": \"ev-001\", \"event_type\": \"test\", \"timestamp\": \"2026-07-16T10:00:00\"}",
+      "created_at": "2026-07-16T10:00:00"
+    },
+    {
+      "event_id": "ev-002",
+      "store_id": "store_test",
+      "level": "warning",
+      "source": "test",
+      "payload": "{\"event_id\": \"ev-002\", \"event_type\": \"vlm_waste_estimate\", \"timestamp\": \"2026-07-16T11:00:00\", \"metadata\": {\"total_waste_count\": 5}}",
+      "created_at": "2026-07-16T11:00:00"
+    }
+  ],
+  "snapshots": [
+    {
+      "store_id": "store_test",
+      "kind": "cost_stats",
+      "payload": "{\"total\": 1000}",
+      "updated_at": "2026-07-16T10:00:00"
+    }
+  ],
+  "devices": [
+    {
+      "device_id": "cam_01",
+      "payload": "{\"type\": \"kitchen\"}",
+      "updated_at": "2026-07-16T10:00:00"
+    }
+  ],
+  "receiving": [],
+  "sop_assignments": [],
+  "iot_readings": [],
+  "daily_reports": [],
+  "tasks": [],
+  "waste_timeseries": [
+    {
+      "id": 1,
+      "store_id": "store_test",
+      "date": "2026-07-15",
+      "total_count": 10,
+      "event_count": 1,
+      "top_skus": "[]",
+      "generated_at": "2026-07-15T22:00:00"
+    },
+    {
+      "id": 2,
+      "store_id": "store_test",
+      "date": "2026-07-16",
+      "total_count": 15,
+      "event_count": 2,
+      "top_skus": "[]",
+      "generated_at": "2026-07-16T22:00:00"
+    }
+  ],
+  "waste_alerts": [
+    {
+      "id": 1,
+      "store_id": "store_test",
+      "date": "2026-07-16",
+      "alert_type": "spike",
+      "current_count": 15,
+      "baseline_avg": 5.0,
+      "ratio": 3.0,
+      "message": "test alert",
+      "created_at": "2026-07-16T22:00:00",
+      "acknowledged": 0
+    }
+  ]
+}
