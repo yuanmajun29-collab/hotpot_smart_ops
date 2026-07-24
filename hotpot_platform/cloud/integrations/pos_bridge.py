@@ -111,6 +111,84 @@ def sync_pos(
     return stats
 
 
+# ============================================================
+# v5.0 数据引擎扩展 — per-SKU 日销量
+# ============================================================
+
+DEFAULT_SKU_SALES_FILE = PROJECT_ROOT / "demo" / "data" / "sku_sales_daily.json"
+
+
+def fetch_sku_sales(
+    store_id: str,
+    date: str = "",
+    *,
+    mode: str = "file",
+    sku_file: Path = DEFAULT_SKU_SALES_FILE,
+    api_url: str = "",
+    api_key: str = "",
+) -> List[Dict[str, Any]]:
+    """获取 per-SKU 日销量明细 (数据引擎 N01 输入)。
+
+    Returns:
+        [{store_id, business_date, sku, sku_name, category, qty_sold, unit, unit_price, revenue, hour_dist}]
+    """
+    target_date = date or utc_today()
+
+    if mode == "api" and api_url:
+        url = api_url.format(store_id=store_id, date=target_date)
+        headers = {"Accept": "application/json"}
+        if api_key:
+            headers["Authorization"] = f"Bearer {api_key}"
+        req = urllib.request.Request(url, headers=headers)
+        with urllib.request.urlopen(req, timeout=15) as resp:
+            data = json.loads(resp.read().decode())
+        records = data if isinstance(data, list) else data.get("items", data.get("sales", []))
+    elif sku_file.exists():
+        data = json.loads(sku_file.read_text(encoding="utf-8"))
+        # 支持两种格式: [{...}] 或 {date: [{...}]}
+        if isinstance(data, list):
+            records = data
+        elif isinstance(data, dict):
+            records = data.get(target_date, data.get(list(data.keys())[0], []))
+        else:
+            records = []
+    else:
+        # 无数据时返回 mock 结构
+        records = _mock_sku_sales(store_id, target_date)
+
+    synced_at = datetime.now(timezone.utc).replace(microsecond=0).isoformat()
+    for r in records:
+        r["store_id"] = r.get("store_id", store_id)
+        r["business_date"] = r.get("business_date", target_date)
+        r["source"] = r.get("source", mode)
+        r.setdefault("unit", "份")
+        r.setdefault("qty_sold", 0)
+        r["synced_at"] = synced_at
+    return records
+
+
+def _mock_sku_sales(store_id: str, date: str) -> List[Dict[str, Any]]:
+    """生成演示 per-SKU 销量数据 (用于开发/演示)。"""
+    return [
+        {"store_id": store_id, "business_date": date, "sku": "毛肚", "sku_name": "鲜毛肚",
+         "category": "荤菜", "qty_sold": 48, "unit": "份", "unit_price": 68, "revenue": 3264},
+        {"store_id": store_id, "business_date": date, "sku": "鸭肠", "sku_name": "生抠鸭肠",
+         "category": "荤菜", "qty_sold": 35, "unit": "份", "unit_price": 38, "revenue": 1330},
+        {"store_id": store_id, "business_date": date, "sku": "牛肉", "sku_name": "精品肥牛",
+         "category": "荤菜", "qty_sold": 55, "unit": "份", "unit_price": 58, "revenue": 3190},
+        {"store_id": store_id, "business_date": date, "sku": "虾滑", "sku_name": "手打虾滑",
+         "category": "荤菜", "qty_sold": 30, "unit": "份", "unit_price": 42, "revenue": 1260},
+        {"store_id": store_id, "business_date": date, "sku": "藕片", "sku_name": "鲜藕片",
+         "category": "素菜", "qty_sold": 40, "unit": "份", "unit_price": 18, "revenue": 720},
+        {"store_id": store_id, "business_date": date, "sku": "土豆", "sku_name": "功夫土豆片",
+         "category": "素菜", "qty_sold": 52, "unit": "份", "unit_price": 16, "revenue": 832},
+        {"store_id": store_id, "business_date": date, "sku": "锅底红汤", "sku_name": "经典红汤锅底",
+         "category": "锅底", "qty_sold": 60, "unit": "锅", "unit_price": 58, "revenue": 3480},
+        {"store_id": store_id, "business_date": date, "sku": "啤酒", "sku_name": "雪花纯生",
+         "category": "酒水", "qty_sold": 80, "unit": "瓶", "unit_price": 12, "revenue": 960},
+    ]
+
+
 def main() -> None:
     parser = argparse.ArgumentParser(description="POS → Event Hub sync")
     parser.add_argument("--store-id", default="store_yuhuan")

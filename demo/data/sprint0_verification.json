@@ -1,0 +1,171 @@
+{
+  "gate_results": {
+    "① POS per-SKU 数据可用": true,
+    "② 预测准确率 L1/L2": true,
+    "③ 需求假设验证": true
+  },
+  "all_pass": true,
+  "details": {
+    "pos": {
+      "store_id": "store_yuhuan",
+      "checks": [
+        {
+          "name": "今日数据",
+          "status": "PASS",
+          "detail": "获取到 8 个 SKU, 总销售额 ¥15,036"
+        },
+        {
+          "name": "72天回溯",
+          "status": "PASS",
+          "detail": "覆盖 72/72 天, 8 个 SKU"
+        },
+        {
+          "name": "SKU覆盖率",
+          "status": "PASS",
+          "detail": "Top 5/8 SKUs 覆盖 80%+ 销售额"
+        },
+        {
+          "name": "格式一致性",
+          "status": "PASS",
+          "detail": "所有必需字段完整"
+        }
+      ],
+      "passed": true,
+      "pos_data_available": true
+    },
+    "forecast": {
+      "store_id": "store_yuhuan",
+      "models": {
+        "L1": {
+          "MAPE": 17.3,
+          "RMSE": 10.9,
+          "bias_rate": 14.8,
+          "n": 56
+        },
+        "L2": {
+          "MAPE": 100.0,
+          "RMSE": 56.2,
+          "bias_rate": -100.0,
+          "n": 56
+        }
+      },
+      "skus": {
+        "毛肚": {
+          "L1_MAPE": 11.3,
+          "L2_MAPE": 100.0,
+          "avg_actual": 55.4
+        },
+        "鸭肠": {
+          "L1_MAPE": 22.1,
+          "L2_MAPE": 100.0,
+          "avg_actual": 35.4
+        },
+        "牛肉": {
+          "L1_MAPE": 15.8,
+          "L2_MAPE": 100.0,
+          "avg_actual": 58.9
+        },
+        "虾滑": {
+          "L1_MAPE": 20.3,
+          "L2_MAPE": 100.0,
+          "avg_actual": 29.3
+        },
+        "藕片": {
+          "L1_MAPE": 14.8,
+          "L2_MAPE": 100.0,
+          "avg_actual": 39.9
+        },
+        "土豆": {
+          "L1_MAPE": 17.3,
+          "L2_MAPE": 100.0,
+          "avg_actual": 49.9
+        },
+        "锅底红汤": {
+          "L1_MAPE": 11.7,
+          "L2_MAPE": 100.0,
+          "avg_actual": 59.1
+        },
+        "啤酒": {
+          "L1_MAPE": 25.1,
+          "L2_MAPE": 100.0,
+          "avg_actual": 88.6
+        }
+      },
+      "forecast_feasible": true
+    },
+    "interview": {
+      "hypotheses": [
+        {
+          "id": "H01",
+          "desc": "智能订货是#1痛点 (损耗率12-15%)",
+          "rationale": "行业数据: 餐饮损耗率12-15%, 订货不准是第一大原因",
+          "confidence": 90,
+          "data_support": "强"
+        },
+        {
+          "id": "H02",
+          "desc": "中小连锁订货全凭经验, 无数据支撑",
+          "rationale": "5-49店规模通常无专职供应链, 店长凭感觉下单",
+          "confidence": 85,
+          "data_support": "强"
+        },
+        {
+          "id": "H03",
+          "desc": "视觉AI+数据AI联动是核心差异化",
+          "rationale": "竞品只有视觉OR数据, 无联动; 损耗事件自动扣减库存是独特闭环",
+          "confidence": 80,
+          "data_support": "中"
+        },
+        {
+          "id": "H04",
+          "desc": "供应商管理是隐藏刚需 (非#1但重要)",
+          "rationale": "中小连锁议价能力弱, 供应商质量波动大, 但不如订货急迫",
+          "confidence": 70,
+          "data_support": "中"
+        },
+        {
+          "id": "H05",
+          "desc": "ERP双向打通是获客抓手 (哗啦啦窗口期)",
+          "rationale": "哗啦啦涨价期, 客户有切换意愿; 双向同步降低迁移成本",
+          "confidence": 80,
+          "data_support": "中"
+        },
+        {
+          "id": "H06",
+          "desc": "首批MVP只需预测+订货+库存 (N01-N03)",
+          "rationale": "N04-N06是锦上添花, 前三个直接降损耗",
+          "confidence": 85,
+          "data_support": "强"
+        },
+        {
+          "id": "H07",
+          "desc": "火锅5业态中, 传统火锅+串串优先 (70%门店)",
+          "rationale": "传统火锅6200亿+串串香增速快; 自助餐/外卖火锅数据要求不同",
+          "confidence": 75,
+          "data_support": "中"
+        },
+        {
+          "id": "H08",
+          "desc": "3家预访谈可验证70%+假设",
+          "rationale": "3家中型连锁 (5-49店) + 冯校长关系 = 高质量反馈",
+          "confidence": 80,
+          "data_support": "弱 (待实地验证)"
+        }
+      ],
+      "avg_confidence": 80.6,
+      "strong_count": 3,
+      "interview_ready": true,
+      "questions": {
+        "H01": "过去一个月, 哪些食材经常订多/订少? → 验证痛点排序",
+        "H02": "店长怎么决定明天进多少货? 有系统还是凭感觉? → 验证经验依赖",
+        "H03": "如果摄像头看到毛肚被扔掉, 系统自动建议少订, 你觉得有用吗? → 验证双引擎价值",
+        "H04": "供应商质量波动大吗? 多久换一次供应商? → 验证供应商管理优先级",
+        "H05": "你们现在用什么 ERP? 满意吗? → 验证哗啦啦窗口",
+        "H06": "如果只给你预测+订货+库存三个功能, 能解决你80%问题吗? → 验证MVP范围",
+        "H07": "你们是传统点单还是自助? 有多少种锅底? → 验证业态适配",
+        "H08": "你愿意试用 2 周吗? 装 2 个摄像头就够。→ 验证试用意愿"
+      }
+    }
+  },
+  "verification_time": "2026-07-25T01:18:52.638017"
+}

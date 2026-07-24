@@ -1,0 +1,1431 @@
+# 火瞳·数据引擎技术设计文档
+
+> **文档版本**: v1.0 | **日期**: 2026-07-25
+> **关联文档**: 火瞳_融合PRD_v5.0.md (N01-N06) | 火锅AI-架构设计.md
+> **设计原则**: 复用现有架构模式，最小侵入式扩展，视觉引擎与数据引擎双轮驱动
+
+---
+
+## 一、设计目标与背景
+
+### 1.1 问题定义
+
+火瞳系统已有成熟的**边缘视觉AI引擎**——YOLO→CLIP→VLM四级管线可检测后厨损耗、前厅桌态、SOP合规、收货质检等27个功能已落地。但系统存在一个核心缺口：
+
+> **只有"视觉看见"，没有"数据算清"。**
+
+具体表现为：
+- POS Bridge 只同步聚合日报（翻台率、营业额），**不捕获 per-SKU 销量明细**
+- 没有实时库存台账（库存水位、保质期、在途量）
+- 损耗预测仅基于收货端 rule baseline + LLM 备货建议，**不关联销售端实际消耗**
+- 没有供应商绩效追踪和历史数据沉淀
+- 智能订货只有 LLM 一条路径，**缺统计/ML 预测模型**
+
+### 1.2 设计目标
+
+| 目标 | 衡量标准 |
+|------|----------|
+| 建立 per-SKU 销量时序数据库 | 每店每日记录每个菜品/SKU 的销量、售价、时段分布 |
+| 实现 AI 销量预测 | 预测准确率 ≥85%（MAPE <15%），提前 1-7 天 |
+| 建立实时库存台账 | 库存水位准确率 ≥95%，临期预警提前 ≥24h |
+| 生成智能订货建议 | 建议采纳率 ≥70%，订货后缺货率 <5%、损耗率 <5% |
+| 追踪供应商绩效 | 评分维度覆盖价格/质量/交期/短重率 |
+| 对接外部 ERP | 支持读取 PO + 写回采购建议，双向同步 |
+
+### 1.3 设计原则
+
+1. **复用现有架构模式** — 路由自动发现、内存+持久化双层、多租户隔离、EventStore 模式全部沿用
+2. **最小侵入式扩展** — 不修改已有核心模块（hub_core、auth、rbac），通过新增模块+扩展桥接器实现
+3. **渐进式算法** — 规则基线 → 统计模型 → ML 模型 → LLM 增强，四级渐进，任一级失败优雅降级
+4. **视觉+数据双引擎** — 视觉引擎的损耗检测结果作为数据引擎的"实际消耗"校准源
+5. **离线友好** — 预测和订货建议可在无网络时离线生成，联网后同步
+
+---
+
+## 二、系统架构
+
+### 2.1 在现有架构中的位置
+
+```
+                         ┌──────────────────────────────────────────────────┐
+                         │              云端 (hotpot_platform/cloud)            │
+                         │                                                    │
+                         │   ┌─────────────┐    ┌──────────────────────────┐ │
+                         │   │  Event Hub   │    │   ★ 数据引擎 (NEW) ★     │ │
+                         │   │  (已有)      │    │   data_engine/           │ │
+                         │   │             │    │                          │ │
+                         │   │  EventStore  │◄──►│  SalesPredictor (N01)   │ │
+                         │   │  MultiTenant │    │  OrderAdvisor  (N02)   │ │
+                         │   │  RBAC/Auth   │    │  InventoryBook (N03)   │ │
+                         │   │  TaskEngine  │    │  LossAnalyzer  (N04)   │ │
+                         │   │             │    │  SupplierScore (N05)   │ │
+                         │   │  routers/    │    │  ErpConnector  (N06)   │ │
+                         │   │  (自动发现)  │    │                          │ │
+                         │   └──────┬──────┘    └──────────┬───────────────┘ │
+                         │          │                       │                 │
+                         │   ┌──────┴──────┐    ┌──────────┴───────────────┐ │
+                         │   │ cost_control │    │  integrations/ (扩展)    │ │
+                         │   │  (已有)      │    │  pos_bridge (+SKU明细)   │ │
+                         │   │  analyzer    │    │  erp_bridge (+双向同步)  │ │
+                         │   │  feature_bld │    └──────────────────────────┘ │
+                         │   └─────────────┘                                  │
+                         │                                                    │
+                         │   ┌─────────────┐    ┌──────────────────────────┐  │
+                         │   │ Dashboard   │    │   LLM Report (已有)       │  │
+                         │   │ (前端)      │    │   forecast_agent (扩展)   │  │
+                         │   └─────────────┘    └──────────────────────────┘  │
+                         └────────────────────────────────────────────────────┘
+                                              ▲
+                                              │ HTTP (推送/拉取)
+                                              │
+                    ┌─────────────────────────┴─────────────────────────────┐
+                    │              边缘端 (edge/agent)                       │
+                    │                                                        │
+                    │   ┌─────────────┐  ┌──────────┐  ┌─────────────────┐ │
+                    │   │ 视觉AI管线  │  │ Edge     │  │ POS Adapter     │ │
+                    │   │ (已有)      │  │ Agent    │  │ (NEW, 可选)      │ │
+                    │   │ YOLO→CLIP  │  │ :9100    │  │ 抓取 per-SKU    │ │
+                    │   │ →VLM→Count │  │          │  │ 销量明细         │ │
+                    │   └─────────────┘  └──────────┘  └─────────────────┘ │
+                    └────────────────────────────────────────────────────────┘
+```
+
+### 2.2 数据流总览
+
+```
+                    ┌──────────────────────────────────────────────┐
+                    │               数据输入层                      │
+                    │                                              │
+                    │  POS系统 ──► per-SKU销量明细 (扩展 pos_bridge) │
+                    │  ERP系统 ──► PO订单 + 收货记录 (扩展 erp_bridge)│
+                    │  视觉AI ──► 损耗检测事件 (已有 event pipeline) │
+                    │  IoT传感 ──► 温度/重量 (已有 iot_readings)     │
+                    │  外部数据 ──► 天气/节假日/活动 (新增 ext_data)  │
+                    └──────────────────┬───────────────────────────┘
+                                       │
+                                       ▼
+                    ┌──────────────────────────────────────────────┐
+                    │               数据处理层                      │
+                    │                                              │
+                    │  销量时序库 ──► AI预测模型 ──► 需求预测       │
+                    │  库存台账   ──► 水位计算   ──► 库存状态       │
+                    │  损耗事件   ──► 损耗分析   ──► 损耗趋势       │
+                    │  收货记录   ──► 供应商评分 ──► 绩效排名       │
+                    └──────────────────┬───────────────────────────┘
+                                       │
+                                       ▼
+                    ┌──────────────────────────────────────────────┐
+                    │               决策输出层                      │
+                    │                                              │
+                    │  N01: 需求预测 ──► 每店每SKU未来1-7天销量     │
+                    │  N02: 订货建议 ──► SKU+数量+供应商+时间       │
+                    │  N03: 库存告警 ──► 低库存/临期/积压通知        │
+                    │  N04: 损耗报告 ──► per-SKU损耗率+原因+趋势    │
+                    │  N05: 供应商卡 ──► 评分+对比+更换建议          │
+                    │  N06: ERP同步 ──► 双向PO+库存同步             │
+                    └──────────────────┬───────────────────────────┘
+                                       │
+                                       ▼
+                    ┌──────────────────────────────────────────────┐
+                    │               输出渠道                        │
+                    │                                              │
+                    │  Dashboard看板 (前端可视化)                   │
+                    │  企业微信告警 (已有 AlertGateway)             │
+                    │  任务引擎 (已有 task_store, 一键转补货任务)    │
+                    │  ERP写回 (扩展 erp_bridge)                   │
+                    └──────────────────────────────────────────────┘
+```
+
+### 2.3 新增代码模块清单
+
+```
+hotpot_platform/cloud/
+├── data_engine/                    # ★ 新增：数据引擎核心
+│   ├── __init__.py
+│   ├── models.py                   #   数据模型 (Pydantic schemas)
+│   ├── sales_predictor.py          #   N01: AI销量预测
+│   ├── order_advisor.py            #   N02: 智能订货建议
+│   ├── inventory_book.py           #   N03: 库存台账
+│   ├── loss_analyzer.py            #   N04: 损耗分析优化
+│   ├── supplier_scorer.py          #   N05: 供应商评分
+│   ├── erp_connector.py            #   N06: ERP双向连接器
+│   ├── feature_store.py            #   特征工程 (天气/节假日/促销因子)
+│   └── algorithms/                 #   算法实现
+│       ├── __init__.py
+│       ├── baseline.py              #     L1: 规则基线 (移动平均/同环比)
+│       ├── statistical.py           #     L2: 统计模型 (ARIMA/SARIMA)
+│       ├── ml_model.py              #     L3: 机器学习 (LightGBM)
+│       └── llm_enhancer.py         #     L4: LLM增强 (复用 forecast_agent)
+│
+├── event_hub/
+│   ├── routers/
+│   │   └── inventory.py            #   ★ 新增：库存/订货/预测 API路由
+│   ├── domain/
+│   │   ├── inventory.py             #   ★ 新增：库存领域模型
+│   │   └── supplier.py              #   ★ 新增：供应商领域模型
+│   └── db.py                       #   ★ 扩展：新增6张表
+│
+├── integrations/
+│   ├── pos_bridge.py               #   ★ 扩展：增加 per-SKU 销量明细抓取
+│   ├── erp_bridge.py               #   ★ 扩展：增加双向同步 (写回采购建议)
+│   └── ext_data_bridge.py          #   ★ 新增：外部数据 (天气/节假日)
+│
+└── cost_control/
+    └── feature_builder.py          #   ★ 扩展：集成销量+库存特征
+```
+
+---
+
+## 三、数据模型设计
+
+### 3.1 新增数据库表
+
+在现有 `HubDatabase` / `PostgresHubDatabase` 中新增 6 张表。遵循现有模式：SQLite 用 JSON 列存 payload，PostgreSQL 用 JSONB。
+
+#### 表1: `sales_daily` — per-SKU 日销量时序
+
+```sql
+CREATE TABLE IF NOT EXISTS sales_daily (
+    id          INTEGER PRIMARY KEY AUTOINCREMENT,  -- PG: SERIAL
+    store_id    TEXT    NOT NULL,
+    business_date TEXT NOT NULL,                     -- 业务日期 (门店时区)
+    sku         TEXT    NOT NULL,
+    sku_name    TEXT,
+    category    TEXT,                                -- 品类: 锅底/荤菜/素菜/主食/酒水
+    qty_sold    REAL    NOT NULL DEFAULT 0,          -- 销售数量
+    unit        TEXT    DEFAULT '份',
+    unit_price  REAL,                                -- 客单价
+    revenue     REAL,                                 -- 销售额
+    hour_dist   TEXT,                                 -- JSON: 时段分布 {0:2,1:0,...,23:5}
+    source      TEXT    DEFAULT 'pos',                -- pos/api/manual
+    synced_at   TEXT    NOT NULL,
+    UNIQUE(store_id, business_date, sku)
+);
+CREATE INDEX IF NOT EXISTS idx_sales_store_date ON sales_daily(store_id, business_date);
+CREATE INDEX IF NOT EXISTS idx_sales_sku ON sales_daily(sku);
+```
+
+#### 表2: `inventory_ledger` — 库存台账
+
+```sql
+CREATE TABLE IF NOT EXISTS inventory_ledger (
+    id              INTEGER PRIMARY KEY AUTOINCREMENT,
+    store_id        TEXT    NOT NULL,
+    sku             TEXT    NOT NULL,
+    batch_id        TEXT,                            -- 批次号 (关联收货)
+    movement_type   TEXT    NOT NULL,                -- stock_in/stock_out/adjust/waste/transfer
+    qty_change       REAL    NOT NULL,                -- 正=入库, 负=出库
+    qty_after       REAL,                             -- 变动后库存
+    unit            TEXT    DEFAULT 'kg',
+    unit_cost       REAL,                             -- 单位成本
+    reason          TEXT,                             -- 出库原因: 销售/损耗/盘点调整
+    ref_type        TEXT,                             -- 关联类型: receiving/pos/waste_vision/manual
+    ref_id          TEXT,                             -- 关联ID
+    operator        TEXT,                             -- 操作人
+    recorded_at     TEXT    NOT NULL,
+    UNIQUE(store_id, sku, batch_id, movement_type, recorded_at)
+);
+CREATE INDEX IF NOT EXISTS idx_inv_store_sku ON inventory_ledger(store_id, sku);
+```
+
+#### 表3: `inventory_snapshot` — 库存快照
+
+```sql
+CREATE TABLE IF NOT EXISTS inventory_snapshot (
+    store_id    TEXT    NOT NULL,
+    sku         TEXT    NOT NULL,
+    on_hand_qty REAL    NOT NULL DEFAULT 0,           -- 实物库存
+    in_transit_qty REAL DEFAULT 0,                    -- 在途库存
+    unit        TEXT    DEFAULT 'kg',
+    avg_daily_consumption REAL,                       -- 日均消耗
+    shelf_life_days  INTEGER,                          -- 保质期
+    earliest_expiry  TEXT,                             -- 最早临期日期
+    last_received_at TEXT,
+    last_consumed_at TEXT,
+    updated_at  TEXT    NOT NULL,
+    PRIMARY KEY (store_id, sku)
+);
+```
+
+#### 表4: `sales_forecast` — 预测结果
+
+```sql
+CREATE TABLE IF NOT EXISTS sales_forecast (
+    id          INTEGER PRIMARY KEY AUTOINCREMENT,
+    store_id    TEXT    NOT NULL,
+    sku         TEXT    NOT NULL,
+    forecast_date TEXT NOT NULL,                     -- 预测的目标日期
+    predicted_qty  REAL   NOT NULL,                   -- 预测销量
+    confidence     REAL,                              -- 置信度 0-1
+    lower_bound    REAL,                              -- 预测下限
+    upper_bound    REAL,                              -- 预测上限
+    model_version  TEXT,                              -- 模型版本: L1-rule/L2-stat/L3-ml/L4-llm
+    features_used  TEXT,                               -- JSON: 使用的特征
+    generated_at   TEXT    NOT NULL,
+    UNIQUE(store_id, sku, forecast_date, model_version)
+);
+CREATE INDEX IF NOT EXISTS idx_forecast_store_date ON sales_forecast(store_id, forecast_date);
+```
+
+#### 表5: `order_suggestion` — 订货建议
+
+```sql
+CREATE TABLE IF NOT EXISTS order_suggestion (
+    id              INTEGER PRIMARY KEY AUTOINCREMENT,
+    store_id        TEXT    NOT NULL,
+    sku             TEXT    NOT NULL,
+    suggested_qty   REAL    NOT NULL,                 -- 建议订货量
+    unit            TEXT    DEFAULT 'kg',
+    current_stock   REAL,                             -- 当前库存
+    safety_stock    REAL,                             -- 安全库存
+    forecast_demand REAL,                             -- 预测需求
+    lead_time_days  INTEGER,                          -- 供应商交期
+    supplier        TEXT,                             -- 建议供应商
+    urgency         TEXT    DEFAULT 'normal',         -- urgent/normal/low
+    reason          TEXT,                             -- 决策理由
+    status          TEXT    DEFAULT 'pending',        -- pending/approved/rejected/ordered
+    approved_by     TEXT,
+    approved_at     TEXT,
+    generated_at    TEXT    NOT NULL,
+    UNIQUE(store_id, sku, generated_at)
+);
+```
+
+#### 表6: `supplier_scorecard` — 供应商评分卡
+
+```sql
+CREATE TABLE IF NOT EXISTS supplier_scorecard (
+    id              INTEGER PRIMARY KEY AUTOINCREMENT,
+    store_id        TEXT,                              -- NULL = 全局
+    supplier_name   TEXT    NOT NULL,
+    sku             TEXT,                              -- NULL = 供应商整体
+    total_batches   INTEGER DEFAULT 0,
+    avg_variance_pct REAL,                            -- 平均短重率
+    avg_yield_rate   REAL,                             -- 平均出成率
+    quality_grade_dist TEXT,                           -- JSON: {A:80, B:15, C:5}
+    avg_price         REAL,
+    price_stability   REAL,                           -- 价格波动率
+    on_time_rate      REAL,                            -- 准时交货率
+    reject_rate       REAL,                            -- 拒收率
+    total_score       REAL,                            -- 综合评分 0-100
+    score_level       TEXT,                           -- A/B/C/D
+    last_evaluated_at TEXT    NOT NULL,
+    UNIQUE(store_id, supplier_name, sku)
+);
+```
+
+### 3.2 内存模型扩展
+
+在现有 `EventStore` 中新增以下内存状态字段：
+
+```python
+# hub_core.py — EventStore 扩展 (新增字段, 不修改已有字段)
+
+class EventStore:
+    # ... 已有字段保持不变 ...
+
+    # ★ 新增：数据引擎内存状态
+    inventory_snapshot: Dict[str, Dict]        # {sku: {on_hand, in_transit, ...}}
+    sales_today: Dict[str, Dict]               # {sku: {qty, revenue, hour_dist}}
+    latest_forecast: Dict[str, Dict]           # {sku: {predicted_qty, confidence, ...}}
+    pending_orders: List[Dict]                 # 待审批的订货建议
+    supplier_summary: Dict[str, Dict]         # {supplier_name: {score, ...}}
+```
+
+### 3.3 Pydantic 数据模型
+
+```python
+# data_engine/models.py
+
+from pydantic import BaseModel, Field
+from typing import Optional, Dict, List
+from datetime import date, datetime
+
+
+class SalesRecord(BaseModel):
+    """per-SKU 日销量记录"""
+    store_id: str
+    business_date: date
+    sku: str
+    sku_name: Optional[str] = None
+    category: Optional[str] = None
+    qty_sold: float = Field(ge=0)
+    unit: str = "份"
+    unit_price: Optional[float] = None
+    revenue: Optional[float] = None
+    hour_dist: Optional[Dict[str, int]] = None  # {hour: qty}
+    source: str = "pos"
+
+
+class InventoryMovement(BaseModel):
+    """库存变动流水"""
+    store_id: str
+    sku: str
+    batch_id: Optional[str] = None
+    movement_type: str  # stock_in / stock_out / adjust / waste / transfer
+    qty_change: float   # 正=入库, 负=出库
+    unit: str = "kg"
+    unit_cost: Optional[float] = None
+    reason: Optional[str] = None
+    ref_type: Optional[str] = None
+    ref_id: Optional[str] = None
+    operator: Optional[str] = None
+
+
+class InventorySnapshot(BaseModel):
+    """库存快照"""
+    store_id: str
+    sku: str
+    on_hand_qty: float
+    in_transit_qty: float = 0
+    unit: str = "kg"
+    avg_daily_consumption: Optional[float] = None
+    shelf_life_days: Optional[int] = None
+    earliest_expiry: Optional[str] = None
+
+
+class SalesForecast(BaseModel):
+    """销量预测结果"""
+    store_id: str
+    sku: str
+    forecast_date: date
+    predicted_qty: float
+    confidence: float = Field(ge=0, le=1)
+    lower_bound: Optional[float] = None
+    upper_bound: Optional[float] = None
+    model_version: str = "L1-rule"
+    features_used: Optional[Dict] = None
+
+
+class OrderSuggestion(BaseModel):
+    """订货建议"""
+    store_id: str
+    sku: str
+    suggested_qty: float
+    unit: str = "kg"
+    current_stock: float = 0
+    safety_stock: float = 0
+    forecast_demand: float = 0
+    lead_time_days: int = 1
+    supplier: Optional[str] = None
+    urgency: str = "normal"  # urgent / normal / low
+    reason: Optional[str] = None
+    status: str = "pending"  # pending / approved / rejected / ordered
+
+
+class SupplierScorecard(BaseModel):
+    """供应商评分卡"""
+    store_id: Optional[str] = None
+    supplier_name: str
+    sku: Optional[str] = None
+    total_batches: int = 0
+    avg_variance_pct: Optional[float] = None
+    avg_yield_rate: Optional[float] = None
+    quality_grade_dist: Optional[Dict[str, int]] = None
+    avg_price: Optional[float] = None
+    price_stability: Optional[float] = None
+    on_time_rate: Optional[float] = None
+    reject_rate: Optional[float] = None
+    total_score: Optional[float] = None
+    score_level: Optional[str] = None
+```
+
+---
+
+## 四、功能模块详细设计
+
+### 4.1 N01 — AI 销量预测
+
+#### 4.1.1 模块定位
+
+```
+hotpot_platform/cloud/data_engine/sales_predictor.py
+```
+
+**职责**: 基于 per-SKU 历史销量时序数据 + 外部因子（天气/节假日/促销），预测每店每 SKU 未来 1-7 天的销量。
+
+#### 4.1.2 四级预测架构
+
+```
+输入: sales_daily 表 (≥90天历史) + 外部特征
+  │
+  ▼
+┌─────────────────────────────────────────────────────────────────┐
+│  L1: 规则基线 (baseline.py)                                    │
+│  - 移动平均 (7天/14天/28天)                                     │
+│  - 同周环比 (上周同天)                                         │
+│  - 去年同日 (如有历史)                                         │
+│  - 适用: 数据 <14天 或 其他模型不可用时                         │
+│  - 延迟: <10ms                                                  │
+└─────────────────────────┬───────────────────────────────────────┘
+                          │
+                          ▼
+┌─────────────────────────────────────────────────────────────────┐
+│  L2: 统计模型 (statistical.py)                                  │
+│  - SARIMA (季节性ARIMA)                                         │
+│  - 指数平滑 (Holt-Winters)                                      │
+│  - 自动参数选择 (AIC 最优)                                      │
+│  - 适用: 14天 ≤ 数据量, 有明显周季节性                          │
+│  - 延迟: 50-200ms/SKU                                           │
+│  - 依赖: statsmodels                                            │
+└─────────────────────────┬───────────────────────────────────────┘
+                          │
+                          ▼
+┌─────────────────────────────────────────────────────────────────┐
+│  L3: 机器学习 (ml_model.py)                                     │
+│  - LightGBM 回归模型                                            │
+│  - 特征: 滞后销量/滑动统计/星期/月份/天气/节假日/促销           │
+│  - 特征重要性分析                                               │
+│  - 适用: 数据量 ≥60天, 多因子影响显著                           │
+│  - 延迟: 100-500ms/SKU (推理)                                   │
+│  - 依赖: lightgbm                                              │
+└─────────────────────────┬───────────────────────────────────────┘
+                          │
+                          ▼
+┌─────────────────────────────────────────────────────────────────┐
+│  L4: LLM 增强 (llm_enhancer.py)                                 │
+│  - 复用已有 forecast_agent.py 的 LLMForecastAgent               │
+│  - 输入: L1-L3 预测结果 + 损耗预算 + 特殊事件                  │
+│  - 输出: 带自然语言理由的最终预测 + 置信区间                    │
+│  - 适用: 有 LLM API Key 时自动激活                              │
+│  - 降级: 无 Key 或调用失败 → 回退到 L3 结果                     │
+└─────────────────────────┬───────────────────────────────────────┘
+                          │
+                          ▼
+输出: SalesForecast (predicted_qty + confidence + model_version)
+```
+
+#### 4.1.3 特征工程
+
+```python
+# data_engine/feature_store.py
+
+class FeatureStore:
+    """为预测模型构建特征向量"""
+
+    def build_features(self, store_id: str, sku: str, target_date: date) -> Dict:
+        return {
+            # 时间特征
+            "day_of_week": target_date.weekday(),        # 0=Mon, 6=Sun
+            "is_weekend": target_date.weekday() >= 5,
+            "is_holiday": self._is_holiday(target_date),  # 法定节假日
+            "day_of_month": target_date.day,
+            "month": target_date.month,
+
+            # 滞后特征 (从 sales_daily 查询)
+            "qty_lag_1": self._lag_qty(store_id, sku, target_date, 1),
+            "qty_lag_7": self._lag_qty(store_id, sku, target_date, 7),
+            "qty_lag_14": self._lag_qty(store_id, sku, target_date, 14),
+
+            # 滑动统计
+            "qty_ma_7": self._moving_avg(store_id, sku, target_date, 7),
+            "qty_ma_14": self._moving_avg(store_id, sku, target_date, 14),
+            "qty_ma_28": self._moving_avg(store_id, sku, target_date, 28),
+            "qty_std_7": self._rolling_std(store_id, sku, target_date, 7),
+
+            # 同比
+            "qty_same_day_last_week": self._lag_qty(store_id, sku, target_date, 7),
+            "qty_same_day_last_year": self._lag_qty(store_id, sku, target_date, 365),
+
+            # 外部因子
+            "weather_temp": self._weather_temp(target_date),        # 气温
+            "weather_rain": self._weather_rain(target_date),       # 降雨量
+            "is_promotion": self._is_promotion(store_id, target_date),
+            "reservation_count": self._reservation_count(store_id, target_date),
+        }
+```
+
+#### 4.1.4 核心接口
+
+```python
+class SalesPredictor:
+    """N01: AI 销量预测器"""
+
+    def predict(
+        self,
+        store_id: str,
+        sku: str,
+        target_date: date,
+        horizon_days: int = 1,
+    ) -> SalesForecast:
+        """
+        预测指定门店、SKU、目标日期的销量。
+
+        自动选择最优模型层级:
+        1. 检查历史数据量 → 选择可用层级
+        2. 逐层尝试 L1→L2→L3→L4
+        3. 任一层失败 → 优雅降级到下一层
+        4. 记录 model_version 用于审计
+        """
+
+    def batch_predict(
+        self,
+        store_id: str,
+        target_date: date,
+        horizon_days: int = 7,
+    ) -> List[SalesForecast]:
+        """批量预测门店所有 SKU 未来 N 天销量"""
+
+    def evaluate(
+        self,
+        store_id: str,
+        sku: str,
+        eval_days: int = 30,
+    ) -> Dict:
+        """评估预测准确率 (MAPE, RMSE, 偏差率)"""
+```
+
+---
+
+### 4.2 N02 — 智能订货建议
+
+#### 4.2.1 模块定位
+
+```
+hotpot_platform/cloud/data_engine/order_advisor.py
+```
+
+**职责**: 基于 N01 预测 + N03 库存状态 + 供应商交期，生成每店每 SKU 的订货建议。
+
+#### 4.2.2 订货决策模型
+
+采用**三模型混合策略**，根据品类特性自动选择：
+
+| 品类特性 | 适用模型 | 核心公式 | 典型SKU |
+|----------|----------|----------|---------|
+| 需求稳定、保质期长 | **EOQ 模型** | Q* = √(2DS/H) | 底料、蘸料、酒水 |
+| 需求波动大、短保 | **报童模型** | Q* = μ + Z·σ, CR=(p-c)/(p-s) | 鲜毛肚、鲜牛肉、蔬菜 |
+| 介于两者之间 | **动态安全库存** | ROP = d̄·L + Z·σ_L·√L | 虾滑、鸭血、豆制品 |
+
+其中：
+- D = 年需求量, S = 单次订货成本, H = 单位库存持有成本
+- μ = 预测均值, σ = 预测标准差, Z = 服务水平系数 (95% → 1.65)
+- p = 售价, c = 成本, s = 残值 (过期处理价)
+- d̄ = 日均需求, L = 交期天数, σ_L = 交期内需求标准差
+
+#### 4.2.3 决策流程
+
+```
+                    ┌──────────────────────────────────┐
+                    │         输入                      │
+                    │  • N01 预测需求 (未来7天)          │
+                    │  • N03 当前库存 (on_hand + in_transit) │
+                    │  • SKU 品类属性 (保质期/损耗率)    │
+                    │  • N05 供应商交期 (lead_time)     │
+                    │  • 成本参数 (采购价/持有成本/缺货成本) │
+                    └──────────────┬───────────────────┘
+                                   │
+                                   ▼
+                    ┌──────────────────────────────────┐
+                    │    Step 1: 计算预测期总需求        │
+                    │    D = Σ(predicted_qty, 未来L+N天) │
+                    └──────────────┬───────────────────┘
+                                   │
+                                   ▼
+                    ┌──────────────────────────────────┐
+                    │    Step 2: 计算可用库存            │
+                    │    available = on_hand + in_transit│
+                    │    - 预计损耗 (avg_waste_rate × D) │
+                    │    - 安全库存 (不下限)             │
+                    └──────────────┬───────────────────┘
+                                   │
+                                   ▼
+                    ┌──────────────────────────────────┐
+                    │    Step 3: 计算缺口                │
+                    │    gap = D - available            │
+                    │    if gap ≤ 0 → 不需要订货        │
+                    │    if gap > 0 → 进入订货量计算     │
+                    └──────────────┬───────────────────┘
+                                   │
+                                   ▼
+                    ┌──────────────────────────────────┐
+                    │    Step 4: 选择订货模型            │
+                    │    按 SKU 品类属性自动选择:        │
+                    │    • 保质期>30天 → EOQ            │
+                    │    • 保质期≤3天 → 报童模型        │
+                    │    • 其他 → 动态安全库存          │
+                    └──────────────┬───────────────────┘
+                                   │
+                                   ▼
+                    ┌──────────────────────────────────┐
+                    │    Step 5: 调整约束                │
+                    │    • 供应商最小起订量 (MOQ)       │
+                    │    • 包装规格 (整箱/整件)          │
+                    │    • 预算上限 (可选)              │
+                    └──────────────┬───────────────────┘
+                                   │
+                                   ▼
+                    ┌──────────────────────────────────┐
+                    │    Step 6: 生成建议 + 紧急度判定    │
+                    │    • gap > 安全库存 → urgent      │
+                    │    • gap ≤ 安全库存 → normal       │
+                    │    • 可延后1天 → low               │
+                    └──────────────┬───────────────────┘
+                                   │
+                                   ▼
+                    输出: OrderSuggestion (qty + supplier + urgency + reason)
+```
+
+#### 4.2.3 核心接口
+
+```python
+class OrderAdvisor:
+    """N02: 智能订货顾问"""
+
+    def generate_suggestions(
+        self,
+        store_id: str,
+        target_date: date,
+        horizon_days: int = 7,
+    ) -> List[OrderSuggestion]:
+        """为门店所有 SKU 生成未来 N 天的订货建议"""
+
+    def approve_suggestion(
+        self,
+        suggestion_id: int,
+        approved_by: str,
+        adjusted_qty: Optional[float] = None,
+    ) -> OrderSuggestion:
+        """审批订货建议 (支持人工调整数量)"""
+
+    def to_purchase_order(
+        self,
+        suggestion_ids: List[int],
+    ) -> Dict:
+        """将已审批的建议转为采购订单 (推送至ERP)"""
+```
+
+---
+
+### 4.3 N03 — 库存台账
+
+#### 4.3.1 模块定位
+
+```
+hotpot_platform/cloud/data_engine/inventory_book.py
+```
+
+**职责**: 维护 per-SKU 实时库存水位，追踪保质期，生成库存告警。
+
+#### 4.3.2 库存变动来源
+
+| 变动类型 | 来源 | 触发方式 |
+|----------|------|----------|
+| **stock_in** (入库) | ERP 收货记录 | erp_bridge 同步时自动入库 |
+| **stock_out** (出库-销售) | POS per-SKU 销量 | pos_bridge 同步时自动扣减 |
+| **waste** (损耗) | 视觉AI 检测事件 | event pipeline 中 vlm_waste_estimate 事件触发 |
+| **adjust** (盘点调整) | 人工盘点 | Dashboard API 手动录入 |
+| **transfer** (调拨) | 多店调拨 | Dashboard API 手动录入 |
+
+#### 4.3.3 视觉引擎数据消费
+
+这是**双引擎联动的核心接口**。视觉AI引擎已通过 event pipeline 产出 `vlm_waste_estimate` 事件，库存台账订阅这些事件来校准实际消耗：
+
+```python
+class InventoryBook:
+    """N03: 库存台账"""
+
+    def consume_vision_event(self, event: OpsEvent):
+        """
+        消费视觉AI引擎的损耗检测事件，自动扣减库存。
+
+        已有的事件类型:
+        - vlm_waste_estimate: VLM识别的废弃食材 (含 sku, count, waste_type)
+        - kitchen_waste_detected: YOLO检测的后厨废弃物
+
+        新增逻辑:
+        - 根据事件中的 sku 匹配库存台账
+        - 按 count × 标准份量 转换为 kg
+        - 记录 waste 类型库存变动
+        - 与 POS 销售出库对比，计算"实际损耗率"
+        """
+        if event.event_type == "vlm_waste_estimate":
+            sku = event.metadata.get("sku")
+            waste_count = event.metadata.get("count", 0)
+            standard_portion = self._get_standard_portion(sku)  # 标准份量 (kg/份)
+            waste_kg = waste_count * standard_portion
+
+            self.record_movement(InventoryMovement(
+                store_id=event.store_id,
+                sku=sku,
+                movement_type="waste",
+                qty_change=-waste_kg,
+                reason=f"视觉AI检测: {event.metadata.get('waste_type', '未知')}",
+                ref_type="vision",
+                ref_id=event.event_id,
+            ))
+
+    def get_inventory_status(self, store_id: str) -> List[InventorySnapshot]:
+        """获取门店所有SKU的实时库存快照"""
+
+    def check_alerts(self, store_id: str) -> List[Dict]:
+        """检查库存告警: 低库存/临期/积压"""
+        # 低库存: on_hand < safety_stock
+        # 临期: earliest_expiry - today < 2 days
+        # 积压: on_hand > avg_daily_consumption × shelf_life_days
+```
+
+#### 4.3.4 库存校准机制
+
+```
+每日盘点校准流程 (凌晨自动执行):
+
+1. 从 POS 获取昨日 per-SKU 销量 → 理论消耗量
+2. 从视觉AI获取昨日损耗检测 → 实际损耗量
+3. 理论库存 = 昨日库存 - (理论消耗 + 实际损耗)
+4. 与 ERP 收货入库记录交叉验证
+5. 偏差 > 5% → 生成盘点差异告警
+6. 偏差 > 10% → 生成盘点任务 (复用 task_store)
+```
+
+---
+
+### 4.4 N04 — 损耗分析优化
+
+#### 4.4.1 模块定位
+
+```
+hotpot_platform/cloud/data_engine/loss_analyzer.py
+```
+
+**职责**: 扩展现有 `cost_control/analyzer.py` + `loss_risk.py` + `loss_budget.py`，增加销售端-库存端-损耗端三维交叉分析。
+
+#### 4.4.2 与现有模块的关系
+
+```
+已有模块 (保留不动)                    新增扩展
+─────────────────                   ──────────────────
+cost_control/analyzer.py             data_engine/loss_analyzer.py
+  - 收货端成本异常分析                  - 销售端损耗率分析
+  - 价格/短重/出成率/质检               - per-SKU 损耗趋势
+                                     - 损耗 vs 销量相关性
+domain/loss_risk.py                    - 损耗根因推断
+  - 收货端风险评分                     - 损耗优化建议
+
+domain/loss_budget.py                  - 损耗预测准确率追踪
+  - 损耗预算 + LLM备货                 - 预算 vs 实际偏差分析
+```
+
+#### 4.4.3 三维损耗分析模型
+
+```python
+class LossAnalyzer:
+    """N04: 损耗分析优化器"""
+
+    def compute_loss_rate(self, store_id: str, sku: str, date: date) -> Dict:
+        """
+        计算 per-SKU 损耗率:
+
+        损耗率 = (采购量 - 销售量 - 期末库存) / 采购量 × 100%
+
+        数据来源:
+        - 采购量: erp_bridge 的 PO 收货记录
+        - 销售量: pos_bridge 的 per-SKU 销量
+        - 期末库存: inventory_book 的库存快照
+        - 视觉损耗: event pipeline 的 vlm_waste_estimate 事件
+        """
+
+    def loss_trend(self, store_id: str, sku: str, days: int = 30) -> List[Dict]:
+        """per-SKU 损耗率趋势 (按日)"""
+
+    def loss_correlation(self, store_id: str) -> Dict:
+        """
+        损耗 vs 销量相关性分析:
+        - 哪些 SKU 损耗率最高 (Top10)
+        - 损耗率 vs 销量的相关系数
+        - 高损耗 SKU 的共同特征 (品类/供应商/保质期)
+        """
+
+    def root_cause(self, store_id: str, sku: str) -> Dict:
+        """
+        损耗根因推断:
+        - 采购过多? → 预测偏差 > 20%
+        - 存储不当? → IoT温度异常 + 临期损耗集中
+        - 加工损耗? → 出成率 < 标准值
+        - 顾客剩余? → 视觉AI检测的餐桌剩余量
+        """
+
+    def optimization_suggestion(self, store_id: str) -> List[Dict]:
+        """生成损耗优化建议 (按ROI排序)"""
+```
+
+---
+
+### 4.5 N05 — 供应商评分
+
+#### 4.5.1 模块定位
+
+```
+hotpot_platform/cloud/data_engine/supplier_scorer.py
+hotpot_platform/cloud/event_hub/domain/supplier.py
+```
+
+**职责**: 基于 ERP 收货记录 + 成本分析 + 质检结果，对供应商进行多维度评分。
+
+#### 4.5.2 评分模型
+
+```
+综合评分 (0-100) = 加权平均
+
+维度权重:
+├── 价格竞争力 (25%)
+│   └── avg_price vs 市场基准, price_stability (波动率)
+├── 质量等级 (25%)
+│   └── quality_grade_dist (A/B/C/D 分布), avg_yield_rate (出成率)
+├── 交货可靠性 (25%)
+│   └── on_time_rate (准时率), avg_lead_time (平均交期)
+├── 数量准确性 (15%)
+│   └── avg_variance_pct (短重率), reject_rate (拒收率)
+└── 响应灵活性 (10%)
+    └── 紧急订单响应率, 退换货处理时长
+
+评分等级:
+  A (85-100): 优秀供应商, 优先合作
+  B (70-84):  良好供应商, 正常合作
+  C (55-69):  待改进, 需谈判改善
+  D (<55):    建议更换
+```
+
+#### 4.5.3 数据来源
+
+```python
+class SupplierScorer:
+    """N05: 供应商评分器"""
+
+    def evaluate_supplier(
+        self,
+        supplier_name: str,
+        store_id: Optional[str] = None,
+        sku: Optional[str] = None,
+        eval_days: int = 90,
+    ) -> SupplierScorecard:
+        """
+        数据来源:
+        1. erp_bridge 的收货记录 → 交期/数量/价格
+        2. cost_control/analyzer 的成本分析 → 短重/出成率/质检
+        3. receiving_store 的收货质检记录 → 质量等级
+        4. event pipeline 的 cost_* 告警事件 → 异常记录
+        """
+
+    def rank_suppliers(self, store_id: str, sku: str) -> List[SupplierScorecard]:
+        """同一 SKU 的供应商排名对比"""
+
+    def suggest_alternative(self, store_id: str, sku: str) -> Dict:
+        """对评分 C/D 的供应商，建议替代方案"""
+```
+
+---
+
+### 4.6 N06 — ERP 双向连接器
+
+#### 4.6.1 模块定位
+
+```
+hotpot_platform/cloud/data_engine/erp_connector.py
+```
+
+**职责**: 扩展现有 `integrations/erp_bridge.py`，从单向读取升级为双向同步。
+
+#### 4.6.2 双向同步流程
+
+```
+现有 (保留)                         新增
+─────────────                      ──────────────
+ERP → Hub (读取)                   Hub → ERP (写回)
+  读取 PO 订单                       写回采购建议
+  读取收货记录                       同步库存状态
+  读取供应商信息                     同步损耗报告
+  生成偏差告警                       触发自动下单
+```
+
+#### 4.6.3 适配器模式
+
+```python
+class ErpConnector:
+    """N06: ERP 双向连接器"""
+
+    def __init__(self, adapter: ErpAdapter):
+        """
+        支持多 ERP 系统, 通过适配器模式扩展:
+        - FileAdapter:     文件模式 (demo/开发, 已有)
+        - MockAdapter:     模拟模式 (测试, 已有)
+        - RestApiAdapter:  REST API (生产, 已有基础)
+        - HualalaAdapter:  哗啦啦 API (Phase2)
+        - TflongAdapter:   天财商龙 API (Phase2)
+        - KingdeeAdapter:  金蝶 API (Phase2)
+        """
+
+    def pull_purchase_orders(self, store_id: str) -> List[Dict]:
+        """拉取 ERP 中的 PO 订单 (已有, 保留)"""
+
+    def push_order_suggestion(self, suggestion: OrderSuggestion) -> Dict:
+        """★ 新增: 将订货建议推送到 ERP 生成采购订单"""
+
+    def push_inventory_status(self, store_id: str) -> Dict:
+        """★ 新增: 将库存状态同步到 ERP"""
+
+    def push_loss_report(self, store_id: str, date: date) -> Dict:
+        """★ 新增: 将损耗报告推送到 ERP"""
+```
+
+---
+
+## 五、API 设计
+
+### 5.1 新增路由模块
+
+遵循现有自动发现模式，在 `routers/` 下新建 `inventory.py`，无需修改 `app.py`。
+
+```
+hotpot_platform/cloud/event_hub/routers/inventory.py
+```
+
+### 5.2 API 端点清单
+
+| 方法 | 路径 | 功能 | 权限 |
+|------|------|------|------|
+| **N01 销量预测** | | | |
+| GET | `/api/v1/forecast/{store_id}/{sku}` | 获取单SKU预测 | store/region |
+| GET | `/api/v1/forecast/{store_id}` | 获取全店预测 | store/region |
+| POST | `/api/v1/forecast/{store_id}/generate` | 触发预测生成 | store_write |
+| GET | `/api/v1/forecast/{store_id}/evaluate` | 预测准确率评估 | store/region |
+| **N02 订货建议** | | | |
+| GET | `/api/v1/orders/{store_id}/suggestions` | 获取订货建议列表 | store/region |
+| POST | `/api/v1/orders/suggestions/{id}/approve` | 审批订货建议 | store_write |
+| POST | `/api/v1/orders/suggestions/{id}/reject` | 驳回订货建议 | store_write |
+| POST | `/api/v1/orders/batch-approve` | 批量审批 | store_write |
+| POST | `/api/v1/orders/to-po` | 建议转采购订单 | store_write |
+| **N03 库存台账** | | | |
+| GET | `/api/v1/inventory/{store_id}` | 获取门店库存快照 | store/region |
+| GET | `/api/v1/inventory/{store_id}/{sku}` | 获取单SKU库存详情 | store/region |
+| POST | `/api/v1/inventory/{store_id}/adjust` | 录入盘点调整 | store_write |
+| GET | `/api/v1/inventory/{store_id}/alerts` | 获取库存告警 | store/region |
+| GET | `/api/v1/inventory/{store_id}/movements` | 库存变动流水 | store/region |
+| **N04 损耗分析** | | | |
+| GET | `/api/v1/loss/{store_id}/rate` | per-SKU损耗率 | store/region |
+| GET | `/api/v1/loss/{store_id}/trend` | 损耗趋势 | store/region |
+| GET | `/api/v1/loss/{store_id}/correlation` | 损耗相关性分析 | store/region |
+| GET | `/api/v1/loss/{store_id}/root-cause/{sku}` | 损耗根因推断 | store/region |
+| GET | `/api/v1/loss/{store_id}/suggestions` | 损耗优化建议 | store/region |
+| **N05 供应商** | | | |
+| GET | `/api/v1/suppliers` | 供应商列表 | store/region/national |
+| GET | `/api/v1/suppliers/{name}/scorecard` | 供应商评分卡 | store/region/national |
+| GET | `/api/v1/suppliers/rank` | 供应商排名对比 | store/region/national |
+| POST | `/api/v1/suppliers/evaluate` | 触发供应商评分 | national_admin |
+| **N06 ERP同步** | | | |
+| POST | `/api/v1/erp/{store_id}/sync` | 触发ERP双向同步 | store_write |
+| GET | `/api/v1/erp/{store_id}/sync-status` | 同步状态 | store/region |
+| POST | `/api/v1/erp/{store_id}/push-orders` | 推送订货建议到ERP | store_write |
+
+### 5.3 认证与权限
+
+完全复用现有 RBAC 体系：
+
+```python
+# routers/inventory.py — 复用现有认证依赖
+
+from hotpot_platform.cloud.event_hub.auth import (
+    AuthContext, get_auth_context, enforce_store_write, enforce_action
+)
+
+@router.get("/api/v1/inventory/{store_id}")
+def get_inventory(
+    store_id: str,
+    auth: AuthContext = Depends(get_auth_context),
+):
+    # auth 自动校验: 店长看自己店, 区域督导看区域内, 总部看全部
+    sid = resolve_store_id(store_id, None, None, auth)
+    return inventory_book.get_inventory_status(sid)
+```
+
+---
+
+## 六、与视觉引擎的集成设计
+
+### 6.1 双引擎联动架构
+
+这是数据引擎最核心的设计——**视觉引擎"看见"的损耗数据，成为数据引擎"算清"的校准源**。
+
+```
+视觉AI引擎 (已有)                           数据引擎 (新增)
+─────────────────                          ─────────────────
+
+YOLO → CLIP → VLM                          SalesPredictor (N01)
+  │ 检测到 3盘毛肚废弃                       │ 预测今日毛肚需求 50盘
+  │                                          │ 当前库存 45盘
+  ▼                                          ▼
+OpsEvent(vlm_waste_estimate)              InventoryBook (N03)
+  │ event_type: vlm_waste_estimate          │ 收到视觉事件 → 扣减库存
+  │ sku: 毛肚                                 │ 实际库存 = 45 - 3 = 42盘
+  │ count: 3                                  │
+  ▼                                          ▼
+EventStore.add_event() ──────────────►  consume_vision_event()
+  │ (已有的事件管线)                         │ (新增的事件消费者)
+  │                                          │
+  │                                          ▼
+  │                                     LossAnalyzer (N04)
+  │                                          │ 损耗率 = 3/48 = 6.25%
+  │                                          │ 原因: 视觉AI检测废弃
+  │                                          │ 根因: 采购过量(预测50,实际48)
+  │                                          ▼
+  │                                     OrderAdvisor (N02)
+  │                                          │ 明日预测需求 45盘
+  │                                          │ 当前库存 42盘
+  │                                          │ 建议订货: 3盘 (urgent)
+  │                                          ▼
+  │                                     ErpConnector (N06)
+  │                                          │ 推送订货建议到ERP
+```
+
+### 6.2 事件订阅机制
+
+在 `EventStore` 中新增事件订阅回调，无需修改已有事件处理逻辑：
+
+```python
+# hub_core.py — EventStore 扩展 (新增方法, 不修改已有方法)
+
+class EventStore:
+    # ... 已有代码不变 ...
+
+    # ★ 新增: 事件订阅者列表
+    _event_subscribers: List[Callable[[OpsEvent], None]] = []
+
+    def subscribe(self, callback: Callable[[OpsEvent], None]):
+        """订阅事件流 (数据引擎注册)"""
+        self._event_subscribers.append(callback)
+
+    def add_event(self, event: OpsEvent):
+        """已有方法, 末尾新增通知逻辑"""
+        # ... 已有逻辑 (内存+持久化+告警) 保持不变 ...
+
+        # ★ 新增: 通知订阅者 (数据引擎)
+        for callback in self._event_subscribers:
+            try:
+                callback(event)
+            except Exception as e:
+                print(f"[EventStore] subscriber error: {e}")
+```
+
+### 6.3 双引擎数据校准矩阵
+
+| 数据维度 | 视觉引擎提供 | 数据引擎计算 | 校准逻辑 |
+|----------|-------------|-------------|----------|
+| 实际损耗量 | VLM 检测的废弃食材 (盘/份) | POS 销量推算的理论消耗 | 损耗率 = (理论-实际)/理论 |
+| 库存准确度 | — | POS出库 + ERP入库 - 视觉损耗 | 偏差 >5% 触发盘点 |
+| 预测准确率 | — | 预测需求 vs POS实际销量 | MAPE 持续追踪 |
+| 损耗根因 | VLM 废弃类型 (过期/变质/加工) | 预测偏差 + IoT温度 + 出成率 | 多因子归因分析 |
+| 供应商质量 | VLM 收货质检等级 (A/B/C/D) | 短重率 + 价格 + 交期 | 综合评分 |
+
+---
+
+## 七、算法选型与依赖
+
+### 7.1 算法选型矩阵
+
+| 功能 | 算法 | Python库 | 理由 |
+|------|------|----------|------|
+| L1 规则基线 | 移动平均 + 同周环比 | 内置 (无依赖) | 零依赖, 永远可用 |
+| L2 统计模型 | SARIMA + Holt-Winters | statsmodels | 成熟稳定, 适合周期性数据 |
+| L3 机器学习 | LightGBM | lightgbm | 快速, 可解释, 支持特征重要性 |
+| L4 LLM增强 | GPT-4o-mini / 通义千问 | 已有 forecast_agent | 自然语言解释, 特殊事件处理 |
+| 订货-EOQ | 经济订货量公式 | 内置 (无依赖) | 经典模型, 适合稳定品 |
+| 订货-报童 | Newsvendor Model | 内置 (无依赖) | 适合短保品, 一次订货 |
+| 订货-动态安全库存 | ROP + 滚动标准差 | 内置 (无依赖) | 通用模型, 适合中间品 |
+| 损耗相关性 | Pearson/Spearman相关系数 | 内置 (无依赖) | 简单有效 |
+| 损耗根因 | 规则推理 + 多因子归因 | 内置 (无依赖) | 可解释性强 |
+
+### 7.2 新增 Python 依赖
+
+```python
+# requirements.txt — 新增依赖 (追加到已有列表末尾)
+
+# 数据引擎: 统计模型
+statsmodels>=0.14.0          # SARIMA, 指数平滑, 季节分解
+
+# 数据引擎: 机器学习 (可选, 有则用L3, 无则降级到L2)
+lightgbm>=4.0.0              # LightGBM 回归模型
+
+# 数据引擎: 数据处理 (可能已有)
+pandas>=2.0.0                # 时序数据处理
+numpy>=1.24.0                # 数值计算
+
+# 注: scikit-learn 如需用于预处理, 但 lightgbm 自带, 不强制
+```
+
+### 7.3 优雅降级链
+
+```
+L4 LLM增强 (有API Key?)
+  │ 否 / 失败
+  ▼
+L3 机器学习 (有lightgbm? 数据≥60天?)
+  │ 否 / 失败
+  ▼
+L2 统计模型 (有statsmodels? 数据≥14天?)
+  │ 否 / 失败
+  ▼
+L1 规则基线 (永远可用)
+  │
+  ▼
+输出: SalesForecast(model_version="L1-rule", ...)
+```
+
+---
+
+## 八、部署方案
+
+### 8.1 部署拓扑 (无变化)
+
+数据引擎**不需要新增独立服务**，作为模块集成到现有 Event Hub 中：
+
+```
+现有 Docker Compose 服务 (不变):
+  ├── hub         (FastAPI :8088) ← 数据引擎代码在这里运行
+  ├── dashboard   (静态文件 :3000) ← 新增库存/订货前端页面
+  ├── postgres    (PostgreSQL :5432) ← 新增6张表
+  ├── mqtt        (Mosquitto :1883) (不变)
+  └── vlm         (VLM审核 :8089) (不变)
+
+边缘端 (不变):
+  └── edge_agent   (FastAPI :9100) ← 无需修改
+
+唯一变化:
+  1. hub 镜像新增 statsmodels + lightgbm 依赖
+  2. 数据库自动迁移新增6张表 (启动时 CREATE IF NOT EXISTS)
+  3. dashboard 新增前端页面 (库存看板/订货工作台/供应商排名)
+```
+
+### 8.2 Dockerfile 变更
+
+```dockerfile
+# deploy/cloud/Dockerfile — 仅追加依赖, 不改基础镜像
+
+FROM python:3.11-slim-bookworm
+
+# ... 已有安装步骤不变 ...
+
+# ★ 追加: 数据引擎依赖
+RUN pip install --no-cache-dir \
+    statsmodels>=0.14.0 \
+    lightgbm>=4.0.0
+
+# ... 已有 COPY 和 CMD 不变 ...
+```
+
+### 8.3 数据库迁移
+
+```python
+# db.py — 在已有表创建逻辑后追加 (CREATE IF NOT EXISTS, 幂等)
+
+class HubDatabase:
+    def _create_tables(self):
+        # ... 已有表创建不变 ...
+
+        # ★ 追加: 数据引擎表
+        self._conn.executescript("""
+            CREATE TABLE IF NOT EXISTS sales_daily (...);
+            CREATE TABLE IF NOT EXISTS inventory_ledger (...);
+            CREATE TABLE IF NOT EXISTS inventory_snapshot (...);
+            CREATE TABLE IF NOT EXISTS sales_forecast (...);
+            CREATE TABLE IF NOT EXISTS order_suggestion (...);
+            CREATE TABLE IF NOT EXISTS supplier_scorecard (...);
+        """)
+```
+
+### 8.4 定时任务
+
+在现有 `daily_scheduler.py` 中新增数据引擎定时任务：
+
+```python
+# daily_scheduler.py — 追加调度任务
+
+class DailyScheduler:
+    def schedule_all(self):
+        # ... 已有日报调度不变 ...
+
+        # ★ 新增: 数据引擎调度
+        self.add_job("01:00", self._sync_pos_sku_sales)        # 凌晨同步昨日per-SKU销量
+        self.add_job("01:30", self._run_sales_forecast)        # 生成今日+未来7天预测
+        self.add_job("02:00", self._generate_order_suggestions) # 生成订货建议
+        self.add_job("02:30", self._calibrate_inventory)       # 库存校准
+        self.add_job("03:00", self._evaluate_suppliers)       # 供应商评分 (每周一)
+        self.add_job("03:30", self._sync_erp_bidirectional)    # ERP双向同步
+```
+
+---
+
+## 九、测试策略
+
+### 9.1 测试分层
+
+| 层级 | 测试文件 | 覆盖目标 | 策略 |
+|------|----------|----------|------|
+| 单元测试 | `test_sales_predictor.py` | L1-L4算法正确性 | 构造90天模拟销量数据, 验证预测输出 |
+| 单元测试 | `test_order_advisor.py` | 三模型订货逻辑 | 不同品类SKU, 验证EOQ/报童/动态安全库存 |
+| 单元测试 | `test_inventory_book.py` | 库存变动+校准 | 模拟POS+视觉+ERP事件流, 验证库存准确度 |
+| 单元测试 | `test_loss_analyzer.py` | 损耗率计算+根因 | 构造已知损耗场景, 验证分析结果 |
+| 单元测试 | `test_supplier_scorer.py` | 评分模型 | 构造供应商收货记录, 验证评分 |
+| 集成测试 | `test_data_engine_integration.py` | 双引擎联动 | 视觉事件→库存扣减→损耗分析→订货建议 |
+| API测试 | `test_inventory_api.py` | 全部新API端点 | 复用现有 TestClient + RBAC测试模式 |
+| 降级测试 | `test_degradation.py` | 四级降级链 | 模拟lightgbm/statsmodels不可用 |
+
+### 9.2 关键测试用例
+
+```python
+# test_sales_predictor.py
+
+class TestSalesPredictor:
+    def test_l1_baseline_always_available(self):
+        """L1规则基线在任何情况下都应返回预测"""
+        predictor = SalesPredictor()
+        result = predictor.predict("store_test", "毛肚", date(2026, 7, 25))
+        assert result.predicted_qty > 0
+        assert result.model_version == "L1-rule"
+
+    def test_l2_statistical_with_14days_data(self):
+        """有14天数据时应自动升级到L2统计模型"""
+        # 构造14天历史销量, 调用预测, 验证 model_version == "L2-stat"
+
+    def test_l3_ml_with_60days_data(self):
+        """有60天数据+lightgbm可用时应升级到L3"""
+
+    def test_graceful_degradation(self):
+        """L3失败时应降级到L2, L2失败应降级到L1"""
+
+    def test_forecast_accuracy_target(self):
+        """预测准确率应 ≥85% (MAPE <15%)"""
+        # 用90天数据训练, 最后30天做验证
+
+
+# test_inventory_book.py
+
+class TestInventoryBook:
+    def test_consume_vision_event_reduces_stock(self):
+        """视觉AI损耗事件应自动扣减库存"""
+        book = InventoryBook()
+        # 初始库存 10kg
+        book.set_initial_stock("store_test", "毛肚", 10.0)
+        # 模拟视觉事件: 3盘废弃
+        event = OpsEvent(
+            event_type="vlm_waste_estimate",
+            source="vision",
+            store_id="store_test",
+            metadata={"sku": "毛肚", "count": 3, "waste_type": "过期"},
+        )
+        book.consume_vision_event(event)
+        # 库存应减少 3 × 0.15(标准份量) = 0.45kg
+        snapshot = book.get_inventory_status("store_test")
+        assert snapshot["毛肚"].on_hand_qty == 9.55
+
+    def test_daily_calibration_detects_discrepancy(self):
+        """每日校准应检测 >5% 的库存偏差"""
+        # ERP入库50, POS出库40, 视觉损耗3, 理论库存7
+        # 实际盘点5, 偏差28.6% > 5% → 触发告警
+
+    def test_low_stock_alert(self):
+        """库存低于安全库存时应告警"""
+
+
+# test_data_engine_integration.py
+
+class TestDataEngineIntegration:
+    def test_full_pipeline_vision_to_order(self):
+        """端到端: 视觉损耗事件 → 库存扣减 → 损耗分析 → 订货建议"""
+        # 1. 注入90天POS销量数据
+        # 2. 触发预测生成
+        # 3. 注入视觉损耗事件
+        # 4. 验证库存已扣减
+        # 5. 触发订货建议生成
+        # 6. 验证建议中包含该SKU且数量合理
+```
+
+---
+
+## 十、实施计划
+
+### 10.1 分阶段交付
+
+| 阶段 | 周期 | 交付内容 | 依赖 |
+|------|------|----------|------|
+| **Sprint 1** | 第1-2周 | 数据模型 + DB表 + 基础框架 | 无 |
+| | | • 新增6张表 + DB迁移 | |
+| | | • Pydantic models | |
+| | | • EventStore 扩展 (事件订阅) | |
+| | | • 扩展 pos_bridge (per-SKU销量) | |
+| **Sprint 2** | 第3-4周 | N01 销量预测 + N03 库存台账 | Sprint 1 |
+| | | • L1 规则基线 (必做) | |
+| | | • L2 统计模型 (必做) | |
+| | | • L3 ML模型 (选做, 可后置) | |
+| | | • 库存台账核心 + 视觉事件消费 | |
+| | | • 库存校准机制 | |
+| | | • API: /forecast + /inventory | |
+| **Sprint 3** | 第5-6周 | N02 订货建议 + N04 损耗分析 | Sprint 2 |
+| | | • 三模型订货决策 (EOQ/报童/动态安全库存) | |
+| | | • 损耗率计算 + 趋势 + 根因 | |
+| | | • 双引擎联动联调 | |
+| | | • API: /orders + /loss | |
+| **Sprint 4** | 第7-8周 | N05 供应商 + N06 ERP双向 | Sprint 3 |
+| | | • 供应商评分模型 + 排名 | |
+| | | • ERP 双向同步 (写回采购建议) | |
+| | | • API: /suppliers + /erp | |
+| **Sprint 5** | 第9-10周 | 前端看板 + 集成测试 + 上线 | Sprint 1-4 |
+| | | • Dashboard: 库存看板/订货工作台/供应商排名 | |
+| | | • 端到端集成测试 | |
+| | | • 冯校长店试点验证 | |
+
+### 10.2 技术风险与缓解
+
+| 风险 | 影响 | 缓解措施 |
+|------|------|----------|
+| LightGBM 安装失败 (ARM Jetson) | L3不可用 | 降级到L2, 仅云端运行L3 |
+| POS per-SKU 数据不可获取 | 预测精度低 | 支持手动录入/Excel导入; 用 ERP 出库数据反推 |
+| ERP API 不开放 | N06双向不可用 | 先做只读模式, 写回通过导出Excel |
+| 历史数据不足 (<14天) | L2/L3不可用 | L1规则基线兜底, 数据积累后自动升级 |
+| 预测准确率不达标 | 订货建议不可信 | 持续追踪MAPE, 不达标时人工接管 |
+
+### 10.3 验收标准
+
+| 验收项 | 标准 | 验证方法 |
+|--------|------|----------|
+| 销量预测准确率 | MAPE < 15% | 30天回测 |
+| 库存准确率 | 偏差 < 5% | 每日盘点校准 |
+| 订货建议采纳率 | > 70% | 冯校长店1个月统计 |
+| 缺货率 | < 5% | POS缺菜记录 |
+| 损耗率 | < 5% (目标3%) | 损耗分析报告 |
+| 降级链可用性 | L1永远可用 | 模拟L2/L3/L4全部失败 |
+| API覆盖率 | 100% 新端点 | API契约测试 |
+| 测试覆盖率 | > 80% 新代码 | pytest --cov |
+
+---
+
+## 十一、与融合PRD v5.0的映射
+
+| PRD功能编号 | 功能名称 | 技术模块 | Sprint |
+|------------|----------|----------|--------|
+| N01 | AI销量预测 | `data_engine/sales_predictor.py` | S2 |
+| N02 | 智能订货建议 | `data_engine/order_advisor.py` | S3 |
+| N03 | 库存台账管理 | `data_engine/inventory_book.py` | S2 |
+| N04 | 损耗分析优化 | `data_engine/loss_analyzer.py` | S3 |
+| N05 | 供应商管理 | `data_engine/supplier_scorer.py` | S4 |
+| N06 | ERP API对接 | `data_engine/erp_connector.py` | S4 |
+| N07 | 供应商门户 (P1) | `data_engine/supplier_scorer.py` 扩展 | S4+ |
+| N08 | 供应商绩效报表 (P1) | `data_engine/supplier_scorer.py` 扩展 | S4+ |
+| N09 | 供应商协同下单 (P1) | `data_engine/erp_connector.py` 扩展 | S4+ |
+| N10 | 智能排班 (P2) | 独立模块, 不在本设计范围 | — |
+| N11 | ERP深度集成 (P2) | `data_engine/erp_connector.py` 扩展 | S5+ |
+| N12 | 审计日志 (P2) | 扩展 `task_store` 审计能力 | S5+ |
+
+---
+
+## 十二、总结
+
+本设计的核心思路是**不另起炉灶，而是在现有成熟架构上做增量扩展**：
+
+1. **复用架构模式**: 路由自动发现、内存+持久化双层、多租户隔离、EventStore 事件驱动——全部沿用已有模式
+2. **复用基础设施**: FastAPI/Pydantic/PostgreSQL/Docker/Dashboard/RBAC/AlertGateway/TaskEngine——零新增基础设施
+3. **视觉+数据双引擎**: 视觉AI的损耗检测结果直接作为数据引擎的库存校准源，两个引擎形成闭环
+4. **渐进式算法**: L1永远兜底，数据积累后自动升级，不因依赖缺失而崩溃
+5. **最小侵入**: 不修改已有核心代码，通过新增模块 + 扩展桥接器 + 事件订阅实现
+6. **10周交付**: 5个Sprint，从数据模型到试点验证，每个Sprint都有可演示的交付物
+
+**最关键的一句话**: 数据引擎补上了仓库最大的缺口——从"视觉看见"到"数据算清"，让火瞳从"帮你看住每一盘菜"升级为"帮你算清每一笔账"。

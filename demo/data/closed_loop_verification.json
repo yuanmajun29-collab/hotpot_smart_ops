@@ -1,0 +1,17 @@
+{
+  "scenario": {
+    "days": 7,
+    "skus": 8,
+    "waste_events": 10
+  },
+  "gates": {
+    "① 视觉引擎 (后厨→事件→Hub)": true,
+    "② 视觉→数据 (事件→库存→损耗)": true,
+    "③ 数据引擎 (预测→订货→供应商)": true,
+    "④ 全链路 (损耗→ERP)": true,
+    "⑤ 反向回路 (实际→反馈→提升)": true
+  },
+  "all_pass": true,
+  "grade": "🟢 A+",
+  "verification_time": "2026-07-25T01:25:34.988269"
+}

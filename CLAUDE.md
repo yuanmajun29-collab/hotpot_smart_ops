@@ -37,7 +37,27 @@ hotpot_smart_ops/
 │   ├── jetson/         #   Jetson 板端：deploy.sh + build.sh
 │   ├── cloud/          #   云端：docker compose
 │   └── bridge/         #   VLM→Hub 桥接
-├── hotpot_platform/    # 云平台（Hub + Dashboard）
+├── hotpot_platform/    # 云平台（Hub + Dashboard + 数据引擎）
+│   ├── cloud/
+│   │   ├── data_engine/      # 🆕 v5.0 数据引擎 (N01-N06)
+│   │   │   ├── models.py     #   Pydantic 数据模型
+│   │   │   ├── sales_predictor.py   #   N01: AI销量预测
+│   │   │   ├── order_advisor.py     #   N02: 智能订货
+│   │   │   ├── inventory_book.py    #   N03: 库存台账
+│   │   │   ├── loss_analyzer.py     #   N04: 损耗分析
+│   │   │   ├── supplier_scorer.py   #   N05: 供应商评分
+│   │   │   ├── erp_connector.py     #   N06: ERP连接器
+│   │   │   ├── feature_store.py     #   特征工程
+│   │   │   └── algorithms/        # 四级算法
+│   │   │       └── baseline.py      #   L1-L4 预测+订货算法
+│   │   ├── event_hub/
+│   │   │   ├── ... (已有)
+│   │   │   ├── data_engine_schema.py  # 🆕 6张新表DDL
+│   │   │   └── routers/
+│   │   │       └── inventory.py     # 🆕 N01-N06 API路由
+│   │   └── integrations/
+│   │       ├── pos_bridge.py        # ★ 扩展: per-SKU销量
+│   │       └── erp_bridge.py        # ★ 扩展: 双向同步
 ├── edge/               # 边缘端（按场景 → 功能块）
 │   ├── agent/          #   调度层（FastAPI :9100）
 │   ├── front_hall/     #   场景：前厅
@@ -147,13 +167,17 @@ cd <project_root> && python3 -m uvicorn edge.agent.server:app --host 0.0.0.0 --p
 | 数据分析层 | `hotpot_platform/analytics/` | 948 行 | K23-K24 |
 | 设备健康 IoT | `edge/common/device_health.py` | 227 行 | K28 |
 
-## 待建模块 (PRD v3.0 差距)
+## 待建模块 (PRD v5.0 新增 🆕)
 
-| 模块 | PRD ID | 差距 |
-|------|--------|------|
-| 翻台率分析 | K13 | Dashboard 前端 + 时序计算 |
-| 加汤提醒 | K14 | 视觉检测汤位 <1/3 |
-| 多店对比 Dashboard | K15 | Dashboard 前端 |
-| 进货称重/食材对比 | K11/K12 | 电子秤驱动 + CV 品质对比 |
-| 服务响应/微笑识别 | K26/K30 | 视觉检测 |
-| SOP评分系统 | K27 | 后端评分引擎 |
+| 模块 | PRD ID | 现状 | 差距 |
+|------|--------|:---:|------|
+| 数据引擎·销量预测 | N01 | 📋 `data_engine/sales_predictor.py` | 待核心落地 |
+| 数据引擎·智能订货 | N02 | 📋 `data_engine/order_advisor.py` | 待核心落地 |
+| 数据引擎·库存台账 | N03 | 📋 `data_engine/inventory_book.py` | 待核心落地 |
+| 数据引擎·损耗分析 | N04 | 📋 `data_engine/loss_analyzer.py` | 待核心落地 |
+| 数据引擎·供应商评分 | N05 | 📋 `data_engine/supplier_scorer.py` | 待核心落地 |
+| 数据引擎·ERP连接器 | N06 | 📋 `data_engine/erp_connector.py` | 待核心落地 |
+| POS per-SKU 扩展 | — | ✅ `pos_bridge.fetch_sku_sales()` | v5.0 done |
+| ERP 双向同步 | — | ✅ `erp_bridge.push_*()` | v5.0 done |
+| API 路由 | — | ✅ `routers/inventory.py` | v5.0 done |
+| DB 表 (6张) | — | ✅ `data_engine_schema.py` | v5.0 done |

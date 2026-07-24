@@ -49,6 +49,21 @@ def _anomaly_stores_from_rows(rows: List[Dict[str, Any]]) -> List[Dict[str, Any]
     return anomaly
 
 
+# 全局事件订阅者列表 (数据引擎等消费者注册)
+_event_subscribers: List[Callable[[Dict[str, Any]], None]] = []
+
+
+def subscribe_to_events(callback: Callable[[Dict[str, Any]], None]) -> None:
+    """订阅事件流 — 数据引擎通过此接口消费视觉引擎事件。"""
+    _event_subscribers.append(callback)
+
+
+def unsubscribe_from_events(callback: Callable[[Dict[str, Any]], None]) -> None:
+    """取消事件订阅。"""
+    if callback in _event_subscribers:
+        _event_subscribers.remove(callback)
+
+
 class EventStore:
     """In-memory state for a single store tenant."""
 
@@ -58,13 +73,19 @@ class EventStore:
         self._lock = threading.Lock()
         self.events: Deque[Dict[str, Any]] = deque(maxlen=MAX_EVENTS)
         self.table_states: Dict[str, Dict[str, Any]] = {}
-        self.table_history: Dict[str, List[Dict[str, Any]]] = {}  # table_id → [{status, changed_at, duration_min}]
+        self.table_history: Dict[str, List[Dict[str, Any]]] = {}
         self.pos_stats: Dict[str, Any] = {}
         self.sop_stats: Dict[str, Any] = {}
         self.cost_stats: Dict[str, Any] = {}
         self.iot_stats: Dict[str, Any] = {}
         self.erp_stats: Dict[str, Any] = {}
         self.loss_features: Dict[str, Any] = {}
+        # 数据引擎内存状态 (v5.0 新增)
+        self.inventory_snapshot: Dict[str, Dict] = {}
+        self.sales_today: Dict[str, Dict] = {}
+        self.latest_forecast: Dict[str, Dict] = {}
+        self.pending_orders: List[Dict] = []
+        self.supplier_summary: Dict[str, Dict] = {}
 
     def _persist(self, kind: str, payload: Any) -> None:
         if self._on_persist:
@@ -122,6 +143,12 @@ class EventStore:
 
                 self._persist("tables", list(self.table_states.values()))
             self._persist("event", event)
+            # ★ v5.0 数据引擎事件订阅 — 通知所有消费者
+            for sub in _event_subscribers:
+                try:
+                    sub(event)
+                except Exception:
+                    pass  # 订阅者错误不影响事件管线
             return event
 
     def set_table_states(self, states: List[Dict[str, Any]]) -> None:

@@ -171,5 +171,132 @@ def main() -> None:
             print("[erp_bridge] stopped")
 
 
+# ============================================================
+# v5.0 数据引擎扩展 — ERP 双向同步 (N06)
+# ============================================================
+
+def push_order_suggestion_to_erp(
+    store_id: str,
+    suggestions: List[Dict[str, Any]],
+    *,
+    mode: str = "file",
+    api_url: str = "",
+    api_key: str = "",
+    output_dir: Path = PROJECT_ROOT / "demo" / "data" / "erp_writeback",
+) -> Dict[str, Any]:
+    """将订货建议推送到 ERP (建议层, 不下单 — 下单由店长在 ERP 确认)。
+
+    Args:
+        store_id: 门店 ID
+        suggestions: 订货建议列表 [{sku, suggested_qty, unit, supplier, urgency, reason}]
+        mode: file/api
+        api_url: ERP 写回 API
+        api_key: ERP API Key
+
+    Returns:
+        {synced_at, records_pushed, status}
+    """
+    from datetime import datetime, timezone
+    synced_at = datetime.now(timezone.utc).replace(microsecond=0).isoformat()
+
+    if mode == "api" and api_url:
+        url = api_url.format(store_id=store_id)
+        headers = {"Content-Type": "application/json", "Accept": "application/json"}
+        if api_key:
+            headers["Authorization"] = f"Bearer {api_key}"
+        body = json.dumps({
+            "store_id": store_id,
+            "synced_at": synced_at,
+            "type": "order_suggestion",
+            "items": suggestions,
+        }).encode("utf-8")
+        req = urllib.request.Request(url, data=body, headers=headers, method="POST")
+        try:
+            with urllib.request.urlopen(req, timeout=15) as resp:
+                resp.read()
+            status = "ok"
+        except Exception as e:
+            status = f"failed: {e}"
+    else:
+        output_dir.mkdir(parents=True, exist_ok=True)
+        date_tag = synced_at[:10]
+        out_file = output_dir / f"{store_id}_orders_{date_tag}_{synced_at[11:19].replace(':', '')}.json"
+        out_file.write_text(
+            json.dumps({
+                "store_id": store_id,
+                "synced_at": synced_at,
+                "type": "order_suggestion",
+                "items": suggestions,
+            }, ensure_ascii=False, indent=2),
+            encoding="utf-8",
+        )
+        status = "ok"
+
+    return {
+        "store_id": store_id,
+        "synced_at": synced_at,
+        "records_pushed": len(suggestions),
+        "status": status,
+    }
+
+
+def push_inventory_to_erp(
+    store_id: str,
+    inventory: List[Dict[str, Any]],
+    *,
+    mode: str = "file",
+    api_url: str = "",
+    api_key: str = "",
+    output_dir: Path = PROJECT_ROOT / "demo" / "data" / "erp_writeback",
+) -> Dict[str, Any]:
+    """同步库存状态到 ERP (N03→ERP)。
+
+    Args:
+        inventory: 库存快照列表 [{sku, on_hand_qty, in_transit_qty, unit, earliest_expiry}]
+    """
+    from datetime import datetime, timezone
+    synced_at = datetime.now(timezone.utc).replace(microsecond=0).isoformat()
+
+    if mode == "api" and api_url:
+        url = api_url.format(store_id=store_id)
+        headers = {"Content-Type": "application/json"}
+        if api_key:
+            headers["Authorization"] = f"Bearer {api_key}"
+        body = json.dumps({
+            "store_id": store_id,
+            "synced_at": synced_at,
+            "type": "inventory_sync",
+            "items": inventory,
+        }).encode("utf-8")
+        req = urllib.request.Request(url, data=body, headers=headers, method="POST")
+        try:
+            with urllib.request.urlopen(req, timeout=15) as resp:
+                resp.read()
+            status = "ok"
+        except Exception as e:
+            status = f"failed: {e}"
+    else:
+        output_dir.mkdir(parents=True, exist_ok=True)
+        date_tag = synced_at[:10]
+        out_file = output_dir / f"{store_id}_inventory_{date_tag}_{synced_at[11:19].replace(':', '')}.json"
+        out_file.write_text(
+            json.dumps({
+                "store_id": store_id,
+                "synced_at": synced_at,
+                "type": "inventory_sync",
+                "items": inventory,
+            }, ensure_ascii=False, indent=2),
+            encoding="utf-8",
+        )
+        status = "ok"
+
+    return {
+        "store_id": store_id,
+        "synced_at": synced_at,
+        "records_pushed": len(inventory),
+        "status": status,
+    }
+
+
 if __name__ == "__main__":
     main()
