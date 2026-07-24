@@ -1,0 +1,65 @@
+/* 火瞳 Design Tokens — 自动生成，禁止手动编辑 */
+/* 源文件: hotpot_platform/design-tokens.json */
+/* 生成时间: 由 token-to-css.py 自动维护 */
+:root {
+  --bg: #15110E;
+  --card: #1F1813;
+  --card2: #2A201A;
+  --border: #3A2E25;
+  --text: #F4ECE3;
+  --text-muted: #B2A294;
+  --text-faint: #8A7B6E;
+  --brand: #E2613A;
+  --brand-hover: #C8431F;
+  --brand-soft: rgba(226,97,58,0.10);
+  --accent: #F0473C;
+  --accent-soft: rgba(240,71,60,0.20);
+  --warn: #E6A93E;
+  --warn-soft: rgba(210,153,34,0.20);
+  --ok: #56B884;
+  --ok-soft: rgba(63,185,80,0.15);
+  --info: #7FB0CE;
+  --info-soft: rgba(88,166,255,0.10);
+  --dining: #5BAEC2;
+  --wechat-bg: #f7f7f7;
+  --wechat-badge: #07c160;
+  --wechat-text: #1a1a1a;
+  --space-xs: 4px;
+  --space-sm: 8px;
+  --space-md: 12px;
+  --space-lg: 16px;
+  --space-xl: 24px;
+  --space-xxl: 32px;
+  --r-sm: 4px;
+  --r-md: 6px;
+  --r-lg: 8px;
+  --r-xl: 10px;
+  --r-xxl: 12px;
+  --sidebar-width: 220px;
+  --mobile-max-width: 480px;
+  --login-max-width: 400px;
+  --drawer-width: 360px;
+  --cmp-btn-height-md: 36px;
+  --cmp-btn-padding-md: 10px 18px;
+  --cmp-btn-padding-sm: 6px 12px;
+  --cmp-btn-radius: 6px;
+  --cmp-btn-font-size: 0.9rem;
+  --cmp-btn-font-size-sm: 0.8rem;
+  --cmp-card-radius: 10px;
+  --cmp-card-padding: 16px;
+  --cmp-input-height: 36px;
+  --cmp-input-padding: 10px 12px;
+  --cmp-input-radius: 6px;
+  --cmp-input-font-size: 0.95rem;
+  --cmp-chip-padding: 4px 10px;
+  --cmp-chip-radius: 20px;
+  --cmp-chip-font-size: 0.8rem;
+  --cmp-sidebar-width: 220px;
+  --cmp-sidebar-nav-item-padding: 10px 16px;
+  --cmp-sidebar-nav-item-font-size: 0.9rem;
+  --cmp-sidebar-active-border-width: 3px;
+  --cmp-drawer-width: 360px;
+  --cmp-drawer-padding: 24px;
+  --cmp-modal-overlay-bg: rgba(0,0,0,0.5);
+  --cmp-modal-small-width: 480px;
+}

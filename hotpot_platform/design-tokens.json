@@ -1,0 +1,160 @@
+{
+  "$schema": "./design-tokens.schema.json",
+  "$comment": "火瞳 Design Tokens — 暖色牛油火锅暗色体系。所有AI生成UI必须引用此Token，禁止硬编码颜色/像素值。",
+  "version": "1.0.0",
+  "updated": "2026-07-24",
+
+  "color": {
+    "bg": "#15110E",
+    "card": "#1F1813",
+    "card2": "#2A201A",
+    "border": "#3A2E25",
+    "text": "#F4ECE3",
+    "textMuted": "#B2A294",
+    "textFaint": "#8A7B6E",
+
+    "brand": "#E2613A",
+    "brandHover": "#C8431F",
+    "brandSoft": "rgba(226,97,58,0.10)",
+
+    "accent": "#F0473C",
+    "accentSoft": "rgba(240,71,60,0.20)",
+
+    "warn": "#E6A93E",
+    "warnSoft": "rgba(210,153,34,0.20)",
+
+    "ok": "#56B884",
+    "okSoft": "rgba(63,185,80,0.15)",
+
+    "info": "#7FB0CE",
+    "infoSoft": "rgba(88,166,255,0.10)",
+
+    "dining": "#5BAEC2",
+
+    "wechatBg": "#f7f7f7",
+    "wechatBadge": "#07c160",
+    "wechatText": "#1a1a1a"
+  },
+
+  "spacing": {
+    "xs": "4px",
+    "sm": "8px",
+    "md": "12px",
+    "lg": "16px",
+    "xl": "24px",
+    "xxl": "32px"
+  },
+
+  "radius": {
+    "sm": "4px",
+    "md": "6px",
+    "lg": "8px",
+    "xl": "10px",
+    "xxl": "12px"
+  },
+
+  "typography": {
+    "fontFamily": "\"Segoe UI\", \"PingFang SC\", system-ui, sans-serif",
+    "mono": "ui-monospace, monospace",
+    "sizes": {
+      "xs": "0.7rem",
+      "sm": "0.8rem",
+      "md": "0.9rem",
+      "body": "0.95rem",
+      "lg": "1rem",
+      "xl": "1.4rem",
+      "stat": "2rem"
+    }
+  },
+
+  "layout": {
+    "sidebarWidth": "220px",
+    "mobileMaxWidth": "480px",
+    "loginMaxWidth": "400px",
+    "drawerWidth": "360px"
+  },
+
+  "components": {
+    "btn": {
+      "heightMd": "36px",
+      "paddingMd": "10px 18px",
+      "paddingSm": "6px 12px",
+      "radius": "6px",
+      "fontSize": "0.9rem",
+      "fontSizeSm": "0.8rem"
+    },
+    "card": {
+      "radius": "10px",
+      "padding": "16px"
+    },
+    "input": {
+      "height": "36px",
+      "padding": "10px 12px",
+      "radius": "6px",
+      "fontSize": "0.95rem"
+    },
+    "chip": {
+      "padding": "4px 10px",
+      "radius": "20px",
+      "fontSize": "0.8rem"
+    },
+    "sidebar": {
+      "width": "220px",
+      "navItemPadding": "10px 16px",
+      "navItemFontSize": "0.9rem",
+      "activeBorderWidth": "3px"
+    },
+    "drawer": {
+      "width": "360px",
+      "padding": "24px"
+    },
+    "modal": {
+      "overlayBg": "rgba(0,0,0,0.5)",
+      "smallWidth": "480px"
+    }
+  },
+
+  "states": {
+    "alert": {
+      "critical": { "color": "var(--accent)", "borderColor": "var(--accent)" },
+      "warning": { "color": "var(--warn)", "borderColor": "var(--warn)" },
+      "info": { "color": "var(--info)", "borderColor": "var(--info)" },
+      "ok": { "color": "var(--ok)", "borderColor": "var(--ok)" }
+    },
+    "table": {
+      "empty": { "bg": "rgba(63,185,80,0.15)", "border": "var(--ok)" },
+      "dining": { "bg": "rgba(91,174,194,0.16)", "border": "var(--dining)" },
+      "needClean": { "bg": "rgba(210,153,34,0.2)", "border": "var(--warn)" },
+      "checkout": { "bg": "rgba(248,81,73,0.15)", "border": "var(--accent)" }
+    },
+    "tag": {
+      "pass": { "bg": "rgba(63,185,80,0.2)", "color": "var(--ok)" },
+      "fail": { "bg": "rgba(248,81,73,0.2)", "color": "var(--accent)" },
+      "pending": { "bg": "rgba(210,153,34,0.2)", "color": "var(--warn)" }
+    },
+    "grade": {
+      "a": { "bg": "rgba(86,184,132,0.20)", "color": "var(--ok)" },
+      "b": { "bg": "rgba(127,176,206,0.18)", "color": "var(--info)" },
+      "c": { "bg": "var(--warn-soft)", "color": "var(--warn)" },
+      "d": { "bg": "var(--crit-soft)", "color": "var(--accent)" }
+    }
+  },
+
+  "rules": {
+    "forbidden": [
+      "禁止硬编码颜色值 (如 #fff, rgba(...)) — 必须用 var(--xxx) 或 token引用",
+      "禁止硬编码像素值 (如 12px, 24px) — 必须用 spacing token",
+      "禁止内联样式 (style=\"...\") — 必须用 class",
+      "禁止覆盖组件库默认样式 — 必须通过 props/class 调整",
+      "禁止裸 <button> — 必须用 .btn 类",
+      "新颜色必须先加入此 token 文件再使用"
+    ],
+    "required": [
+      "新页面必须在 <head> 引用 theme.css",
+      "所有卡片用 .card 类",
+      "所有按钮用 .btn 类（可选 .btn-ghost .btn-sm .btn-warn .btn-block）",
+      "告警状态色用 token.states.alert",
+      "表单输入框用 .form-group 包裹"
+    ]
+  }
+}
