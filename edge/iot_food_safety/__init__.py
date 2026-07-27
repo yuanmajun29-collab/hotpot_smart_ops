@@ -11,6 +11,20 @@ from edge.iot_food_safety.sensor_driver import (
     SensorDriver,
     TempHumiditySensor,
 )
+from edge.iot_food_safety.context_assembler import (
+    AllowedAction,
+    ChangeRecord,
+    ContextAssembler,
+    EventContext,
+    EvidenceItem,
+    StateSnapshot,
+    build_cold_chain_context,
+)
+from edge.iot_food_safety.stream_processor import (
+    DeviceStateMachine,
+    SensorWindow,
+    ZoneCorrelationDetector,
+)
 
 
 SensorFactory = Callable[..., SensorDriver]
@@ -76,4 +90,15 @@ __all__ = [
     "default_sensors",
     "get_driver",
     "register_driver",
+    # v2: 流处理 + 上下文组装
+    "SensorWindow",
+    "DeviceStateMachine",
+    "ZoneCorrelationDetector",
+    "ContextAssembler",
+    "EventContext",
+    "StateSnapshot",
+    "ChangeRecord",
+    "EvidenceItem",
+    "AllowedAction",
+    "build_cold_chain_context",
 ]
