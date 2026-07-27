@@ -243,6 +243,81 @@ class CostControlAnalyzer:
             recs.append("来料成本在控，继续保持收货秤重 + 质检双人复核")
         return recs
 
+    def merge_waste_cost(
+        self,
+        cost_result: Dict[str, Any],
+        waste_cost_report: Dict[str, Any],
+    ) -> Dict[str, Any]:
+        """Merge visual AI waste cost data into cost analysis results.
+
+        Creates a unified daily cost report that includes both:
+        - Incoming material variances (from receiving analysis)
+        - Waste costs (from visual AI detection)
+
+        This is the key method for the Phase 1 simplified loop:
+            废料检测 → 废料成本计算 → 合并到来料成本分析 → 每日损耗报告
+        """
+        waste_summary = waste_cost_report.get("summary", {})
+        waste_items = waste_cost_report.get("items", [])
+
+        # Build per-SKU waste cost lookup
+        waste_by_sku: Dict[str, Dict[str, Any]] = {}
+        for item in waste_items:
+            waste_by_sku[item["sku"]] = item
+
+        # Annotate cost items with waste data
+        merged_items = []
+        for item in cost_result.get("items", []):
+            merged = dict(item)
+            waste = waste_by_sku.get(item.get("sku", ""))
+            if waste:
+                merged["waste_count"] = waste.get("total_count", 0)
+                merged["waste_weight_kg"] = waste.get("total_weight_kg", 0)
+                merged["waste_cost"] = waste.get("total_cost", 0)
+            else:
+                merged["waste_count"] = 0
+                merged["waste_weight_kg"] = 0
+                merged["waste_cost"] = 0
+            merged_items.append(merged)
+
+        # Add waste-only SKUs (not in receiving but detected as waste)
+        existing_skus = {i.get("sku") for i in cost_result.get("items", [])}
+        for sku, waste in waste_by_sku.items():
+            if sku not in existing_skus:
+                merged_items.append({
+                    "sku": sku,
+                    "batch_id": "",
+                    "supplier": "",
+                    "po_amount": 0,
+                    "actual_amount": 0,
+                    "variance_amount": 0,
+                    "variance_pct": 0,
+                    "yield_rate": 0,
+                    "quality_grade": "",
+                    "action": "info",
+                    "alerts": [],
+                    "waste_count": waste.get("total_count", 0),
+                    "waste_weight_kg": waste.get("total_weight_kg", 0),
+                    "waste_cost": waste.get("total_cost", 0),
+                })
+
+        total_waste_cost = waste_summary.get("total_cost_amount", 0)
+        total_variance = cost_result.get("total_variance_amount", 0)
+
+        return {
+            **cost_result,
+            "items": merged_items,
+            "waste_cost_summary": waste_summary,
+            "waste_category_breakdown": waste_cost_report.get("category_breakdown", {}),
+            "total_waste_cost": total_waste_cost,
+            "total_cost_impact": round(total_variance + total_waste_cost, 2),
+            "merged_sources": ["receiving", "waste_vision"],
+            "recommendations": cost_result.get("recommendations", []) + (
+                [f"视觉废料检测损耗 ¥{total_waste_cost:.2f}，重点关注: {', '.join(waste_cost_report.get('top_loss_skus', [])[:3])}"]
+                if total_waste_cost > 0 else []
+            ),
+        }
+
 
 def main() -> None:
     import argparse
