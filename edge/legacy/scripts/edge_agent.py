@@ -92,6 +92,8 @@ def apply_config(config: dict) -> bool:
 # ─── 主循环 ───
 
 def main():
+    global DEVICE_ID, HUB_URL
+
     parser = argparse.ArgumentParser(description="Hotpot Edge Agent")
     parser.add_argument("--device-id", default=DEVICE_ID)
     parser.add_argument("--hub", default=HUB_URL)
@@ -99,7 +101,6 @@ def main():
     parser.add_argument("--config-interval", type=int, default=60, help="拉配置间隔(秒)")
     args = parser.parse_args()
 
-    global DEVICE_ID, HUB_URL
     DEVICE_ID = args.device_id
     HUB_URL = args.hub
 
