@@ -58,6 +58,28 @@ def test_pos_sync_sim():
     assert out["source"] == "simulated"
 
 
+def test_load_sku_sales_csv_preserves_historical_dates(tmp_path):
+    path = tmp_path / "sales.csv"
+    path.write_text(
+        "business_date,sku,sku_name,qty_sold,unit_price\n"
+        "2026-04-28,SKU-001,鲜毛肚,12,68\n"
+        "2026-04-29,SKU-001,鲜毛肚,15,68\n",
+        encoding="utf-8",
+    )
+    from hotpot_platform.cloud.integrations.pos_bridge import load_sku_sales_csv
+    records = load_sku_sales_csv(path, "store_jiaojiang")
+    assert [item["business_date"] for item in records] == ["2026-04-28", "2026-04-29"]
+    assert all(item["source"] == "pos_csv" for item in records)
+
+
+def test_load_sku_sales_csv_rejects_missing_date(tmp_path):
+    path = tmp_path / "missing-date.csv"
+    path.write_text("sku,qty_sold\nSKU-001,12\n", encoding="utf-8")
+    from hotpot_platform.cloud.integrations.pos_bridge import load_sku_sales_csv
+    with pytest.raises(ValueError, match="business_date"):
+        load_sku_sales_csv(path, "store_jiaojiang")
+
+
 def test_post_pos_and_get(hub_client):
     stats = {
         "store_id": "store_yuhuan",

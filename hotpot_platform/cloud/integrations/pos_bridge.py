@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import argparse
+import csv
 import json
 import random
 import sys
@@ -11,7 +12,7 @@ import urllib.error
 import urllib.request
 from datetime import datetime, timezone
 from pathlib import Path
-from typing import Any, Dict, List
+from typing import Any, Dict, List, Optional
 
 # integrations/ → cloud/ → hotpot_platform/ → repository root.
 # The shared ``common`` package lives at repository root, not under
@@ -121,12 +122,50 @@ def sync_pos(
 DEFAULT_SKU_SALES_FILE = PROJECT_ROOT / "demo" / "data" / "sku_sales_daily.json"
 
 
+def load_sku_sales_csv(csv_path: Path, store_id: str) -> List[Dict[str, Any]]:
+    """Load historical per-SKU sales without changing business dates."""
+    records: List[Dict[str, Any]] = []
+    with csv_path.open(newline="", encoding="utf-8-sig") as source:
+        for line_number, row in enumerate(csv.DictReader(source), start=2):
+            business_date = (row.get("business_date") or row.get("date") or "").strip()
+            if not business_date:
+                raise ValueError(f"missing business_date/date in {csv_path.name} line {line_number}")
+            sku = (row.get("sku") or row.get("sku_code") or "").strip()
+            sku_name = (row.get("sku_name") or row.get("name") or sku).strip()
+            if not sku:
+                raise ValueError(f"missing sku/sku_code in {csv_path.name} line {line_number}")
+            try:
+                qty_sold = float(row.get("qty_sold") or row.get("quantity") or 0)
+                unit_price = float(row.get("unit_price") or row.get("price") or 0)
+            except ValueError as exc:
+                raise ValueError(f"invalid numeric value in {csv_path.name} line {line_number}") from exc
+            revenue_raw = row.get("revenue") or row.get("amount")
+            try:
+                revenue = float(revenue_raw) if revenue_raw not in (None, "") else qty_sold * unit_price
+            except ValueError as exc:
+                raise ValueError(f"invalid revenue in {csv_path.name} line {line_number}") from exc
+            records.append({
+                "store_id": row.get("store_id") or store_id,
+                "business_date": business_date,
+                "sku": sku,
+                "sku_name": sku_name,
+                "category": row.get("category", ""),
+                "qty_sold": qty_sold,
+                "unit": row.get("unit") or "份",
+                "unit_price": unit_price,
+                "revenue": revenue,
+                "source": "pos_csv",
+            })
+    return records
+
+
 def fetch_sku_sales(
     store_id: str,
     date: str = "",
     *,
     mode: str = "file",
     sku_file: Path = DEFAULT_SKU_SALES_FILE,
+    csv_file: Optional[Path] = None,
     api_url: str = "",
     api_key: str = "",
 ) -> List[Dict[str, Any]]:
@@ -137,7 +176,13 @@ def fetch_sku_sales(
     """
     target_date = date or utc_today()
 
-    if mode == "api" and api_url:
+    if mode == "csv":
+        if not csv_file or not csv_file.exists():
+            raise FileNotFoundError("mode=csv requires an existing csv_file")
+        records = load_sku_sales_csv(csv_file, store_id)
+        if date:
+            records = [r for r in records if r["business_date"] == date]
+    elif mode == "api" and api_url:
         url = api_url.format(store_id=store_id, date=target_date)
         headers = {"Accept": "application/json"}
         if api_key:
