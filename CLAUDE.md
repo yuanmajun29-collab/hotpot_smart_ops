@@ -35,14 +35,14 @@ If you change any of these, declare it using: declareStateChange(key, oldValue, 
 > - 三阶段：内部验证 → 自有扩张 → 对外输出
 > - 当前：Sprint 0 已通过（椒江店 MAPE 10.6% + 玉环店损耗闭环 7/7）
 > - 硬截止日：2026年10月重庆市政府展会亮相
-> - 主线PRD：`docs/火瞳_融合PRD_v5.3_主线基线.md`（v5.3c，63项功能）
+> - 主线PRD：`docs/火瞳_融合PRD_v5.3_主线基线.md`（v5.3i，128项功能）
 > - 开发分支：`feature/d1-expo-sprint`（D1冲刺：冻品供应链+岗位AI助理）
 
 ## 权威文档索引
 
 | 文档 | 位置 | 说明 |
 |------|------|------|
-| 主线PRD | `docs/火瞳_融合PRD_v5.3_主线基线.md` | v5.3c，唯一权威，63项功能 |
+| 主线PRD | `docs/火瞳_融合PRD_v5.3_主线基线.md` | v5.3i，唯一权威，128项功能 |
 | PRD-代码对齐 | `docs/PRD_V5_2_CODE_ALIGNMENT.md` | 功能与代码状态矩阵 |
 | 项目基线 | `docs/PROJECT_BASELINE_V5_2.md` | 产品定位与边界 |
 | 展会方案 | 工作目录 `火瞳_重庆展会Demo方案_v1.0.md` | 10月展会5场景+D1-D4冲刺 |
@@ -196,7 +196,7 @@ cd <project_root> && python3 -m uvicorn edge.agent.server:app --host 0.0.0.0 --p
 | API 路由 | `routers/inventory.py` | — | ✅ done |
 | DB 表 (6张) | `data_engine_schema.py` | — | ✅ done |
 
-## 待建模块 (PRD v5.3c · 展会冲刺 D1-D4)
+## 待建模块 (PRD v5.3i · 展会冲刺 D1-D4)
 
 | 模块 | PRD ID | 优先级 | Sprint |
 |------|--------|:------:|:------:|
