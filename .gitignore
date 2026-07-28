@@ -34,6 +34,10 @@ hotpot_platform/cloud/event_hub/static/images/store_*/
 *.onnx
 # 但保留 adapter 小权重文件（进 Git）
 !edge/models/adapter_weights.pt
+# 保留实地调研照片（进 Git）
+!docs/warehouse-survey/*.jpg
+!docs/processing-survey/*.jpg
+!docs/hotprocessing-survey/*.jpg
 # 边缘端模型下载缓存
 edge/models/.cache/
 
