@@ -46,4 +46,8 @@ handoff/
 # AI 工具上下文（非源码，不进 Git）
 GEMINI.md
 .cursor/
+.cursorrules
 AGENTS.md
+.claude/
+$HOME/
+.hermes/
