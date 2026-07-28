@@ -29,6 +29,30 @@ If you change any of these, declare it using: declareStateChange(key, oldValue, 
 
 ---
 
+## 产品定位
+
+> **火瞳**：冯校长火锅连锁AI运营中台（视觉+数据双引擎）
+> - 三阶段：内部验证 → 自有扩张 → 对外输出
+> - 当前：Sprint 0 已通过（椒江店 MAPE 10.6% + 玉环店损耗闭环 7/7）
+> - 硬截止日：2026年10月重庆市政府展会亮相
+> - 主线PRD：`docs/火瞳_融合PRD_v5.3_主线基线.md`（v5.3c，63项功能）
+> - 开发分支：`feature/d1-expo-sprint`（D1冲刺：冻品供应链+岗位AI助理）
+
+## 权威文档索引
+
+| 文档 | 位置 | 说明 |
+|------|------|------|
+| 主线PRD | `docs/火瞳_融合PRD_v5.3_主线基线.md` | v5.3c，唯一权威，63项功能 |
+| PRD-代码对齐 | `docs/PRD_V5_2_CODE_ALIGNMENT.md` | 功能与代码状态矩阵 |
+| 项目基线 | `docs/PROJECT_BASELINE_V5_2.md` | 产品定位与边界 |
+| 展会方案 | 工作目录 `火瞳_重庆展会Demo方案_v1.0.md` | 10月展会5场景+D1-D4冲刺 |
+| 市场调研 | 工作目录 `火瞳_PRD_v5.3b_市场调研与竞品评估报告_20260728.md` | 10家竞品+行业趋势 |
+| 门店标准 | 工作目录 `火瞳_浙江总代门店标准与权益包_v1.0.md` | 定价+权益 |
+| 架构设计 | 工作目录 `火瞳_系统架构设计文档_v1.0.md` | 系统架构 |
+| 数据引擎设计 | 工作目录 `火瞳_数据引擎技术设计文档_v1.0.md` + `docs/火锅AI-数据引擎技术设计-v1.0.md` | N01-N06技术设计 |
+
+---
+
 ## 项目架构
 
 ```
@@ -147,37 +171,50 @@ cd <project_root> && python3 -m uvicorn edge.agent.server:app --host 0.0.0.0 --p
 }
 ```
 
-## 已实现模块清单 (2026-07-23)
+## 已实现模块清单 (2026-07-28)
 
-| 模块 | 路径 | 规模 | PRD ID |
-|------|------|------|--------|
-| 后厨损耗检测 | `edge/kitchen/inference/` + `capture/` | pipeline+stages | K01-K03 |
-| 前厅桌态分析 | `edge/front_hall/inference/` | plan_a/b + CLIP | K04-K05 |
-| 设备管理 | `hotpot_platform/` | Hub+层级配置 | K08 |
-| SOP 合规检测 | `edge/agent/modules/sop_infer.py` + `kitchen/inference/stages/stage_sop.py` | 248+ 行 | K09-K10 |
-| 员工行为识别 | `edge/agent/modules/staff_behavior_infer.py` + `edge/staff_behavior/` | 173+ 行 | K25-K26 |
-| 收货质检 | `edge/receiving/sop_compliance.py` | — | K11 延伸 |
-| IoT 基础设施 | `edge/iot_mock/` + `edge/front_hall/iot/` | 桥接+模拟+规则 | K19-K22 骨架 |
+| 模块 | 路径 | PRD ID | 状态 |
+|------|------|--------|------|
+| 后厨损耗检测 | `edge/kitchen/inference/` + `capture/` | K01-K03 | 代码基础 |
+| 前厅桌态分析 | `edge/front_hall/inference/` | K04-K05 | 代码基础 |
+| 出品质检 | `edge/kitchen/inference/stages/` | K31 | 代码基础 |
+| 设备管理 | `hotpot_platform/` | K06-K08 | 代码基础 |
+| SOP 合规检测 | `edge/agent/modules/sop_infer.py` | K09-K10, K27 | 代码基础 |
+| 员工行为识别 | `edge/agent/modules/staff_behavior_infer.py` | K25-K26 | 代码基础 |
+| 收货质检 | `edge/receiving/sop_compliance.py` | K11-K12 | 代码基础 |
+| IoT 食安 | `edge/iot_mock/` + `edge/front_hall/iot/` | K19-K22 | 代码基础 |
+| 数据分析层 | `hotpot_platform/analytics/` | K23-K24 | 代码基础 |
+| 多店/区域看板 | `hotpot_platform/` dashboard | K15, K29 | 代码基础 |
+| 数据引擎·销量预测 | `data_engine/sales_predictor.py` | N01 | Sprint 0 验证通过 (MAPE 10.6%) |
+| 数据引擎·智能订货 | `data_engine/order_advisor.py` | N02 | 原型/规则骨架 |
+| 数据引擎·库存台账 | `data_engine/inventory_book.py` | N03 | 原型/规则骨架 |
+| 数据引擎·损耗分析 | `data_engine/loss_analyzer.py` | N04 | 原型/规则骨架，玉环14天闭环Pass |
+| 数据引擎·供应商评分 | `data_engine/supplier_scorer.py` | N05 | 待开发 |
+| 数据引擎·ERP连接器 | `data_engine/erp_connector.py` | N06 | 待开发 |
+| POS per-SKU | `pos_bridge.fetch_sku_sales()` | — | ✅ done |
+| ERP 双向同步 | `erp_bridge.push_*()` | — | ✅ done |
+| API 路由 | `routers/inventory.py` | — | ✅ done |
+| DB 表 (6张) | `data_engine_schema.py` | — | ✅ done |
 
-## 待建模块 (PRD v3.0 差距)
+## 待建模块 (PRD v5.3c · 展会冲刺 D1-D4)
 
-| 模块 | PRD ID | 现状 | 差距 |
-|------|--------|:---:|------|
-| IoT 食安传感器 | `edge/iot_food_safety/` + `edge/agent/modules/iot_food_safety_infer.py` | 805 行 | K19-K22 |
-| 数据分析层 | `hotpot_platform/analytics/` | 948 行 | K23-K24 |
-| 设备健康 IoT | `edge/common/device_health.py` | 227 行 | K28 |
-
-## 待建模块 (PRD v5.0 新增 🆕)
-
-| 模块 | PRD ID | 现状 | 差距 |
-|------|--------|:---:|------|
-| 数据引擎·销量预测 | N01 | 📋 `data_engine/sales_predictor.py` | 待核心落地 |
-| 数据引擎·智能订货 | N02 | 📋 `data_engine/order_advisor.py` | 待核心落地 |
-| 数据引擎·库存台账 | N03 | 📋 `data_engine/inventory_book.py` | 待核心落地 |
-| 数据引擎·损耗分析 | N04 | 📋 `data_engine/loss_analyzer.py` | 待核心落地 |
-| 数据引擎·供应商评分 | N05 | 📋 `data_engine/supplier_scorer.py` | 待核心落地 |
-| 数据引擎·ERP连接器 | N06 | 📋 `data_engine/erp_connector.py` | 待核心落地 |
-| POS per-SKU 扩展 | — | ✅ `pos_bridge.fetch_sku_sales()` | v5.0 done |
-| ERP 双向同步 | — | ✅ `erp_bridge.push_*()` | v5.0 done |
-| API 路由 | — | ✅ `routers/inventory.py` | v5.0 done |
-| DB 表 (6张) | — | ✅ `data_engine_schema.py` | v5.0 done |
+| 模块 | PRD ID | 优先级 | Sprint |
+|------|--------|:------:|:------:|
+| 货品主数据管理 | S01 | P0 | D1(8月) |
+| 冻品收货验收 | S02 | P0 | D1 |
+| 退换货流程 | S03 | P0 | D1 |
+| 店长AI助理 | A01 | P0 | D2(8月) |
+| 后厨AI助理 | A02 | P0 | D2 |
+| 采购AI助理 | A03 | P0 | D2 |
+| 冻品温控追溯 | S04 | P2 | 展会后 |
+| 供应商协同端 | A04 | P2 | 展会后 |
+| 知识库助理 | A05 | P1 | 展会后 |
+| 跨店库存调拨 | N19 | P1 | 展会后 |
+| 供应商协同群 | N20 | P1 | 展会后 |
+| 库位管理 | N21 | P1 | 展会后 |
+| AI菜品推荐 | N22 | P1 | 展会后 |
+| 会员消费分析 | N18 | P1 | 展会后 |
+| 出品率管控 | K35 | P1 | 展会后 |
+| 主动服务提醒 | K33 | P1 | 展会后 |
+| 耗材监控 | K34 | P1 | 展会后 |
+| 库位定点标识 | K36 | P1 | 展会后 |
