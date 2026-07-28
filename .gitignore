@@ -38,6 +38,7 @@ hotpot_platform/cloud/event_hub/static/images/store_*/
 !docs/warehouse-survey/*.jpg
 !docs/processing-survey/*.jpg
 !docs/hotprocessing-survey/*.jpg
+!docs/dishwashing-survey/*.jpg
 # 边缘端模型下载缓存
 edge/models/.cache/
 
