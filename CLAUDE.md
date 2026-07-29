@@ -62,9 +62,9 @@ If you change any of these, declare it using: declareStateChange(key, oldValue, 
 | 项目基线 | `docs/04-技术设计/PROJECT_BASELINE_V5_2.md` | 产品定位与边界 |
 | 展会方案 | 工作目录 `火瞳_重庆展会Demo方案_v1.0.md` | 10月展会5场景+D1-D4冲刺 |
 | 门店标准 | 工作目录 `火瞳_浙江总代门店标准与权益包_v1.0.md` | 定价+权益 |
-| 功能规格 | `docs/05-功能规格/spec-*.md` | K01/K002/K003/p0-api/phase2 |
+| 功能规格 | `docs/05-功能规格/` | spec×5 + test_cases×3 + review×2 (10份) |
 | 调研照片 | `docs/06-调研照片/` | 6区域35张实地照片 |
-| **评审记录** | `docs/08-评审/arch-design-*.md` | 小居全面评审(B+ 78.8/250) + 小抠数据审查(7维度) |
+| **评审记录** | `docs/08-评审/` | 小居全面评审(B+ 78.8/250) + 小抠数据审查(7维度) |
 
 ---
 
