@@ -19,4 +19,4 @@
 | 火锅AI-开发方案.md | 早期方案，已被解决方案架构设计替代 | 2026-07-15 |
 | 火锅AI-推广策略.md | 早期策略，展会后再启用 | 2026-07-15 |
 | architecture_decisions.md | 早期架构决策，已融入ADR记录 | 2026-07-15 |
-| api-contracts/jetson-vlm-bridge-v1.md | 早期API契约，已被实际代码替代 | 2026-07-15 |
+| jetson-vlm-bridge-v1.md | 早期API契约，已被实际代码替代（原在api-contracts/子目录，2026-07-29扁平化） | 2026-07-15 |
