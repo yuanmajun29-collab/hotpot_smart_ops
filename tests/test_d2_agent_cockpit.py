@@ -320,7 +320,9 @@ class TestAgentFramework(unittest.TestCase):
         )
         self.assertIsNotNone(agent)
         self.assertEqual(agent.config.agent_id, "A01-TEST")
-        self.assertEqual(agent.config.role.value, "store_manager")
+        # role可能是枚举或字符串，统一比较
+        role_val = agent.config.role.value if hasattr(agent.config.role, 'value') else str(agent.config.role)
+        self.assertEqual(role_val, "store_manager")
         print(f"  ✅ created agent A01-TEST from template")
 
     def test_h13_list_templates(self) -> None:
@@ -546,7 +548,7 @@ class TestD2EndToEnd(unittest.TestCase):
                 receiver_id=None,  # 广播
                 topic="sop.violation.kitchen",
                 payload={
-                    "violations": [v.dict() for v in report.violations],
+                    "violations": [v.model_dump() for v in report.violations],
                     "compliance_score": report.compliance_score,
                 },
                 priority=MessagePriority.HIGH,

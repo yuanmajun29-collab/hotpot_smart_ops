@@ -38,6 +38,16 @@ from .models import (
 logger = logging.getLogger(__name__)
 
 
+def _enum_val(val) -> str:
+    """安全获取枚举值(兼容字符串和枚举对象)."""
+    return val.value if hasattr(val, 'value') else str(val)
+
+
+def _enum_list(vals) -> List[str]:
+    """安全获取枚举列表值."""
+    return [_enum_val(v) for v in vals] if vals else []
+
+
 # ──────────────────────────────────────────────────────────────
 # 消息处理器类型
 # ──────────────────────────────────────────────────────────────
@@ -81,7 +91,7 @@ class RoleAgent:
             # subscriptions在config中是dict列表，需要转换
             pass
         self._initialized = True
-        logger.info("Agent initialized: %s [%s]", self.config.agent_id, self.config.role.value)
+        logger.info("Agent initialized: %s [%s]", self.config.agent_id, _enum_val(self.config.role))
 
     def shutdown(self) -> None:
         """关闭Agent."""
@@ -103,7 +113,7 @@ class RoleAgent:
         logger.debug(
             "Agent %s received msg[%s] from=%s type=%s",
             self.config.agent_id, message.message_id[:8],
-            message.sender_id, message.msg_type.value,
+            message.sender_id, _enum_val(message.msg_type),
         )
 
         # 路由到处理器
@@ -223,7 +233,7 @@ class RoleAgent:
                 return h
 
         # 3. 按消息类型匹配
-        type_handler = self._handlers.get(f"type:{message.msg_type.value}")
+        type_handler = self._handlers.get(f"type:{_enum_val(message.msg_type)}")
         return type_handler
 
     def _handle_ping(self, message: AgentMessage) -> AgentMessage:
@@ -235,8 +245,8 @@ class RoleAgent:
             topic="pong",
             payload={
                 "agent_id": self.config.agent_id,
-                "role": self.config.role.value,
-                "status": self.config.status.value,
+                "role": _enum_val(self.config.role),
+                "status": _enum_val(self.config.status),
                 "timestamp": datetime.now().isoformat(),
             },
             correlation_id=message.message_id,
@@ -252,9 +262,9 @@ class RoleAgent:
             payload={
                 "agent_id": self.config.agent_id,
                 "name": self.config.name,
-                "role": self.config.role.value,
-                "status": self.config.status.value,
-                "capabilities": [c.value for c in self.config.capabilities],
+                "role": _enum_val(self.config.role),
+                "status": _enum_val(self.config.status),
+                "capabilities": _enum_list(self.config.capabilities),
                 "tasks_completed": len([t for t in self._task_history if t.status == "completed"]),
                 "tasks_failed": len([t for t in self._task_history if t.status == "failed"]),
                 "uptime_seconds": int(time.time()) - int(self._state.get("start_time", time.time())),
@@ -429,7 +439,7 @@ class MessageBus:
                     topic, payload, correlation_id, timestamp
                 ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
             """, (
-                message.message_id, message.msg_type.value, message.priority.value,
+                message.message_id, _enum_val(message.msg_type), _enum_val(message.priority),
                 message.sender_id, message.receiver_id, message.topic,
                 json.dumps(message.payload, ensure_ascii=False),
                 message.correlation_id, message.timestamp.isoformat(),
@@ -563,9 +573,9 @@ class AgentOrchestrator:
             {
                 "agent_id": a.config.agent_id,
                 "name": a.config.name,
-                "role": a.config.role.value,
-                "status": a.config.status.value,
-                "capabilities": [c.value for c in a.config.capabilities],
+                "role": _enum_val(a.config.role),
+                "status": _enum_val(a.config.status),
+                "capabilities": _enum_list(a.config.capabilities),
             }
             for a in self._agents.values()
         ]
@@ -576,9 +586,9 @@ class AgentOrchestrator:
             {
                 "template_id": t.template_id,
                 "name": t.name,
-                "role": t.role.value,
+                "role": _enum_val(t.role),
                 "category": t.category,
-                "capabilities": [c.value for c in t.capabilities],
+                "capabilities": _enum_list(t.capabilities),
                 "is_builtin": t.is_builtin,
             }
             for t in self._templates.values()

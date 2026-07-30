@@ -27,6 +27,11 @@ from .models import (
 logger = logging.getLogger(__name__)
 
 
+def _enum_val(val) -> str:
+    """安全获取枚举值(兼容字符串和枚举对象)."""
+    return val.value if hasattr(val, 'value') else str(val)
+
+
 class SOPChecker:
     """SOP合规检查器 — 对接 PRD SC01/SC02.
 
@@ -166,9 +171,9 @@ class SOPChecker:
         results: Dict[str, ComplianceReport] = {}
 
         for zone in zones:
-            zone_signals = signals.get(zone.value, {})
+            zone_signals = signals.get(_enum_val(zone), {})
             report = self.check(store_id, zone, zone_signals)
-            results[zone.value] = report
+            results[_enum_val(zone)] = report
 
         return results
 
@@ -233,7 +238,7 @@ class SOPChecker:
         signals: Dict[str, Any],
     ) -> tuple:
         """口罩佩戴检测(视觉YOLO)."""
-        key = f"mask_{rule.zone.value}"
+        key = f"mask_{_enum_val(rule.zone)}"
         detected = signals.get(key, False)
 
         # 支持置信度阈值
@@ -262,7 +267,7 @@ class SOPChecker:
         signals: Dict[str, Any],
     ) -> tuple:
         """洗手合规(行为识别+水龙头IoT)."""
-        key = f"handwash_{rule.zone.value}"
+        key = f"handwash_{_enum_val(rule.zone)}"
         last_wash_sec = signals.get(key, -1)  # 距上次洗手秒数
 
         threshold = rule.threshold or {}
@@ -297,7 +302,7 @@ class SOPChecker:
         signals: Dict[str, Any],
     ) -> tuple:
         """温控合规(IoT温度传感器)."""
-        key = f"temp_{rule.zone.value}"
+        key = f"temp_{_enum_val(rule.zone)}"
         current_temp = signals.get(key)
 
         if current_temp is None:
@@ -438,7 +443,7 @@ class SOPChecker:
         signals: Dict[str, Any],
     ) -> tuple:
         """着装规范(视觉检测)."""
-        key = f"uniform_{rule.zone.value}"
+        key = f"uniform_{_enum_val(rule.zone)}"
         compliant = signals.get(key, True)
 
         result = CheckpointResult(
@@ -493,7 +498,7 @@ class SOPChecker:
 
         优先从DB加载，降级为预置规则.
         """
-        cache_key = f"{zone.value}:{template_id or 'default'}"
+        cache_key = f"{_enum_val(zone)}:{template_id or 'default'}"
         if cache_key in self._rule_cache:
             return self._rule_cache[cache_key]
 
@@ -511,7 +516,7 @@ class SOPChecker:
                 else:
                     cursor.execute(
                         "SELECT rules_json FROM sop_templates WHERE zone=? AND status='active'",
-                        (zone.value,),
+                        (_enum_val(zone),),
                     )
                 row = cursor.fetchone()
                 if row and row[0]:
@@ -661,7 +666,7 @@ class SOPChecker:
                     "source": "sop_engine",
                     "level": level,
                     "store_id": report.store_id,
-                    "zone": report.zone.value,
+                    "zone": _enum_val(report.zone),
                     "message": f"SOP违规[{v.severity}]: {v.rule_name}",
                     "metadata": {
                         "rule_id": v.rule_id,

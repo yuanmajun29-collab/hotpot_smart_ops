@@ -111,6 +111,7 @@ class KnowledgeRetriever:
 
         # 从DB加载已有数据
         if db_session:
+            self._ensure_tables()  # 确保表存在
             self._load_from_db()
 
     # ── 公开接口: 检索 ─────────────────────────────────────
@@ -121,7 +122,7 @@ class KnowledgeRetriever:
         store_id: Optional[str] = None,
         category: Optional[KnowledgeCategory] = None,
         top_k: int = 5,
-        min_score: float = 0.3,
+        min_score: float = 0.001,       # RRF分数通常很小(0.001~0.05)
         hybrid_weight: float = 0.6,      # 向量权重(0~1), BM25权重=1-hybrid_weight
     ) -> KnowledgeQueryResult:
         """混合检索.

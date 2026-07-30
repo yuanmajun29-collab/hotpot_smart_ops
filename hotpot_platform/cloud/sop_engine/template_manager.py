@@ -182,7 +182,7 @@ class SOPTemplateManager:
             cursor.execute(
                 "UPDATE sop_templates SET status='archived', updated_at=?, updater=? "
                 "WHERE zone=? AND status='active' AND template_id!=?",
-                (datetime.now(), operator, template.zone.value, template_id),
+                (datetime.now(), operator, _enum_val(template.zone), template_id),
             )
             self._db.commit()
 
@@ -297,7 +297,7 @@ class SOPTemplateManager:
             ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
         """, (
             template.template_id, template.name, _enum_val(template.category),
-            template.zone.value, rules_json, template.version, template.status.value,
+            _enum_val(template.zone), rules_json, template.version, _enum_val(template.status),
             template.author, template.store_scope,
             template.created_at.isoformat(), template.updated_at.isoformat(),
             template.updater,
