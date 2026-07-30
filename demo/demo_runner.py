@@ -476,6 +476,10 @@ class ExpoDemoRunner:
         # Step 1: 货品主数据
         print(f"\n{C.CYAN}▶ Step 1/5: 货品主数据（品牌规格锁定）{C.END}")
 
+        # 确保row_factory已设置
+        if not isinstance(db.row_factory, type):
+            db.row_factory = sqlite3.Row
+
         products = db.execute("SELECT sku, name, spec, brand, price FROM products LIMIT 8").fetchall()
         print(f"   📦 统一货品清单 ({len(products)}个SKU已录入):")
         for p in products:
