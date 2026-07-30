@@ -1,0 +1,693 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>火瞳 · 全链路产品技术报告</title>
+
+  <!-- TailwindCSS CDN -->
+  <script src="https://lf26-cdn-tos.bytecdntp.com/cdn/expire-1-M/tailwindcss/3.0.23/tailwind.min.js"></script>
+
+  <!-- 字体 -->
+  <link href="https://fonts.loli.net/css2?family=Inter:wght@300;400;700;900&display=swap" rel="stylesheet">
+  <link href="https://fonts.loli.net/css2?family=Noto+Sans+SC:wght@300;400;700;900&display=swap" rel="stylesheet">
+
+  <style>
+    * { margin: 0; padding: 0; box-sizing: border-box; }
+
+    body {
+      font-family: 'Noto Sans SC', 'Inter', sans-serif;
+      background: #000;
+      color: #fff;
+      overflow: hidden;
+    }
+
+    .slides-container {
+      width: 100vw;
+      height: 100vh;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      background: #0a0a0a;
+    }
+
+    .slide {
+      width: 100%;
+      height: 100%;
+      max-width: 450px;
+      max-height: 800px;
+      aspect-ratio: 9/16;
+      position: absolute;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      padding: 2rem;
+      opacity: 0;
+      transform: translateX(100%);
+      transition: all 0.5s cubic-bezier(0.4, 0, 0.2, 1);
+      overflow: hidden;
+      background: linear-gradient(180deg, #0a0a0a 0%, #000000 100%);
+    }
+
+    .slide.active { opacity: 1; transform: translateX(0); }
+    .slide.prev { opacity: 0; transform: translateX(-100%); }
+
+    /* 动态光斑 */
+    .light-spot {
+      position: absolute;
+      border-radius: 50%;
+      filter: blur(100px);
+      opacity: 0.25;
+      pointer-events: none;
+    }
+    .light-spot-1 { width: 300px; height: 300px; background: #3b82f6; top: -100px; right: -100px; animation: float1 20s ease-in-out infinite; }
+    .light-spot-2 { width: 250px; height: 250px; background: #8b5cf6; bottom: -80px; left: -80px; animation: float2 25s ease-in-out infinite; }
+    .light-spot-3 { width: 200px; height: 200px; background: #06b6d4; top: 50%; left: 50%; transform: translate(-50%, -50%); animation: float3 18s ease-in-out infinite; }
+    .light-spot-4 { width: 220px; height: 220px; background: #f59e0b; top: 30%; right: -60px; animation: float4 22s ease-in-out infinite; }
+    .light-spot-5 { width: 180px; height: 180px; background: #ef4444; bottom: 20%; left: -50px; animation: float5 26s ease-in-out infinite; }
+
+    @keyframes float1 { 0%, 100% { transform: translate(0, 0); } 25% { transform: translate(-50px, 30px); } 50% { transform: translate(30px, 50px); } 75% { transform: translate(50px, -20px); } }
+    @keyframes float2 { 0%, 100% { transform: translate(0, 0); } 33% { transform: translate(40px, -40px); } 66% { transform: translate(-30px, 30px); } }
+    @keyframes float3 { 0%, 100% { transform: translate(-50%, -50%) scale(1); } 50% { transform: translate(-50%, -50%) scale(1.2); } }
+    @keyframes float4 { 0%, 100% { transform: translate(0, 0); } 50% { transform: translate(-30px, 40px); } }
+    @keyframes float5 { 0%, 100% { transform: translate(0, 0); } 50% { transform: translate(35px, -25px); } }
+
+    .slide-content {
+      position: relative;
+      z-index: 10;
+      text-align: center;
+      width: 100%;
+    }
+
+    /* 进度条 */
+    .progress-bar {
+      position: fixed;
+      bottom: 20px;
+      left: 50%;
+      transform: translateX(-50%);
+      display: flex;
+      gap: 6px;
+      z-index: 100;
+    }
+    .progress-dot {
+      width: 6px;
+      height: 6px;
+      border-radius: 50%;
+      background: rgba(255,255,255,0.25);
+      cursor: pointer;
+      transition: all 0.3s;
+    }
+    .progress-dot.active { background: #fff; transform: scale(1.4); }
+    .progress-dot:hover { background: rgba(255,255,255,0.55); }
+
+    .page-number {
+      position: fixed;
+      bottom: 46px;
+      left: 50%;
+      transform: translateX(-50%);
+      font-size: 0.75rem;
+      color: rgba(255,255,255,0.35);
+      z-index: 100;
+    }
+
+    /* 特殊样式 */
+    .brand-icon { font-size: 3rem; margin-bottom: 1rem; }
+    .stat-number { font-size: 4.5rem; font-weight: 900; line-height: 1; background: linear-gradient(135deg, #3b82f6, #8b5cf6); -webkit-background-clip: text; -webkit-text-fill-color: transparent; background-clip: text; }
+    .stat-number-warm { font-size: 4.5rem; font-weight: 900; line-height: 1; background: linear-gradient(135deg, #f59e0b, #ef4444); -webkit-background-clip: text; -webkit-text-fill-color: transparent; background-clip: text; }
+    .feature-tag { display: inline-block; padding: 0.25rem 0.75rem; border-radius: 9999px; font-size: 0.75rem; font-weight: 600; margin: 0.15rem; }
+    .module-card { background: rgba(255,255,255,0.05); border: 1px solid rgba(255,255,255,0.08); border-radius: 12px; padding: 0.75rem; margin: 0.3rem 0; text-align: left; }
+    .module-card.new { border-color: rgba(59,130,246,0.3); background: rgba(59,130,246,0.06); }
+    .layer-badge { display: inline-block; padding: 0.2rem 0.6rem; border-radius: 6px; font-size: 0.65rem; font-weight: 700; margin-right: 0.4rem; }
+    .arrow-down { font-size: 1.5rem; color: rgba(255,255,255,0.3); margin: 0.3rem 0; }
+    .vs-divider { display: flex; align-items: center; justify-content: center; margin: 1rem 0; color: rgba(255,255,255,0.3); }
+    .vs-divider::before, .vs-divider::after { content: ''; flex: 1; height: 1px; background: rgba(255,255,255,0.15); }
+    .check-item { text-align: left; padding: 0.4rem 0; border-bottom: 1px solid rgba(255,255,255,0.06); }
+    .check-item:last-child { border-bottom: none; }
+    .timeline-dot { width: 10px; height: 10px; border-radius: 50%; display: inline-block; margin-right: 0.5rem; }
+    .phase-label { font-size: 0.7rem; padding: 0.15rem 0.5rem; border-radius: 4px; font-weight: 600; }
+  </style>
+</head>
+<body>
+  <div class="slides-container">
+
+    <!-- ====== 1. 封面页 ====== -->
+    <div class="slide active">
+      <div class="light-spot light-spot-1"></div>
+      <div class="light-spot light-spot-2"></div>
+      <div class="slide-content">
+        <div class="brand-icon">🔥👁️</div>
+        <h1 class="text-4xl font-black mb-3 leading-tight">火瞳</h1>
+        <p class="text-lg font-light text-gray-400 mb-6">全链路产品技术报告</p>
+        <div class="flex items-center justify-center gap-2 text-xs text-gray-500">
+          <span>PRD v5.3i</span>
+          <span>·</span>
+          <span>架构 v1.1</span>
+          <span>·</span>
+          <span>2026.07</span>
+        </div>
+        <p class="text-sm font-light text-gray-500 mt-4">从市场调研到详细架构<br>六层文档链路全景</p>
+      </div>
+    </div>
+
+    <!-- ====== 2. 冲击：万亿市场 ====== -->
+    <div class="slide">
+      <div class="light-spot light-spot-2"></div>
+      <div class="light-spot light-spot-4"></div>
+      <div class="slide-content">
+        <p class="text-sm font-light text-gray-500 mb-4 tracking-widest">MARKET OPPORTUNITY</p>
+        <h1 class="text-4xl font-black leading-tight mb-4">
+          万亿火锅市场<br>等待AI破局
+        </h1>
+        <p class="text-base font-light text-gray-400">
+          44.8万家门店<br>连锁化率仅25%
+        </p>
+      </div>
+    </div>
+
+    <!-- ====== 3. 数据：市场规模 ====== -->
+    <div class="slide">
+      <div class="light-spot light-spot-1"></div>
+      <div class="light-spot light-spot-3"></div>
+      <div class="slide-content">
+        <p class="text-sm font-light text-gray-500 mb-3">泛火锅市场规模 (2025)</p>
+        <div class="stat-number-warm">¥1.04<span class="text-3xl">万亿</span></div>
+        <div class="grid grid-cols-2 gap-3 mt-8 text-left">
+          <div class="bg-white/5 rounded-lg p-3">
+            <p class="text-2xl font-bold text-white">44.8<span class="text-sm font-normal text-gray-400">万家</span></p>
+            <p class="text-xs text-gray-500 mt-1">火锅门店数</p>
+          </div>
+          <div class="bg-white/5 rounded-lg p-3">
+            <p class="text-2xl font-bold text-white">25<span class="text-sm font-normal text-gray-400">%</span></p>
+            <p class="text-xs text-gray-500 mt-1">连锁化率 → 35%+</p>
+          </div>
+          <div class="bg-white/5 rounded-lg p-3">
+            <p class="text-2xl font-bold text-red-400">6.2<span class="text-sm font-normal text-gray-400">%</span></p>
+            <p class="text-xs text-gray-500 mt-1">行业平均净利率</p>
+          </div>
+          <div class="bg-white/5 rounded-lg p-3">
+            <p class="text-2xl font-bold text-green-400">18<span class="text-sm font-normal text-gray-400">%</span></p>
+            <p class="text-xs text-gray-500 mt-1">头部品牌净利率</p>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- ====== 4. 对比：竞品空白 ====== -->
+    <div class="slide">
+      <div class="light-spot light-spot-2"></div>
+      <div class="light-spot light-spot-5"></div>
+      <div class="slide-content">
+        <p class="text-sm font-light text-gray-500 mb-6">COMPETITIVE GAP</p>
+
+        <div class="text-left space-y-3">
+          <div class="bg-white/5 rounded-lg p-3">
+            <p class="text-xs text-gray-500 mb-1">国际竞品</p>
+            <p class="text-sm font-bold text-gray-300">Winnow / ClearCOGS / PreciTaste</p>
+            <p class="text-xs text-red-400 mt-1">✗ 只做视觉 或 只做数据</p>
+            <p class="text-xs text-red-400">✗ 无火锅垂直方案</p>
+            <p class="text-xs text-red-400">✗ 无订货闭环</p>
+          </div>
+        </div>
+
+        <div class="vs-divider"><span class="text-xs px-2">VS</span></div>
+
+        <div class="text-left bg-blue-500/10 border border-blue-500/20 rounded-lg p-3">
+          <p class="text-xs text-blue-400 mb-1 font-bold">★ 火瞳</p>
+          <p class="text-xs text-green-400">✓ 视觉 + 数据 双引擎</p>
+          <p class="text-xs text-green-400">✓ 火锅7工位SOP深度覆盖</p>
+          <p class="text-xs text-green-400">✓ 从检测到订货完整闭环</p>
+        </div>
+      </div>
+    </div>
+
+    <!-- ====== 5. 金句：产品定位 ====== -->
+    <div class="slide">
+      <div class="light-spot light-spot-1"></div>
+      <div class="light-spot light-spot-3"></div>
+      <div class="slide-content">
+        <span class="text-6xl text-gray-600 block mb-2">"</span>
+        <p class="text-2xl font-bold leading-relaxed mb-6">
+          摄像头替你看后厨<br>AI替你算订货<br>手机上管所有店
+        </p>
+        <div class="w-16 h-0.5 bg-gradient-to-r from-blue-500 to-purple-500 mx-auto mb-4"></div>
+        <p class="text-base font-light text-gray-500">火瞳 —— 冯校长火锅连锁AI运营中台</p>
+        <p class="text-xs text-gray-600 mt-2">视觉 + 数据 双引擎</p>
+      </div>
+    </div>
+
+    <!-- ====== 6. 冲击：五层能力 ====== -->
+    <div class="slide">
+      <div class="light-spot light-spot-4"></div>
+      <div class="light-spot light-spot-2"></div>
+      <div class="slide-content">
+        <p class="text-sm font-light text-gray-500 mb-6">PRODUCT CAPABILITY</p>
+        <h1 class="text-3xl font-black leading-tight mb-8">
+          不只是看见<br>更是算清和管住
+        </h1>
+        <div class="space-y-3 text-left w-full">
+          <div class="check-item"><span class="text-blue-400 mr-2">①</span><span class="text-sm">看得见的损失 — 视觉AI废料检测</span></div>
+          <div class="check-item"><span class="text-purple-400 mr-2">②</span><span class="text-sm">算得清的订货 — AI销量预测+库存优化</span></div>
+          <div class="check-item"><span class="text-cyan-400 mr-2">③</span><span class="text-sm">管得住的连锁 — 多店总览+SOP合规</span></div>
+          <div class="check-item"><span class="text-amber-400 mr-2">④</span><span class="text-sm">管得了的冻品 — 温控追溯+规格锁定</span></div>
+          <div class="check-item"><span class="text-emerald-400 mr-2">⑤</span><span class="text-sm">配得上的助理 — 每岗位一个AI入口</span></div>
+        </div>
+      </div>
+    </div>
+
+    <!-- ====== 7. 数据：129项功能 ====== -->
+    <div class="slide">
+      <div class="light-spot light-spot-1"></div>
+      <div class="light-spot light-spot-3"></div>
+      <div class="slide-content">
+        <p class="text-sm font-light text-gray-500 mb-3">PRD v5.3i · 2839行</p>
+        <div class="stat-number">129<span class="text-2xl">项</span></div>
+        <p class="text-lg font-light text-gray-400 mt-3">EARS 功能需求</p>
+
+        <div class="grid grid-cols-2 gap-2 mt-6 text-xs">
+          <div class="bg-red-500/10 border border-red-500/20 rounded-lg p-2 text-center">
+            <p class="text-lg font-bold text-red-400">27</p>
+            <p class="text-gray-500">P0 核心</p>
+          </div>
+          <div class="bg-amber-500/10 border border-amber-500/20 rounded-lg p-2 text-center">
+            <p class="text-lg font-bold text-amber-400">42</p>
+            <p class="text-gray-500">P1 重要</p>
+          </div>
+          <div class="bg-blue-500/10 border border-blue-500/20 rounded-lg p-2 text-center">
+            <p class="text-lg font-bold text-blue-400">56</p>
+            <p class="text-gray-500">P2 增强</p>
+          </div>
+          <div class="bg-gray-500/10 border border-gray-500/20 rounded-lg p-2 text-center">
+            <p class="text-lg font-bold text-gray-400">4</p>
+            <p class="text-gray-500">Phase2</p>
+          </div>
+        </div>
+
+        <div class="flex flex-wrap justify-center mt-4 gap-1">
+          <span class="feature-tag bg-blue-500/20 text-blue-300">K 视觉 70</span>
+          <span class="feature-tag bg-purple-500/20 text-purple-300">N 数据 27</span>
+          <span class="feature-tag bg-cyan-500/20 text-cyan-300">H 连锁 14</span>
+          <span class="feature-tag bg-amber-500/20 text-amber-300">WH 仓库 6</span>
+          <span class="feature-tag bg-emerald-500/20 text-emerald-300">A 助理 5</span>
+          <span class="feature-tag bg-red-500/20 text-red-300">FH 会员 4</span>
+          <span class="feature-tag bg-indigo-500/20 text-indigo-300">SC SOP 3</span>
+          <span class="feature-tag bg-teal-500/20 text-teal-300">KT 知识 2</span>
+          <span class="feature-tag bg-orange-500/20 text-orange-300">S 供应 4</span>
+        </div>
+      </div>
+    </div>
+
+    <!-- ====== 8. 冲击：三层闭环 ====== -->
+    <div class="slide">
+      <div class="light-spot light-spot-2"></div>
+      <div class="light-spot light-spot-4"></div>
+      <div class="slide-content">
+        <p class="text-sm font-light text-gray-500 mb-4">ARCHITECTURE</p>
+        <h1 class="text-3xl font-black leading-tight mb-6">
+          三层闭环<br>技术架构
+        </h1>
+        <div class="space-y-2 text-left w-full">
+          <div class="bg-gradient-to-r from-cyan-500/20 to-cyan-500/5 rounded-lg p-3 border-l-2 border-cyan-400">
+            <p class="text-sm font-bold text-cyan-300">L2 边缘层 — Jetson 推理</p>
+            <p class="text-xs text-gray-400 mt-1">YOLO + CLIP + VLM · 视频不上云</p>
+          </div>
+          <div class="arrow-down text-center">↓ MQTT + HTTPS</div>
+          <div class="bg-gradient-to-r from-blue-500/20 to-blue-500/5 rounded-lg p-3 border-l-2 border-blue-400">
+            <p class="text-sm font-bold text-blue-300">L3 平台层 — 云端引擎</p>
+            <p class="text-xs text-gray-400 mt-1">数据引擎 + Event Hub + Dashboard</p>
+          </div>
+          <div class="arrow-down text-center">↓ HTTP / gRPC</div>
+          <div class="bg-gradient-to-r from-purple-500/20 to-purple-500/5 rounded-lg p-3 border-l-2 border-purple-400">
+            <p class="text-sm font-bold text-purple-300">L4 智能体层 — Agent</p>
+            <p class="text-xs text-gray-400 mt-1">店长 / 后厨 / 采购 / 供应商 Portal</p>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- ====== 9. 步骤：四层架构详解 ====== -->
+    <div class="slide">
+      <div class="light-spot light-spot-1"></div>
+      <div class="light-spot light-spot-3"></div>
+      <div class="slide-content">
+        <p class="text-sm font-light text-gray-500 mb-4">FOUR-LAYER ARCHITECTURE</p>
+
+        <div class="space-y-3 text-left w-full text-sm">
+          <div>
+            <span class="layer-badge bg-gray-700 text-gray-300">L1</span>
+            <span class="font-bold">设备层</span>
+            <p class="text-xs text-gray-500 ml-12 mt-0.5">摄像头 · IoT传感器 · RFID读写器</p>
+          </div>
+          <div>
+            <span class="layer-badge bg-cyan-800 text-cyan-300">L2</span>
+            <span class="font-bold">边缘层</span>
+            <p class="text-xs text-gray-500 ml-12 mt-0.5">Jetson Nano/Orin · 7段推理管线 · 40-190ms</p>
+          </div>
+          <div>
+            <span class="layer-badge bg-blue-800 text-blue-300">L3</span>
+            <span class="font-bold">平台层</span>
+            <p class="text-xs text-gray-500 ml-12 mt-0.5">数据引擎(3566行) · Event Hub(18路由) · Dashboard</p>
+          </div>
+          <div>
+            <span class="layer-badge bg-purple-800 text-purple-300">L4</span>
+            <span class="font-bold">应用层</span>
+            <p class="text-xs text-gray-500 ml-12 mt-0.5">四角色Agent · 移动端 · PDA · 大屏</p>
+          </div>
+        </div>
+
+        <div class="mt-6 bg-white/5 rounded-lg p-3 text-xs text-gray-400 text-center">
+          决策在边缘 · 数据在云端 · 智能在两端
+        </div>
+      </div>
+    </div>
+
+    <!-- ====== 10. 数据：代码基线 ====== -->
+    <div class="slide">
+      <div class="light-spot light-spot-4"></div>
+      <div class="light-spot light-spot-2"></div>
+      <div class="slide-content">
+        <p class="text-sm font-light text-gray-500 mb-3">CODE BASELINE</p>
+        <div class="stat-number">43,569</div>
+        <p class="text-lg font-light text-gray-400 mt-2">行代码</p>
+
+        <div class="grid grid-cols-3 gap-2 mt-6">
+          <div class="bg-white/5 rounded-lg p-2 text-center">
+            <p class="text-xl font-bold text-blue-400">262</p>
+            <p class="text-xs text-gray-500">py 文件</p>
+          </div>
+          <div class="bg-white/5 rounded-lg p-2 text-center">
+            <p class="text-xl font-bold text-purple-400">45</p>
+            <p class="text-xs text-gray-500">测试文件</p>
+          </div>
+          <div class="bg-white/5 rounded-lg p-2 text-center">
+            <p class="text-xl font-bold text-cyan-400">85<span class="text-xs">%</span></p>
+            <p class="text-xs text-gray-500">覆盖率</p>
+          </div>
+        </div>
+
+        <div class="mt-4 bg-amber-500/10 border border-amber-500/20 rounded-lg p-3 text-left">
+          <p class="text-xs text-amber-400 font-bold mb-1">数据引擎 N01-N06</p>
+          <p class="text-xs text-gray-400">3,566 行 / 11 文件 · 销量预测 · 库存优化 · 损耗分析 · 成本核算</p>
+        </div>
+      </div>
+    </div>
+
+    <!-- ====== 11. 冲击：详细设计 ====== -->
+    <div class="slide">
+      <div class="light-spot light-spot-5"></div>
+      <div class="light-spot light-spot-1"></div>
+      <div class="slide-content">
+        <p class="text-sm font-light text-gray-500 mb-4">DETAILED DESIGN v1.1</p>
+        <h1 class="text-3xl font-black leading-tight mb-4">
+          从需求到接口<br>完整映射
+        </h1>
+        <p class="text-sm font-light text-gray-400">
+          129 项功能 → 9 个模块接口<br>
+          → API 端点 → 数据库表
+        </p>
+        <div class="mt-6 flex items-center justify-center gap-2 text-xs text-gray-500">
+          <span class="bg-white/10 px-2 py-1 rounded">PRD</span>
+          <span>→</span>
+          <span class="bg-white/10 px-2 py-1 rounded">模块</span>
+          <span>→</span>
+          <span class="bg-white/10 px-2 py-1 rounded">API</span>
+          <span>→</span>
+          <span class="bg-white/10 px-2 py-1 rounded">DB</span>
+        </div>
+      </div>
+    </div>
+
+    <!-- ====== 12. 列表：9大模块 ====== -->
+    <div class="slide">
+      <div class="light-spot light-spot-2"></div>
+      <div class="light-spot light-spot-3"></div>
+      <div class="slide-content">
+        <p class="text-sm font-light text-gray-500 mb-3">9 CORE MODULES</p>
+        <h2 class="text-xl font-bold text-white mb-4">核心模块接口</h2>
+
+        <div class="space-y-1.5 text-left text-xs w-full">
+          <div class="module-card"><span class="text-cyan-400 font-bold">①</span> 边缘AI引擎 — 7段管线 + 双模式推理</div>
+          <div class="module-card"><span class="text-blue-400 font-bold">②</span> Event Hub — 18路由域事件驱动</div>
+          <div class="module-card"><span class="text-purple-400 font-bold">③</span> 数据引擎 — N01-N06 六大能力</div>
+          <div class="module-card"><span class="text-amber-400 font-bold">④</span> 集成桥接 — POS/ERP/采购对接</div>
+          <div class="module-card"><span class="text-red-400 font-bold">⑤</span> 告警网关 — 分级告警 + 推送</div>
+          <div class="module-card new"><span class="text-blue-400 font-bold">★⑥</span> <span class="text-blue-300">SOP合规引擎 — 6种检查策略</span></div>
+          <div class="module-card new"><span class="text-purple-400 font-bold">★⑦</span> <span class="text-purple-300">知识库检索 — BM25+Vector融合</span></div>
+          <div class="module-card new"><span class="text-cyan-400 font-bold">★⑧</span> <span class="text-cyan-300">仓库IoT — RFID + FEFO监控</span></div>
+          <div class="module-card new"><span class="text-emerald-400 font-bold">★⑨</span> <span class="text-emerald-300">会员营销 — 人脸识别 + 积分引擎</span></div>
+        </div>
+        <p class="text-xs text-gray-600 mt-2">★ v1.1 新增模块</p>
+      </div>
+    </div>
+
+    <!-- ====== 13. 数据：19张表 ====== -->
+    <div class="slide">
+      <div class="light-spot light-spot-1"></div>
+      <div class="light-spot light-spot-4"></div>
+      <div class="slide-content">
+        <p class="text-sm font-light text-gray-500 mb-3">DATABASE SCHEMA</p>
+        <div class="stat-number">19<span class="text-2xl">张</span></div>
+        <p class="text-lg font-light text-gray-400 mt-2">核心业务表</p>
+
+        <div class="grid grid-cols-2 gap-1.5 mt-5 text-xs text-left">
+          <div class="bg-white/5 rounded px-2 py-1.5"><span class="text-gray-500">·</span> users 用户</div>
+          <div class="bg-white/5 rounded px-2 py-1.5"><span class="text-gray-500">·</span> sop_templates SOP模板</div>
+          <div class="bg-white/5 rounded px-2 py-1.5"><span class="text-gray-500">·</span> sop_violations 违规记录</div>
+          <div class="bg-white/5 rounded px-2 py-1.5"><span class="text-gray-500">·</span> knowledge_base 知识库</div>
+          <div class="bg-white/5 rounded px-2 py-1.5"><span class="text-gray-500">·</span> members 会员</div>
+          <div class="bg-white/5 rounded px-2 py-1.5"><span class="text-gray-500">·</span> points_transactions 积分</div>
+          <div class="bg-white/5 rounded px-2 py-1.5"><span class="text-gray-500">·</span> org_structure 组织架构</div>
+          <div class="bg-white/5 rounded px-2 py-1.5"><span class="text-gray-500">·</span> audit_logs 审计日志</div>
+          <div class="bg-white/5 rounded px-2 py-1.5"><span class="text-gray-500">·</span> alerts 告警记录</div>
+          <div class="bg-blue-500/10 rounded px-2 py-1.5 text-blue-300"><span class="text-blue-500">+10</span> 更多业务表...</div>
+        </div>
+
+        <p class="text-xs text-gray-600 mt-3">v1.0: 10张 → v1.1: 19张 (+9张新增)</p>
+      </div>
+    </div>
+
+    <!-- ====== 14. 金句：架构哲学 ====== -->
+    <div class="slide">
+      <div class="light-spot light-spot-3"></div>
+      <div class="light-spot light-spot-2"></div>
+      <div class="slide-content">
+        <span class="text-6xl text-gray-600 block mb-2">"</span>
+        <p class="text-2xl font-bold leading-relaxed mb-6">
+          视频不上云<br>决策在边缘<br>数据在云端<br>智能在两端
+        </p>
+        <div class="w-16 h-0.5 bg-gradient-to-r from-cyan-500 to-blue-500 mx-auto mb-4"></div>
+        <p class="text-sm font-light text-gray-500">火瞳架构设计哲学</p>
+        <p class="text-xs text-gray-600 mt-2">隐私安全 · 低延迟 · 高可用</p>
+      </div>
+    </div>
+
+    <!-- ====== 15. 冲击：文档链路 ====== -->
+    <div class="slide">
+      <div class="light-spot light-spot-4"></div>
+      <div class="light-spot light-spot-5"></div>
+      <div class="slide-content">
+        <p class="text-sm font-light text-gray-500 mb-4">DOCUMENT CHAIN</p>
+        <h1 class="text-2xl font-black leading-tight mb-6">
+          六层文档链路<br>全程追溯
+        </h1>
+        <div class="space-y-2 text-left text-xs w-full">
+          <div class="flex items-center bg-white/5 rounded-lg p-2">
+            <span class="w-5 h-5 rounded-full bg-red-500/80 text-white text-center leading-5 text-xs font-bold mr-2 flex-shrink-0">1</span>
+            <div>
+              <p class="font-bold text-white">市场调研 v2.0</p>
+              <p class="text-gray-500">行业数据 + 竞品ROI + 政策红利</p>
+            </div>
+          </div>
+          <div class="flex items-center bg-white/5 rounded-lg p-2">
+            <span class="w-5 h-5 rounded-full bg-orange-500/80 text-white text-center leading-5 text-xs font-bold mr-2 flex-shrink-0">2</span>
+            <div>
+              <p class="font-bold text-white">PRD v5.3i</p>
+              <p class="text-gray-500">129项功能 · 2839行</p>
+            </div>
+          </div>
+          <div class="flex items-center bg-white/5 rounded-lg p-2">
+            <span class="w-5 h-5 rounded-full bg-amber-500/80 text-white text-center leading-5 text-xs font-bold mr-2 flex-shrink-0">3</span>
+            <div>
+              <p class="font-bold text-white">产品设计</p>
+              <p class="text-gray-500">灵魂解读 + 竞品定位 + 全景分析</p>
+            </div>
+          </div>
+          <div class="flex items-center bg-white/5 rounded-lg p-2">
+            <span class="w-5 h-5 rounded-full bg-blue-500/80 text-white text-center leading-5 text-xs font-bold mr-2 flex-shrink-0">4</span>
+            <div>
+              <p class="font-bold text-white">解决方案架构 v1.0</p>
+              <p class="text-gray-500">四层组件 + 技术选型 + 部署方案</p>
+            </div>
+          </div>
+          <div class="flex items-center bg-white/5 rounded-lg p-2">
+            <span class="w-5 h-5 rounded-full bg-purple-500/80 text-white text-center leading-5 text-xs font-bold mr-2 flex-shrink-0">5</span>
+            <div>
+              <p class="font-bold text-white">总体架构 v2.0</p>
+              <p class="text-gray-500">4+1视图 + ADR决策记录</p>
+            </div>
+          </div>
+          <div class="flex items-center bg-cyan-500/10 border border-cyan-500/20 rounded-lg p-2">
+            <span class="w-5 h-5 rounded-full bg-cyan-500 text-white text-center leading-5 text-xs font-bold mr-2 flex-shrink-0">6</span>
+            <div>
+              <p class="font-bold text-cyan-300">详细架构 v1.1</p>
+              <p class="text-gray-400">9模块 · 19表 · 129功能映射 · 3380行</p>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- ====== 16. 冲击：展会冲刺 ====== -->
+    <div class="slide">
+      <div class="light-spot light-spot-1"></div>
+      <div class="light-spot light-spot-2"></div>
+      <div class="slide-content">
+        <p class="text-sm font-light text-red-400 mb-4 tracking-widest">HARD DEADLINE</p>
+        <h1 class="text-4xl font-black leading-tight mb-4">
+          2026.10<br>重庆展会
+        </h1>
+        <p class="text-base font-light text-gray-400">重庆市政府展会亮相</p>
+        <div class="mt-6 bg-red-500/10 border border-red-500/20 rounded-xl p-4">
+          <p class="text-xs text-red-400 font-bold mb-2">三阶段路线</p>
+          <div class="space-y-2 text-left text-xs">
+            <div class="flex items-center">
+              <span class="timeline-dot bg-amber-400"></span>
+              <span class="font-bold text-white">两店验证</span>
+              <span class="ml-auto text-amber-400">🟡 进行中</span>
+            </div>
+            <div class="flex items-center">
+              <span class="timeline-dot bg-blue-400"></span>
+              <span class="text-gray-300">区域标准化</span>
+              <span class="ml-auto text-gray-500">⏳ 展会后</span>
+            </div>
+            <div class="flex items-center">
+              <span class="timeline-dot bg-purple-400"></span>
+              <span class="text-gray-300">对外输出</span>
+              <span class="ml-auto text-gray-500">⏳ 标准化后</span>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- ====== 17. 步骤：冲刺计划 ====== -->
+    <div class="slide">
+      <div class="light-spot light-spot-3"></div>
+      <div class="light-spot light-spot-4"></div>
+      <div class="slide-content">
+        <p class="text-sm font-light text-gray-500 mb-4">SPRINT PLAN</p>
+        <h2 class="text-xl font-bold text-white mb-6">展会冲刺四步走</h2>
+
+        <div class="space-y-3 text-left w-full">
+          <div class="bg-gradient-to-r from-blue-500/15 to-transparent rounded-lg p-3 border-l-2 border-blue-400">
+            <div class="flex items-center justify-between mb-1">
+              <span class="text-sm font-bold text-blue-300">D1 冻品供应链</span>
+              <span class="text-xs text-blue-500 bg-blue-500/10 px-2 py-0.5 rounded">8月</span>
+            </div>
+            <p class="text-xs text-gray-400">品牌规格锁定 · 温控追溯 · 退换货流程</p>
+          </div>
+
+          <div class="bg-gradient-to-r from-purple-500/15 to-transparent rounded-lg p-3 border-l-2 border-purple-400">
+            <div class="flex items-center justify-between mb-1">
+              <span class="text-sm font-bold text-purple-300">D2 岗位AI助理</span>
+              <span class="text-xs text-purple-500 bg-purple-500/10 px-2 py-0.5 rounded">8月</span>
+            </div>
+            <p class="text-xs text-gray-400">店长/后厨/采购/供应商 四角色入口</p>
+          </div>
+
+          <div class="bg-gradient-to-r from-cyan-500/15 to-transparent rounded-lg p-3 border-l-2 border-cyan-400">
+            <div class="flex items-center justify-between mb-1">
+              <span class="text-sm font-bold text-cyan-300">D3 集成测试</span>
+              <span class="text-xs text-cyan-500 bg-cyan-500/10 px-2 py-0.5 rounded">9月</span>
+            </div>
+            <p class="text-xs text-gray-400">双店联调 · 端到端流程验证 · 性能压测</p>
+          </div>
+
+          <div class="bg-gradient-to-r from-amber-500/15 to-transparent rounded-lg p-3 border-l-2 border-amber-400">
+            <div class="flex items-center justify-between mb-1">
+              <span class="text-sm font-bold text-amber-300">D4 彩排</span>
+              <span class="text-xs text-amber-500 bg-amber-500/10 px-2 py-0.5 rounded">9月</span>
+            </div>
+            <p class="text-xs text-gray-400">Demo场景打磨 · 讲稿演练 · 应急预案</p>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- ====== 18. 结尾：行动号召 ====== -->
+    <div class="slide">
+      <div class="light-spot light-spot-1"></div>
+      <div class="light-spot light-spot-2"></div>
+      <div class="light-spot light-spot-3"></div>
+      <div class="slide-content">
+        <div class="brand-icon">🔥👁️</div>
+        <span class="text-6xl text-gray-600 block mb-2">"</span>
+        <p class="text-2xl font-bold leading-relaxed mb-6">
+          拿得少<br>走得远
+        </p>
+        <div class="w-16 h-0.5 bg-gradient-to-r from-blue-500 via-purple-500 to-cyan-500 mx-auto mb-6"></div>
+
+        <p class="text-lg font-light text-gray-300 mb-2">火瞳 · 冯校长火锅连锁AI运营中台</p>
+        <p class="text-sm font-light text-gray-500">视觉 + 数据 双引擎</p>
+
+        <div class="mt-8 flex items-center justify-center gap-3 text-xs text-gray-600">
+          <span>📧 hotpot@fenxiaozhang.com</span>
+        </div>
+        <p class="text-xs text-gray-700 mt-4">2026年7月 · feature/arch-design 分支</p>
+      </div>
+    </div>
+
+  </div>
+
+  <!-- 进度条 -->
+  <div class="progress-bar" id="progressBar"></div>
+
+  <!-- 页码 -->
+  <div class="page-number" id="pageNumber">1 / 18</div>
+
+  <script>
+    const slides = document.querySelectorAll('.slide');
+    const progressBar = document.getElementById('progressBar');
+    const pageNumber = document.getElementById('pageNumber');
+    let currentSlide = 0;
+
+    // 初始化进度条
+    slides.forEach((_, index) => {
+      const dot = document.createElement('div');
+      dot.className = `progress-dot ${index === 0 ? 'active' : ''}`;
+      dot.addEventListener('click', () => goToSlide(index));
+      progressBar.appendChild(dot);
+    });
+
+    function updateSlides() {
+      slides.forEach((slide, index) => {
+        slide.classList.remove('active', 'prev');
+        if (index === currentSlide) slide.classList.add('active');
+        else if (index < currentSlide) slide.classList.add('prev');
+      });
+      document.querySelectorAll('.progress-dot').forEach((dot, index) => {
+        dot.classList.toggle('active', index === currentSlide);
+      });
+      pageNumber.textContent = `${currentSlide + 1} / ${slides.length}`;
+    }
+
+    function nextSlide() { if (currentSlide < slides.length - 1) { currentSlide++; updateSlides(); } }
+    function prevSlide() { if (currentSlide > 0) { currentSlide--; updateSlides(); } }
+    function goToSlide(index) { currentSlide = index; updateSlides(); }
+
+    // 键盘控制
+    document.addEventListener('keydown', (e) => {
+      if (e.key === 'ArrowRight' || e.key === ' ') nextSlide();
+      else if (e.key === 'ArrowLeft') prevSlide();
+    });
+
+    // 触摸滑动支持
+    let touchStartX = 0;
+    document.addEventListener('touchstart', (e) => { touchStartX = e.touches[0].clientX; });
+    document.addEventListener('touchend', (e) => {
+      const diff = touchStartX - e.changedTouches[0].clientX;
+      if (Math.abs(diff) > 50) { if (diff > 0) nextSlide(); else prevSlide(); }
+    });
+  </script>
+</body>
+</html>
