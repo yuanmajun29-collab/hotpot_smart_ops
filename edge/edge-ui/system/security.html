@@ -1,0 +1,129 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>安全设置 · 火瞳边缘盒子</title>
+<link rel="stylesheet" href="../../../assets/edge-ui.css">
+</head>
+<body class="page-settings">
+<div class="app-container">
+  <nav class="sidebar">
+    <div class="sidebar-header"><div class="logo-icon">🔥</div><span>火瞳边缘盒子</span></div>
+    <a href="../index.html" class="nav-item"><span class="nav-icon">📊</span>仪表盘</a>
+    <a href="../setup.html" class="nav-item"><span class="nav-icon">🔧</span>初始化向导</a>
+    <a href="../cameras.html" class="nav-item"><span class="nav-icon">📷</span>摄像头管理</a>
+    <a href="../iot-sensors.html" class="nav-item"><span class="nav-icon">🌡️</span>IoT传感器</a>
+    <div class="nav-section-title">系统设置</div>
+    <a href="../settings-network.html" class="nav-item"><span class="nav-icon">🌐</span>网络配置</a>
+    <a href="../settings-models.html" class="nav-item"><span class="nav-icon">🧠</span>模型管理</a>
+    <a href="../settings-security.html" class="nav-item active"><span class="nav-icon">🔒</span>安全设置</a>
+    <a href="../diagnostics.html" class="nav-item"><span class="nav-icon">🔍</span>诊断工具</a>
+  </nav>
+
+  <main class="main-content">
+    <header class="top-bar">
+      <h1><span class="breadcrumb">系统设置</span> / 安全设置</h1>
+      <div class="top-actions">
+        <span class="status-dot online"></span><span id="device-status">在线</span>
+      </div>
+    </header>
+
+    <div class="card-grid single">
+      <!-- 访问控制 -->
+      <div class="card">
+        <div class="card-header"><h2>🔐 访问控制</h2></div>
+        <div class="card-body">
+          <div class="form-group">
+            <label class="checkbox-label">
+              <input type="checkbox" id="auth-enable" checked> 启用访问密码
+            </label>
+            <p class="text-muted text-sm">开启后，访问 Edge UI 需要输入管理密码</p>
+          </div>
+          <div id="auth-config">
+            <div class="form-group">
+              <label>当前密码</label>
+              <input type="password" class="form-input" value="********" disabled>
+            </div>
+            <div class="form-group">
+              <label>新密码</label>
+              <input type="password" class="form-input" id="new-pwd" placeholder="输入新密码（留空则不修改）">
+            </div>
+            <div class="form-group">
+              <label>确认新密码</label>
+              <input type="password" class="form-input" id="confirm-pwd" placeholder="再次输入新密码">
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <!-- 平台通信安全 -->
+      <div class="card">
+        <div class="card-header"><h2>🔗 平台通信安全</h2></div>
+        <div class="card-body">
+          <div class="form-group">
+            <label class="checkbox-label">
+              <input type="checkbox" id="tls-enable"> 启用 TLS 加密通信
+            </label>
+            <p class="text-muted text-sm">与平台端通信时使用 HTTPS/WSS 加密</p>
+          </div>
+          <div class="form-group">
+            <label>平台服务器地址</label>
+            <input type="text" class="form-input" id="platform-url" 
+                   value="https://cloud.hotpot.ai" placeholder="https://...">
+          </div>
+          <div class="form-group">
+            <label>设备证书状态</label>
+            <div class="flex items-center gap-2">
+              <span class="badge badge-success">已注册</span>
+              <span class="text-sm text-muted">证书有效期至 2027-07-31</span>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <!-- 安全日志 -->
+      <div class="card">
+        <div class="card-header"><h2>📋 安全事件日志</h2></div>
+        <div class="card-body p-0">
+          <table class="data-table">
+            <thead><tr><th>时间</th><th>事件</th><th>来源IP</th><th>状态</th></tr></thead>
+            <tbody>
+              <tr><td>2026-07-31 14:23:01</td><td>登录成功</td><td>192.168.2.105</td><td><span class="badge badge-success">正常</span></td></tr>
+              <tr><td>2026-07-31 12:05:33</td><td>登录失败(密码错误)</td><td>192.168.2.50</td><td><span class="badge badge-danger">异常</span></td></tr>
+              <tr><td>2026-07-31 10:18:45</td><td>配置变更(网络)</td><td>192.168.2.100</td><td><span class="badge badge-info">信息</span></td></tr>
+              <tr><td>2026-07-30 23:59:01</td><td>定时备份完成</td><td>-</td><td><span class="badge badge-success">正常</span></td></tr>
+              <tr><td>2026-07-30 16:42:18</td><td>OTA升级 v1.0.0→v1.0.1</td><td>-</td><td><span class="badge badge-info">信息</span></td></tr>
+            </tbody>
+          </table>
+        </div>
+      </div>
+    </div>
+
+    <div class="action-bar">
+      <button class="btn btn-primary" onclick="saveSecurity()">💾 保存安全设置</button>
+    </div>
+  </main>
+</div>
+
+<script src="../assets/api-client.js"></script>
+<script src="../assets/components.js"></script>
+<script>
+function saveSecurity() {
+  const newPwd = document.getElementById('new-pwd').value;
+  const confirmPwd = document.getElementById('confirm-pwd').value;
+  
+  if (newPwd && newPwd !== confirmPwd) {
+    showToast('❌ 两次输入的密码不一致', 'error');
+    return;
+  }
+  
+  showLoading('保存中...');
+  setTimeout(() => {
+    hideLoading();
+    showToast('✅ 安全设置已保存', 'success');
+  }, 1000);
+}
+</script>
+</body>
+</html>

@@ -1,0 +1,233 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>诊断工具 · 火瞳边缘盒子</title>
+  <link rel="stylesheet" href="assets/edge-ui.css">
+</head>
+<body data-page="diagnostics">
+
+<div class="app-layout">
+  <aside class="sidebar" id="sidebar"></aside>
+  <div class="sidebar-backdrop" id="sidebarBackdrop"></div>
+
+  <main class="main-content">
+    <header class="page-header">
+      <div style="display:flex;align-items:center;gap:12px;">
+        <button class="menu-toggle" id="menuToggle" aria-label="菜单">☰</button>
+        <div>
+          <h1 class="page-title" id="pageTitle"></h1>
+          <p class="page-subtitle" id="pageSubtitle"></p>
+        </div>
+      </div>
+      <button class="btn btn-primary btn-sm" id="runAllBtn" onclick="runDiagnostics()">🔄 全部检测</button>
+    </header>
+
+    <div class="page-body">
+
+      <!-- 网络连通性 -->
+      <section class="mb-lg">
+        <h3 style="font-size:14px;font-weight:600;color:var(--text-secondary);margin-bottom:12px;">
+          🌐 网络连通性
+        </h3>
+        <div class="diag-list" id="networkDiag">${skeletonDiagItems(4)}</div>
+      </section>
+
+      <!-- 摄像头连接 -->
+      <section class="mb-lg">
+        <h3 style="font-size:14px;font-weight:600;color:var(--text-secondary);margin-bottom:12px;">
+          📷 摄像头连接
+        </h3>
+        <div class="diag-list" id="cameraDiag">${skeletonDiagItems(3)}</div>
+      </section>
+
+      <!-- 引擎健康 -->
+      <section class="mb-lg">
+        <h3 style="font-size:14px;font-weight:600;color:var(--text-secondary);margin-bottom:12px;">
+          ⚙️ 引擎健康
+        </h3>
+        <div class="diag-list" id="engineDiag">${skeletonDiagItems(5)}</div>
+      </section>
+
+      <!-- 系统资源 -->
+      <section>
+        <h3 style="font-size:14px;font-weight:600;color:var(--text-secondary);margin-bottom:12px;">
+          💻 系统资源
+        </h3>
+        <div class="diag-list" id="resourceDiag">${skeletonDiagItems(5)}</div>
+      </section>
+
+    </div>
+  </main>
+</div>
+
+<script src="assets/api-client.js"></script>
+<script src="assets/components.js"></script>
+<script src="assets/edge-ui.js"></script>
+<script>
+(function() {
+  'use strict';
+
+  // ── Skeleton 占位 ──
+  function skeletonDiagItems(n) {
+    return Array.from({ length: n }, () => `
+      <div class="diag-item">
+        <span class="diag-icon">⏳</span>
+        <span class="diag-target"><span class="skeleton" style="display:inline-block;width:120px;height:14px;"></span></span>
+        <span class="diag-result"><span class="skeleton" style="display:inline-block;width:40px;height:14px;"></span></span>
+        <span class="diag-detail"><span class="skeleton" style="display:inline-block;width:80px;height:12px;"></span></span>
+      </div>`).join('');
+  }
+
+  // ── 渲染诊断项 ──
+  function renderDiagItem(item) {
+    const statusIcon = { pass: '✅', fail: '❌', warn: '⚠️', running: '🔄' };
+    const statusCls = { pass: 'success', fail: 'error', warn: 'warn', running: 'info' };
+    
+    return `
+      <div class="diag-item">
+        <span class="diag-icon">${statusIcon[item.status] || '◦'}</span>
+        <span class="diag-target">${EdgeUI.escHtml(item.name || item.target || '-')}</span>
+        ${item.target ? `<span class="diag-target font-mono" style="color:var(--text-muted);font-size:11px;">${EdgeUI.escHtml(item.target)}</span>` : ''}
+        <span class="diag-result badge badge-${statusCls[item.status] || 'neutral'}">${EdgeUI.statusLabel(item.status) || item.status}</span>
+        <span class="diag-detail">${EdgeUI.escHtml(item.detail || '')}</span>
+      </div>`;
+  }
+
+  // ── 运行完整诊断 ──
+  async function runDiagnostics() {
+    const btn = document.getElementById('runAllBtn');
+    if (btn) { btn.disabled = true; btn.textContent = '检测中...'; }
+
+    // 显示骨架屏
+    document.getElementById('networkDiag').innerHTML = skeletonDiagItems(4);
+    document.getElementById('cameraDiag').innerHTML = skeletonDiagItems(3);
+    document.getElementById('engineDiag').innerHTML = skeletonDiagItems(5);
+    document.getElementById('resourceDiag').innerHTML = skeletonDiagItems(5);
+
+    try {
+      const result = await EdgeAPI.diagnostics.run();
+      
+      if (result.task_id) {
+        // 异步任务，轮询结果
+        await pollDiagResult(result.task_id);
+      } else if (result.results) {
+        // 同步返回结果
+        renderResults(result.results);
+      }
+      
+      EdgeUI.toast('诊断完成', 'success');
+    } catch (err) {
+      EdgeUI.toast('诊断失败: ' + err.message, 'error');
+    }
+
+    if (btn) { btn.disabled = false; btn.textContent = '🔄 全部检测'; }
+  }
+
+  async function pollDiagResult(taskId) {
+    for (let i = 0; i < 30; i++) {
+      await new Promise(r => setTimeout(r, 500));
+      try {
+        const task = await EdgeAPI.diagnostics.getTask(taskId);
+        if (task.status === 'completed') {
+          renderResults(task.results || []);
+          return;
+        }
+      } catch {}
+    }
+    EdgeUI.toast('诊断超时', 'error');
+  }
+
+  function renderResults(results) {
+    if (!results || !Array.isArray(results)) return;
+
+    const categories = { network: [], camera: [], engine: [], resource: [] };
+    results.forEach(r => {
+      const cat = r.category || 'other';
+      if (!categories[cat]) categories[cat] = [];
+      categories[cat].push(r);
+    });
+
+    const mapping = {
+      network: 'networkDiag',
+      camera: 'cameraDiag',
+      engine: 'engineDiag',
+      resource: 'resourceDiag',
+    };
+
+    for (const [cat, elId] of Object.entries(mapping)) {
+      const el = document.getElementById(elId);
+      if (el && categories[cat]?.length) {
+        el.innerHTML = categories[cat].map(renderDiagItem).join('');
+      } else if (el) {
+        el.innerHTML = '<p style="color:var(--text-muted);padding:12px;text-align:center;">无数据</p>';
+      }
+    }
+  }
+
+  // ── 加载各分类（轻量模式，不运行完整诊断）──
+  async function loadQuickStatus() {
+    try {
+      // 并行加载各类状态
+      const [netRes, camRes, engRes, sysRes] = await Promise.allSettled([
+        EdgeAPI.diagnostics.network(),
+        EdgeAPI.diagnostics.cameras(),
+        EdgeAPI.engines.status(),
+        EdgeAPI.system.resources(),
+      ]);
+
+      // 网络
+      if (netRes.status === 'fulfilled' && netRes.value) {
+        const items = Array.isArray(netRes.value) ? netRes.value : 
+          (netRes.value.results || [netRes.value]);
+        document.getElementById('networkDiag').innerHTML = items.map(renderDiagItem).join('');
+      }
+
+      // 摄像头
+      if (camRes.status === 'fulfilled' && camRes.value) {
+        const items = Array.isArray(camRes.value) ? camRes.value :
+          (camRes.value.results || [camRes.value]);
+        document.getElementById('cameraDiag').innerHTML = items.map(renderDiagItem).join('');
+      }
+
+      // 引擎
+      if (engRes.status === 'fulfilled' && engRes.value?.engines) {
+        document.getElementById('engineDiag').innerHTML = engRes.value.engines.map(e => ({
+          category: 'engine',
+          name: e.display_name || e.name,
+          status: e.status,
+          detail: e.fps ? `${e.fps.toFixed(1)} fps` : 
+                 e.sensors_online ? `${e.sensors_online}/${e.sensors_total} 在线` :
+                 e.hub_connected ? '已连接Hub' : ''
+        })).map(renderDiagItem).join('');
+      }
+
+      // 资源
+      if (sysRes.status === 'fulfilled' && sysRes.value) {
+        const r = sysRes.value;
+        const resourceItems = [
+          { category: 'resource', name: 'CPU使用率', status: r.cpu?.percent > 80 ? (r.cpu.percent > 95 ? 'fail' : 'warn') : 'pass', detail: `${r.cpu?.percent || 0}%` },
+          { category: 'resource', name: '内存使用率', status: r.memory?.percent > 80 ? (r.memory.percent > 95 ? 'fail' : 'warn') : 'pass', detail: `${r.memory?.percent || 0}%` },
+          { category: 'resource', name: 'GPU温度', status: r.gpu?.temperature_celsius > 65 ? (r.gpu.temperature_celsius > 80 ? 'fail' : 'warn') : 'pass', detail: `${r.gpu?.temperature_celsius || 0}°C` },
+          { category: 'resource', name: '磁盘空间', status: r.storage?.percent > 85 ? (r.storage.percent > 95 ? 'fail' : 'warn') : 'pass', detail: `${r.storage?.percent || 0}%` },
+          { category: 'resource', name: 'CUDA显存', status: 'pass', detail: `${EdgeUI.formatBytes((r.gpu?.memory_used_mb||0)*1024*1024)} / ${EdgeUI.formatBytes((r.gpu?.memory_total_mb||0)*1024*1022)}` },
+        ];
+        document.getElementById('resourceDiag').innerHTML = resourceItems.map(renderDiagItem).join('');
+      }
+
+    } catch (err) {
+      console.warn('快速状态加载失败:', err.message);
+    }
+  }
+
+  // ── 初始化：先加载快速状态 ──
+  loadQuickStatus();
+
+  // 暴露全局函数
+  window.runDiagnostics = runDiagnostics;
+
+})();
+</script>
+</body>
+</html>

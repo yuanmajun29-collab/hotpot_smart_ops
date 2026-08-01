@@ -1,0 +1,1 @@
+{"hub_url": "http://43.139.143.12:8098", "api_key": "", "store_id": "store_jiaojiang", "heartbeat_interval_seconds": 30, "auto_reconnect": true, "offline_queue_enabled": true, "max_queue_size": 1000}

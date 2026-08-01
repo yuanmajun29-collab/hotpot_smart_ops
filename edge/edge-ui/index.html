@@ -1,0 +1,258 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>首页仪表盘 · 火瞳边缘盒子</title>
+  <link rel="stylesheet" href="assets/edge-ui.css">
+</head>
+<body data-page="index">
+
+<div class="app-layout">
+  <!-- 侧边栏 -->
+  <aside class="sidebar" id="sidebar"></aside>
+  <div class="sidebar-backdrop" id="sidebarBackdrop"></div>
+
+  <!-- 主内容区 -->
+  <main class="main-content">
+    <header class="page-header">
+      <div style="display:flex;align-items:center;gap:12px;">
+        <button class="menu-toggle" id="menuToggle" aria-label="菜单">☰</button>
+        <div>
+          <h1 class="page-title" id="pageTitle"></h1>
+          <p class="page-subtitle" id="pageSubtitle"></p>
+        </div>
+      </div>
+      <div style="display:flex;gap:8px;align-items:center;">
+        <span id="headerStatusBadge" class="badge badge-success">● 在线</span>
+        <button class="btn btn-sm btn-ghost" onclick="EdgeApp.refresh()" title="刷新">↻</button>
+      </div>
+    </header>
+
+    <div class="page-body">
+
+      <!-- 设备信息卡片 -->
+      <div class="card mb-md" style="background:linear-gradient(135deg,var(--bg-card),#221B15);border-color:var(--primary);">
+        <div class="card-body" style="display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:16px;">
+          <div style="display:flex;align-items:center;gap:16px;">
+            <div style="width:48px;height:48px;background:linear-gradient(135deg,var(--primary),#C84E28);border-radius:12px;display:flex;align-items:center;justify-content:center;font-size:24px;font-family:var(--font-serif);color:#fff;">馮</div>
+            <div>
+              <h2 id="deviceName" style="font-size:18px;margin-bottom:2px;">火瞳边缘盒子</h2>
+              <p id="deviceId" style="font-size:13px;color:var(--text-muted);" class="font-mono">-</p>
+            </div>
+          </div>
+          <div style="text-align:right;">
+            <div id="deviceUptime" style="font-size:14px;color:var(--text-secondary);">运行时间: -</div>
+            <div id="deviceVersion" style="font-size:12px;color:var(--text-muted);margin-top:2px;">固件版本: -</div>
+          </div>
+        </div>
+      </div>
+
+      <!-- 资源监控卡片 -->
+      <h3 style="font-size:14px;font-weight:600;color:var(--text-secondary);margin:var(--space-lg) 0 var(--space-md);">
+        📊 系统资源
+      </h3>
+      <div class="stat-grid" id="resourceGrid">
+        ${EdgeUI.skeletonStatGrid(4)}
+      </div>
+
+      <!-- 引擎状态卡片 -->
+      <h3 style="font-size:14px;font-weight:600;color:var(--text-secondary);margin:var(--space-lg) 0 var(--space-md);">
+        ⚙️ 五大引擎状态
+      </h3>
+      <div class="engine-grid" id="engineGrid">
+        ${EdgeUI.skeletonCard()}
+        ${EdgeUI.skeletonCard()}
+        ${EdgeUI.skeletonCard()}
+        ${EdgeUI.skeletonCard()}
+        ${EdgeUI.skeletonCard()}
+      </div>
+
+      <!-- 最近事件 -->
+      <h3 style="font-size:14px;font-weight:600;color:var(--text-secondary);margin:var(--space-lg) 0 var(--space-md);">
+        📋 最近事件
+      </h3>
+      <div class="card" id="eventsCard">
+        <div class="card-body" id="eventsList">
+          <div class="empty-state">
+            <div class="empty-state-icon">📭</div>
+            <p class="empty-state-title">暂无事件</p>
+          </div>
+        </div>
+      </div>
+
+    </div>
+  </main>
+</div>
+
+<!-- Toast 容器由 JS 自动创建 -->
+
+<script src="assets/api-client.js"></script>
+<script src="assets/components.js"></script>
+<script src="assets/edge-ui.js"></script>
+<script>
+(function() {
+  'use strict';
+
+  // ── 渲染资源卡片 ──
+  function renderResources(data) {
+    if (!data) return;
+    
+    const items = [
+      { label: 'CPU', value: data.cpu?.percent || 0, unit: '%', warn: 80, danger: 95, detail: `${data.cpu?.cores || '-'}核 · ${(data.cpu?.freq_mhz || 0).toFixed(0)}MHz` },
+      { label: '内存', value: data.memory?.percent || 0, unit: '%', warn: 80, danger: 95, detail: `${EdgeUI.formatBytes(data.memory?.used_mb * 1024 * 1024 || 0)} / ${EdgeUI.formatBytes(data.memory?.total_mb * 1024 * 1024 || 0)}` },
+      { label: 'GPU温度', value: data.gpu?.temperature_celsius || 0, unit: '°C', warn: 65, danger: 80, detail: `显存 ${EdgeUI.formatBytes(data.gpu?.memory_used_mb * 1024 * 1024 || 0)} / ${EdgeUI.formatBytes(data.gpu?.memory_total_mb * 1024 * 1024 || 0)}` },
+      { label: '磁盘', value: data.storage?.percent || 0, unit: '%', warn: 85, danger: 95, detail: `已用 ${EdgeUI.formatBytes(data.storage?.used_gb * 1024 * 1024 * 1024 || 0)} / 总计 ${EdgeUI.formatBytes(data.storage?.total_gb * 1024 * 1024 * 1024 || 0)}` },
+    ];
+
+    const grid = document.getElementById('resourceGrid');
+    grid.innerHTML = items.map(item => {
+      let cls = 'good';
+      if (item.value >= item.danger) cls = 'danger';
+      else if (item.value >= item.warn) cls = 'warn';
+
+      return `
+        <div class="stat-card">
+          <div class="stat-label">${item.label}</div>
+          <div class="stat-value">${item.value.toFixed(1)}<span class="stat-unit">${item.unit}</span></div>
+          <div class="stat-bar"><div class="stat-bar-fill ${cls}" style="width:${Math.min(item.value,100)}%"></div></div>
+          <div style="font-size:11px;color:var(--text-muted);margin-top:6px;">${item.detail}</div>
+        </div>`;
+    }).join('');
+  }
+
+  // ── 渲染引擎状态 ──
+  function renderEngines(data) {
+    if (!data?.engines) return;
+
+    const icons = {
+      front_hall_infer: '👁️', kitchen_vlm: '🍳', receiving_infer: '📦',
+      iot_bridge: '🌡️', store_forward: '☁️'
+    };
+
+    const grid = document.getElementById('engineGrid');
+    grid.innerHTML = data.engines.map(eng => {
+      const icon = icons[eng.name] || '⚙️';
+      const statusCls = EdgeUI.statusClass(eng.status);
+      
+      return `
+        <div class="engine-card">
+          <div class="engine-name">
+            <span class="engine-status-dot ${eng.status}"></span>
+            ${icon} ${eng.display_name || eng.name}
+          </div>
+          <div class="engine-detail font-mono" style="font-size:11px;">${eng.model || '-'}</div>
+          <div style="display:flex;justify-content:space-between;align-items:end;margin-top:auto;padding-top:8px;">
+            <div>
+              <span class="badge badge-${statusCls}">${EdgeUI.statusLabel(eng.status)}</span>
+            </div>
+            ${eng.fps !== undefined ? `<div class="engine-fps">${eng.fps.toFixed(1)}<span style="font-size:12px;font-weight:400;color:var(--text-muted)"> fps</span></div>` : 
+             eng.sensors_online !== undefined ? `<div style="font-size:18px;font-weight:700;color:var(--primary);">${eng.sensors_online}<span style="font-size:12px;font-weight:400;color:var(--text-muted)">/${eng.sensors_total}</span></div>` :
+             eng.hub_connected !== undefined ? `<span class="badge badge-${eng.hub_connected ? 'success' : 'error'}">${eng.hub_connected ? '已连接' : '断开'}</span>` : `<span class="badge badge-neutral">-</span>`}
+          </div>
+        </div>`;
+    }).join('');
+  }
+
+  // ── 渲染最近事件（模拟数据，后续对接API）──
+  function renderEvents() {
+    // MVP阶段使用模拟事件数据
+    const mockEvents = [
+      { time: new Date(Date.now() - 7*60000).toISOString(), type: 'warn', msg: '后厨VLM 检测到 SOP违规 — 鸭肠未拍照留证' },
+      { time: new Date(Date.now() - 45*60000).toISOString(), type: 'warn', msg: '冷库温度预警 — 一号冷库 -9.2°C（阈值-15°C）' },
+      { time: new Date(Date.now() - 90*60000).toISOString(), type: 'info', msg: '自动模型更新完成 — YOLOv8n-FoodSafety v2.1' },
+      { time: new Date(Date.now() - 180*60000).toISOString(), type: 'info', msg: '数据上报正常 — 今日已上报 1,523 条事件' },
+      { time: new Date(Date.now() - 360*60000).toISOString(), type: 'success', msg: '收货验货完成 — 毛肚批次 B20260731001 复称合格' },
+    ];
+
+    const list = document.getElementById('eventsList');
+    if (!mockEvents.length) {
+      list.innerHTML = '<div class="empty-state"><div class="empty-state-icon">📭</div><p class="empty-state-title">暂无事件</p></div>';
+      return;
+    }
+
+    const typeIcons = { success: '✓', info: 'ℹ', warn: '⚠', error: '✕' };
+    
+    list.innerHTML = mockEvents.map(ev => `
+      <div style="display:flex;align-items:flex-start;gap:10px;padding:10px 0;border-bottom:1px solid var(--border-light):last-child{border-bottom:none}">
+        <span style="font-size:16px;flex-shrink:0;margin-top:2px;">${typeIcons[ev.type] || '•'}</span>
+        <div style="flex:1;min-width:0;">
+          <p style="font-size:13.5px;line-height:1.5;">${ev.msg}</p>
+          <p style="font-size:11.5px;color:var(--text-muted);margin-top:3px;">${EdgeUI.formatTime(ev.time)}</p>
+        </div>
+      </div>
+    `).join('');
+  }
+
+  // ── 加载设备基本信息 ──
+  async function loadDeviceBase() {
+    try {
+      const [info, uptime, version] = await Promise.all([
+        EdgeAPI.system.info(),
+        EdgeAPI.system.uptime(),
+        EdgeAPI.system.version(),
+      ]);
+
+      document.getElementById('deviceName').textContent = info.device_name || '火瞳边缘盒子';
+      document.getElementById('deviceId').textContent = info.device_id || '-';
+      document.getElementById('deviceUptime').textContent = `运行时间: ${EdgeUI.formatUptime(uptime.uptime_seconds)}`;
+      document.getElementById('deviceVersion').textContent = `固件版本: v${version.firmware_version || '-'}`;
+
+      // 更新头部状态
+      const badge = document.getElementById('headerStatusBadge');
+      if (badge && info.initialized) {
+        badge.className = 'badge badge-success';
+        badge.textContent = '● 在线';
+      }
+    } catch (err) {
+      console.warn('加载设备信息失败:', err.message);
+    }
+  }
+
+  // ── 初始化数据加载与轮询 ──
+  async function initDashboard() {
+    await loadDeviceBase();
+    renderEvents();
+
+    // 加载资源数据
+    try {
+      const resources = await EdgeAPI.system.resources();
+      renderResources(resources);
+    } catch (err) {
+      console.warn('加载资源数据失败:', err.message);
+    }
+
+    // 加载引擎状态
+    try {
+      const engines = await EdgeAPI.engines.status();
+      renderEngines(engines);
+    } catch (err) {
+      console.warn('加载引擎状态失败:', err.message);
+    }
+
+    // 定时刷新（每10秒）
+    EdgeUI.startPolling('dashboard-resources', async () => {
+      try {
+        const resources = await EdgeAPI.system.resources();
+        renderResources(resources);
+      } catch {}
+    }, 10000);
+
+    EdgeUI.startPolling('dashboard-engines', async () => {
+      try {
+        const engines = await EdgeAPI.engines.status();
+        renderEngines(engines);
+      } catch {}
+    }, 10000);
+  }
+
+  // 启动
+  initDashboard();
+
+  // 手动刷新支持
+  window.addEventListener('edgeui:refresh', initDashboard);
+
+})();
+</script>
+</body>
+</html>

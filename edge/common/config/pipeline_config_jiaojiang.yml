@@ -1,0 +1,81 @@
+# ============================================================
+#  火瞳 · 椒江店 推理Pipeline配置
+#  Store: store_jiaojiang
+# ============================================================
+
+# ── 主摄像头（默认用于单摄像头模式）──
+stream_url: "rtsp://admin:hy898989@192.168.5.254:554/Streaming/Channels/301"
+interval_seconds: 10
+stream_timeout: 10
+
+# ── 推理开关 ──
+auto_infer: true
+infer_on_frame_count: 1
+skip_vlm: false
+
+# ── Hub 上报 ──
+hub_url: "http://43.139.143.12:8098"
+store_id: "store_jiaojiang"
+zone: "备餐废弃区"
+
+# ── CLIP-Adapter ──
+clip_classes: "clean_kitchen,dirty_surface,food_waste,cluttered,dangerous_object,uniform_ok,cap_on,mask_on,glove_on"
+clip_threshold: 0.5
+
+# ── 超时控制 ──
+yolo_timeout: 60
+clip_timeout: 120
+vlm_timeout: 45
+
+# ── 多摄像头调度（椒江店扩展）──
+multi_camera:
+  enabled: true
+  
+  # 各场景使用的摄像头
+  scenes:
+    - name: "S1_食材损耗识别"
+      camera_id: "cam_prep_waste"
+      zone: "备餐废弃区"
+      models: ["yolo", "clip", "vlm"]
+      schedule: "*/5 * * * *"           # 每5分钟
+      
+    - name: "S2_来料验收"
+      camera_id: "cam_ingredient"
+      zone: "食材存储区"
+      models: ["yolo", "vlm"]
+      schedule: "*/10 * * * *"          # 来料时触发
+      
+    - name: "S3_SOP合规检查"
+      camera_id: "cam_cooking_line"
+      zone: "炒制工位"
+      models: ["yolo", "clip"]
+      schedule: "*/3 * * * *"            # 高频检查
+      
+    - name: "S4_出菜统计"
+      camera_id: "cam_dishout"
+      zone: "出菜口"
+      models: ["yolo", "counting"]
+      schedule: "* * * * *"               # 实时
+      
+    - name: "S5_服务效率"
+      camera_id: "cam_dining_area"
+      zone: "就餐区"
+      models: ["yolo", "tracking"]
+      schedule: "*/2 * * * *"             # 高频
+
+# ── 模拟模式（RTSP不可用时的降级方案）──
+mock_mode:
+  enabled: true
+  source: "local_image"                   # 使用本地测试图片
+  image_path: "/opt/hotpot-infer/demo/data/real_hotpot_waste.jpg"
+  simulate_interval: 30                    # 每30秒模拟一次推理结果
+  simulate_results:
+    - scene: "waste_detection"
+      waste_type: "蔬菜叶"
+      weight_kg: 0.8
+      confidence: 0.92
+      timestamp: "auto"
+    - scene: "sop_compliance"
+      item: "厨师帽佩戴"
+      status: "compliant"
+      confidence: 0.88

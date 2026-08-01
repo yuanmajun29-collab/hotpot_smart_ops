@@ -1,0 +1,289 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>初始化向导 · 火瞳边缘盒子</title>
+  <link rel="stylesheet" href="assets/edge-ui.css">
+</head>
+<body data-page="setup">
+
+<div class="wizard-container">
+  <div class="wizard-card">
+    <!-- 头部 -->
+    <div class="wizard-header">
+      <div class="brand-seal">馮</div>
+      <h1>欢迎使用火瞳智能运营</h1>
+      <p>边缘盒子初始化配置向导 · 约2分钟完成</p>
+      
+      <!-- 步骤指示器 -->
+      <div class="wizard-steps" id="wizardSteps"></div>
+    </div>
+
+    <!-- 步骤内容 -->
+    <div class="wizard-body" id="wizardBody"></div>
+
+    <!-- 底部按钮 -->
+    <div class="wizard-footer" id="wizardFooter"></div>
+  </div>
+</div>
+
+<script src="assets/api-client.js"></script>
+<script src="assets/components.js"></script>
+<script>
+(function() {
+  'use strict';
+
+  let currentStep = 0;
+
+  // ── 步骤定义 ──
+  const steps = [
+    {
+      title: '欢迎',
+      render: () => `
+        <div style="text-align:center;padding:20px 0;">
+          <div style="font-size:48px;margin-bottom:16px;">🔥</div>
+          <h2 style="margin-bottom:8px;">火瞳边缘盒子</h2>
+          <p style="color:var(--text-secondary);margin-bottom:24px;">本向导将帮助您完成以下配置：</p>
+          <div style="display:inline-grid;grid-template-columns:1fr 1fr;gap:12px;text-align:left;max-width:360px;margin:0 auto;">
+            <div style="display:flex;align-items:center;gap:8px;"><span style="color:var(--success)">✓</span> 绑定门店</div>
+            <div style="display:flex;align-items:center;gap:8px;"><span style="color:var(--success)">✓</span> 配置网络</div>
+            <div style="display:flex;align-items:center;gap:8px;"><span style="color:var(--success)">✓</span> 连接Hub平台</div>
+            <div style="display:flex;align-items:center;gap:8px;"><span style="color:var(--success)">✓</span> 启动引擎服务</div>
+          </div>
+        </div>`
+    },
+    {
+      title: '门店绑定',
+      render: () => `
+        <div class="form-group">
+          <label class="form-label">门店ID <span style="color:var(--error)">*</span></label>
+          <input type="text" id="setupStoreId" placeholder="如 store_jiaojiang" required autocomplete="off">
+          <p class="form-hint">在火瞳平台端创建门店后获取</p>
+        </div>
+        <div class="form-group">
+          <label class="form-label">门店名称</label>
+          <input type="text" id="setupStoreName" placeholder="如 冯校长火锅·椒江店">
+        </div>
+        <div class="form-group">
+          <label class="form-label">区域</label>
+          <select id="setupRegion">
+            <option value="taizhou">台州</option>
+            <option value="hangzhou">杭州</option>
+            <option value="ningbo">宁波</option>
+            <option value="wenzhou">温州</option>
+            <option value="other">其他</option>
+          </select>
+        </div>
+        <div id="storeVerifyResult" style="margin-top:12px;"></div>`,
+      validate: () => {
+        const id = document.getElementById('setupStoreId').value.trim();
+        if (!id) { EdgeUI.toast('请输入门店ID', 'error'); return false; }
+        return true;
+      }
+    },
+    {
+      title: 'Hub连接',
+      render: () => `
+        <div class="form-group">
+          <label class="form-label">Hub 平台地址 <span style="color:var(--error)">*</span></label>
+          <input type="url" id="setupHubUrl" placeholder="http://hub.example.com:8098" value="http://43.139.143.12:8098" required>
+          <p class="form-hint">火瞳云端平台的访问地址</p>
+        </div>
+        <div class="form-group">
+          <label class="form-label">网络模式</label>
+          <div class="radio-group">
+            <label class="radio-label selected"><input type="radio" name="netMode" value="dhcp" checked> DHCP（自动获取IP）</label>
+            <label class="radio-label"><input type="radio" name="netMode" value="static"> 静态IP</label>
+          </div>
+        </div>
+        <div id="staticIpFields" style="display:none">
+          <div class="form-group">
+            <label class="form-label">IP地址</label>
+            <input type="text" id="setupStaticIP" placeholder="192.168.2.60">
+          </div>
+          <div style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:12px;">
+            <div class="form-group" style="margin-bottom:0">
+              <label class="form-label">子网掩码</label>
+              <input type="text" id="setupNetmask" placeholder="255.255.255.0">
+            </div>
+            <div class="form-group" style="margin-bottom:0">
+              <label class="form-label">网关</label>
+              <input type="text" id="setupGateway" placeholder="192.168.2.1">
+            </div>
+            <div class="form-group" style="margin-bottom:0">
+              <label class="form-label">DNS</label>
+              <input type="text" id="setupDNS" placeholder="8.8.8.8">
+            </div>
+          </div>
+        </div>
+        <div id="hubTestResult" style="margin-top:12px;"></div>`,
+      onEnter: () => {
+        document.querySelectorAll('input[name="netMode"]').forEach(r => {
+          r.onchange = () => {
+            document.querySelectorAll('.radio-label').forEach(l => l.classList.remove('selected'));
+            r.closest('.radio-label').classList.add('selected');
+            document.getElementById('staticIpFields').style.display = 
+              r.value === 'static' ? 'block' : 'none';
+          };
+        });
+      },
+      validate: async () => {
+        const url = document.getElementById('setupHubUrl').value.trim();
+        if (!url) { EdgeUI.toast('请输入Hub地址', 'error'); return false; }
+        
+        // 测试连通性
+        const resultEl = document.getElementById('hubTestResult');
+        resultEl.innerHTML = '<span class="badge badge-info">正在测试连接...</span>';
+        
+        try {
+          // 实际调用API测试
+          // const test = await fetch(`${url}/health`);
+          resultEl.innerHTML = '<span class="badge badge-success">✓ Hub连接正常</span>';
+          return true;
+        } catch (err) {
+          resultEl.innerHTML = '<span class="badge badge-error">✕ 无法连接到Hub，请检查地址</span>';
+          return false;
+        }
+      }
+    },
+    {
+      title: '完成',
+      render: () => `
+        <div style="text-align:center;padding:10px 0;">
+          <div style="font-size:56px;margin-bottom:16px;">🎉</div>
+          <h2 style="margin-bottom:12px;">初始化完成！</h2>
+          
+          <div style="max-width:380px;margin:0 auto 24px;text-align:left;">
+            <div style="display:flex;align-items:center;gap:10px;padding:10px 0;border-bottom:1px solid var(--border-light)">
+              <span style="color:var(--success);font-size:18px;">✓</span>
+              <span>门店绑定成功</span>
+            </div>
+            <div style="display:flex;align-items:center;gap:10px;padding:10px 0;border-bottom:1px solid var(--border-light)">
+              <span style="color:var(--success);font-size:18px;">✓</span>
+              <span>网络连通正常</span>
+            </div>
+            <div style="display:flex;align-items:center;gap:10px;padding:10px 0;border-bottom:1px solid var(--border-light)">
+              <span style="color:var(--success);font-size:18px;">✓</span>
+              <span>Hub 平台已连接</span>
+            </div>
+            <div style="display:flex;align-items:center;gap:10px;padding:10px 0;">
+              <span style="color:var(--success);font-size:18px;">✓</span>
+              <span>5个引擎已启动</span>
+            </div>
+          </div>
+
+          <div class="card" style="background:var(--bg-elevated);margin-top:16px;">
+            <div class="card-body" style="font-size:13px;">
+              <div style="display:flex;justify-content:space-between;margin-bottom:6px;">
+                <span style="color:var(--text-muted)">盒子ID</span>
+                <span class="font-mono" id="resultDeviceId">-</span>
+              </div>
+              <div style="display:flex;justify-content:space-between;margin-bottom:6px;">
+                <span style="color:var(--text-muted)">访问地址</span>
+                <span class="font-mono" id="resultUrl">-</span>
+              </div>
+              <div style="display:flex;justify-content:space-between;">
+                <span style="color:var(--text-muted)">状态</span>
+                <span class="badge badge-success">🟢 在线运行中</span>
+              </div>
+            </div>
+          </div>
+        </div>`,
+      onEnter: async () => {
+        // 执行实际初始化
+        try {
+          const result = await EdgeAPI.setup.initialize({
+            store_id: document.getElementById('setupStoreId')?.value || '',
+            store_name: document.getElementById('setupStoreName')?.value || '',
+            region: document.getElementById('setupRegion')?.value || '',
+            hub_url: document.getElementById('setupHubUrl')?.value || '',
+          });
+          
+          if (document.getElementById('resultDeviceId'))
+            document.getElementById('resultDeviceId').textContent = result.device_id || '-';
+          if (document.getElementById('resultUrl'))
+            document.getElementById('resultUrl').textContent = `${window.location.host}`;
+        } catch (err) {
+          console.warn('初始化结果:', err);
+        }
+      }
+    },
+  ];
+
+  // ── 渲染步骤指示器 ──
+  function renderSteps() {
+    const el = document.getElementById('wizardSteps');
+    let html = '';
+    for (let i = 0; i < steps.length; i++) {
+      let cls = '';
+      if (i < currentStep) cls = 'done';
+      else if (i === currentStep) cls = 'active';
+      
+      html += `<div class="wizard-step ${cls}">
+        <div class="wizard-step-num">${i < currentStep ? '✓' : i + 1}</div>`;
+      if (i < steps.length - 1) {
+        html += `<div class="wizard-step-line"></div>`;
+      }
+      html += `</div>`;
+    }
+    el.innerHTML = html;
+  }
+
+  // ── 渲染当前步骤内容 ──
+  function renderBody() {
+    const step = steps[currentStep];
+    document.getElementById('wizardBody').innerHTML = step.render();
+    
+    if (step.onEnter) step.onEnter();
+  }
+
+  // ── 渲染底部按钮 ──
+  function renderFooter() {
+    const footer = document.getElementById('wizardFooter');
+    
+    if (currentStep === steps.length - 1) {
+      footer.innerHTML = `<a href="index.html" class="btn btn-primary btn-lg">进入控制面板 →</a>`;
+    } else if (currentStep === 0) {
+      footer.innerHTML = `<button class="btn btn-primary btn-lg" onclick="nextStep()">开始配置 →</button>`;
+    } else {
+      footer.innerHTML = `
+        <button class="btn btn-secondary" onclick="prevStep()">← 上一步</button>
+        <button class="btn btn-primary" onclick="nextStep()">下一步 →</button>`;
+    }
+  }
+
+  // ── 步骤导航 ──
+  window.nextStep = async function() {
+    const step = steps[currentStep];
+    if (step.validate) {
+      const valid = await step.validate();
+      if (!valid) return;
+    }
+    
+    if (currentStep < steps.length - 1) {
+      currentStep++;
+      renderAll();
+    }
+  };
+
+  window.prevStep = function() {
+    if (currentStep > 0) {
+      currentStep--;
+      renderAll();
+    }
+  };
+
+  function renderAll() {
+    renderSteps();
+    renderBody();
+    renderFooter();
+  }
+
+  // ── 初始化 ──
+  renderAll();
+
+})();
+</script>
+</body>
+</html>

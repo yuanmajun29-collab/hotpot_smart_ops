@@ -48,6 +48,8 @@
       </p>
     </div>
   </div>
+  <script src="assets/cloud_mock.js"></script>
+  <script>/* 云端适配：强制 hubUrl 指向当前访问地址 */if(!localStorage.getItem('hotpot_hub_url'))localStorage.setItem('hotpot_hub_url',location.origin);</script>
   <script src="assets/core.js"></script>
   <script>
     function isMobileUA() {

@@ -1,0 +1,128 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>模型管理 · 火瞳边缘盒子</title>
+<link rel="stylesheet" href="../../../assets/edge-ui.css">
+</head>
+<body class="page-settings">
+<div class="app-container">
+  <nav class="sidebar">
+    <div class="sidebar-header"><div class="logo-icon">🔥</div><span>火瞳边缘盒子</span></div>
+    <a href="../index.html" class="nav-item"><span class="nav-icon">📊</span>仪表盘</a>
+    <a href="../setup.html" class="nav-item"><span class="nav-icon">🔧</span>初始化向导</a>
+    <a href="../cameras.html" class="nav-item"><span class="nav-icon">📷</span>摄像头管理</a>
+    <a href="../iot-sensors.html" class="nav-item"><span class="nav-icon">🌡️</span>IoT传感器</a>
+    <div class="nav-section-title">系统设置</div>
+    <a href="../settings-network.html" class="nav-item"><span class="nav-icon">🌐</span>网络配置</a>
+    <a href="../settings-models.html" class="nav-item active"><span class="nav-icon">🧠</span>模型管理</a>
+    <a href="../settings-security.html" class="nav-item"><span class="nav-icon">🔒</span>安全设置</a>
+    <a href="../diagnostics.html" class="nav-item"><span class="nav-icon">🔍</span>诊断工具</a>
+  </nav>
+
+  <main class="main-content">
+    <header class="top-bar">
+      <h1><span class="breadcrumb">系统设置</span> / 模型管理</h1>
+      <div class="top-actions">
+        <span class="status-dot online"></span><span id="device-status">在线</span>
+      </div>
+    </header>
+
+    <!-- GPU概览 -->
+    <div class="status-bar">
+      <div class="stat-chip"><b>GPU显存</b><span id="gpu-mem">-</span></div>
+      <div class="stat-chip"><b>GPU利用率</b><span id="gpu-use">-</span></div>
+      <div class="stat-chip"><b>总模型数</b><span id="model-count">5</span></div>
+    </div>
+
+    <div class="card-grid single">
+      <!-- 模型列表 -->
+      <div class="card">
+        <div class="card-header">
+          <h2>🧠 已安装模型</h2>
+          <button class="btn btn-sm btn-outline" onclick="showToast('从平台下载模型功能开发中', 'info')">+ 下载新模型</button>
+        </div>
+        <div class="card-body p-0">
+          <table class="data-table">
+            <thead><tr><th>引擎</th><th>模型名称</th><th>版本</th><th>大小</th><th>格式</th><th>状态</th><th>操作</th></tr></thead>
+            <tbody id="model-list">
+              <tr><td colspan="7" class="text-center">加载中...</td></tr>
+            </tbody>
+          </table>
+        </div>
+      </div>
+
+      <!-- 模型操作 -->
+      <div class="card">
+        <div class="card-header"><h2>⚙️ 模型操作</h2></div>
+        <div class="card-body">
+          <p class="text-muted mb-3">对已安装的模型执行管理操作。注意：切换模型需要重启对应引擎。</p>
+          
+          <div class="form-group">
+            <label>选择引擎</label>
+            <select id="engine-select" class="form-select">
+              <option value="food_rec">菜品识别 (food_rec)</option>
+              <option value="waste_det">损耗检测 (waste_det)</option>
+              <option value="sop_mon">SOP监控 (sop_mon)</option>
+              <option value="people_cnt">客流计数 (people_cnt)</option>
+              <option value="hygiene">卫生巡检 (hygiene)</option>
+            </select>
+          </div>
+
+          <div class="action-bar mt-4">
+            <button class="btn btn-secondary" onclick="restartEngine()">🔄 重启引擎</button>
+            <button class="btn btn-secondary" onclick="reloadModel()">📦 重新加载模型</button>
+          </div>
+        </div>
+      </div>
+    </div>
+  </main>
+</div>
+
+<script src="../assets/api-client.js"></script>
+<script src="../assets/components.js"></script>
+<script>
+// Mock模型数据
+const MODELS = [
+  { engine: 'food_rec', name: 'YOLOv8n-Food', version: 'v2.1', size: '12.3 MB', format: 'ONNX', status: 'active' },
+  { engine: 'waste_det', name: 'YOLOv8n-Waste', version: 'v1.0', size: '8.7 MB', format: 'ONNX', status: 'active' },
+  { engine: 'sop_mon', name: 'YOLOv8n-SOP', version: 'v1.2', size: '10.1 MB', format: 'ONNX', status: 'active' },
+  { engine: 'people_cnt', name: 'YOLOv8n-Person', version: 'v1.0', size: '6.2 MB', format: 'ONNX', status: 'active' },
+  { engine: 'hygiene', name: 'YOLOv8n-Hygiene', version: 'v1.0', size: '9.5 MB', format: 'ONNX', status: 'idle' },
+];
+
+function renderModels() {
+  const tbody = document.getElementById('model-list');
+  tbody.innerHTML = MODELS.map(m => `
+    <tr>
+      <td><span class="badge badge-primary">${m.engine}</span></td>
+      <td>${m.name}</td>
+      <td>${m.version}</td>
+      <td>${m.size}</td>
+      <td>${m.format}</td>
+      <td><span class="badge ${m.status === 'active' ? 'badge-success' : 'badge-default'}">${m.status === 'active' ? '运行中' : '空闲'}</span></td>
+      <td>
+        <button class="btn btn-sm btn-ghost" onclick="showToast('查看模型详情开发中','info')">详情</button>
+      </td>
+    </tr>`).join('');
+}
+
+function restartEngine() {
+  const eng = document.getElementById('engine-select').value;
+  showConfirm(`确定要重启 ${eng} 引擎吗？这将短暂中断该引擎的服务。`, () => {
+    showToast(`⏳ ${eng} 引擎重启中...`, 'info');
+    setTimeout(() => showToast(`✅ ${eng} 引擎已重启`, 'success'), 2000);
+  });
+}
+
+function reloadModel() {
+  const eng = document.getElementById('engine-select').value;
+  showToast(`⏳ ${eng} 模型重新加载中...`, 'info');
+  setTimeout(() => showToast(`✅ ${eng} 模型已重新加载`, 'success'), 2000);
+}
+
+renderModels();
+</script>
+</body>
+</html>
