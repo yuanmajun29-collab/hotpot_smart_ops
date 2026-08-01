@@ -57,4 +57,8 @@ def register_routes(app):
     from api.supplier_api import router as supplier_router
     app.include_router(supplier_router, prefix="/api/v1", tags=["供应商协同"])
 
-    print("[Edge UI] API路由注册完成: /api/v1/* (12个模块, 含供应商协同)")
+    # === 岗位AI助理 (D2 · 2026-08-01) ===
+    from api.assistant_api import router as assistant_router
+    app.include_router(assistant_router, prefix="/api/v1", tags=["AI助理"])
+
+    print("[Edge UI] API路由注册完成: /api/v1/* (13个模块, 含岗位AI助理)")

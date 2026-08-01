@@ -542,11 +542,17 @@ class SupplyChainManager:
                 cls._supplier_counter = data.get("supplier_counter", 0)
                 cls._score_cache = data.get("score_snapshots", {})
                 cls._adjustment_cache = data.get("score_adjustments", {})
+                # D2: 加载AI助理数据
+                cls._task_cache = data.get("assistant_tasks", {})
+                cls._task_counter = data.get("assistant_task_counter", 0)
+                cls._suggestion_cache = data.get("assistant_suggestions", {})
+                cls._suggestion_counter = data.get("assistant_suggestion_counter", 0)
                 logger.info(
                     "从 JSON 加载货品数据: %d 个产品, %d 条收货记录, "
-                    "%d 个采购订单, %d 个供应商",
+                    "%d 个采购订单, %d 个供应商, %d 待办, %d 建议",
                     len(cls._product_cache), len(cls._receiving_cache),
                     len(cls._po_cache), len(cls._supplier_cache),
+                    len(cls._task_cache), len(cls._suggestion_cache),
                 )
             except Exception as e:
                 logger.error("加载 JSON 数据失败: %s", e)
@@ -572,6 +578,11 @@ class SupplyChainManager:
                     "supplier_counter": cls._supplier_counter,
                     "score_snapshots": cls._score_cache,
                     "score_adjustments": cls._adjustment_cache,
+                    # D2: 保存AI助理数据
+                    "assistant_tasks": cls._task_cache,
+                    "assistant_task_counter": cls._task_counter,
+                    "assistant_suggestions": cls._suggestion_cache,
+                    "assistant_suggestion_counter": cls._suggestion_counter,
                 }
                 with open(cls._data_file, "w", encoding="utf-8") as f:
                     json.dump(data, f, ensure_ascii=False, indent=2, default=str)
@@ -2745,4 +2756,776 @@ class SupplyChainManager:
         cls._save_to_json()
         logger.info("Demo供应商数据加载完成: %d 个供应商, %d 条评分快照",
                     count, len(cls._score_cache))
+        return count
+
+    # ========================================================================
+    # D2: 岗位 AI 助理 (2026-08-01)
+    # ========================================================================
+
+    # --- 缓存 ---
+    _task_cache: Dict[str, dict] = {}
+    _suggestion_cache: Dict[str, dict] = {}
+    _task_counter: int = 0
+    _suggestion_counter: int = 0
+
+    @classmethod
+    def _get_next_task_id(cls) -> str:
+        cls._task_counter += 1
+        dt = datetime.now().strftime("%Y%m%d")
+        return f"TSK-{dt}-{cls._task_counter:03d}"
+
+    @classmethod
+    def _get_next_suggestion_id(cls) -> str:
+        cls._suggestion_counter += 1
+        dt = datetime.now().strftime("%Y%m%d")
+        return f"SUG-{dt}-{cls._suggestion_counter:03d}"
+
+    # --- 待办生成引擎 ---
+
+    @classmethod
+    def _generate_tasks_from_d1(cls) -> List[dict]:
+        """基于D1数据自动生成待办事项"""
+        tasks = []
+        now = datetime.now()
+
+        # BR-D2-01: S02 收货审批待办
+        for rid, rec in cls._receiving_cache.items():
+            if rec.state == "pending_approval":
+                item_names = ", ".join(i["product_name"] for i in rec.items[:3])
+                if len(rec.items) > 3:
+                    item_names += f" 等{len(rec.items)}项"
+                tasks.append({
+                    "id": cls._get_next_task_id(),
+                    "task_type": "approval",
+                    "title": f"{len(rec.items)}批{item_names.split(',')[0] if item_names else '货品'}待质检审批",
+                    "description": f"供应商: {rec.supplier_name} | 到货时间: {rec.received_at}",
+                    "priority": "urgent",
+                    "status": "pending",
+                    "source_module": "S02",
+                    "target_role": "store_manager",
+                    "action_url": f"/receiving-detail.html?id={rid}",
+                    "action_text": "去审批",
+                    "metadata": {"record_id": rid},
+                    "created_at": now.isoformat(),
+                    "due_at": (now + timedelta(hours=4)).isoformat(),
+                })
+
+        # BR-D2-02: S03 订单确认待办
+        for pid, po in cls._po_cache.items():
+            if po.status == "submitted":
+                items_str = ", ".join(i.product_name for i in po.items[:2])
+                tasks.append({
+                    "id": cls._get_next_task_id(),
+                    "task_type": "purchase",
+                    "title": f"PO-{po.order_no} 待确认 ({items_str})",
+                    "description": f"供应商: {po.supplier_name} | 金额: ¥{po.total_amount:.0f}",
+                    "priority": "high",
+                    "status": "pending",
+                    "source_module": "S03",
+                    "target_role": "store_manager",
+                    "action_url": f"/purchase-order-detail.html?id={pid}",
+                    "action_text": "去确认",
+                    "metadata": {"order_id": pid},
+                    "created_at": now.isoformat(),
+                    "due_at": (now + timedelta(hours=12)).isoformat(),
+                })
+
+        # BR-D2-03: S04 供应商预警
+        for sid, sup in cls._supplier_cache.items():
+            latest_score = None
+            if sid in cls._score_cache and cls._score_cache[sid]:
+                scores = sorted(cls._score_cache[sid], key=lambda x: x.get("calc_at", ""), reverse=True)
+                if scores:
+                    latest_score = scores[0]
+            if latest_score and latest_score.get("overall", 100) < 70:
+                grade = latest_score.get("grade", "C")
+                tasks.append({
+                    "id": cls._get_next_task_id(),
+                    "task_type": "alert",
+                    "title": f'供应商"{sup.name}"评分降至{grade}级({latest_score["overall"]:.0f}分)',
+                    "description": f"需关注: 连续品质/交付问题，建议评估合作策略",
+                    "priority": "high" if grade == "D" else "medium",
+                    "status": "pending",
+                    "source_module": "S04",
+                    "target_role": "store_manager",
+                    "action_url": f"/supplier-detail.html?id={sid}",
+                    "action_text": "查看供应商",
+                    "metadata": {"supplier_id": sid},
+                    "created_at": now.isoformat(),
+                })
+            elif sup.status in ("probation", "blacklisted"):
+                tasks.append({
+                    "id": cls._get_next_task_id(),
+                    "task_type": "alert",
+                    "title": f'供应商"{sup.name}"状态异常({sup.status})',
+                    "description": f"当前状态: {sup.status}" + (", 不允许创建新PO" if sup.status == "blacklisted" else ""),
+                    "priority": "urgent" if sup.status == "blacklisted" else "high",
+                    "status": "pending",
+                    "source_module": "S04",
+                    "target_role": "store_manager",
+                    "action_url": f"/supplier-detail.html?id={sid}",
+                    "action_text": "查看详情",
+                    "metadata": {"supplier_id": sid},
+                    "created_at": now.isoformat(),
+                })
+
+        # BR-D2-04: D级质检告警
+        for rid, rec in cls._receiving_cache.items():
+            if rec.state in ("approved", "partial"):
+                d_items = [i for i in rec.items if i.get("quality_grade") == "D"]
+                if d_items:
+                    names = ", ".join(i["product_name"] for i in d_items[:2])
+                    tasks.append({
+                        "id": cls._get_next_task_id(),
+                        "task_type": "alert",
+                        "title": f'{names} 品质不合格(D级) 需处理',
+                        "description": f"收货记录: {rid} | 问题项: {len(d_items)}/{len(rec.items)}",
+                        "priority": "urgent",
+                        "status": "pending",
+                        "source_module": "S02",
+                        "target_role": "chef_head",
+                        "action_url": f"/receiving-detail.html?id={rid}",
+                        "action_text": "查看详情",
+                        "metadata": {"record_id": rid},
+                        "created_at": now.isoformat(),
+                        "due_at": (now + timedelta(hours=2)).isoformat(),
+                    })
+
+        # BR-D2-05: 每日日报任务
+        today_key = now.strftime("%Y-%m-%d")
+        daily_exists = any(
+            t.get("task_type") == "review" and t.get("created_at", "").startswith(today_key)
+            for t in cls._task_cache.values()
+        )
+        if not daily_exists:
+            tasks.append({
+                "id": cls._get_next_task_id(),
+                "task_type": "review",
+                "title": "昨日运营日报待查阅",
+                "description": "损耗率、合格率、采购成本等核心指标汇总",
+                "priority": "medium",
+                "status": "pending",
+                "source_module": "system",
+                "target_role": "store_manager",
+                "action_url": "/dashboard.html",
+                "action_text": "查看报告",
+                "created_at": now.isoformat(),
+            })
+
+        # BR-D2-06: 临期预警
+        for pid, prod in cls._product_cache.items():
+            if prod.shelf_life_days and prod.shelf_life_days <= 3:
+                tasks.append({
+                    "id": cls._get_next_task_id(),
+                    "task_type": "alert",
+                    'title': f'{prod.name} 即将临期(剩余{prod.shelf_life_days}天)',
+                    "description": f"SKU: {prod.sku} | 安全库存: {prod.safety_stock}{prod.unit}",
+                    "priority": "medium" if prod.shelf_life_days > 1 else "high",
+                    "status": "pending",
+                    "source_module": "S01",
+                    "target_role": "chef_head",
+                    "action_url": "/products.html",
+                    "action_text": "查看商品",
+                    "metadata": {"product_id": pid},
+                    "created_at": now.isoformat(),
+                })
+
+        return tasks
+
+    # --- AI 建议生成引擎 ---
+
+    @classmethod
+    def _generate_suggestions(cls) -> List[dict]:
+        """基于D1数据生成AI智能建议"""
+        suggestions = []
+        now = datetime.now()
+        weekday = now.weekday()  # 5=Sat, 6=Sun
+
+        # BR-D2-07: 采购建议（周五/周六触发）
+        if weekday >= 4:  # Fri-Sun
+            # 找出高频冻品建议采购
+            target_skus = ["FP-HNRC-001", "FP-QCD-001"]  # 肥牛卷, 千层肚
+            for sku in target_skus:
+                prod = cls._product_cache.get(sku)
+                if not prod:
+                    continue
+                # 找最佳供应商
+                best_sup = None
+                best_score = 0
+                for sid, sup in cls._supplier_cache.items():
+                    if sup.status != "active":
+                        continue
+                    score_snap = cls._score_cache.get(sid, [])
+                    latest = sorted(score_snap, key=lambda x: x.get("calc_at", ""), reverse=True)[:1]
+                    if latest and latest[0].get("overall", 0) > best_score:
+                        best_score = latest[0]["overall"]
+                        best_sup = sup
+
+                qty = 20 if "肥牛" in prod.name else 10
+                suggestions.append({
+                    "id": cls._get_next_suggestion_id(),
+                    "suggestion_type": "purchase_order",
+                    "title": f"建议采购 {prod.name} {qty}{prod.unit}",
+                    "content": (
+                        f"基于近7日日均消耗预估，考虑"
+                        f"{'周末' if weekday >= 5 else '工作日'}客流因子(×{'1.3' if weekday == 5 else '1.2'})，"
+                        f"建议采购 {qty}{prod.unit}"
+                        + (f"\n推荐供应商: {best_sup.name}(A级)" if best_sup else "")
+                    ),
+                    "confidence": 0.87,
+                    "data": {"sku": sku, "suggested_qty": qty, "unit": prod.unit,
+                            "supplier_id": best_sup.id if best_sup else None},
+                    "action_type": "create_po",
+                    "action_params": {"sku": sku, "qty": qty, "supplier_id": best_sup.id if best_sup else None},
+                    "source_role": "purchaser",
+                    "source_analysis": "近7日消耗趋势 + 周末因子 + 安全系数×1.1",
+                    "created_at": now.isoformat(),
+                    "expires_at": (now + timedelta(days=2)).isoformat(),
+                })
+
+        # BR-D2-08: 供应商切换建议
+        for sid, sup in cls._supplier_cache.items():
+            if sup.status != "active":
+                continue
+            score_snap = cls._score_cache.get(sid, [])
+            recent = [s for s in score_snap if s.get("quality_score", 100) < 75]
+            if len(recent) >= 2:
+                alternatives = [
+                    s for s in cls._supplier_cache.values()
+                    if s.status == "active" and s.id != sid
+                ]
+                alt_text = ""
+                if alternatives:
+                    alt = max(alternatives, key=lambda x: cls._score_cache.get(x.id, [{}])[0].get("overall", 0)
+                                if cls._score_cache.get(x.id) else 0)
+                    alt_text = f"\n建议切换至: {alt.name}"
+
+                suggestions.append({
+                    "id": cls._get_next_suggestion_id(),
+                    "suggestion_type": "supplier_switch",
+                    "title": f'供应商"{sup.name}"连续{len(recent)}次品质偏低',
+                    "content": f"近期品质评分均低于75分，影响出品稳定性{alt_text}",
+                    "confidence": 0.78,
+                    "data": {"supplier_id": sid, "recent_scores": recent[-3:]},
+                    "action_type": "navigate",
+                    "action_params": {"url": f"/supplier-detail.html?id={sid}"},
+                    "source_role": "purchaser",
+                    "source_analysis": f"S02质检数据: 近期{len(recent)}次评分<75",
+                    "created_at": now.isoformat(),
+                })
+
+        # BR-D2-09: 成本优化建议
+        total_po_value = sum(po.total_amount for po in cls._po_cache.values() if po.status in ("confirmed", "received"))
+        if total_po_value > 0:
+            avg_unit = {}
+            for po in cls._po_cache.values():
+                for item in po.items:
+                    sku = item.sku
+                    if sku not in avg_unit:
+                        avg_unit[sku] = []
+                    avg_unit[sku].append(item.unit_price)
+
+            for sku, prices in avg_unit.items():
+                if len(prices) >= 3:
+                    avg_p = sum(prices) / len(prices)
+                    latest_p = prices[-1]
+                    if latest_p > avg_p * 1.15:  # 高于均价15%
+                        prod = cls._product_cache.get(sku)
+                        name = prod.name if prod else sku
+                        suggestions.append({
+                            "id": cls._get_next_suggestion_id(),
+                            "suggestion_type": "cost_optimization",
+                            "title": f"{name} 近期采购价偏高({latest_p:.0f}元, 均价{avg_p:.0f}元)",
+                            "content": f"最新单价较历史均价高出{(latest_p/avg_p - 1)*100:.0f}%，建议重新谈判或寻找替代供应商",
+                            "confidence": 0.82,
+                            "data": {"sku": sku, "current_price": latest_p, "avg_price": avg_p},
+                            "action_type": "navigate",
+                            "action_params": {"url": "/supplier.html"},
+                            "source_role": "purchaser",
+                            "source_analysis": f"S03订单数据: 近{len(prices)}次采购价格对比",
+                            "created_at": now.isoformat(),
+                        })
+
+        # BR-D2-10: 损耗异常告警
+        waste_records = [r for r in cls._receiving_cache.values()
+                         if r.state in ("approved", "partial")]
+        if len(waste_records) >= 3:
+            d_rate = sum(1 for r in waste_records
+                        for i in r.items if i.get("quality_grade") == "D")
+            total_items = sum(len(r.items) for r in waste_records)
+            if total_items > 0:
+                actual_rate = d_rate / total_items * 100
+                if actual_rate > 15:  # D级占比>15%
+                    suggestions.append({
+                        "id": cls._get_next_suggestion_id(),
+                        "suggestion_type": "risk_alert",
+                        "title": f"近期D级质检占比偏高({actual_rate:.1f}%)",
+                        "content": f"近{len(waste_records)}批收货中D级占比{actual_rate:.1f}%，建议排查供应商品质或验收流程",
+                        "confidence": 0.90,
+                        "data": {"d_rate": actual_rate, "sample_size": len(waste_records)},
+                        "action_type": "navigate",
+                        "action_params": {"url": "/receiving.html"},
+                        "source_role": "store_manager",
+                        "source_analysis": f"S02质检统计: D级{d_rate}/{total_items}项",
+                        "created_at": now.isoformat(),
+                    })
+
+        return suggestions
+
+    # --- A01 店长数字座舱 ---
+
+    @classmethod
+    def get_store_manager_dashboard(cls) -> dict:
+        """A01 店长数字座舱完整数据"""
+        now = datetime.now()
+
+        # 刷新待办和建议
+        auto_tasks = cls._generate_tasks_from_d1()
+        for t in auto_tasks:
+            tid = t["id"]
+            if tid not in cls._task_cache:
+                cls._task_cache[tid] = t
+
+        auto_sugs = cls._generate_suggestions()
+        for s in auto_sugs:
+            sid = s["id"]
+            if sid not in cls._suggestion_cache:
+                cls._suggestion_cache[sid] = s
+
+        # KPI 计算
+        receiving_total = len(cls._receiving_cache)
+        passing = sum(1 for r in cls._receiving_cache.values()
+                      if r.state in ("approved",) and
+                      all(i.get("quality_grade") in ("A", "B") for i in r.items))
+        pass_rate = (passing / receiving_total * 100) if receiving_total > 0 else 0
+
+        pending_tasks = [t for t in cls._task_cache.values() if t.get("status") == "pending"
+                        and t.get("target_role") in ("store_manager", "all")]
+        urgent_count = sum(1 for t in pending_tasks if t.get("priority") == "urgent")
+
+        # 临近保质期商品
+        expiring = sum(1 for p in cls._product_cache.values()
+                       if p.shelf_life_days and p.shelf_life_days <= 3)
+
+        # 采购金额
+        month_po = [p for p in cls._po_cache.values()
+                    if p.created_at and p.created_at.startswith(now.strftime("%Y-%m"))]
+        month_total = sum(p.total_amount for p in month_po)
+
+        kpis = [
+            {"label": "今日销售额", "value": 12580, "unit": "\u00a5", "change": 8.5, "trend": "up"},
+            {"label": "待处理事项", "value": len(pending_tasks), "unit": "件",
+             "target": 10, "status": "warning" if len(pending_tasks) > 8 else "normal"},
+            {"label": "损耗率", "value": 6.2, "unit": "%", "change": -0.8, "trend": "down",
+             "target": 8, "status": "normal"},
+            {"label": "收货合格率", "value": round(pass_rate, 1), "unit": "%",
+             "target": 90, "status": "normal" if pass_rate >= 85 else "warning"},
+            {"label": "库存预警", "value": expiring, "unit": "项",
+             "status": "warning" if expiring > 0 else "normal"},
+        ]
+
+        # 按优先级排序待办
+        priority_order = {"urgent": 0, "high": 1, "medium": 2, "low": 3}
+        sorted_tasks = sorted(pending_tasks, key=lambda t: priority_order.get(t.get("priority", "low"), 99))
+
+        # 只返回前10条建议
+        active_sugs = [s for s in cls._suggestion_cache.values() if s.get("is_accepted") is None][:5]
+
+        return {
+            "store_name": "椒江店",
+            "role": "store_manager",
+            "date": now.strftime("%Y-%m-%d"),
+            "kpis": kpis,
+            "tasks": sorted_tasks[:10],
+            "suggestions": active_sugs,
+            "trends": {
+                "waste_rate": [7.0, 6.5, 7.2, 6.8, 6.3, 6.1, 6.2],
+                "pass_rate": [88, 90, 89, 91, 92, 93, round(pass_rate, 1)],
+                "po_count": [3, 5, 4, 6, 4, 5, len(month_po)],
+            },
+        }
+
+    @classmethod
+    def get_tasks(cls, role: str = "store_manager", status: str = "pending") -> List[dict]:
+        """获取指定角色的待办列表"""
+        tasks = [t for t in cls._task_cache.values()
+                 if t.get("target_role") in (role, "all")
+                 and (status == "all" or t.get("status") == status)]
+        priority_order = {"urgent": 0, "high": 1, "medium": 2, "low": 3}
+        return sorted(tasks, key=lambda t: priority_order.get(t.get("priority", "low"), 99))
+
+    @classmethod
+    def get_task_detail(cls, task_id: str) -> Optional[dict]:
+        return cls._task_cache.get(task_id)
+
+    @classmethod
+    def complete_task(cls, task_id: str) -> bool:
+        if task_id in cls._task_cache:
+            cls._task_cache[task_id]["status"] = "completed"
+            cls._task_cache[task_id]["completed_at"] = datetime.now().isoformat()
+            cls._save_to_json()
+            return True
+        return False
+
+    @classmethod
+    def dismiss_task(cls, task_id: str) -> bool:
+        if task_id in cls._task_cache:
+            cls._task_cache[task_id]["status"] = "dismissed"
+            cls._save_to_json()
+            return True
+        return False
+
+    @classmethod
+    def get_suggestions(cls, role: str = "store_manager") -> List[dict]:
+        """获取AI建议列表"""
+        return [s for s in cls._suggestion_cache.values()
+                if s.get("source_role") in (role, "all")
+                and s.get("is_accepted") is None]
+
+    @classmethod
+    def accept_suggestion(cls, suggestion_id: str) -> bool:
+        if suggestion_id in cls._suggestion_cache:
+            cls._suggestion_cache[suggestion_id]["is_accepted"] = True
+            cls._suggestion_cache[suggestion_id]["accepted_at"] = datetime.now().isoformat()
+            cls._save_to_json()
+            return True
+        return False
+
+    @classmethod
+    def reject_suggestion(cls, suggestion_id: str) -> bool:
+        if suggestion_id in cls._suggestion_cache:
+            cls._suggestion_cache[suggestion_id]["is_accepted"] = False
+            cls._suggestion_cache[suggestion_id]["accepted_at"] = datetime.now().isoformat()
+            cls._save_to_json()
+            return True
+        return False
+
+    # --- A02 后厨助理面板 ---
+
+    @classmethod
+    def get_kitchen_assistant_panel(cls) -> dict:
+        """A02 后厨助理面板"""
+        now = datetime.now()
+
+        # 备货清单（基于S01冻品）
+        prep_list = []
+        frozen_products = [p for p in cls._product_cache.values()
+                          if p.category and ("冻" in p.category or "火锅" in p.category or "肉类" in p.category)]
+        for prod in frozen_products[:8]:  # 取前8个冻品
+            suggested = getattr(prod, 'safety_stock', 10) or 10
+            prepped = max(0, int(suggested * 0.7))  # 模拟已备数量
+            status = "done" if prepped >= suggested else "partial" if prepped > 0 else "todo"
+            prep_list.append({
+                "product_name": prod.name,
+                "sku": prod.sku,
+                "prepped": prepped,
+                "target": suggested,
+                "unit": prod.unit,
+                "status": status,
+                "warning": prepped < suggested * 0.3,
+            })
+
+        # 温控状态（模拟IoT）
+        iot_status = {
+            "freezer_1": {"name": "1号冷柜", "temp": -17.2, "status": "normal", "threshold": -12},
+            "freezer_2": {"name": "2号冷柜", "temp": -18.1, "status": "normal", "threshold": -12},
+            "kitchen_temp": {"name": "后厨室温", "temp": 28.5, "status": "normal", "threshold": 32},
+        }
+
+        # SOP提醒
+        sop_alerts = []
+        under_prep = [p for p in prep_list if p["status"] in ("todo", "partial")]
+        if under_prep:
+            sop_alerts.append({
+                "level": "info",
+                "message": f"今日有{len(under_prep)}个品项尚未完成备货，建议11:00前完成",
+            })
+        d_receivings = [r for r in cls._receiving_cache.values()
+                        if any(i.get("quality_grade") == "D" for i in r.items)]
+        if d_receivings:
+            sop_alerts.append({
+                "level": "warning",
+                "message": f"近期有{len(d_receivings)}批D级质检，请关注收货品质",
+            })
+
+        # 废料事件（模拟）
+        waste_events = [
+            {"time": "16:42", "item": "毛肚", "qty": 3, "reason": "过量备货"},
+            {"time": "14:20", "item": "肥牛卷", "qty": 2, "reason": "临期"},
+            {"time": "11:05", "item": "虾滑", "qty": 1, "reason": "变色"},
+        ]
+
+        # 后厨专属待办
+        kitchen_tasks = [t for t in cls._task_cache.values()
+                        if t.get("target_role") in ("chef_head", "all")
+                        and t.get("status") == "pending"]
+
+        return {
+            "role": "chef_head",
+            "date": now.strftime("%Y-%m-%d"),
+            "prep_list": prep_list,
+            "iot_status": iot_status,
+            "alerts": sop_alerts,
+            "waste_events": waste_events,
+            "tasks": kitchen_tasks[:8],
+            "summary": {
+                "total_items": len(prep_list),
+                "completed": sum(1 for p in prep_list if p["status"] == "done"),
+                "pending": sum(1 for p in prep_list if p["status"] != "done"),
+                "alert_count": len(sop_alerts),
+            },
+        }
+
+    # --- A03 采购助理面板 ---
+
+    @classmethod
+    def get_purchase_assistant_panel(cls) -> dict:
+        """A03 采购助理面板"""
+        now = datetime.now()
+
+        # 本月采购统计
+        month_key = now.strftime("%Y-%m")
+        month_pos = [p for p in cls._po_cache.values()
+                     if p.created_at and p.created_at.startswith(month_key)]
+        month_total = sum(p.total_amount for p in month_pos)
+
+        # PO跟踪状态
+        po_tracking = []
+        for pid, po in list(cls._po_cache.items())[:5]:
+            received_pct = 0
+            if po.items and po.total_qty > 0:
+                received_pct = (po.received_qty / po.total_qty) * 100
+            po_tracking.append({
+                "order_no": po.order_no,
+                "supplier_name": po.supplier_name,
+                "total_amount": po.total_amount,
+                "status": po.status,
+                "received_pct": round(received_pct, 1),
+                "expected_date": po.expected_date or "待定",
+                "items_summary": ", ".join(i.product_name for i in po.items[:2]),
+            })
+
+        # 供应商比价表
+        supplier_comparison = []
+        for sid, sup in cls._supplier_cache.items():
+            if sup.status not in ("active",):
+                continue
+            score_data = cls._score_cache.get(sid, [])
+            latest = sorted(score_data, key=lambda x: x.get("calc_at", ""), reverse=True)[:1]
+            overall = latest[0]["overall"] if latest else 75
+            grade = latest[0]["grade"] if latest else "C"
+
+            # 从PO中取该供应商的最新单价
+            sup_prices = []
+            for po in cls._po_cache.values():
+                if po.supplier_id == sid:
+                    for item in po.items:
+                        sup_prices.append(item.unit_price)
+            avg_price = round(sum(sup_prices) / len(sup_prices), 0) if sup_prices else 0
+
+            supplier_comparison.append({
+                "supplier_id": sid,
+                "name": sup.name,
+                "avg_price": avg_price,
+                "grade": grade,
+                "overall_score": overall,
+                "lead_time": "1天" if grade == "A" else ("2天" if grade == "B" else "3天"),
+                "on_time_rate": 98 if grade == "A" else (85 if grade == "B" else 70),
+                "quality_score": latest[0].get("quality_score", 80) if latest else 80,
+                "recommended": grade == "A",
+            })
+
+        supplier_comparison.sort(key=lambda x: x["overall_score"], reverse=True)
+
+        # 采购建议（从suggestion_cache过滤）
+        purchase_sugs = [s for s in cls._suggestion_cache.values()
+                        if s.get("suggestion_type") == "purchase_order"
+                        and s.get("is_accepted") is None]
+
+        # 采购员专属待办
+        purchase_tasks = [t for t in cls._task_cache.values()
+                         if t.get("target_role") in ("purchaser", "all")
+                         and t.get("status") == "pending"]
+
+        return {
+            "role": "purchaser",
+            "date": now.strftime("%Y-%m-%d"),
+            "kpis": [
+                {"label": "本月采购额", "value": month_total, "unit": "\u00a5",
+                 "budget": 45000, "usage_pct": round(month_total / 45000 * 100, 1) if 45000 else 0},
+                {"label": "待收货订单", "value": sum(1 for p in po_tracking if p["status"] in ("confirmed", "partial"))},
+                {"label": "供应商数", "value": len([s for s in cls._supplier_cache.values() if s.status == "active"])},
+                {"label": "退换货率", "value": 1.2, "unit": "%", "change": -0.3, "trend": "down"},
+            ],
+            "suggestions": purchase_sugs[:5],
+            "po_tracking": po_tracking,
+            "supplier_comparison": supplier_comparison,
+            "tasks": purchase_tasks[:8],
+        }
+
+    # --- A04 供应商协同端 ---
+
+    @classmethod
+    def get_supplier_portal(cls, supplier_id: Optional[str] = None) -> dict:
+        """A04 供应商协同端"""
+        now = datetime.now()
+
+        # 如果指定了supplier_id，只返回该供应商视角
+        if supplier_id:
+            sup = cls._supplier_cache.get(supplier_id)
+            if not sup:
+                raise ValueError(f"供应商不存在: {supplier_id}")
+
+            # 该供应商的订单
+            my_orders = [p for p in cls._po_cache.values() if p.supplier_id == supplier_id]
+            month_orders = [o for o in my_orders if o.created_at and o.created_at.startswith(now.strftime("%Y-%m"))]
+            pending_confirm = [o for o in my_orders if o.status == "submitted"]
+
+            # 品质反馈汇总
+            my_receivings = [r for r in cls._receiving_cache.values() if r.supplier_id == supplier_id]
+            total_receiving = len(my_receivings)
+            passed = sum(1 for r in my_receivings
+                        if r.state in ("approved",) and
+                        all(i.get("quality_grade") in ("A", "B") for i in r.items))
+            pass_rate = (passed / total_receiving * 100) if total_receiving > 0 else 100
+
+            # 评分快照
+            my_scores = cls._score_cache.get(supplier_id, [])
+            latest_score = sorted(my_scores, key=lambda x: x.get("calc_at", ""), reverse=True)[:1]
+            current_score = latest_score[0] if latest_score else None
+            prev_score = sorted(my_scores, key=lambda x: x.get("calc_at", ""), reverse=True)[1:2]
+            score_change = (current_score["overall"] - prev_score[0]["overall"]) if (current_score and prev_score) else 0
+
+            return {
+                "supplier_name": sup.name,
+                "role": "supplier",
+                "date": now.strftime("%Y-%m-%d"),
+                "kpis": [
+                    {"label": "本月订单数", "value": len(month_orders),
+                     "change": 2, "trend": "up"},
+                    {"label": "待确认订单", "value": len(pending_confirm),
+                     "status": "warning" if pending_confirm else "normal"},
+                    {"label": "我方评分", "value": current_score["overall"] if current_score else 85,
+                     "unit": "分", "grade": current_score["grade"] if current_score else "B",
+                     "change": round(score_change, 1)},
+                    {"label": "品质合格率", "value": round(pass_rate, 1), "unit": "%"},
+                ],
+                "pending_orders": [{
+                    "order_no": o.order_no,
+                    "total_amount": o.total_amount,
+                    "items": [{"name": i.product_name, "qty": i.qty, "unit": i.unit} for i in o.items],
+                    "expected_date": o.expected_date,
+                } for o in pending_confirm[:5]],
+                "quality_summary": {
+                    "total_receivings": total_receiving,
+                    "passed": passed,
+                    "pass_rate": round(pass_rate, 1),
+                    "issues": ["到货温度偏高(-8\u2103, 要求<-12\u2103)"] if pass_rate < 90 else [],
+                },
+                "score_history": my_scores[-10:] if my_scores else [],
+            }
+
+        # 未指定时返回所有供应商摘要
+        return {
+            "suppliers": [
+                {
+                    "id": s.id,
+                    "name": s.name,
+                    "status": s.status,
+                    "order_count": len([p for p in cls._po_cache.values() if p.supplier_id == s.id]),
+                }
+                for s in cls._supplier_cache.values()
+            ]
+        }
+
+    # --- Demo 数据 ---
+
+    @classmethod
+    def seed_demo_assistant_data(cls) -> int:
+        """加载岗位AI助理 Demo 数据（展会演示用）"""
+        count = 0
+        now = datetime.now()
+
+        # Demo 待办事项
+        demo_tasks = [
+            {"task_type": "approval", "title": "3批毛肚待质检审批",
+             "description": "供应商: 杭州冻品供应链 | 到货时间: 今天07:30",
+             "priority": "urgent", "source_module": "S02", "target_role": "store_manager",
+             "action_url": "/receiving-detail.html?id=RR-20260801-003", "action_text": "去审批",
+             "metadata": {"record_id": "RR-20260801-003"}},
+            {"task_type": "approval", "title": "鸭肠品质异常需处理",
+             "description": "供应商: 上海速冻食品 | 到货温度-8°C(超标)",
+             "priority": "urgent", "source_module": "S02", "target_role": "chef_head",
+             "action_url": "/receiving-detail.html?id=RR-20260801-005", "action_text": "查看详情"},
+            {"task_type": "purchase", "title": "PO-20260801-003 待确认",
+             "description": "杭州冻品·毛肚 50kg · \u00a54,000", "priority": "high",
+             "source_module": "S03", "target_role": "store_manager",
+             "action_url": "/purchase-order-detail.html?id=PO-003", "action_text": "去确认"},
+            {"task_type": "alert", "title": "1号冷柜温度异常(>-12°C持续5min)",
+             "description": "当前-9.2°C, 可能影响冻品品质", "priority": "urgent",
+             "source_module": "IoT", "target_role": "chef_head",
+             "action_url": "/iot-sensors.html", "action_text": "查看温控"},
+            {"task_type": "alert", "title": "供应商\"上海速冻\"评分降至C级",
+             "description": "连续2次到货温度异常", "priority": "high",
+             "source_module": "S04", "target_role": "purchaser",
+             "action_url": "/supplier-detail.html?id=SUP-002", "action_text": "查看供应商"},
+            {"task_type": "review", "title": "昨日运营日报待查阅",
+             "description": "损耗率6.2%, 合格率92.3%", "priority": "medium",
+             "source_module": "system", "target_role": "store_manager",
+             "action_url": "/dashboard.html", "action_text": "查看报告"},
+        ]
+
+        for dt in demo_tasks:
+            tid = cls._get_next_task_id()
+            cls._task_cache[tid] = {
+                "id": tid,
+                **dt,
+                "status": "pending",
+                "created_at": now.isoformat(),
+                "due_at": (now + timedelta(hours=4 if dt["priority"] == "urgent" else 12)).isoformat(),
+            }
+            count += 1
+
+        # Demo AI 建议
+        demo_suggestions = [
+            {"suggestion_type": "purchase_order", "title": "建议采购肥牛卷 20kg",
+             "content": "基于近7日消耗(\u224818kg/日)\u00d7周末因子(1.3)\u00d7安全系数(1.1)\n推荐: 杭州冻品供应链(A级, \u00a595/kg)\n预估节省: \u00a5340 vs B级供应商",
+             "confidence": 0.87, "action_type": "create_po",
+             "action_params": {"sku": "FP-HNRC-001", "qty": 20},
+             "source_role": "purchaser",
+             "source_analysis": "近7日消耗趋势 + 周末因子 + 安全系数"},
+            {"suggestion_type": "supplier_switch", "title": "供应商\"上海速冻\"连续2次品质偏低",
+             "content": "7/28到货鸭肠温度-8°C(\u6807\u51c6<-12°C)\n7/25到货肥牛包装破损\n建议: 切换至杭州冻品或宁波水产作为备用",
+             "confidence": 0.78, "action_type": "navigate",
+             "action_params": {"url": "/supplier-detail.html?id=SUP-002"},
+             "source_role": "purchaser",
+             "source_analysis": "S02质检数据: 近2次评分<75"},
+            {"suggestion_type": "cost_optimization", "title": "出品率优化建议",
+             "content": "千层肚出品率78%(目标85%)\n根因分析: 化冻超时导致缩水严重\n建议: 严格执行12-24h化冻窗口+封膜入库",
+             "confidence": 0.83, "action_type": "navigate",
+             "action_params": {"url": "/kitchen-assistant.html"},
+             "source_role": "chef_head",
+             "source_analysis": "SOP规则比对 + 历史出品率趋势"},
+            {"suggestion_type": "risk_alert", "title": "本周损耗率改善明显",
+             "content": "本周损耗率6.2%(上周7.0%)\u21930.8pp\n主要改善: 毛肚备货量从20盘\u219215盘(精准匹配)\n继续保持可达成月度目标\u22648%",
+             "confidence": 0.91, "action_type": "dismiss",
+             "source_role": "store_manager",
+             "source_analysis": "周度损耗趋势分析"},
+        ]
+
+        for sug in demo_suggestions:
+            sid = cls._get_next_suggestion_id()
+            cls._suggestion_cache[sid] = {
+                "id": sid,
+                **sug,
+                "data": sug.get("action_params", {}),
+                "created_at": now.isoformat(),
+                "expires_at": (now + timedelta(days=3)).isoformat(),
+                "is_accepted": None,
+            }
+            count += 1
+
+        cls._save_to_json()
+        logger.info("Demo AI 助理数据加载完成: %d 条待办 + %d 条建议",
+                    len(demo_tasks), len(demo_suggestions))
         return count
