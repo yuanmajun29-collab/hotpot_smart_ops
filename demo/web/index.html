@@ -1,0 +1,1797 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>火瞳 — AI火锅运营中台 | 重庆展会演示</title>
+<style>
+/* ================================================================
+   火瞳 Design Tokens — 暖色牛油火锅暗色体系（与平台端一致）
+   来源: hotpot_platform/design-tokens.json + theme.css
+   ================================================================ */
+:root {
+    /* === 色彩系统（与平台端完全对齐）=== */
+    --bg: #15110E;
+    --card: #1F1813;
+    --card2: #2A201A;
+    --border: #3A2E25;
+    --text: #F4ECE3;
+    --muted: #B2A294;
+    --faint: #8A7B6E;
+
+    /* 品牌色 */
+    --brand: #E2613A;
+    --brand-hover: #C8431F;
+    --brand-soft: rgba(226, 97, 58, 0.13);
+    --brand-2: #C8431F;
+
+    /* 状态色 */
+    --accent: #F0473C;       /* 严重告警 */
+    --crit-soft: rgba(240, 71, 60, 0.13);
+    --warn: #E6A93E;          /* 警告 */
+    --warn-soft: rgba(230, 169, 62, 0.14);
+    --ok: #56B884;            /* 正常/成功 */
+    --ok-soft: rgba(86, 184, 132, 0.15);
+    --info: #7FB0CE;          /* 信息/链接 */
+    --dining: #5BAEC2;        /* 用餐中 */
+
+    /* 圆角规范 */
+    --r-sm: 8px;
+    --r-md: 12px;
+    --r-lg: 16px;
+
+    /* 展会特有辅助色（用于多维度区分，但基于暖色调） */
+    --purple-soft: rgba(160, 110, 180, 0.12);
+    --purple-text: #A06EB4;
+    --blue-soft: rgba(100, 140, 180, 0.12);
+    --blue-text: #648CB4;
+}
+
+* { margin: 0; padding: 0; box-sizing: border-box; }
+
+body {
+    font-family: "Segoe UI", "PingFang SC", system-ui, sans-serif;
+    background: var(--bg);
+    color: var(--text);
+    min-height: 100vh;
+    overflow-x: hidden;
+}
+
+/* ========== Subtle Warm Background ========== */
+.bg-subtle {
+    position: fixed;
+    top: 0; left: 0; right: 0; bottom: 0;
+    background:
+        radial-gradient(ellipse at 20% 0%, rgba(226,97,58,0.04) 0%, transparent 50%),
+        radial-gradient(ellipse at 80% 100%, rgba(86,184,132,0.03) 0%, transparent 50%);
+    pointer-events: none;
+    z-index: 0;
+}
+
+/* ========== Layout ========== */
+.app-container {
+    position: relative;
+    z-index: 1;
+    max-width: 1600px;
+    margin: 0 auto;
+    padding: 20px;
+    min-height: 100vh;
+}
+
+/* ========== Header（复用平台端 .topbar 风格）========== */
+.header {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding: 14px 24px;
+    background: var(--card);
+    border: 1px solid var(--border);
+    border-radius: var(--r-lg);
+    margin-bottom: 20px;
+}
+
+.logo-section {
+    display: flex;
+    align-items: center;
+    gap: 14px;
+}
+
+/* 品牌印章（与平台端 sidebar-brand 一致） */
+.brand-seal {
+    width: 40px; height: 40px; border-radius: 11px;
+    background: linear-gradient(150deg, var(--brand), var(--brand-2));
+    display: flex; align-items: center; justify-content: center;
+    box-shadow: 0 4px 12px rgba(200,67,31,0.35);
+    font-family: "STSong", "Songti SC", "Noto Serif SC", serif;
+    font-size: 22px; color: #fff; font-weight: 700;
+    flex-shrink: 0;
+}
+
+.logo-text h1 {
+    font-family: "STSong", "Songti SC", "Noto Serif SC", serif;
+    font-size: 18px; letter-spacing: 0.04em;
+}
+.logo-text p {
+    font-size: 11px; color: var(--muted); margin-top: 2px;
+}
+
+.header-controls {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    flex-wrap: wrap;
+}
+
+/* 状态徽章（平台端 .chip 风格）*/
+.status-badge {
+    display: flex; align-items: center; gap: 6px;
+    padding: 6px 14px;
+    background: var(--ok-soft);
+    border: 1px solid rgba(86,184,132,0.3);
+    border-radius: 20px;
+    font-size: 12px;
+    color: var(--ok);
+}
+.status-dot {
+    width: 8px; height: 8px;
+    background: var(--ok);
+    border-radius: 50%;
+    animation: pulse 2s infinite;
+}
+@keyframes pulse {
+    0%, 100% { opacity: 1; }
+    50% { opacity: 0.4; }
+}
+
+/* 按钮（复用平台端 .btn 体系）*/
+.btn {
+    padding: 9px 18px;
+    border: none;
+    border-radius: 6px;
+    cursor: pointer;
+    font-size: 0.88rem;
+    font-weight: 600;
+    font-family: inherit;
+    transition: opacity .15s;
+    display: flex; align-items: center; gap: 7px;
+}
+.btn:hover { opacity: 0.88; }
+.btn:disabled { opacity: 0.45; cursor: not-allowed; }
+.btn-primary {
+    background: var(--brand);
+    color: #fff;
+}
+.btn-secondary {
+    background: transparent;
+    border: 1px solid var(--border);
+    color: var(--text);
+}
+.btn-secondary:hover { background: rgba(255,255,255,0.04); }
+
+/* ========== Scene Navigation（平台端风格Tab）========== */
+.scene-nav {
+    display: flex;
+    gap: 10px;
+    margin-bottom: 20px;
+    flex-wrap: wrap;
+}
+
+.scene-tab {
+    flex: 1;
+    min-width: 170px;
+    padding: 14px 18px;
+    background: var(--card);
+    border: 2px solid transparent;
+    border-radius: var(--r-md);
+    cursor: pointer;
+    transition: border-color .15s, background .15s;
+    text-align: left;
+}
+.scene-tab:hover { border-color: var(--border); background: var(--card2); }
+.scene-tab.active {
+    border-color: var(--brand);
+    background: var(--brand-soft);
+}
+.scene-tab.done { border-left: 4px solid var(--ok); }
+
+.scene-id {
+    font-size: 11px;
+    font-weight: 700;
+    color: var(--brand);
+    margin-bottom: 3px;
+}
+.scene-name {
+    font-size: 14px;
+    font-weight: 600;
+    margin-bottom: 3px;
+}
+.scene-desc {
+    font-size: 11px;
+    color: var(--muted);
+    line-height: 1.4;
+}
+.scene-duration {
+    font-size: 10px;
+    color: var(--faint);
+    margin-top: 5px;
+}
+.scene-status {
+    font-size: 11px;
+    color: var(--muted);
+    margin-top: 5px;
+    font-weight: 500;
+}
+
+/* ========== Main Content Area ========== */
+.main-content { position: relative; }
+
+.scene-panel {
+    display: none;
+    animation: fadeInUp 0.4s ease;
+}
+.scene-panel.active { display: block; }
+
+@keyframes fadeInUp {
+    from { opacity: 0; transform: translateY(16px); }
+    to { opacity: 1; transform: translateY(0); }
+}
+
+/* ========== Key Metrics Bar（复用平台端 .card + .stat）========== */
+.metrics-bar {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(170px, 1fr));
+    gap: 14px;
+    margin-bottom: 20px;
+}
+
+.metric-card {
+    background: var(--card);
+    border: 1px solid var(--border);
+    border-radius: 10px;
+    padding: 18px;
+    text-align: center;
+    transition: border-color .15s;
+}
+.metric-card:hover { border-color: var(--muted); }
+
+.metric-value {
+    font-size: 26px;
+    font-weight: 700;
+    font-variant-numeric: tabular-nums;
+    color: var(--brand);
+}
+.metric-label {
+    font-size: 12px;
+    color: var(--muted);
+    margin-top: 4px;
+}
+
+/* ========== Steps Timeline（平台端 .event / .stage-card 风格）========== */
+.steps-container {
+    display: flex;
+    flex-direction: column;
+    gap: 16px;
+}
+
+.step-card {
+    background: var(--card);
+    border: 1px solid var(--border);
+    border-radius: var(--r-md);
+    overflow: hidden;
+    transition: border-color .15s;
+}
+.step-card:hover { border-color: var(--muted); }
+
+.step-header {
+    display: flex;
+    align-items: center;
+    gap: 14px;
+    padding: 14px 20px;
+    background: rgba(0,0,0,0.15);
+    border-bottom: 1px solid var(--border);
+}
+
+.step-number {
+    width: 32px; height: 32px;
+    background: var(--brand);
+    border-radius: 8px;
+    display: flex; align-items: center; justify-content: center;
+    font-size: 14px;
+    font-weight: 700;
+    color: #fff;
+    flex-shrink: 0;
+}
+.step-title {
+    font-size: 15px;
+    font-weight: 600;
+    flex-grow: 1;
+}
+.step-badge {
+    padding: 3px 10px;
+    border-radius: 5px;
+    font-size: 11px;
+    font-weight: 700;
+}
+
+.step-body { padding: 18px 20px; }
+
+/* ========== Data Tables（平台端表格风格）========== */
+.data-table {
+    width: 100%;
+    border-collapse: collapse;
+    font-size: 13px;
+}
+.data-table th {
+    text-align: left;
+    padding: 9px 12px;
+    background: rgba(0,0,0,0.2);
+    color: var(--muted);
+    font-weight: 500;
+    font-size: 11px;
+    text-transform: uppercase;
+    letter-spacing: 0.04em;
+    border-bottom: 1px solid var(--border);
+}
+.data-table td {
+    padding: 10px 12px;
+    border-bottom: 1px solid rgba(255,255,255,0.03);
+    color: var(--text);
+}
+.data-table tr:last-child td { border-bottom: none; }
+.data-table tr:hover td { background: rgba(255,255,255,0.02); }
+
+/* 标签体系（平台端 .tag / .badge）*/
+.tag-good { color: var(--ok); }
+.tag-warning { color: var(--warn); }
+.tag-danger { color: var(--accent); }
+.tag-info { color: var(--info); }
+
+.badge-good {
+    background: var(--ok-soft);
+    color: var(--ok);
+    padding: 2px 9px;
+    border-radius: 5px;
+    font-size: 11px;
+    font-weight: 600;
+}
+.badge-warning {
+    background: var(--warn-soft);
+    color: var(--warn);
+    padding: 2px 9px;
+    border-radius: 5px;
+    font-size: 11px;
+    font-weight: 600;
+}
+.badge-danger {
+    background: var(--crit-soft);
+    color: var(--accent);
+    padding: 2px 9px;
+    border-radius: 5px;
+    font-size: 11px;
+    font-weight: 600;
+}
+.badge-info {
+    background: rgba(127,176,206,0.12);
+    color: var(--info);
+    padding: 2px 9px;
+    border-radius: 5px;
+    font-size: 11px;
+    font-weight: 600;
+}
+
+/* ========== Special Components ========== */
+
+/* Waste Detection Cards */
+.detection-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(250px, 1fr));
+    gap: 10px;
+    margin-top: 10px;
+}
+.detection-item {
+    background: var(--crit-soft);
+    border: 1px solid rgba(240,71,60,0.2);
+    border-radius: var(--r-sm);
+    padding: 12px 14px;
+    display: flex;
+    align-items: center;
+    gap: 10px;
+}
+.detection-icon {
+    width: 36px; height: 36px;
+    background: var(--crit-soft);
+    border-radius: 8px;
+    display: flex; align-items: center; justify-content: center;
+    font-size: 16px;
+    flex-shrink: 0;
+}
+.detection-info h4 { font-size: 13px; font-weight: 600; }
+.detection-info p { font-size: 11px; color: var(--muted); margin-top: 2px; }
+.detection-value {
+    font-size: 15px;
+    font-weight: 700;
+    color: var(--accent);
+    margin-left: auto;
+}
+
+/* SOP Score Circle */
+.sop-score-display {
+    display: flex;
+    align-items: center;
+    gap: 36px;
+    flex-wrap: wrap;
+}
+.score-circle {
+    position: relative;
+    width: 150px; height: 150px;
+}
+.score-circle svg { transform: rotate(-90deg); }
+.score-circle .score-bg { fill: none; stroke: rgba(255,255,255,0.06); stroke-width: 10; }
+.score-circle .score-fill { fill: none; stroke: url(#scoreGradient); stroke-width: 10; stroke-linecap: round;
+    stroke-dasharray: 408; stroke-dashoffset: 408; transition: stroke-dashoffset 1.5s ease; }
+.score-circle .score-text {
+    position: absolute;
+    top: 50%; left: 50%;
+    transform: translate(-50%, -50%);
+    text-align: center;
+}
+.score-number { font-size: 38px; font-weight: 800; }
+.score-label { font-size: 12px; color: var(--muted); }
+
+.score-details {
+    display: flex;
+    flex-direction: column;
+    gap: 10px;
+}
+.detail-item {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    padding: 9px 14px;
+    background: rgba(0,0,0,0.1);
+    border-radius: var(--r-sm);
+}
+.detail-item .icon { font-size: 16px; }
+.detail-item .label { font-size: 12px; color: var(--muted); }
+.detail-item .value { font-size: 15px; font-weight: 600; margin-left: auto; }
+
+/* Confidence Bar */
+.confidence-bar {
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+}
+.confidence-track {
+    width: 56px; height: 6px;
+    background: rgba(255,255,255,0.06);
+    border-radius: 3px;
+    overflow: hidden;
+}
+.confidence-fill {
+    height: 100%;
+    border-radius: 3px;
+    transition: width 0.8s ease;
+}
+
+/* Inventory Status */
+.inventory-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(210px, 1fr));
+    gap: 10px;
+    margin-top: 10px;
+}
+.inventory-item {
+    background: rgba(0,0,0,0.08);
+    border: 1px solid var(--border);
+    border-radius: var(--r-sm);
+    padding: 12px 14px;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+}
+.inventory-item.low {
+    border-color: rgba(240,71,60,0.25);
+    background: var(--crit-soft);
+}
+.inv-name { font-size: 13px; font-weight: 600; }
+.inv-level { font-size: 11px; color: var(--muted); margin-top: 2px; }
+.inv-status { font-size: 11px; font-weight: 600; }
+
+/* Closed Loop Flow */
+.closed-loop-flow {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    flex-wrap: wrap;
+    margin-top: 10px;
+    padding: 16px;
+    background: rgba(226,97,58,0.03);
+    border-radius: var(--r-md);
+    border: 1px solid var(--border);
+}
+.loop-step {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    padding: 10px 14px;
+    background: var(--card);
+    border-radius: var(--r-sm);
+    border: 1px solid var(--border);
+}
+.loop-step .step-icon {
+    width: 28px; height: 28px;
+    background: var(--brand-soft);
+    border-radius: 7px;
+    display: flex; align-items: center; justify-content: center;
+    font-size: 13px;
+}
+.loop-step .step-text { font-size: 12px; font-weight: 500; }
+.loop-arrow { font-size: 16px; color: var(--muted); }
+
+/* Temperature Trace Timeline */
+.temp-timeline {
+    display: flex;
+    flex-direction: column;
+    gap: 0;
+    margin-top: 10px;
+    position: relative;
+    padding-left: 28px;
+}
+.temp-timeline::before {
+    content: '';
+    position: absolute;
+    left: 10px; top: 0; bottom: 0;
+    width: 2px;
+    background: var(--border);
+}
+.temp-node {
+    position: relative;
+    padding: 12px 16px;
+    margin-bottom: 8px;
+    background: var(--card);
+    border: 1px solid var(--border);
+    border-radius: var(--r-sm);
+}
+.temp-node::before {
+    content: '';
+    position: absolute;
+    left: -21px; top: 16px;
+    width: 10px; height: 10px;
+    background: var(--ok);
+    border-radius: 50%;
+    border: 2px solid var(--bg);
+}
+.temp-node .stage-name { font-size: 13px; font-weight: 600; }
+.temp-node .stage-meta { font-size: 11px; color: var(--muted); margin-top: 3px; }
+.temp-node .temp-value {
+    display: inline-block;
+    margin-top: 5px;
+    padding: 3px 9px;
+    background: var(--ok-soft);
+    color: var(--ok);
+    border-radius: 5px;
+    font-size: 12px;
+    font-weight: 600;
+}
+
+/* AI Assistant Cards */
+.assistant-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(320px, 1fr));
+    gap: 16px;
+    margin-top: 10px;
+}
+.assistant-card {
+    background: var(--card);
+    border: 1px solid var(--border);
+    border-radius: var(--r-md);
+    overflow: hidden;
+}
+.assistant-header {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    padding: 14px 16px;
+    border-bottom: 1px solid var(--border);
+}
+.assistant-icon {
+    width: 38px; height: 38px;
+    border-radius: 10px;
+    display: flex; align-items: center; justify-content: center;
+    font-size: 18px;
+}
+.assistant-icon.mgr { background: var(--purple-soft); }
+.assistant-icon.kitchen { background: var(--warn-soft); }
+.assistant-icon.procure { background: var(--ok-soft); }
+.assistant-title { font-size: 14px; font-weight: 600; }
+.assistant-subtitle { font-size: 11px; color: var(--muted); margin-top: 2px; }
+.assistant-body { padding: 14px 16px; }
+
+/* Health Score Bars */
+.health-score-container {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(300px, 1fr));
+    gap: 16px;
+    margin-top: 14px;
+}
+.health-card {
+    background: var(--card);
+    border: 1px solid var(--border);
+    border-radius: var(--r-md);
+    padding: 20px;
+}
+.health-store-name {
+    font-size: 16px;
+    font-weight: 700;
+    margin-bottom: 14px;
+    display: flex;
+    align-items: center;
+    gap: 8px;
+}
+.health-overall {
+    display: flex;
+    align-items: center;
+    gap: 14px;
+    margin-bottom: 14px;
+}
+.health-big-score {
+    font-size: 42px;
+    font-weight: 800;
+}
+.health-dimensions {
+    display: grid;
+    grid-template-columns: repeat(3, 1fr);
+    gap: 8px;
+}
+.dim-item {
+    text-align: center;
+    padding: 9px;
+    background: rgba(0,0,0,0.08);
+    border-radius: var(--r-sm);
+}
+.dim-label { font-size: 10px; color: var(--muted); }
+.dim-value { font-size: 16px; font-weight: 700; margin-top: 3px; }
+
+/* ROI Summary */
+.roi-list {
+    display: flex;
+    flex-direction: column;
+    gap: 12px;
+    margin-top: 10px;
+}
+.roi-item {
+    display: flex;
+    align-items: flex-start;
+    gap: 14px;
+    padding: 14px 18px;
+    background: var(--ok-soft);
+    border: 1px solid rgba(86,184,132,0.2);
+    border-radius: var(--r-md);
+    transition: border-color .15s;
+}
+.roi-item:hover { border-color: var(--ok); }
+.roi-check {
+    width: 24px; height: 24px;
+    background: var(--ok-soft);
+    border-radius: 6px;
+    display: flex; align-items: center; justify-content: center;
+    color: var(--ok);
+    font-size: 13px;
+    flex-shrink: 0;
+    margin-top: 2px;
+}
+.roi-name { font-size: 14px; font-weight: 600; }
+.roi-value { font-size: 16px; font-weight: 700; color: var(--ok); margin: 3px 0; }
+.roi-desc { font-size: 12px; color: var(--muted); }
+
+/* ========== Loading State ========== */
+.loading-overlay {
+    position: absolute;
+    top: 0; left: 0; right: 0; bottom: 0;
+    background: rgba(21,17,14,0.9);
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    z-index: 100;
+    border-radius: var(--r-md);
+}
+.loading-spinner {
+    width: 40px; height: 40px;
+    border: 3px solid var(--border);
+    border-top-color: var(--brand);
+    border-radius: 50%;
+    animation: spin 0.8s linear infinite;
+}
+@keyframes spin { to { transform: rotate(360deg); } }
+.loading-text { margin-top: 14px; font-size: 13px; color: var(--muted); }
+
+/* ========== Welcome / Home Panel ========== */
+.welcome-panel {
+    text-align: center;
+    padding: 60px 30px;
+}
+.welcome-title {
+    font-size: 36px;
+    font-weight: 800;
+    margin-bottom: 14px;
+    color: var(--brand);
+    font-family: "STSong", "Songti SC", "Noto Serif SC", serif;
+}
+.welcome-subtitle {
+    font-size: 16px;
+    color: var(--muted);
+    margin-bottom: 40px;
+    max-width: 580px;
+    margin-left: auto;
+    margin-right: auto;
+    line-height: 1.6;
+}
+.welcome-features {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
+    gap: 16px;
+    max-width: 960px;
+    margin: 0 auto;
+}
+.feature-card {
+    background: var(--card);
+    border: 1px solid var(--border);
+    border-radius: var(--r-md);
+    padding: 24px 20px;
+    text-align: left;
+    transition: border-color .15s;
+}
+.feature-card:hover { border-color: var(--brand); }
+.feature-icon {
+    width: 44px; height: 44px;
+    border-radius: 10px;
+    display: flex; align-items: center; justify-content: center;
+    font-size: 20px;
+    margin-bottom: 14px;
+}
+.feature-title { font-size: 15px; font-weight: 600; margin-bottom: 6px; }
+.feature-desc { font-size: 12px; color: var(--muted); line-height: 1.5; }
+
+/* ========== Progress Bar (Auto-play) ========== */
+.progress-container {
+    position: fixed;
+    bottom: 0; left: 0; right: 0;
+    height: 4px;
+    background: var(--border);
+    z-index: 200;
+}
+.progress-bar {
+    height: 100%;
+    background: var(--brand);
+    width: 0%;
+    transition: width 0.3s linear;
+}
+
+/* ========== Responsive ========== */
+@media (max-width: 1200px) {
+    .app-container { padding: 14px; }
+    .header { flex-direction: column; gap: 12px; text-align: center; }
+    .header-controls { width: 100%; justify-content: center; }
+}
+@media (max-width: 768px) {
+    .scene-nav { flex-direction: column; }
+    .scene-tab { min-width: unset; }
+    .welcome-title { font-size: 26px; }
+    .metrics-bar { grid-template-columns: repeat(2, 1fr); }
+    .assistant-grid { grid-template-columns: 1fr; }
+}
+
+/* ========== Animations ========== */
+@keyframes slideInRight {
+    from { opacity: 0; transform: translateX(24px); }
+    to { opacity: 1; transform: translateX(0); }
+}
+.animate-in {
+    animation: slideInRight 0.4s ease forwards;
+    opacity: 0;
+}
+</style>
+</head>
+<body>
+
+<!-- Background -->
+<div class="bg-subtle"></div>
+
+<div class="app-container">
+
+<!-- Header -->
+<header class="header">
+    <div class="logo-section">
+        <div class="brand-seal">馮</div>
+        <div class="logo-text">
+            <h1>火瞳 AI运营中台</h1>
+            <p>重庆市政府"AI+火锅"展会演示 · 视觉+数据双引擎</p>
+        </div>
+    </div>
+    <div class="header-controls">
+        <div class="status-badge" id="connectionStatus">
+            <span class="status-dot"></span>
+            <span>系统就绪</span>
+        </div>
+        <button class="btn btn-primary" id="btnInitData" onclick="initData()">
+            初始化数据
+        </button>
+        <button class="btn btn-secondary" id="btnRunAll" onclick="runAllScenes()" disabled>
+            全部演示
+        </button>
+        <button class="btn btn-secondary" id="btnAutoPlay" onclick="toggleAutoPlay()" disabled>
+            自动播放
+        </button>
+    </div>
+</header>
+
+<!-- Scene Navigation -->
+<nav class="scene-nav" id="sceneNav">
+    <!-- 动态生成 -->
+</nav>
+
+<!-- Main Content -->
+<main class="main-content" id="mainContent">
+
+    <!-- Welcome Panel (default view) -->
+    <div class="scene-panel active" id="panel-welcome">
+        <div class="welcome-panel">
+            <h2 class="welcome-title">火瞳 — 让火锅店运营看得见、算得清</h2>
+            <p class="welcome-subtitle">
+                基于视觉AI与数据智能的双引擎架构，为冯校长火锅连锁提供全链路数字化运营能力。
+                点击「初始化数据」开始体验5大核心场景。
+            </p>
+            <div class="welcome-features">
+                <div class="feature-card">
+                    <div class="feature-icon" style="background:var(--crit-soft)">📹</div>
+                    <div class="feature-title">后厨之眼</div>
+                    <div class="feature-desc">实时废料检测、损耗金额日报、SOP合规自动巡检</div>
+                </div>
+                <div class="feature-card">
+                    <div class="feature-icon" style="background:var(--blue-soft)">🧠</div>
+                    <div class="feature-title">算得清的订货</div>
+                    <div class="feature-desc">AI销量预测(MAPE 10.6%)、智能采购建议、库存安全线监控</div>
+                </div>
+                <div class="feature-card">
+                    <div class="feature-icon" style="background:rgba(91,174,194,0.12)">🧊</div>
+                    <div class="feature-title">冻品供应链管控</div>
+                    <div class="feature-desc">收货验收→品质评级→温控追溯→退换货全链路管理</div>
+                </div>
+                <div class="feature-card">
+                    <div class="feature-icon" style="background:var(--purple-soft)">🤖</div>
+                    <div class="feature-title">岗位AI助理</div>
+                    <div class="feature-desc">店长/后厨/采购三大AI助理，消息总线协作</div>
+                </div>
+                <div class="feature-card">
+                    <div class="feature-icon" style="background:var(--ok-soft)">🏢</div>
+                    <div class="feature-title">连锁管控看板</div>
+                    <div class="feature-desc">椒江vs玉环两店横向对比、区域健康分、ROI价值量化</div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- S1: Kitchen Eye -->
+    <div class="scene-panel" id="panel-kitchen-eye">
+        <div class="metrics-bar" id="metrics-kitchen-eye"></div>
+        <div class="steps-container" id="steps-kitchen-eye"></div>
+    </div>
+
+    <!-- S2: Smart Ordering -->
+    <div class="scene-panel" id="panel-smart-ordering">
+        <div class="metrics-bar" id="metrics-smart-ordering"></div>
+        <div class="steps-container" id="steps-smart-ordering"></div>
+    </div>
+
+    <!-- S3: Supply Chain -->
+    <div class="scene-panel" id="panel-supply-chain">
+        <div class="metrics-bar" id="metrics-supply-chain"></div>
+        <div class="steps-container" id="steps-supply-chain"></div>
+    </div>
+
+    <!-- S4: AI Assistant -->
+    <div class="scene-panel" id="panel-ai-assistant">
+        <div class="metrics-bar" id="metrics-ai-assistant"></div>
+        <div class="steps-container" id="steps-ai-assistant"></div>
+    </div>
+
+    <!-- S5: Chain Dashboard -->
+    <div class="scene-panel" id="panel-chain-dashboard">
+        <div class="metrics-bar" id="metrics-chain-dashboard"></div>
+        <div class="steps-container" id="steps-chain-dashboard"></div>
+    </div>
+
+</main>
+</div>
+
+<!-- Auto-play progress bar -->
+<div class="progress-container" id="progressContainer" style="display:none;">
+    <div class="progress-bar" id="progressBar"></div>
+</div>
+
+<!-- SVG Definitions -->
+<svg width="0" height="0">
+<defs>
+<linearGradient id="scoreGradient" x1="0%" y1="0%" x2="100%" y2="0%">
+    <stop offset="0%" stop-color="#E2613A"/>
+    <stop offset="100%" stop-color="#56B884"/>
+</linearGradient>
+</defs>
+</svg>
+
+<script>
+// =====================================================================
+//  Global State
+// =====================================================================
+const API_BASE = '';
+const SCENARIOS = [
+    { key: 'kitchen-eye',       id: 'S1', name: '后厨之眼',           desc: '视觉引擎：废料检测+损耗分析+SOP合规', duration: 5 },
+    { key: 'smart-ordering',    id: 'S2', name: '算得清的订货',       desc: '数据引擎：AI预测+采购建议+库存监控', duration: 5 },
+    { key: 'supply-chain',      id: 'S3', name: '冻品供应链管控',     desc: '收货→质检→温控→退换货全链路',      duration: 4 },
+    { key: 'ai-assistant',      id: 'S4', name: '岗位AI助理',         desc: '店长/后厨/采购三大AI助理',          duration: 4 },
+    { key: 'chain-dashboard',   id: 'S5', name: '连锁管控看板',       desc: '椒江vs玉环两店对比+健康分+ROI',     duration: 2 },
+];
+
+let state = {
+    initialized: false,
+    results: {},
+    currentScene: null,
+    autoPlaying: false,
+    autoPlayTimer: null,
+};
+
+// =====================================================================
+//  API Helpers
+// =====================================================================
+async function api(path, method = 'GET', body = null) {
+    const opts = { method, headers: { 'Content-Type': 'application/json' } };
+    if (body) opts.body = JSON.stringify(body);
+    try {
+        const res = await fetch(API_BASE + path, opts);
+        return await res.json();
+    } catch (e) {
+        console.error('API error:', e);
+        return { success: false, error: e.message };
+    }
+}
+
+function setStatus(text, type = 'ok') {
+    const el = document.getElementById('connectionStatus');
+    const dot = el.querySelector('.status-dot');
+    const span = el.querySelector('span:last-child');
+    span.textContent = text;
+    dot.style.background = type === 'ok' ? 'var(--ok)' :
+                           type === 'busy' ? 'var(--warn)' : 'var(--accent)';
+}
+
+// =====================================================================
+//  Initialization
+// =====================================================================
+async function initData() {
+    const btn = document.getElementById('btnInitData');
+    btn.disabled = true;
+    btn.textContent = '初始化中...';
+    setStatus('正在生成数据...', 'busy');
+
+    const res = await api('/api/init', 'POST', { days: 30 });
+
+    if (res.success) {
+        state.initialized = true;
+        btn.textContent = '✅ 数据已就绪';
+        document.getElementById('btnRunAll').disabled = false;
+        document.getElementById('btnAutoPlay').disabled = false;
+        setStatus('数据已就绪', 'ok');
+        console.log('初始化完成:', res.stats);
+    } else {
+        btn.textContent = '初始化数据';
+        btn.disabled = false;
+        setStatus('初始化失败', 'error');
+        alert('初始化失败: ' + (res.error || '未知错误'));
+    }
+}
+
+// =====================================================================
+//  Scene Execution
+// =====================================================================
+async function runScene(sceneKey) {
+    if (!state.initialized) {
+        alert('请先点击「初始化数据」按钮');
+        return;
+    }
+
+    showPanel(sceneKey, true);
+    setStatus(`正在执行 ${getSceneInfo(sceneKey).name}...`, 'busy');
+
+    const res = await api(`/api/run/${sceneKey}`, 'POST');
+
+    if (res.success) {
+        state.results[sceneKey] = res;
+        renderScene(sceneKey, res);
+        markSceneDone(sceneKey);
+        setStatus('场景完成', 'ok');
+    } else {
+        setStatus('执行失败', 'error');
+        hideLoading(sceneKey);
+        alert('场景执行失败: ' + (res.error || '未知错误'));
+    }
+}
+
+async function runAllScenes() {
+    if (!state.initialized) return;
+
+    document.getElementById('btnRunAll').disabled = true;
+    setStatus('正在执行全部场景...', 'busy');
+
+    for (const s of SCENARIOS) {
+        switchToPanel(s.key);
+        await runScene(s.key);
+        await sleep(800);
+    }
+
+    document.getElementById('btnRunAll').disabled = false;
+    setStatus('全部完成', 'ok');
+}
+
+// =====================================================================
+//  Auto Play
+// =====================================================================
+function toggleAutoPlay() {
+    if (state.autoPlaying) {
+        stopAutoPlay();
+    } else {
+        startAutoPlay();
+    }
+}
+
+function startAutoPlay() {
+    state.autoPlaying = true;
+    document.getElementById('btnAutoPlay').textContent = '暂停播放';
+    document.getElementById('progressContainer').style.display = 'block';
+    runAutoPlaySequence();
+}
+
+function stopAutoPlay() {
+    state.autoPlaying = false;
+    if (state.autoPlayTimer) clearTimeout(state.autoPlayTimer);
+    document.getElementById('btnAutoPlay').textContent = '自动播放';
+    document.getElementById('progressContainer').style.display = 'none';
+    document.getElementById('progressBar').style.width = '0%';
+}
+
+async function runAutoPlaySequence() {
+    const totalDuration = SCENARIOS.reduce((sum, s) => sum + s.duration * 1000, 0);
+    let elapsed = 0;
+
+    for (let i = 0; i < SCENARIOS.length && state.autoPlaying; i++) {
+        const s = SCENARIOS[i];
+        switchToPanel(s.key);
+
+        if (!state.results[s.key]) {
+            showPanel(s.key, true);
+            setStatus(`[${s.id}] ${s.name}...`, 'busy');
+            const res = await api(`/api/run/${s.key}`, 'POST');
+            if (res.success) {
+                state.results[s.key] = res;
+                renderScene(s.key, res);
+                markSceneDone(s.key);
+            }
+        }
+
+        const waitMs = s.duration * 1000;
+        const startWait = Date.now();
+        while (state.autoPlaying && (Date.now() - startWait) < waitMs) {
+            elapsed = Math.min((Date.now() - startWait) + i * s.duration * 1000, totalDuration);
+            document.getElementById('progressBar').style.width = (elapsed / totalDuration * 100) + '%';
+            await sleep(100);
+        }
+    }
+
+    if (state.autoPlaying) {
+        document.getElementById('progressBar').style.width = '100%';
+        setStatus('全部演示完成', 'ok');
+        await sleep(2000);
+        stopAutoPlay();
+    }
+}
+
+// =====================================================================
+//  Navigation & UI
+// =====================================================================
+function buildNav() {
+    const nav = document.getElementById('sceneNav');
+    nav.innerHTML = SCENARIOS.map(s => `
+        <div class="scene-tab" data-scene="${s.key}" onclick="runScene('${s.key}')">
+            <div class="scene-id">${s.id}</div>
+            <div class="scene-name">${s.name}</div>
+            <div class="scene-desc">${s.desc}</div>
+            <div class="scene-duration">⏱ ~${s.duration}分钟</div>
+            <div class="scene-status">点击开始</div>
+        </div>
+    `).join('');
+}
+
+function getSceneInfo(key) {
+    return SCENARIOS.find(s => s.key === key) || {};
+}
+
+function switchToPanel(key) {
+    document.querySelectorAll('.scene-panel').forEach(p => p.classList.remove('active'));
+    document.querySelectorAll('.scene-tab').forEach(t => t.classList.remove('active'));
+    const panel = document.getElementById(`panel-${key}`);
+    const tab = document.querySelector(`.scene-tab[data-scene="${key}"]`);
+    if (panel) panel.classList.add('active');
+    if (tab) tab.classList.add('active');
+}
+
+function showPanel(key, loading = false) {
+    switchToPanel(key);
+    if (loading) {
+        const panel = document.getElementById(`panel-${key}`);
+        panel.querySelectorAll('.loading-overlay').forEach(el => el.remove());
+        const overlay = document.createElement('div');
+        overlay.className = 'loading-overlay';
+        overlay.innerHTML = `<div class="loading-spinner"></div><div class="loading-text">正在加载数据...</div>`;
+        overlay.id = `loading-${key}`;
+        panel.style.position = 'relative';
+        panel.appendChild(overlay);
+    }
+}
+
+function hideLoading(key) {
+    const el = document.getElementById(`loading-${key}`);
+    if (el) el.remove();
+}
+
+function markSceneDone(key) {
+    const tab = document.querySelector(`.scene-tab[data-scene="${key}"]`);
+    if (tab) {
+        tab.classList.add('done');
+        tab.querySelector('.scene-status').textContent = '✅ 已完成';
+    }
+}
+
+// =====================================================================
+//  Render Functions - S1 Kitchen Eye
+//  （全部使用平台端 Design Token 颜色变量）
+// =====================================================================
+function renderKitchenEye(data) {
+    hideLoading('kitchen-eye');
+
+    const metricsEl = document.getElementById('metrics-kitchen-eye');
+    metricsEl.innerHTML = Object.entries(data.key_metrics || {}).map(([k, v]) => `
+        <div class="metric-card animate-in"><div class="metric-value">${v}</div><div class="metric-label">${k}</div></div>
+    `).join('');
+
+    const stepsEl = document.getElementById('steps-kitchen-eye');
+    let html = '';
+
+    (data.steps || []).forEach((step, idx) => {
+        const d = step.data || {};
+
+        if (step.step === 1) {
+            html += buildStepCard(step, () => `
+                <div class="detection-grid">
+                    ${(d.detections || []).map(det => `
+                        <div class="detection-item">
+                            <div class="detection-icon">⚠️</div>
+                            <div class="detection-info">
+                                <h4>${det.item}</h4>
+                                <p>${det.reason} × ${det.count}</p>
+                            </div>
+                            <div class="detection-value">¥${det.est_value?.toLocaleString()}</div>
+                        </div>
+                    `).join('')}
+                </div>
+                <div style="margin-top:14px;padding:12px;background:var(--crit-soft);border-radius:8px;border:1px solid rgba(240,71,60,0.2);display:flex;justify-content:space-between;align-items:center;">
+                    <span style="color:var(--muted)">当日废料总计</span>
+                    <span style="font-size:18px;font-weight:700;color:var(--accent)">${d.total_waste_items}件 / ¥${d.total_est_loss?.toLocaleString()}</span>
+                </div>
+            `);
+        } else if (step.step === 2) {
+            const wr = d.waste_rate || {};
+            const val = wr.value || 0;
+            const status = wr.status || 'unknown';
+            const statusColor = status === 'good' ? 'var(--ok)' : status === 'warning' ? 'var(--warn)' : 'var(--accent)';
+            html += buildStepCard(step, () => `
+                <div style="display:flex;align-items:center;gap:36px;flex-wrap:wrap">
+                    <div style="text-align:center">
+                        <div style="font-size:48px;font-weight:800;color:${statusColor}">${val}%</div>
+                        <div style="color:var(--muted);margin-top:4px">当前损耗率</div>
+                    </div>
+                    <div>
+                        <div style="padding:7px 14px;background:${status === 'good' ? 'var(--ok-soft)' : 'var(--warn-soft)'};border-radius:6px;display:inline-block;font-weight:600;color:${statusColor}">
+                            ${status === 'good' ? '✅ 低于行业平均(15%)' : '⚠️ 需关注'}
+                        </div>
+                        <p style="margin-top:10px;color:var(--muted);font-size:13px">
+                            趋势: ${wr.trend === 'down' ? '📈 持续改善' : wr.trend === 'up' ? '📉 需要关注' : '➡️ 稳定'}<br>
+                            vs 行业平均年省 ≈ ¥${((15 - val) * 365 * 300)?.toLocaleString()}
+                        </p>
+                    </div>
+                </div>
+            `);
+        } else if (step.step === 3) {
+            const score = d.score || 0;
+            const violations = d.violations || 0;
+            const circumference = 2 * Math.PI * 65;
+            const offset = circumference - (score / 100) * circumference;
+            html += buildStepCard(step, () => `
+                <div class="sop-score-display">
+                    <div class="score-circle">
+                        <svg width="150" height="150" viewBox="0 0 150 150">
+                            <circle cx="75" cy="75" r="65" class="score-bg"/>
+                            <circle cx="75" cy="75" r="65" class="score-fill" style="stroke-dashoffset:${offset}"/>
+                        </svg>
+                        <div class="score-text">
+                            <div class="score-number" style="color:${score >= 90 ? 'var(--ok)' : score >= 70 ? 'var(--warn)' : 'var(--accent)'}">${score}</div>
+                            <div class="score-label">合规分数</div>
+                        </div>
+                    </div>
+                    <div class="score-details">
+                        <div class="detail-item">
+                            <span class="icon">✅</span>
+                            <span class="label">通过项</span>
+                            <span class="value tag-good">${Math.round(score * 0.92)}</span>
+                        </div>
+                        <div class="detail-item">
+                            <span class="icon">✗</span>
+                            <span class="label">违规项</span>
+                            <span class="value ${violations > 0 ? 'tag-danger' : 'tag-good'}">${violations}</span>
+                        </div>
+                        <div class="detail-item">
+                            <span class="icon">📊</span>
+                            <span class="label">等级评定</span>
+                            <span class="value badge-${score >= 90 ? 'good' : score >= 70 ? 'warning' : 'danger'}">${score >= 90 ? '优秀' : score >= 70 ? '合格' : '需改进'}</span>
+                        </div>
+                    </div>
+                </div>
+            `);
+        } else if (step.step === 4) {
+            html += buildStepCard(step, () => `
+                <div style="padding:18px;text-align:center">
+                    <div style="font-size:32px;font-weight:700;color:var(--brand)">${d.avg_score?.toFixed(1)}</div>
+                    <div style="color:var(--muted);margin-top:4px">30天平均合规分</div>
+                    <div style="margin-top:14px;height:8px;background:rgba(255,255,255,0.05);border-radius:4px;overflow:hidden;position:relative">
+                        <div style="position:absolute;left:0;top:0;height:100%;width:${d.avg_score}%;background:linear-gradient(90deg,var(--brand),var(--ok));border-radius:4px;transition:width 1s ease"></div>
+                    </div>
+                </div>
+            `);
+        }
+    });
+
+    stepsEl.innerHTML = html;
+    animateSteps(stepsEl);
+}
+
+// =====================================================================
+//  Render Functions - S2 Smart Ordering
+// =====================================================================
+function renderSmartOrdering(data) {
+    hideLoading('smart-ordering');
+
+    const metricsEl = document.getElementById('metrics-smart-ordering');
+    metricsEl.innerHTML = Object.entries(data.key_metrics || {}).map(([k, v]) => `
+        <div class="metric-card animate-in"><div class="metric-value">${v}</div><div class="metric-label">${k}</div></div>
+    `).join('');
+
+    const stepsEl = document.getElementById('steps-smart-ordering');
+    let html = '';
+
+    (data.steps || []).forEach(step => {
+        const d = step.data || {};
+
+        if (step.step === 1) {
+            html += buildStepCard(step, () => `
+                <table class="data-table">
+                    <thead><tr><th>品类</th><th>品名</th><th>预测销量</th><th>置信度</th><th>影响因子</th></tr></thead>
+                    <tbody>
+                        ${(d || []).map(p => {
+                            const conf = parseInt(p.confidence || '0');
+                            const confColor = conf >= 90 ? 'var(--ok)' : conf >= 80 ? 'var(--warn)' : 'var(--accent)';
+                            return `<tr>
+                                <td><span class="badge-good" style="background:var(--blue-soft);color:var(--info)">${p.category}</span></td>
+                                <td><strong>${p.item}</strong></td>
+                                <td><strong>${p.pred_qty}</strong></td>
+                                <td>
+                                    <span class="confidence-bar">
+                                        <span class="confidence-track"><span class="confidence-fill" style="width:${conf}%;background:${confColor}"></span></span>
+                                        <strong style="color:${confColor}">${p.confidence}</strong>
+                                    </span>
+                                </td>
+                                <td style="color:var(--muted)">${p.factor}</td>
+                            </tr>`;
+                        }).join('')}
+                    </tbody>
+                </table>
+            `);
+        } else if (step.step === 2) {
+            const mape = d.mape || 0;
+            html += buildStepCard(step, () => `
+                <div style="display:flex;align-items:center;gap:36px;flex-wrap:wrap">
+                    <div style="text-align:center;padding:20px;background:var(--ok-soft);border-radius:14px;border:1px solid rgba(86,184,132,0.2)">
+                        <div style="font-size:56px;font-weight:800;color:var(--ok)">${mape}%</div>
+                        <div style="color:var(--muted);margin-top:4px">MAPE (90天回测)</div>
+                    </div>
+                    <div>
+                        <div style="font-size:16px;font-weight:600;margin-bottom:10px">🎯 准确率提升轨迹</div>
+                        <div style="display:flex;flex-direction:column;gap:7px">
+                            <div style="display:flex;align-items:center;gap:10px">
+                                <span style="width:55px;font-size:12px;color:var(--muted)">第1月</span>
+                                <div style="flex:1;height:18px;background:rgba(255,255,255,0.05);border-radius:4px;overflow:hidden">
+                                    <div style="width:72.8%;height:100%;background:var(--accent);border-radius:4px"></div>
+                                </div>
+                                <span style="width:42px;text-align:right;font-weight:600;color:var(--accent)">18.2%</span>
+                            </div>
+                            <div style="display:flex;align-items:center;gap:10px">
+                                <span style="width:55px;font-size:12px;color:var(--muted)">第2月</span>
+                                <div style="flex:1;height:18px;background:rgba(255,255,255,0.05);border-radius:4px;overflow:hidden">
+                                    <div style="width:58%;height:100%;background:var(--warn);border-radius:4px"></div>
+                                </div>
+                                <span style="width:42px;text-align:right;font-weight:600;color:var(--warn)">14.5%</span>
+                            </div>
+                            <div style="display:flex;align-items:center;gap:10px">
+                                <span style="width:55px;font-size:12px;color:var(--muted)">第3月</span>
+                                <div style="flex:1;height:18px;background:rgba(255,255,255,0.05);border-radius:4px;overflow:hidden">
+                                    <div style="width:${mape * 2}%;height:100%;background:var(--ok);border-radius:4px"></div>
+                                </div>
+                                <span style="width:42px;text-align:right;font-weight:700;color:var(--ok)">${mape}%</span>
+                            </div>
+                        </div>
+                        <div style="margin-top:10px;padding:9px 14px;background:var(--ok-soft);border-radius:6px;font-size:13px">
+                            ✅ 远超行业门槛(<del>45%</del>)，准确率提升 <strong style="color:var(--ok)">${(45 - mape).toFixed(1)} 个百分点</strong>
+                        </div>
+                    </div>
+                </div>
+            `);
+        } else if (step.step === 3) {
+            const items = d.items || [];
+            const total = d.total || 0;
+            html += buildStepCard(step, () => `
+                <table class="data-table">
+                    <thead><tr><th>SKU</th><th>品名</th><th>数量</th><th>单价</th><th>小计</th><th>供应商</th></tr></thead>
+                    <tbody>
+                        ${items.map(item => `
+                            <tr>
+                                <td style="color:var(--brand);font-family:ui-monospace,monospace;font-size:11px">${item.sku}</td>
+                                <td><strong>${item.name}</strong></td>
+                                <td>${item.qty} ${item.unit}</td>
+                                <td>¥${item.price}</td>
+                                <td><strong>¥${(item.qty * item.price).toLocaleString()}</strong></td>
+                                <td><span class="badge-good">${item.supplier}</span></td>
+                            </tr>
+                        `).join('')}
+                    </tbody>
+                </table>
+                <div style="margin-top:14px;padding:14px;background:var(--brand-soft);border-radius:8px;display:flex;justify-content:space-between;align-items:center">
+                    <span style="font-size:14px;font-weight:600">采购单总额</span>
+                    <span style="font-size:24px;font-weight:800;color:var(--brand)">¥${total.toLocaleString()}</span>
+                </div>
+            `);
+        } else if (step.step === 4) {
+            html += buildStepCard(step, () => `
+                <div class="inventory-grid">
+                    ${(d || []).map(inv => `
+                        <div class="inventory-item ${inv.status === 'low' ? 'low' : ''}">
+                            <div>
+                                <div class="inv-name">${inv.name}</div>
+                                <div class="inv-level">当前 ${inv.current} / 安全线 ${inv.safety}</div>
+                            </div>
+                            <span class="inv-status ${inv.status === 'low' ? 'tag-danger' : 'tag-good'}">
+                                ${inv.status === 'low' ? '⚠️ 需补货' : '✅ 正常'}
+                            </span>
+                        </div>
+                    `).join('')}
+                </div>
+                ${(d || []).filter(i => i.status === 'low').length > 0 ? `
+                <div style="margin-top:10px;padding:10px 14px;background:var(--warn-soft);border:1px solid rgba(230,169,62,0.25);border-radius:6px;font-size:12px;color:var(--warn)">
+                    🔔 已自动触发 ${(d || []).filter(i => i.status === 'low').length} 项补货提醒 → 同步到采购单
+                </div>` : ''}
+            `);
+        } else if (step.step === 5) {
+            html += buildStepCard(step, () => `
+                <div class="closed-loop-flow">
+                    <div class="loop-step"><div class="step-icon">👁</div><div class="step-text">${d.vision_detect || ''}</div></div>
+                    <div class="loop-arrow">→</div>
+                    <div class="loop-step"><div class="step-icon">📦</div><div class="step-text">${d.auto_deduct || ''}</div></div>
+                    <div class="loop-arrow">→</div>
+                    <div class="loop-step"><div class="step-icon">💸</div><div class="step-text">${d.waste_record || ''}</div></div>
+                    <div class="loop-arrow">→</div>
+                    <div class="loop-step"><div class="step-icon">🔄</div><div class="step-text">${d.forecast_adjust || ''}</div></div>
+                </div>
+                <div style="margin-top:14px;text-align:center;padding:12px;background:var(--ok-soft);border-radius:8px;border:1px solid rgba(86,184,132,0.2);font-size:13px;color:var(--ok)">
+                    ♻️ 闭环完成：废料数据已反馈至预测模型，形成数据驱动的持续优化
+                </div>
+            `);
+        }
+    });
+
+    stepsEl.innerHTML = html;
+    animateSteps(stepsEl);
+}
+
+// =====================================================================
+//  Render Functions - S3 Supply Chain
+// =====================================================================
+function renderSupplyChain(data) {
+    hideLoading('supply-chain');
+
+    const metricsEl = document.getElementById('metrics-supply-chain');
+    metricsEl.innerHTML = Object.entries(data.key_metrics || {}).map(([k, v]) => `
+        <div class="metric-card animate-in"><div class="metric-value">${v}</div><div class="metric-label">${k}</div></div>
+    `).join('');
+
+    const stepsEl = document.getElementById('steps-supply-chain');
+    let html = '';
+
+    (data.steps || []).forEach(step => {
+        const d = step.data || {};
+
+        if (step.step === 1) {
+            html += buildStepCard(step, () => `
+                <div style="display:flex;align-items:center;gap:18px;padding:18px;background:var(--brand-soft);border-radius:10px">
+                    <div style="font-size:42px;font-weight:800;color:var(--brand)">${d.count || 0}</div>
+                    <div>
+                        <div style="font-size:15px;font-weight:600">SKU总数</div>
+                        <div style="color:var(--muted);font-size:12px;margin-top:3px">统一货品品牌规格锁定，含冻品肉类/蔬菜/调料等品类</div>
+                    </div>
+                </div>
+            `);
+        } else if (step.step === 2) {
+            html += buildStepCard(step, () => `
+                <div style="display:flex;align-items:center;gap:18px;padding:18px;background:var(--ok-soft);border-radius:10px">
+                    <div style="font-size:42px;font-weight:800;color:var(--ok)">${d.recent_records || 0}</div>
+                    <div>
+                        <div style="font-size:15px;font-weight:600">近期收货记录</div>
+                        <div style="color:var(--muted);font-size:12px;margin-top:3px">收货验收流程标准化，每批次记录供应商/数量/验收员/品质评级</div>
+                    </div>
+                </div>
+            `);
+        } else if (step.step === 3) {
+            const exc = d.exceptions || 0;
+            html += buildStepCard(step, () => `
+                <div style="display:flex;align-items:center;gap:18px;padding:18px;background:${exc > 0 ? 'var(--crit-soft)' : 'var(--ok-soft)'};border-radius:10px;border:1px solid ${exc > 0 ? 'rgba(240,71,60,0.2)' : 'rgba(86,184,132,0.2)'}">
+                    <div style="font-size:42px;font-weight:800;color:${exc > 0 ? 'var(--accent)' : 'var(--ok)'}">${exc}</div>
+                    <div>
+                        <div style="font-size:15px;font-weight:600">温度异常次数</div>
+                        <div style="color:var(--muted);font-size:12px;margin-top:3px">${exc > 0 ? '存在冷链断链风险，需立即处理' : '近期无温度异常记录，冷链完整'}</div>
+                    </div>
+                </div>
+            `);
+        } else if (step.step === 4) {
+            const rej = d.rejected || 0;
+            html += buildStepCard(step, () => `
+                <div style="display:flex;align-items:center;gap:18px;padding:18px;background:var(--purple-soft);border-radius:10px">
+                    <div style="font-size:42px;font-weight:800;color:var(--purple-text)">${rej}</div>
+                    <div>
+                        <div style="font-size:15px;font-weight:600">本月退换货</div>
+                        <div style="color:var(--muted);font-size:12px;margin-top:3px">${rej > 0 ? `${rej}件商品已发起退换货流程` : '本月无退换货（质量稳定）'}</div>
+                    </div>
+                </div>
+            `);
+        } else if (step.step === 5) {
+            const traces = Array.isArray(d) ? d : [];
+            html += buildStepCard(step, () => `
+                <div class="temp-timeline">
+                    ${traces.map(t => `
+                        <div class="temp-node">
+                            <div class="stage-name">${t.stage}</div>
+                            <div class="stage-meta">${t.time}</div>
+                            <div class="temp-value">${t.temp} ${t.ok ? '✅' : '❌'}</div>
+                        </div>
+                    `).join('')}
+                </div>
+                <div style="margin-top:14px;text-align:center;padding:12px;background:var(--ok-soft);border-radius:8px;border:1px solid rgba(86,184,132,0.2);font-size:13px;color:var(--ok)">
+                    📡 全程冷链完整，无断链记录
+                </div>
+            `);
+        }
+    });
+
+    stepsEl.innerHTML = html;
+    animateSteps(stepsEl);
+}
+
+// =====================================================================
+//  Render Functions - S4 AI Assistant
+// =====================================================================
+function renderAIAssistant(data) {
+    hideLoading('ai-assistant');
+
+    const metricsEl = document.getElementById('metrics-ai-assistant');
+    metricsEl.innerHTML = Object.entries(data.key_metrics || {}).map(([k, v]) => `
+        <div class="metric-card animate-in"><div class="metric-value">${v}</div><div class="metric-label">${k}</div></div>
+    `).join('');
+
+    const stepsEl = document.getElementById('steps-ai-assistant');
+    let html = '';
+
+    (data.steps || []).forEach(step => {
+        const d = step.data || {};
+
+        if (step.step === 1) {
+            html += buildStepCard(step, () => `
+                <div style="padding:18px;background:var(--purple-soft);border-radius:10px;border:1px solid rgba(160,110,180,0.2)">
+                    <div style="display:flex;align-items:center;gap:14px;margin-bottom:14px">
+                        <div style="font-size:24px">🏪</div>
+                        <div>
+                            <div style="font-size:16px;font-weight:700">店长助理工作台</div>
+                            <div style="color:var(--muted);font-size:12px">打开手机即可查看今日KPI总览、待办事项和AI决策建议</div>
+                        </div>
+                    </div>
+                    <div style="display:grid;grid-template-columns:repeat(3,1fr);gap:10px">
+                        <div style="text-align:center;padding:14px;background:rgba(0,0,0,0.08);border-radius:8px">
+                            <div style="font-size:28px;font-weight:800;color:var(--purple-text)">${d.kpis || 0}</div>
+                            <div style="font-size:11px;color:var(--muted);margin-top:3px">KPI指标</div>
+                        </div>
+                        <div style="text-align:center;padding:14px;background:rgba(0,0,0,0.08);border-radius:8px">
+                            <div style="font-size:28px;font-weight:800;color:var(--warn)">${d.todos || 0}</div>
+                            <div style="font-size:11px;color:var(--muted);margin-top:3px">待办事项</div>
+                        </div>
+                        <div style="text-align:center;padding:14px;background:rgba(0,0,0,0.08);border-radius:8px">
+                            <div style="font-size:28px;font-weight:800;color:var(--ok)">${d.todos || 0}</div>
+                            <div style="font-size:11px;color:var(--muted);margin-top:3px">AI建议</div>
+                        </div>
+                    </div>
+                </div>
+            `);
+        } else if (step.step === 2) {
+            const kd = d.prep_reminders || [];
+            const sd = d.sop_deviations || [];
+            html += buildStepCard(step, () => `
+                <div class="assistant-grid">
+                    <div class="assistant-card">
+                        <div class="assistant-header">
+                            <div class="assistant-icon kitchen">👨‍🍳</div>
+                            <div>
+                                <div class="assistant-title">备货提醒</div>
+                                <div class="assistant-subtitle">明日午市预计 80桌</div>
+                            </div>
+                        </div>
+                        <div class="assistant-body">
+                            <table class="data-table">
+                                <thead><tr><th>菜品</th><th>备货量</th><th>备注</th></tr></thead>
+                                <tbody>
+                                    ${kd.map(p => `<tr><td><strong>${p.dish}</strong></td><td>${p.prep_qty}</td><td style="color:var(--muted);font-size:12px">${p.note}</td></tr>`).join('')}
+                                </tbody>
+                            </table>
+                        </div>
+                    </div>
+                    <div class="assistant-card">
+                        <div class="assistant-header">
+                            <div class="assistant-icon kitchen">⚠️</div>
+                            <div>
+                                <div class="assistant-title">SOP纠偏提醒</div>
+                                <div class="assistant-subtitle">${sd.length} 项需要关注</div>
+                            </div>
+                        </div>
+                        <div class="assistant-body">
+                            ${sd.map(dev => `
+                                <div style="padding:10px;background:${dev.severity === 'major' ? 'var(--crit-soft)' : 'var(--warn-soft)'};border-radius:6px;margin-bottom:7px;border:1px solid ${dev.severity === 'major' ? 'rgba(240,71,60,0.2)' : 'rgba(230,169,62,0.25)'}">
+                                    <div style="display:flex;align-items:center;gap:7px;margin-bottom:3px">
+                                        <span class="badge-${dev.severity === 'major' ? 'danger' : 'warning'}">${dev.severity === 'major' ? '严重' : '轻微'}</span>
+                                        <strong>${dev.zone} - ${dev.rule}</strong>
+                                    </div>
+                                    <div style="font-size:12px;color:var(--muted)">💡 ${dev.tip}</div>
+                                </div>
+                            `).join('')}
+                        </div>
+                    </div>
+                </div>
+            `);
+        } else if (step.step === 3) {
+            const orders = d.pending_orders || [];
+            const comp = d.supplier_comparison || [];
+            html += buildStepCard(step, () => `
+                <div class="assistant-grid">
+                    <div class="assistant-card">
+                        <div class="assistant-header">
+                            <div class="assistant-icon procure">🛒</div>
+                            <div>
+                                <div class="assistant-title">待处理订单</div>
+                                <div class="assistant-subtitle">${orders.length} 笔采购单</div>
+                            </div>
+                        </div>
+                        <div class="assistant-body">
+                            ${orders.map(po => `
+                                <div style="display:flex;justify-content:space-between;align-items:center;padding:10px;background:rgba(0,0,0,0.06);border-radius:6px;margin-bottom:7px">
+                                    <div>
+                                        <div style="font-family:ui-monospace,monospace;font-size:11px;color:var(--brand)">${po.po_number}</div>
+                                        <div style="font-size:12px;color:var(--muted);margin-top:2px">${po.supplier}</div>
+                                    </div>
+                                    <div style="text-align:right">
+                                        <div style="font-size:16px;font-weight:700">¥${po.total?.toLocaleString()}</div>
+                                        <span class="badge-${po.status === '待确认' ? 'warning' : 'info'}">${po.status}</span>
+                                    </div>
+                                </div>
+                            `).join('')}
+                        </div>
+                    </div>
+                    <div class="assistant-card">
+                        <div class="assistant-header">
+                            <div class="assistant-icon procure">💰</div>
+                            <div>
+                                <div class="assistant-title">供应商价格优势</div>
+                                <div class="assistant-subtitle">王总方 vs 市场均价</div>
+                            </div>
+                        </div>
+                        <div class="assistant-body">
+                            ${comp.map(c => `
+                                <div style="display:flex;justify-content:space-between;align-items:center;padding:10px;background:var(--ok-soft);border-radius:6px;margin-bottom:7px">
+                                    <div>
+                                        <div style="font-weight:600">${c.product}</div>
+                                        <div style="font-size:11px;color:var(--muted)">市场均价格: ¥${c.market_avg}</div>
+                                    </div>
+                                    <div style="text-align:right">
+                                        <div style="font-size:15px;font-weight:700;color:var(--ok)">¥${c.wang_price}</div>
+                                        <span class="badge-good">省 ${c.saving}</span>
+                                    </div>
+                                </div>
+                            `).join('')}
+                        </div>
+                    </div>
+                </div>
+            `);
+        } else if (step.step === 4) {
+            html += buildStepCard(step, () => `
+                <div style="padding:20px;background:linear-gradient(90deg,var(--purple-soft),var(--blue-soft));border-radius:10px;border:1px solid rgba(160,110,180,0.2);text-align:center">
+                    <div style="font-size:48px;margin-bottom:10px">🤝</div>
+                    <div style="font-size:18px;font-weight:700;margin-bottom:7px">Agent消息总线协作</div>
+                    <div style="color:var(--muted);margin-bottom:14px">已创建 <strong style="color:var(--purple-text);font-size:22px">${d.agents || 0}</strong> 个岗位Agent</div>
+                    <div style="display:inline-flex;gap:10px;flex-wrap:wrap;justify-content:center">
+                        <span style="padding:7px 14px;background:var(--purple-soft);border-radius:18px;font-size:12px">🏪 店长助理 A01</span>
+                        <span style="padding:7px 14px;background:var(--warn-soft);border-radius:18px;font-size:12px">👨‍🍳 后厨助理 A02</span>
+                        <span style="padding:7px 14px;background:var(--ok-soft);border-radius:18px;font-size:12px">🛒 采购助理 A03</span>
+                    </div>
+                    <div style="margin-top:14px;padding:10px 16px;background:rgba(0,0,0,0.06);border-radius:6px;font-size:12px;color:var(--muted)">
+                        📨 店长助理 → 消息总线 broadcast → 所有订阅者接收<br>
+                        示例: store/warning (high priority) 损耗率预警通知
+                    </div>
+                </div>
+            `);
+        }
+    });
+
+    stepsEl.innerHTML = html;
+    animateSteps(stepsEl);
+}
+
+// =====================================================================
+//  Render Functions - S5 Chain Dashboard
+// =====================================================================
+function renderChainDashboard(data) {
+    hideLoading('chain-dashboard');
+
+    const metricsEl = document.getElementById('metrics-chain-dashboard');
+    metricsEl.innerHTML = Object.entries(data.key_metrics || {}).map(([k, v]) => `
+        <div class="metric-card animate-in"><div class="metric-value">${v}</div><div class="metric-label">${k}</div></div>
+    `).join('');
+
+    const stepsEl = document.getElementById('steps-chain-dashboard');
+    let html = '';
+
+    (data.steps || []).forEach(step => {
+        const d = step.data || {};
+
+        if (step.step === 1) {
+            html += buildStepCard(step, () => `
+                <div style="text-align:center;padding:20px;background:var(--brand-soft);border-radius:10px">
+                    <div style="font-size:36px;margin-bottom:7px">📊</div>
+                    <div style="font-size:16px;font-weight:600">两店关键指标对比分析已完成</div>
+                    <div style="color:var(--muted);margin-top:3px">椒江标杆店 vs 玉环改善店，多维度横向对比</div>
+                </div>
+            `);
+        } else if (step.step === 2) {
+            const scores = Array.isArray(d) ? d : [];
+            html += buildStepCard(step, () => `
+                <div class="health-score-container">
+                    ${scores.map(h => {
+                        const isGood = h.overall >= 85;
+                        return `<div class="health-card">
+                            <div class="health-store-name">
+                                ${h.store}
+                                <span style="font-size:13px;font-weight:normal;color:${isGood ? 'var(--ok)' : 'var(--warn)'}">${h.trend}</span>
+                            </div>
+                            <div class="health-overall">
+                                <div class="health-big-score" style="color:${isGood ? 'var(--ok)' : 'var(--warn)'}">${h.overall}</div>
+                                <div style="color:var(--muted)">综合评分</div>
+                            </div>
+                            <div class="health-dimensions">
+                                <div class="dim-item"><div class="dim-label">运营</div><div class="dim-value" style="color:var(--brand)">${h.ops}</div></div>
+                                <div class="dim-item"><div class="dim-label">安全</div><div class="dim-value" style="color:var(--ok)">${h.safety}</div></div>
+                                <div class="dim-item"><div class="dim-label">财务</div><div class="dim-value" style="color:var(--purple-text)">${h.finance}</div></div>
+                            </div>
+                        </div>`;
+                    }).join('')}
+                </div>
+            `);
+        } else if (step.step === 3) {
+            const roi = Array.isArray(d) ? d : [];
+            html += buildStepCard(step, () => `
+                <div class="roi-list">
+                    ${roi.map(r => `
+                        <div class="roi-item">
+                            <div class="roi-check">✓</div>
+                            <div>
+                                <div class="roi-name">${r[0]}</div>
+                                <div class="roi-value">${r[1]}</div>
+                                <div class="roi-desc">${r[2]}</div>
+                            </div>
+                        </div>
+                    `).join('')}
+                </div>
+                <div style="margin-top:20px;text-align:center;padding:20px;background:var(--ok-soft);border-radius:14px;border:1px solid rgba(86,184,132,0.2)">
+                    <div style="font-size:13px;color:var(--muted);margin-bottom:7px">💡 单店年节省估算</div>
+                    <div style="font-size:42px;font-weight:800;color:var(--ok)">≥¥150,000</div>
+                    <div style="color:var(--muted);font-size:12px;margin-top:3px">损耗优化 + 采购降本 + 人效提升 综合价值</div>
+                </div>
+            `);
+        }
+    });
+
+    stepsEl.innerHTML = html;
+    animateSteps(stepsEl);
+}
+
+// =====================================================================
+//  Router
+// =====================================================================
+function renderScene(key, data) {
+    switch (key) {
+        case 'kitchen-eye':       renderKitchenEye(data); break;
+        case 'smart-ordering':    renderSmartOrdering(data); break;
+        case 'supply-chain':      renderSupplyChain(data); break;
+        case 'ai-assistant':      renderAIAssistant(data); break;
+        case 'chain-dashboard':   renderChainDashboard(data); break;
+    }
+}
+
+// =====================================================================
+//  Utilities
+// =====================================================================
+function buildStepCard(step, contentFn) {
+    return `
+    <div class="step-card animate-in">
+        <div class="step-header">
+            <div class="step-number">${step.step}</div>
+            <div class="step-title">${step.action}</div>
+        </div>
+        <div class="step-body">
+            ${contentFn()}
+        </div>
+    </div>`;
+}
+
+function animateSteps(container) {
+    const cards = container.querySelectorAll('.animate-in');
+    cards.forEach((card, i) => {
+        card.style.animationDelay = `${i * 0.1}s`;
+    });
+    const metricCards = container.closest('.scene-panel')?.querySelectorAll('.metric-card.animate-in');
+    if (metricCards) {
+        metricCards.forEach((card, i) => {
+            card.style.animationDelay = `${i * 0.07}s`;
+        });
+    }
+}
+
+function sleep(ms) { return new Promise(resolve => setTimeout(resolve, ms)); }
+
+// =====================================================================
+//  Init
+// =====================================================================
+document.addEventListener('DOMContentLoaded', () => {
+    buildNav();
+
+    // Check health
+    api('/api/health').then(res => {
+        if (res.success && res.initialized) {
+            state.initialized = true;
+            document.getElementById('btnInitData').textContent = '✅ 数据已就绪';
+            document.getElementById('btnRunAll').disabled = false;
+            document.getElementById('btnAutoPlay').disabled = false;
+        }
+    });
+});
+</script>
+</body>
+</html>

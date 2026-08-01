@@ -1,0 +1,146 @@
+# ============================================================
+#  火瞳 · 椒江店 摄像头配置 (A方案 - HTTP抓拍 ✅已通)
+#  Store: store_jiaojiang | 门店: 椒江店(浙江总代旗舰店)
+#
+#  A方案: 单路海康IPC · HTTP JPEG抓拍模式
+#  设备: 海康威视(HIKVISION) IPC/NVR · IP: 192.168.6.21
+#  认证: Digest Auth | admin / hy898989
+#  抓拍: /ISAPI/Streaming/channels/101/picture (~64KB, ~170ms)
+#
+#  通道列表(已验证):
+#    Ch101-103: 主码流 (64KB, 1920x1080?)
+#    Ch201-202: 子码流 (67KB, 更高分辨率?)
+#
+#  状态: ✅ HTTP抓拍已验证通过 (2026-07-31 22:02)
+#  RTSP: ❌ 554端口关闭 (NVR未生效)
+#
+#  更新时间: 2026-07-31 22:05
+# ============================================================
+
+# ── 门店基本信息 ──
+store:
+  id: "store_jiaojiang"
+  name: "椒江店"
+  location: "浙江省台州市椒江区"
+  type: "flagship"
+  jetson_ip: "172.16.1.60"                      # 向日葵管理IP
+  jetson_lan_ip: "192.168.5.102"                 # Jetson LAN口IP
+  lan_subnet: "192.168.5.0/24"
+  camera_subnet: "192.168.6.0/24"                # 摄像头所在子网
+
+# ── A方案: 海康IPC - HTTP抓拍模式 ──
+cameras:
+  - id: "cam_a1_main"
+    name: "A方案主摄像头(Camera 01)"
+    zone: "multi_purpose"                        # 多用途(前厅/后厨通用)
+    position: "前厅核心点位"                       # 已从画面确认:俯拍全厅视角
+    vendor: "HIKVISION"                          # 海康威视
+    model: "NVR/解码器"                           # 从ISAPI通道列表判断
+    ip: "192.168.6.21"
+    http_port: 80
+    rtsp_port: 554                               # ⚠️ 关闭状态
+    credentials:
+      username: "admin"
+      password: "hy898989"                       # ✅ 正确密码(Digest认证)
+
+    # HTTP抓拍配置 (✅ 已验证)
+    http_snapshot:
+      enabled: true
+      base_url: "http://192.168.6.21"
+      auth_type: "digest"                         # Digest认证
+      paths:
+        main: "/ISAPI/Streaming/channels/101/picture"   # 主码流 64KB
+        sub: "/ISAPI/Streaming/channels/201/picture"    # 子码流 67KB
+      timeout_seconds: 10
+      avg_latency_ms: 170                          # 实测均值
+      format: "jpeg"
+
+    # RTSP地址 (⚠️ 当前不可用，保留备用)
+    rtsp_main: "rtsp://admin:hy898989@192.168.6.21:554/Streaming/Channels/101"
+    rtsp_sub: "rtsp://admin:hy898989@192.168.6.21:554/Streaming/Channels/201"
+    resolution: "1920x1080"                       # 从JPEG大小估算
+    enabled: true
+    priority: "critical"                          # 唯一摄像头=最高优先级
+
+    # 覆盖场景 (单摄多用)
+    scenes:
+      - "S1_waste_detection"                     # 食材损耗识别
+      - "S2_incoming_check"                      # 来料验收
+      - "S3_sop_compliance"                      # SOP合规检查
+      - "S4_dish_counting"                       # 出菜数量统计
+      - "S5_speed_service"                       # 服务效率
+      - "customer_flow"                          # 客流统计
+
+# ── 抓帧器全局配置 ──
+grabber:
+  mode: "http_snapshot"                          # http_snapshot | rtsp | mock
+  interval_seconds: 10                            # 默认抽帧间隔
+  save_latest_only: true                          # 只保留最新帧
+  stream_timeout: 15                              # 连接超时
+  reconnect_interval: 5                           # 断线重连间隔
+  max_retries: 5                                  # 最大重试次数
+
+# ── 推理配置 ──
+inference:
+  auto_infer: true
+  infer_on_frame_count: 1                         # 每帧都推理(演示模式)
+  skip_vlm: false                                 # 不跳过VLM
+
+  # CLIP 分类阈值
+  clip_classes: "clean_kitchen,dirty_surface,food_waste,cluttered,dangerous_object,uniform_ok,cap_on,mask_on,glove_on"
+  clip_threshold: 0.5
+
+  # 超时设置
+  yolo_timeout: 60
+  clip_timeout: 120
+  vlm_timeout: 45
+
+# ── 平台上报 ──
+hub:
+  url: "http://43.139.143.12:8098"               # 腾讯云平台端
+  store_id: "store_jiaojiang"
+  report_interval: 30                             # 上报间隔(秒)
+  batch_size: 10                                  # 批量上报大小
+
+# ── 场景→摄像头映射（单摄全场景）──
+scene_camera_map:
+  S1_waste_detection: ["cam_a1_main"]
+  S2_incoming_check: ["cam_a1_main"]
+  S3_sop_compliance: ["cam_a1_main"]
+  S4_dish_counting: ["cam_a1_main"]
+  S5_speed_service: ["cam_a1_main"]
+  customer_flow: ["cam_a1_main"]
+
+# ── 模拟模式开关 ──
+mock_mode:
+  enabled: false                                   # ❌ 关闭! HTTP抓拍已通
+  fallback_on_error: true                         # 抓拍失败时降级到mock
+  mock_source: "static_image"
+  fallback_image: "/opt/hotpot-smart-ops/data/fallback_hotpot.jpg"
+
+# ── HTTP抓拍调试记录 ──
+snapshot_debug:
+  first_success_time: "2026-07-31T22:02:57+08:00"
+  method: "HTTP GET + Digest Auth"
+  working_url: "http://192.168.6.21/ISAPI/Streaming/channels/101/picture"
+  credentials: "admin / hy898989"
+  results:
+    - test: "Ch101 主码流"
+      status: "OK"
+      size_bytes: 64042
+      latency_ms: 170
+    - test: "Ch102"
+      status: "OK"
+      size_bytes: 64042
+    - test: "Ch103"
+      status: "OK"
+      size_bytes: 64042
+    - test: "Ch201 子码流"
+      status: "OK"
+      size_bytes: 66878
+    - test: "Ch202"
+      status: "OK"
+      size_bytes: 66878
+    - test: "连续3次稳定性"
+      status: "OK"
+      detail: "168ms, 169ms, 173ms 均成功"
