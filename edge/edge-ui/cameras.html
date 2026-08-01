@@ -1,0 +1,269 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>视觉设备管理 · 火瞳边缘盒子</title>
+  <link rel="stylesheet" href="assets/edge-ui.css">
+</head>
+<body data-page="cameras">
+
+<div class="app-layout">
+  <aside class="sidebar" id="sidebar"></aside>
+  <div class="sidebar-backdrop" id="sidebarBackdrop"></div>
+
+  <main class="main-content">
+    <header class="page-header">
+      <div style="display:flex;align-items:center;gap:12px;">
+        <button class="menu-toggle" id="menuToggle" aria-label="菜单">☰</button>
+        <div>
+          <h1 class="page-title" id="pageTitle"></h1>
+          <p class="page-subtitle" id="pageSubtitle"></p>
+        </div>
+      </div>
+      <button class="btn btn-primary btn-sm" onclick="openAddCamera()">+ 添加设备</button>
+    </header>
+
+    <div class="page-body">
+      <!-- 摄像头列表 -->
+      <div id="cameraList"></div>
+
+      <!-- 空状态 -->
+      <div id="emptyState" style="display:none;">
+        <div class="empty-state">
+          <div class="empty-state-icon">📷</div>
+          <p class="empty-state-title">暂无视觉设备</p>
+          <p style="color:var(--text-muted);margin-top:8px;">点击右上角「添加设备」配置摄像头</p>
+          <button class="btn btn-primary mt-md" onclick="openAddCamera()">+ 添加第一个设备</button>
+        </div>
+      </div>
+    </div>
+  </main>
+</div>
+
+<script src="assets/api-client.js"></script>
+<script src="assets/components.js"></script>
+<script src="assets/edge-ui.js"></script>
+<script>
+(function() {
+  'use strict';
+
+  // ── 用途选项 ──
+  const PURPOSE_OPTIONS = [
+    { value: 'kitchen_sop', label: '后厨SOP检测' },
+    { value: 'kitchen_vlm', label: '后厨VLM理解' },
+    { value: 'receiving', label: '收货验货' },
+    { value: 'front_hall', label: '前厅客流' },
+  ];
+
+  const RESOLUTIONS = ['1920x1080', '1280x720', '640x480'];
+  const CODECS = ['h264', 'h265', 'mjpeg'];
+
+  // ── 渲染摄像头列表 ──
+  function renderCameras(cameras) {
+    const list = document.getElementById('cameraList');
+    const empty = document.getElementById('emptyState');
+
+    if (!cameras || cameras.length === 0) {
+      list.innerHTML = '';
+      empty.style.display = '';
+      return;
+    }
+
+    empty.style.display = 'none';
+    
+    list.innerHTML = cameras.map(cam => {
+      const statusCls = EdgeUI.statusClass(cam.status);
+      return `
+        <div class="card mb-md">
+          <div class="card-body">
+            <div style="display:flex;align-items:flex-start;justify-content:space-between;gap:16px;flex-wrap:wrap;">
+              <div style="flex:1;min-width:200px;">
+                <div style="display:flex;align-items:center;gap:8px;margin-bottom:8px;">
+                  <span style="font-size:20px;">🎥</span>
+                  <strong style="font-size:15px;">${EdgeUI.escHtml(cam.name)}</strong>
+                  <span class="badge badge-${statusCls}">${EdgeUI.statusLabel(cam.status)}</span>
+                </div>
+                <p class="font-mono" style="font-size:12px;color:var(--text-muted);margin-bottom:10px;">ID: ${EdgeUI.escHtml(cam.id)}</p>
+                
+                <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(140px,1fr));gap:8px;font-size:13px;color:var(--text-secondary);">
+                  <div><span style="color:var(--text-muted)">分辨率:</span> ${cam.resolution || '-'}</div>
+                  <div><span style="color:var(--text-muted)">帧率:</span> ${cam.fps || '-'} fps</div>
+                  <div><span style="color:var(--text-muted)">编码:</span> ${(cam.codec || '').toUpperCase()}</div>
+                  <div><span style="color:var(--text-muted)">用途:</span> ${PURPOSE_OPTIONS.find(p => p.value === cam.purpose)?.label || cam.purpose}</div>
+                </div>
+                
+                <div style="margin-top:8px;font-size:12px;color:var(--text-muted);" class="font-mono">
+                  RTSP: ${EdgeUI.escHtml(cam.rtsp_url || '-')}
+                </div>
+              </div>
+              
+              <!-- 预览/操作区 -->
+              <div style="display:flex;flex-direction:column;align-items:center;gap:8px;min-width:160px;">
+                <div id="snap-${cam.id}" style="width:160px;height:90px;background:var(--bg-elevated);border-radius:6px;display:flex;align-items:center;justify-content:center;color:var(--text-muted);font-size:12px;overflow:hidden;">
+                  预览
+                </div>
+                <div class="table-actions">
+                  <button class="btn btn-sm btn-secondary" onclick="takeSnapshot('${cam.id}')">▶ 预览</button>
+                  <button class="btn btn-sm btn-ghost" onclick="editCamera('${EdgeUI.escHtml(cam.id)}')">📝</button>
+                  <button class="btn btn-sm btn-ghost" onclick="reconnectCamera('${EdgeUI.escHtml(cam.id)}')">🔄</button>
+                  <button class="btn btn-sm btn-ghost" style="color:var(--error)" onclick="deleteCamera('${EdgeUI.escHtml(cam.id)}','${EdgeUI.escHtml(cam.name)}')">🗑</button>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>`;
+    }).join('');
+  }
+
+  // ── 添加/编辑弹窗 ──
+  async function openAddCamera() {
+    await openCameraForm('添加视觉设备');
+  }
+
+  async function editCamera(id) {
+    try {
+      const cam = await EdgeAPI.cameras.get(id);
+      await openCameraForm('编辑视觉设备', cam);
+    } catch (err) {
+      EdgeUI.toast(err.message, 'error');
+    }
+  }
+
+  function openCameraForm(title, initialData = {}) {
+    const purposeOptions = PURPOSE_OPTIONS.map(p => 
+      `<option value="${p.value}" ${(initialData.purpose === p.value) ? 'selected' : ''}>${p.label}</option>`
+    ).join('');
+
+    const resolutionOptions = RESOLUTIONS.map(r => 
+      `<option value="${r}" ${(initialData.resolution === r) ? 'selected' : ''}>${r}</option>`
+    ).join('');
+
+    const codecOptions = CODECS.map(c => 
+      `<option value="${c}" ${(initialData.codec === c) ? 'selected' : ''}>${c.toUpperCase()}</option>`
+    ).join('');
+
+    return EdgeUI.formModal({
+      title,
+      initialData,
+      htmlBody: `
+        <div class="form-group">
+          <label class="form-label">设备名称 <span style="color:var(--error)">*</span></label>
+          <input type="text" name="name" placeholder="如 后厨主摄像头" required value="">
+        </div>
+        <div class="form-group">
+          <label class="form-label">设备ID <span style="color:var(--error)">*</span></label>
+          <input type="text" name="id" placeholder="如 cam_kitchen_1（英文+下划线）" required pattern="[a-z0-9_]+" value="" ${initialData.id ? 'readonly style="opacity:0.6"' : ''}>
+          <p class="form-hint">${initialData.id ? '编辑时不可修改ID' : '创建后不可修改'}</p>
+        </div>
+        <div class="form-group">
+          <label class="form-label">RTSP地址 <span style="color:var(--error)">*</span></label>
+          <input type="url" name="rtsp_url" placeholder="rtsp://192.168.2.100:554/stream1" required value="">
+        </div>
+        <div style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:12px;">
+          <div class="form-group" style="margin-bottom:0">
+            <label class="form-label">分辨率</label>
+            <select name="resolution">${resolutionOptions}</select>
+          </div>
+          <div class="form-group" style="margin-bottom:0">
+            <label class="form-label">帧率 (fps)</label>
+            <input type="number" name="fps" min="5" max="30" value="${initialData.fps || 15}">
+          </div>
+          <div class="form-group" style="margin-bottom:0">
+            <label class="form-label">编码</label>
+            <select name="codec">${codecOptions}</select>
+          </div>
+        </div>
+        <div class="form-group">
+          <label class="form-label">用途</label>
+          <select name="purpose">${purposeOptions}</select>
+        </div>
+        <div class="form-group">
+          <label class="toggle-wrapper" style="cursor:pointer;">
+            <input type="checkbox" name="enabled" ${initialData.enabled !== false ? 'checked' : ''} class="toggle">
+            <span>启用此设备</span>
+          </label>
+        </div>
+      `,
+      onConfirm: async (data) => {
+        data.enabled = data.enabled === 'on';
+        
+        if (initialData.id) {
+          return await EdgeAPI.cameras.update(initialData.id, data);
+        } else {
+          return await EdgeAPI.cameras.create(data);
+        }
+      }
+    });
+  }
+
+  // ── 操作函数 ──
+  async function takeSnapshot(id) {
+    const el = document.getElementById(`snap-${id}`);
+    if (!el) return;
+    
+    el.textContent = '加载中...';
+    try {
+      const res = await EdgeAPI.cameras.snapshot(id);
+      const blob = await res.blob();
+      const url = URL.createObjectURL(blob);
+      el.innerHTML = `<img src="${url}" style="width:100%;height:100%;object-fit:cover;border-radius:6px;" alt="快照">`;
+    } catch (err) {
+      el.textContent = '预览失败';
+      EdgeUI.toast('获取快照失败: ' + err.message, 'error');
+    }
+  }
+
+  async function reconnectCamera(id) {
+    try {
+      await EdgeAPI.cameras.reconnect(id);
+      EdgeUI.toast('重连请求已发送', 'success');
+      loadCameras();
+    } catch (err) {
+      EdgeUI.toast(err.message, 'error');
+    }
+  }
+
+  async function deleteCamera(id, name) {
+    const ok = await EdgeUI.confirm({
+      title: '删除确认',
+      message: `确定要删除视觉设备 <strong>${name}</strong> 吗？<br><br>此操作不可撤销。`,
+      confirmText: '删除',
+      confirmType: 'danger'
+    });
+    if (!ok) return;
+
+    try {
+      await EdgeAPI.cameras.delete(id);
+      EdgeUI.toast('已删除', 'success');
+      loadCameras();
+    } catch (err) {
+      EdgeUI.toast(err.message, 'error');
+    }
+  }
+
+  // ── 加载列表 ──
+  async function loadCameras() {
+    try {
+      const data = await EdgeAPI.cameras.list();
+      renderCameras(data.cameras || data);
+    } catch (err) {
+      document.getElementById('cameraList').innerHTML = `
+        <div class="card"><div class="card-body"><p style="color:var(--error);">加载失败: ${err.message}</p></div></div>`;
+    }
+  }
+
+  // ── 初始化 ──
+  loadCameras();
+
+  // 暴露全局函数供HTML调用
+  window.openAddCamera = openAddCamera;
+  window.editCamera = editCamera;
+  window.takeSnapshot = takeSnapshot;
+  window.reconnectCamera = reconnectCamera;
+  window.deleteCamera = deleteCamera;
+
+})();
+</script>
+</body>
+</html>

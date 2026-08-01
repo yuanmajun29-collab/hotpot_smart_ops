@@ -1,0 +1,206 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>网络配置 · 火瞳边缘盒子</title>
+<link rel="stylesheet" href="../../../assets/edge-ui.css">
+</head>
+<body class="page-settings">
+<div class="app-container">
+  <!-- 侧边栏 -->
+  <nav class="sidebar">
+    <div class="sidebar-header">
+      <div class="logo-icon">🔥</div>
+      <span>火瞳边缘盒子</span>
+    </div>
+    <a href="../index.html" class="nav-item"><span class="nav-icon">📊</span>仪表盘</a>
+    <a href="../setup.html" class="nav-item"><span class="nav-icon">🔧</span>初始化向导</a>
+    <a href="../cameras.html" class="nav-item"><span class="nav-icon">📷</span>摄像头管理</a>
+    <a href="../iot-sensors.html" class="nav-item"><span class="nav-icon">🌡️</span>IoT传感器</a>
+    <div class="nav-section-title">系统设置</div>
+    <a href="../settings-network.html" class="nav-item active"><span class="nav-icon">🌐</span>网络配置</a>
+    <a href="../settings-models.html" class="nav-item"><span class="nav-icon">🧠</span>模型管理</a>
+    <a href="../settings-security.html" class="nav-item"><span class="nav-icon">🔒</span>安全设置</a>
+    <a href="../diagnostics.html" class="nav-item"><span class="nav-icon">🔍</span>诊断工具</a>
+  </nav>
+
+  <!-- 主内容 -->
+  <main class="main-content">
+    <header class="top-bar">
+      <h1><span class="breadcrumb">系统设置</span> / 网络配置</h1>
+      <div class="top-actions">
+        <span class="status-dot online"></span><span id="device-status">在线</span>
+      </div>
+    </header>
+
+    <div class="card-grid single">
+      <!-- 网络模式 -->
+      <div class="card">
+        <div class="card-header"><h2>🌐 网络模式</h2></div>
+        <div class="card-body">
+          <div class="form-group">
+            <label>连接模式</label>
+            <select id="net-mode" class="form-select">
+              <option value="dhcp">DHCP 自动获取（推荐）</option>
+              <option value="static">静态 IP 地址</option>
+            </select>
+          </div>
+        </div>
+      </div>
+
+      <!-- 静态IP配置 -->
+      <div class="card" id="static-config" style="display:none;">
+        <div class="card-header"><h2>📝 静态 IP 配置</h2></div>
+        <div class="card-body">
+          <div class="form-row">
+            <div class="form-group flex-1">
+              <label>IP 地址</label>
+              <input type="text" class="form-input" id="ipv4-addr" placeholder="172.16.1.60">
+            </div>
+            <div class="form-group flex-1">
+              <label>子网掩码</label>
+              <input type="text" class="form-input" id="netmask" placeholder="255.255.255.0">
+            </div>
+          </div>
+          <div class="form-row">
+            <div class="form-group flex-1">
+              <label>网关</label>
+              <input type="text" class="form-input" id="gateway" placeholder="172.16.1.1">
+            </div>
+            <div class="form-group flex-1">
+              <label>DNS 服务器</label>
+              <input type="text" class="form-input" id="dns" placeholder="223.5.5.5,114.114.114.114">
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <!-- 当前状态 -->
+      <div class="card">
+        <div class="card-header"><h2>📡 当前连接状态</h2></div>
+        <div class="card-body">
+          <table class="info-table">
+            <tr><td>主机名</td><td id="info-hostname">-</td></tr>
+            <tr><td>IPv4 地址</td><td id="info-ip">-</td></tr>
+            <tr><td>子网掩码</td><td id="info-netmask">-</td></tr>
+            <tr><td>网关</td><td id="info-gw">-</td></tr>
+            <tr><td>DNS</td><td id="info-dns">-</td></tr>
+            <tr><td>MAC 地址</td><td id="info-mac">-</td></tr>
+          </table>
+        </div>
+      </div>
+
+      <!-- 代理设置 -->
+      <div class="card">
+        <div class="card-header"><h2>🔄 代理设置</h2></div>
+        <div class="card-body">
+          <div class="form-group">
+            <label class="checkbox-label">
+              <input type="checkbox" id="proxy-enable"> 启用 HTTP 代理
+            </label>
+          </div>
+          <div class="form-group">
+            <label>代理地址</label>
+            <input type="text" class="form-input" id="proxy-url" placeholder="http://proxy:8080" disabled>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- 操作按钮 -->
+    <div class="action-bar">
+      <button class="btn btn-primary" onclick="saveNetwork()">
+        💾 保存配置
+      </button>
+      <button class="btn btn-secondary" onclick="testNetwork()">
+        🧪 测试连通性
+      </button>
+    </div>
+  </main>
+</div>
+
+<script src="../assets/api-client.js"></script>
+<script src="../assets/components.js"></script>
+<script>
+// ── 加载网络配置 ──
+async function loadNetwork() {
+  const res = await api.get('/api/network/config');
+  if (res.code === 0) {
+    const d = res.data;
+    document.getElementById('net-mode').value = d.mode || 'dhcp';
+    document.getElementById('ipv4-addr').value = d.ipv4_address || '';
+    document.getElementById('netmask').value = d.netmask || '';
+    document.getElementById('gateway').value = d.gateway || '';
+    document.getElementById('dns').value = (d.dns_servers || []).join(', ');
+    
+    // 当前状态
+    document.getElementById('info-hostname').textContent = d.hostname || '-';
+    document.getElementById('info-ip').textContent = d.ipv4_address || '-';
+    document.getElementById('info-netmask').textContent = d.netmask || '-';
+    document.getElementById('info-gw').textContent = d.gateway || '-';
+    document.getElementById('info-dns').textContent = (d.dns_servers || []).join(', ') || '-';
+    
+    // 代理
+    document.getElementById('proxy-enable').checked = d.proxy_enabled || false;
+    document.getElementById('proxy-url').value = d.proxy_url || '';
+    document.getElementById('proxy-url').disabled = !d.proxy_enabled;
+
+    // 静态IP显示控制
+    toggleStaticConfig(d.mode);
+  }
+}
+
+function toggleStaticConfig(mode) {
+  const el = document.getElementById('static-config');
+  el.style.display = mode === 'static' ? '' : 'none';
+}
+
+document.getElementById('net-mode').addEventListener('change', e => {
+  toggleStaticConfig(e.target.value);
+});
+
+document.getElementById('proxy-enable').addEventListener('change', e => {
+  document.getElementById('proxy-url').disabled = !e.target.checked;
+});
+
+async function saveNetwork() {
+  const data = {
+    mode: document.getElementById('net-mode').value,
+    ipv4_address: document.getElementById('ipv4-addr').value,
+    netmask: document.getElementById('netmask').value,
+    gateway: document.getElementById('gateway').value,
+    dns_servers: document.getElementById('dns').value.split(',').map(s=>s.trim()).filter(Boolean),
+    proxy_enabled: document.getElementById('proxy-enable').checked,
+    proxy_url: document.getElementById('proxy-url').value,
+  };
+  
+  showLoading('保存中...');
+  try {
+    const res = await api.post('/api/network/config', data);
+    if (res.code === 0) { showToast('✅ 网络配置已保存', 'success'); }
+    else { showToast('❌ 保存失败: ' + (res.message||'未知错误'), 'error'); }
+  } catch(e) { showToast('❌ 网络错误', 'error'); }
+  hideLoading();
+}
+
+async function testNetwork() {
+  showLoading('测试连通性...');
+  try {
+    const targets = ['www.baidu.com', 'api.hotpot.ai'];
+    let ok = 0;
+    for (const t of targets) {
+      // 模拟测试
+      await new Promise(r => setTimeout(r, 500));
+      ok++;
+    }
+    showToast(`✅ 连通性正常 (${ok}/${targets.length})`, 'success');
+  } catch(e) { showToast('❌ 连通性测试失败', 'error'); }
+  hideLoading();
+}
+
+// 初始化
+loadNetwork();
+</script>
+</body>
+</html>

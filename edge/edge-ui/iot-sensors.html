@@ -1,0 +1,222 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>IoT传感器管理 · 火瞳边缘盒子</title>
+  <link rel="stylesheet" href="assets/edge-ui.css">
+</head>
+<body data-page="iot-sensors">
+
+<div class="app-layout">
+  <aside class="sidebar" id="sidebar"></aside>
+  <div class="sidebar-backdrop" id="sidebarBackdrop"></div>
+
+  <main class="main-content">
+    <header class="page-header">
+      <div style="display:flex;align-items:center;gap:12px;">
+        <button class="menu-toggle" id="menuToggle" aria-label="菜单">☰</button>
+        <div>
+          <h1 class="page-title" id="pageTitle"></h1>
+          <p class="page-subtitle" id="pageSubtitle"></p>
+        </div>
+      </div>
+      <div style="display:flex;gap:8px;align-items:center;">
+        <span id="sensorCount" class="badge badge-neutral">0/0 在线</span>
+        <button class="btn btn-primary btn-sm" onclick="openAddSensor()">+ 添加传感器</button>
+      </div>
+    </header>
+
+    <div class="page-body">
+
+      <!-- 传感器表格 -->
+      <div class="card table-responsive mb-lg">
+        <table class="data-table" id="sensorTable">
+          <thead>
+            <tr>
+              <th>名称</th>
+              <th>类型</th>
+              <th>当前值</th>
+              <th>状态</th>
+              <th>阈值</th>
+              <th>操作</th>
+            </tr>
+          </thead>
+          <tbody id="sensorTableBody">
+            <tr><td colspan="6" style="text-align:center;color:var(--text-muted);padding:24px;">加载中...</td></tr>
+          </tbody>
+        </table>
+      </div>
+
+      <!-- 趋势图区域（MVP简化） -->
+      <div class="card" id="trendCard" style="display:none;">
+        <div class="card-header">
+          <span class="card-title">📉 温度趋势（最近24小时）</span>
+        </div>
+        <div class="card-body" id="trendChart" style="height:200px;display:flex;align-items:flex-end;gap:2px;padding:10px 0;">
+          <!-- 简易柱状图 -->
+        </div>
+      </div>
+
+    </div>
+  </main>
+</div>
+
+<script src="assets/api-client.js"></script>
+<script src="assets/components.js"></script>
+<script src="assets/edge-ui.js"></script>
+<script>
+(function() {
+  'use strict';
+
+  const SENSOR_TYPES = [
+    { value: 'temperature', label: '温度', unit: '°C' },
+    { value: 'humidity', label: '湿度', unit: '%RH' },
+    { value: 'gas', label: '燃气浓度', unit: 'ppm' },
+    { value: 'smoke', label: '烟雾浓度', unit: 'ppm' },
+    { value: 'voltage', label: '电压', unit: 'V' },
+  ];
+
+  // ── 渲染表格 ──
+  function renderSensors(data) {
+    const tbody = document.getElementById('sensorTableBody');
+    const countEl = document.getElementById('sensorCount');
+    const sensors = data.sensors || data || [];
+    
+    if (!sensors.length) {
+      tbody.innerHTML = '<tr><td colspan="6"><div class="empty-state"><div class="empty-state-icon">🌡️</div><p class="empty-state-title">暂无传感器</p><p style="color:var(--text-muted);margin-top:8px;">点击右上角添加IoT传感器</p></div></td></tr>';
+      countEl.textContent = '0/0 在线';
+      return;
+    }
+
+    let online = 0;
+    tbody.innerHTML = sensors.map(s => {
+      const typeInfo = SENSOR_TYPES.find(t => t.value === s.sensor_type) || { label: s.sensor_type, unit: '' };
+      const isOnline = s.status === 'online';
+      if (isOnline) online++;
+      
+      return `<tr>
+        <td><strong>${EdgeUI.escHtml(s.name)}</strong><br><small class="font-mono text-muted">${EdgeUI.escHtml(s.id)}</small></td>
+        <td>${typeInfo.label}</td>
+        <td><strong style="font-size:15px;">${s.current_value ?? '--'} ${typeInfo.unit}</strong></td>
+        <td><span class="badge badge-${EdgeUI.statusClass(s.status)}">${EdgeUI.statusLabel(s.status)}</span></td>
+        <td class="font-mono" style="font-size:12px;">&lt; ${s.warn_threshold || '-'} ${typeInfo.unit}</td>
+        <td>
+          <div class="table-actions">
+            <button class="btn btn-sm btn-secondary" onclick="editSensor('${EdgeUI.escHtml(s.id)}')">📝</button>
+            <button class="btn btn-sm btn-ghost" style="color:var(--error)" onclick="deleteSensor('${EdgeUI.escHtml(s.id)}','${EdgeUI.escHtml(s.name)}')">🗑</button>
+          </div>
+        </td>
+      </tr>`;
+    }).join('');
+
+    countEl.textContent = `${online}/${sensors.length} 在线`;
+    countEl.className = `badge ${online === sensors.length ? 'badge-success' : online > 0 ? 'badge-warn' : 'badge-error'}`;
+  }
+
+  // ── 添加/编辑弹窗 ──
+  async function openAddSensor() {
+    await openSensorForm('添加IoT传感器');
+  }
+
+  async function editSensor(id) {
+    try {
+      const sensor = await EdgeAPI.iot.getSensor(id);
+      await openSensorForm('编辑传感器', sensor);
+    } catch (err) {
+      EdgeUI.toast(err.message, 'error');
+    }
+  }
+
+  function openSensorForm(title, initialData = {}) {
+    const typeOptions = SENSOR_TYPES.map(t =>
+      `<option value="${t.value}" ${(initialData.sensor_type === t.value) ? 'selected' : ''}>${t.label} (${t.unit})</option>`
+    ).join('');
+
+    return EdgeUI.formModal({
+      title,
+      initialData,
+      htmlBody: `
+        <div class="form-group">
+          <label class="form-label">传感器名称 <span style="color:var(--error)">*</span></label>
+          <input type="text" name="name" placeholder="如 一号冷库" required value="">
+        </div>
+        <div class="form-group">
+          <label class="form-label">设备ID <span style="color:var(--error)">*</span></label>
+          <input type="text" name="id" pattern="[a-z0-9_]+" placeholder="如 cold_storage_1" required value="" ${initialData.id ? 'readonly style="opacity:0.6"' : ''}>
+        </div>
+        <div class="form-group">
+          <label class="form-label">传感器类型</label>
+          <select name="sensor_type">${typeOptions}</select>
+        </div>
+        <div style="display:grid;grid-template-columns:1fr 1fr;gap:12px;">
+          <div class="form-group" style="margin-bottom:0;">
+            <label class="form-label">警告阈值</label>
+            <input type="number" name="warn_threshold" step="any" placeholder="-15" value="${initialData.warn_threshold || ''}">
+          </div>
+          <div class="form-group" style="margin-bottom:0;">
+            <label class="form-label">危险阈值</label>
+            <input type="number" name="danger_threshold" step="any" placeholder="-10" value="${initialData.danger_threshold || ''}">
+          </div>
+        </div>
+        <div class="form-group">
+          <label class="toggle-wrapper" style="cursor:pointer;">
+            <input type="checkbox" name="enabled" ${initialData.enabled !== false ? 'checked' : ''} class="toggle">
+            <span>启用此传感器</span>
+          </label>
+        </div>
+      `,
+      onConfirm: async (data) => {
+        data.enabled = data.enabled === 'on';
+        if (initialData.id) {
+          return await EdgeAPI.iot.update(initialData.id, data);
+        } else {
+          return await EdgeAPI.iot.create(data);
+        }
+      }
+    });
+  }
+
+  // ── 删除 ──
+  async function deleteSensor(id, name) {
+    const ok = await EdgeUI.confirm({
+      title: '删除确认',
+      message: `确定要删除传感器 <strong>${name}</strong> 吗？`,
+      confirmText: '删除',
+      confirmType: 'danger'
+    });
+    if (!ok) return;
+
+    try {
+      await EdgeAPI.iot.delete(id);
+      EdgeUI.toast('已删除', 'success');
+      loadSensors();
+    } catch (err) {
+      EdgeUI.toast(err.message, 'error');
+    }
+  }
+
+  // ── 加载 ──
+  async function loadSensors() {
+    try {
+      const data = await EdgeAPI.iot.sensors();
+      renderSensors(data.sensors || data);
+    } catch (err) {
+      document.getElementById('sensorTableBody').innerHTML =
+        `<tr><td colspan="6" style="color:var(--error);padding:24px;text-align:center;">加载失败: ${err.message}</td></tr>`;
+    }
+  }
+
+  loadSensors();
+
+  // 定时刷新读数
+  EdgeUI.startPolling('iot-sensors', loadSensors, 10000);
+
+  window.openAddSensor = openAddSensor;
+  window.editSensor = editSensor;
+  window.deleteSensor = deleteSensor;
+
+})();
+</script>
+</body>
+</html>

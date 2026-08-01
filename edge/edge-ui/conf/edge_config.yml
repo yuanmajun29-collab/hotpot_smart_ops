@@ -1,0 +1,148 @@
+# 火瞳边缘盒子 · 统一网关配置
+# 版本: 1.0 | 对齐: WebUI架构设计v1.0 + 详细架构v1.1
+# 路径: /opt/hotpot-smart-ops/conf/edge_config.yml
+
+# ══════════════════════════════════════
+# ① 设备基本信息
+# ══════════════════════════════════════
+device:
+  device_id: "edge-jiaojiang-001"
+  device_name: "椒江店-01号盒"
+  store_id: "store_jiaojiang"
+  store_name: "冯校长火锅(椒江店)"
+  region: "浙江省台州市椒江区"
+  firmware_version: "1.0.0"
+  initialized: true
+  initialized_at: "2026-07-31T22:00:00+08:00"
+  timezone: "Asia/Shanghai"
+
+# ══════════════════════════════════════
+# ② 南向配置 - IPC摄像头接入
+# ══════════════════════════════════════
+southbound:
+  # 全局取帧器配置
+  grabber:
+    mode: "auto"            # auto | rtsp | http | mock
+    buffer_size: 2          # 帧队列深度
+    reconnect_interval_s: 5 # 断线重连间隔
+    max_retries: 3          # 最大重试次数
+
+  # 摄像头列表（支持多机位）
+  cameras:
+    - id: "cam_a1_main"
+      name: "Camera 01 (海康NVR)"
+      vendor: "HIKVISION"
+      ip: "192.168.6.21"
+      port: 554
+      zone: "前厅核心点位(俯拍全厅)"
+      priority: "critical"       # critical | high | normal | low
+
+      # 认证信息
+      credentials:
+        username: "admin"
+        password: "hy898989"     # 生产环境建议加密存储
+        auth_type: "digest"      # digest | basic | none
+
+      # RTSP拉流配置
+      rtsp:
+        enabled: false           # 当前NVR的RTSP不可用(554端口异常)
+        url: "rtsp://admin:hy898989@192.168.6.21:554/Streaming/Channels/101"
+        channels:
+          main: 101              # 主码流 Ch101-103
+          sub: 201               # 子码流 Ch201-202
+
+      # HTTP抓拍配置 (当前主用方案 ✅)
+      http_snapshot:
+        enabled: true
+        base_url: "http://192.168.6.21"
+        paths:
+          main: "/ISAPI/Streaming/channels/101/picture"
+          sub: "/ISAPI/Streaming/channels/201/picture"
+        avg_latency_ms: 170      # 实测值
+
+      # 运行状态（运行时自动更新，不要手动编辑）
+      _runtime:
+        status: "online"         # online | offline | error
+        current_mode: "http"     # rtsp | http | mock
+        last_frame_time: ""
+        total_frames: 0
+        errors: 0
+
+    # - id: "cam_a2_kitchen"
+    #   name: "后厨摄像头"
+    #   vendor: "HIKVISION"
+    #   ip: "192.168.6.xx"
+    #   ... (第二机位，待部署)
+
+# ══════════════════════════════════════
+# ③ 北向配置 - 云端平台接入
+# ══════════════════════════════════════
+northbound:
+  # 平台连接配置
+  hub:
+    url: "http://43.139.143.12:8098"    # 腾讯云平台端
+    api_key: ""                          # API Key（留空则使用用户名密码登录）
+    store_id: "store_jiaojiang"
+    device_id: "edge-jiaojiang-001"
+
+  # 认证配置（二选一）
+  auth:
+    mode: "jwt"                          # jwt (用户名密码) | api_key
+    username: "zhangdian"
+    password: "demo"
+    role: "店长"
+
+  # 心跳保活配置
+  heartbeat:
+    enabled: true
+    interval_seconds: 30                 # 心跳间隔
+    timeout_seconds: 10                  # 单次超时
+    max_missed: 3                        # 连续失败N次判定离线
+    retry_interval_seconds: 5            # 失败后重试间隔
+
+  # 数据上报配置
+  reporting:
+    batch_size: 10                       # 批量上报条数
+    flush_interval_seconds: 60           # 定时刷新间隔
+    compression: true                    # 启用压缩
+
+  # 运行状态（运行时自动更新，不要手动编辑）
+  _runtime:
+    login_status: "disconnected"         # connected | disconnected | error
+    token: ""
+    token_expires_at: ""
+    last_heartbeat_success: ""
+    last_heartbeat_error: ""
+    heartbeat_success_count: 0
+    heartbeat_fail_count: 0
+    consecutive_failures: 0
+    queue_depth: 0
+    queue_flushed_total: 0
+
+# ══════════════════════════════════════
+# ④ 本地服务配置
+# ══════════════════════════════════════
+services:
+  edge_ui:
+    port: 9080
+    access_password: ""                 # 空=无需密码
+    session_timeout_minutes: 30
+    refresh_interval_seconds: 5
+    allow_remote_access: false
+
+  edge_agent:
+    port: 9100
+    dev_mode: false                     # 开发模式自动激活所有模块
+
+  demo_web:
+    port: 8080
+
+# ══════════════════════════════════════
+# ⑤ 日志与诊断
+# ══════════════════════════════════════
+logging:
+  level: "INFO"                         # DEBUG | INFO | WARN | ERROR
+  file: "/var/log/hotpot/edge-ui.log"
+  max_size_mb: 50
+  backup_count: 3
+  audit_log: "/var/log/hotpot/ui_audit.log"
