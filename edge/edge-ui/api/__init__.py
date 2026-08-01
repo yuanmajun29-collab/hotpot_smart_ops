@@ -45,4 +45,8 @@ def register_routes(app):
     from api.product_master_api import router as product_router
     app.include_router(product_router, prefix="/api/v1", tags=["货品主数据"])
 
-    print("[Edge UI] API路由注册完成: /api/v1/* (9个模块, 含货品主数据)")
+    # === 收货质检 (D1-S02 · 2026-08-01) ===
+    from api.receiving_api import router as receiving_router
+    app.include_router(receiving_router, prefix="/api/v1", tags=["收货质检"])
+
+    print("[Edge UI] API路由注册完成: /api/v1/* (10个模块, 含收货质检)")

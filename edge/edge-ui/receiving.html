@@ -1,0 +1,244 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>收货质检 — 火瞳 Edge UI</title>
+    <link rel="stylesheet" href="/assets/edge-ui.css">
+    <style>
+        .page-header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 20px; }
+        .page-title { font-size: 24px; font-weight: 600; color: #1a1a2e; }
+        .stats-row { display: grid; grid-template-columns: repeat(5, 1fr); gap: 16px; margin-bottom: 20px; }
+        .stat-card { background: #fff; border-radius: 8px; padding: 16px; box-shadow: 0 1px 3px rgba(0,0,0,0.1); border-left: 4px solid #e94560; }
+        .stat-card.stat-blue { border-left-color: #2196F3; }
+        .stat-card.stat-green { border-left-color: #4CAF50; }
+        .stat-card.stat-orange { border-left-color: #FF9800; }
+        .stat-card.stat-red { border-left-color: #f44336; }
+        .stat-value { font-size: 28px; font-weight: 700; color: #1a1a2e; }
+        .stat-label { font-size: 13px; color: #666; margin-top: 4px; }
+
+        .toolbar { display: flex; gap: 12px; margin-bottom: 16px; flex-wrap: wrap; align-items: center; }
+        .search-box { flex: 1; min-width: 200px; position: relative; }
+        .search-box input { width: 100%; padding: 10px 14px 10px 38px; border: 1px solid #ddd; border-radius: 6px; font-size: 14px; outline: none; }
+        .search-box input:focus { border-color: #e94560; }
+        .search-icon { position: absolute; left: 12px; top: 50%; transform: translateY(-50%); font-size: 14px; color: #999; }
+        select { padding: 10px 32px 10px 12px; border: 1px solid #ddd; border-radius: 6px; font-size: 14px; background: #fff; cursor: pointer; outline: none; }
+        .btn { display: inline-flex; align-items: center; gap: 6px; padding: 10px 18px; border: none; border-radius: 6px; font-size: 14px; cursor: pointer; transition: all 0.2s; font-weight: 500; }
+        .btn-primary { background: #e94560; color: #fff; }
+        .btn-primary:hover { background: #d63851; }
+        .btn-secondary { background: #f0f0f5; color: #333; }
+        .btn-success { background: #28a745; color: #fff; }
+        .btn-warning { background: #ffc107; color: #333; }
+
+        .data-table { width: 100%; border-collapse: collapse; background: #fff; border-radius: 8px; overflow: hidden; box-shadow: 0 1px 3px rgba(0,0,0,0.1); }
+        .data-table th { background: #f8f9fa; padding: 12px 14px; text-align: left; font-size: 13px; color: #555; font-weight: 600; border-bottom: 2px solid #eee; white-space: nowrap; }
+        .data-table td { padding: 12px 14px; font-size: 14px; border-bottom: 1px solid #f0f0f0; vertical-align: middle; }
+        .data-table tr:hover { background: #fafbfc; }
+        .record-id { font-family: monospace; background: #f0f0f5; padding: 2px 8px; border-radius: 4px; font-size: 13px; color: #e94560; font-weight: 600; cursor: pointer; }
+        .record-id:hover { background: #e94560; color: #fff; }
+
+        /* 状态徽章 */
+        .status-badge { display: inline-block; padding: 3px 10px; border-radius: 12px; font-size: 12px; font-weight: 500; }
+        .status-draft { background: #fff3cd; color: #856404; }
+        .status-pending { background: #cce5ff; color: #004085; }
+        .status-inspecting { background: #e2e3e5; color: #383d41; animation: pulse 1.5s infinite; }
+        .status-pending_approval { background: #ffeeba; color: #856404; }
+        .status-approved { background: #d4edda; color: #155724; }
+        .status-partial { background: #fff3cd; color: #856404; }
+        .status-rejected { background: #f8d7da; color: #721c24; }
+
+        @keyframes pulse { 0%, 100% { opacity: 1; } 50% { opacity: 0.6; } }
+
+        /* 品质等级 */
+        .grade-badge { display: inline-block; width: 24px; height: 24px; line-height: 24px; text-align: center; border-radius: 50%; font-size: 12px; font-weight: 700; }
+        .grade-A { background: #d4edda; color: #155724; }
+        .grade-B { background: #cce5ff; color: #004085; }
+        .grade-C { background: #fff3cd; color: #856404; }
+        .grade-D { background: #f8d7da; color: #721c24; }
+
+        .supplier-name { font-weight: 600; color: #333; }
+        .item-count { color: #666; font-size: 13px; }
+        .time-ago { color: #999; font-size: 12px; }
+
+        .pagination { display: flex; justify-content: space-between; align-items: center; margin-top: 16px; }
+        .pagination-info { font-size: 13px; color: #666; }
+        .page-btn { padding: 6px 12px; border: 1px solid #ddd; background: #fff; border-radius: 4px; cursor: pointer; font-size: 13px; margin: 0 2px; }
+        .page-btn.active { background: #e94560; color: #fff; border-color: #e94560; }
+        .page-btn:disabled { opacity: 0.5; cursor: not-allowed; }
+
+        .empty-state { text-align: center; padding: 60px 20px; color: #999; }
+        .empty-state .icon { font-size: 48px; margin-bottom: 12px; }
+
+        /* 新建收货弹窗 */
+        .modal-overlay { display: none; position: fixed; top: 0; left: 0; right: 0; bottom: 0; background: rgba(0,0,0,0.5); z-index: 1000; justify-content: center; align-items: center; }
+        .modal-overlay.show { display: flex; }
+        .modal { background: #fff; border-radius: 12px; width: 95%; max-width: 700px; max-height: 85vh; overflow-y: auto; padding: 24px; }
+        .modal-header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 20px; border-bottom: 1px solid #eee; padding-bottom: 12px; }
+        .modal-title { font-size: 18px; font-weight: 600; }
+        .close-btn { font-size: 24px; cursor: pointer; color: #999; line-height: 1; background: none; border: none; }
+        .form-group { margin-bottom: 16px; }
+        .form-group label { display: block; font-size: 13px; font-weight: 600; color: #333; margin-bottom: 6px; }
+        .form-group label .required { color: #e94560; }
+        .form-group input, .form-group select { width: 100%; padding: 10px 12px; border: 1px solid #ddd; border-radius: 6px; font-size: 14px; outline: none; box-sizing: border-box; }
+        .form-group input:focus { border-color: #e94560; }
+        .form-row { display: grid; grid-template-columns: 1fr 1fr; gap: 16px; }
+        .modal-footer { display: flex; justify-content: flex-end; gap: 12px; margin-top: 20px; padding-top: 16px; border-top: 1px solid #eee; }
+
+        /* 品项编辑区 */
+        .items-section { border: 1px solid #eee; border-radius: 8px; padding: 16px; margin-top: 12px; }
+        .items-header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 12px; }
+        .item-row { display: grid; grid-template-columns: 120px 1fr 80px 80px 80px 36px; gap: 8px; align-items: center; margin-bottom: 8px; padding: 8px; background: #fafbfc; border-radius: 6px; }
+        .item-row input, .item-row select { padding: 8px 10px; border: 1px solid #ddd; border-radius: 4px; font-size: 13px; }
+        .remove-item-btn { background: #f44336; color: #fff; border: none; border-radius: 4px; width: 28px; height: 28px; cursor: pointer; font-size: 16px; line-height: 1; }
+
+        @media (max-width: 768px) {
+            .stats-row { grid-template-columns: repeat(2, 1fr); }
+            .form-row { grid-template-columns: 1fr; }
+            .item-row { grid-template-columns: 1fr 1fr; }
+            .toolbar { flex-direction: column; align-items: stretch; }
+        }
+    </style>
+</head>
+<body>
+    <div class="app-container">
+        <!-- 顶部导航 -->
+        <nav class="top-nav">
+            <div class="nav-brand">🔥 火瞳 Edge UI</div>
+            <div class="nav-links">
+                <a href="/index.html">首页</a>
+                <a href="/products.html">货品主数据</a>
+                <a href="/receiving.html" class="active">收货质检</a>
+                <a href="/cameras.html">摄像头</a>
+                <a href="/system.html">系统</a>
+                <span id="user-indicator" style="color:#888;font-size:13px;"></span>
+            </div>
+        </nav>
+
+        <!-- 页面标题 -->
+        <div class="page-header">
+            <h1 class="page-title">📋 收货质检</h1>
+            <div style="display:flex;gap:8px;">
+                <button class="btn btn-secondary btn-sm" onclick="loadDemoData()">🎭 加载Demo数据</button>
+                <button class="btn btn-primary" onclick="showCreateModal()">+ 新建收货</button>
+            </div>
+        </div>
+
+        <!-- 统计卡片 -->
+        <div class="stats-row" id="stats-row">
+            <div class="stat-card stat-blue">
+                <div class="stat-value" id="stat-today">0</div>
+                <div class="stat-label">今日收货</div>
+            </div>
+            <div class="stat-card stat-green">
+                <div class="stat-value" id="stat-passed">0</div>
+                <div class="stat-label">已通过</div>
+            </div>
+            <div class="stat-card stat-orange">
+                <div class="stat-value" id="stat-partial">0</div>
+                <div class="stat-label">部分通过</div>
+            </div>
+            <div class="stat-card stat-red">
+                <div class="stat-value" id="stat-rejected">0</div>
+                <div class="stat-label">已拒收</div>
+            </div>
+            <div class="stat-card">
+                <div class="stat-value" id="stat-rate">0%</div>
+                <div class="stat-label">通过率</div>
+            </div>
+        </div>
+
+        <!-- 工具栏 -->
+        <div class="toolbar">
+            <div class="search-box">
+                <span class="search-icon">🔍</span>
+                <input type="text" id="search-input" placeholder="搜索供应商名称..." oninput="onSearch()">
+            </div>
+            <select id="filter-status" onchange="loadRecords()">
+                <option value="">全部状态</option>
+                <option value="draft">草稿</option>
+                <option value="pending">待质检</option>
+                <option value="inspecting">质检中</option>
+                <option value="pending_approval">待审批</option>
+                <option value="approved">已通过</option>
+                <option value="partial">部分通过</option>
+                <option value="rejected">已拒收</option>
+            </select>
+        </div>
+
+        <!-- 数据表格 -->
+        <table class="data-table" id="records-table">
+            <thead>
+                <tr>
+                    <th>收货单号</th>
+                    <th>供应商</th>
+                    <th>收货人</th>
+                    <th>品项数</th>
+                    <th>状态</th>
+                    <th>品质</th>
+                    <th>时间</th>
+                    <th>操作</th>
+                </tr>
+            </thead>
+            <tbody id="records-tbody">
+                <tr><td colspan="8" class="empty-state"><div class="icon">📦</div>暂无收货记录<br><button class="btn btn-primary btn-sm" style="margin-top:12px;" onclick="showCreateModal()">新建收货单</button></td></tr>
+            </tbody>
+        </table>
+
+        <!-- 分页 -->
+        <div class="pagination">
+            <div class="pagination-info" id="pagination-info">共 0 条记录</div>
+            <div class="pagination-btns" id="pagination-btns"></div>
+        </div>
+    </div>
+
+    <!-- 新建收货弹窗 -->
+    <div class="modal-overlay" id="create-modal">
+        <div class="modal">
+            <div class="modal-header">
+                <h2 class="modal-title">📦 新建收货单</h2>
+                <button class="close-btn" onclick="hideCreateModal()">&times;</button>
+            </div>
+            <form id="create-form" onsubmit="return false;">
+                <div class="form-row">
+                    <div class="form-group">
+                        <label>供应商名称 <span class="required">*</span></label>
+                        <input type="text" id="frm-supplier" placeholder="如：杭州冻品供应链" required>
+                    </div>
+                    <div class="form-group">
+                        <label>采购单号</label>
+                        <input type="text" id="frm-po" placeholder="可选，如 PO-20260801-001">
+                    </div>
+                </div>
+                <div class="form-row">
+                    <div class="form-group">
+                        <label>收货人 <span class="required">*</span></label>
+                        <input type="text" id="frm-receiver" placeholder="收货员姓名" required>
+                    </div>
+                    <div class="form-group">
+                        <label>备注</label>
+                        <input type="text" id="frm-notes" placeholder="可选备注信息">
+                    </div>
+                </div>
+
+                <!-- 收货品项 -->
+                <div class="items-section">
+                    <div class="items-header">
+                        <strong>📝 收货品项</strong>
+                        <button type="button" class="btn btn-secondary btn-sm" onclick="addItemRow()">+ 添加品项</button>
+                    </div>
+                    <div id="items-container">
+                        <!-- 品行动态生成 -->
+                    </div>
+                </div>
+
+                <div class="modal-footer">
+                    <button type="button" class="btn btn-secondary" onclick="hideCreateModal()">取消</button>
+                    <button type="submit" class="btn btn-primary" onclick="submitReceiving()">提交收货单</button>
+                </div>
+            </form>
+        </div>
+    </div>
+
+    <script src="/assets/receiving.js"></script>
+</body>
+</html>

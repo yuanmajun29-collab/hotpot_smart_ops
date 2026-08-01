@@ -481,6 +481,10 @@ class SupplyChainManager:
     _category_cache: List[ProductCategory] = []
     _change_requests: List[ChangeRequest] = []
     _substitutes: List[TemporarySubstitute] = []
+
+    # ── S02: 收货质检缓存 (D1-S02 · 2026-08-01) ──
+    _receiving_cache: Dict[str, ReceivingRecord] = {}  # record_id → ReceivingRecord
+    _receiving_counter: int = 0  # 自增计数器用于生成record_id
     _data_file: Optional[str] = None  # JSON 持久化路径
 
     @classmethod
@@ -523,7 +527,13 @@ class SupplyChainManager:
                 cls._change_requests = [
                     ChangeRequest(**r) for r in data.get("change_requests", [])
                 ]
-                logger.info("从 JSON 加载货品数据: %d 个产品", len(cls._product_cache))
+                # S02: 加载收货数据
+                cls._receiving_cache = {
+                    k: ReceivingRecord(**v) for k, v in data.get("receiving_records", {}).items()
+                }
+                cls._receiving_counter = data.get("receiving_counter", 0)
+                logger.info("从 JSON 加载货品数据: %d 个产品, %d 条收货记录",
+                            len(cls._product_cache), len(cls._receiving_cache))
             except Exception as e:
                 logger.error("加载 JSON 数据失败: %s", e)
 
@@ -537,6 +547,9 @@ class SupplyChainManager:
                     "products": {k: v.model_dump() for k, v in cls._product_cache.items()},
                     "categories": [c.model_dump() for c in cls._category_cache],
                     "change_requests": [r.model_dump() for r in cls._change_requests],
+                    # S02: 保存收货数据
+                    "receiving_records": {k: v.model_dump() for k, v in cls._receiving_cache.items()},
+                    "receiving_counter": cls._receiving_counter,
                 }
                 with open(cls._data_file, "w", encoding="utf-8") as f:
                     json.dump(data, f, ensure_ascii=False, indent=2, default=str)
@@ -1003,3 +1016,653 @@ class SupplyChainManager:
         cls._save_to_json()
         logger.info("种子数据加载完成: %d 个货品", len(seed_products))
         return len(seed_products)
+
+    # ================================================================
+    # S02: 收货质检 (VLM + 潘厨审批) · D1-S02 · 2026-08-01
+    # ================================================================
+
+    @classmethod
+    def _generate_record_id(cls) -> str:
+        """生成收货记录ID: RC-YYYYMMDD-XXXX"""
+        cls._receiving_counter += 1
+        date_str = datetime.now().strftime("%Y%m%d")
+        return f"RC-{date_str}-{cls._receiving_counter:04d}"
+
+    @classmethod
+    def create_receiving_record(
+        cls,
+        supplier_name: str,
+        receiver: str,
+        items: List[Dict[str, Any]],
+        po_number: str = None,
+        notes: str = None,
+    ) -> Dict[str, Any]:
+        """
+        创建收货记录 (D1-S02)。
+
+        业务规则:
+          BR-01: 校验SKU有效性
+          BR-02: 计算短重率
+          BR-03: 自动标记异常品项
+        """
+        receiving_items = []
+        variance_summary = {}
+
+        for item_data in items:
+            sku = item_data.get("sku", "").strip().upper()
+            # BR-01: SKU必须存在且active
+            product = cls._product_cache.get(sku)
+            if not product:
+                raise ValueError(f"SKU不存在或未激活: {sku}")
+            if product.status != "active":
+                raise ValueError(f"SKU未激活: {sku} (status={product.status})")
+
+            ordered_qty = float(item_data.get("ordered_qty", 0))
+            received_qty = float(item_data.get("received_qty", 0))
+            if received_qty <= 0:
+                raise ValueError(f"实收量必须大于0: {sku}")
+
+            # BR-04: 计算短重率
+            variance_pct = 0.0
+            if ordered_qty > 0:
+                variance_pct = round((ordered_qty - received_qty) / ordered_qty * 100, 2)
+
+            status_flag = "normal"
+            if abs(variance_pct) > 15:
+                status_flag = "alert"  # BR-05
+
+            receiving_item = ReceivingItem(
+                sku=sku,
+                sku_name=product.name,
+                ordered_qty=ordered_qty,
+                received_qty=received_qty,
+                unit=item_data.get("unit", "kg"),
+                batch_id=item_data.get("batch_id"),
+                production_date=item_data.get("production_date"),
+                expiry_date=item_data.get("expiry_date"),
+                temperature_on_arrival=item_data.get("temperature_on_arrival"),
+            )
+            receiving_items.append(receiving_item)
+            variance_summary[sku] = {"variance_pct": variance_pct, "status": status_flag}
+
+        record_id = cls._generate_record_id()
+        record = ReceivingRecord(
+            record_id=record_id,
+            store_id="store-jiaojiang",
+            supplier_name=supplier_name,
+            po_number=po_number,
+            received_at=datetime.now(),
+            receiver=receiver,
+            items=receiving_items,
+            status="draft",
+            notes=notes,
+        )
+
+        cls._receiving_cache[record_id] = record
+        cls._save_to_json()
+
+        logger.info("创建收货记录: %s, 供应商=%s, 品项数=%d",
+                    record_id, supplier_name, len(receiving_items))
+
+        return {
+            "record": record.model_dump(),
+            "variance_summary": variance_summary,
+            "next_action": "submit_for_inspection",
+        }
+
+    @classmethod
+    def get_receiving_list(
+        cls,
+        page: int = 1,
+        page_size: int = 20,
+        status: str = None,
+        supplier_name: str = None,
+    ) -> Dict[str, Any]:
+        """获取收货记录列表（分页+筛选）。"""
+        records = list(cls._receiving_cache.values())
+
+        # 筛选
+        if status:
+            records = [r for r in records if r.status == status]
+        if supplier_name:
+            records = [r for r in records if supplier_name in r.supplier_name]
+
+        # 按时间倒序
+        records.sort(key=lambda r: r.received_at or datetime.min, reverse=True)
+
+        # 分页
+        total = len(records)
+        start = (page - 1) * page_size
+        end = start + page_size
+        paged_records = records[start:end]
+
+        return {
+            "total": total,
+            "page": page,
+            "page_size": page_size,
+            "items": [r.model_dump() for r in paged_records],
+        }
+
+    @classmethod
+    def get_receiving_detail(cls, record_id: str) -> Dict[str, Any]:
+        """获取收货记录详情。"""
+        record = cls._receiving_cache.get(record_id)
+        if not record:
+            raise ValueError(f"收货记录不存在: {record_id}")
+        return record.model_dump()
+
+    @classmethod
+    def update_receiving_record(
+        cls, record_id: str, update_data: Dict[str, Any]
+    ) -> Dict[str, Any]:
+        """更新收货记录（仅draft状态可编辑）。"""
+        record = cls._receiving_cache.get(record_id)
+        if not record:
+            raise ValueError(f"收货记录不存在: {record_id}")
+        if record.status != "draft":
+            raise ValueError(f"当前状态不允许编辑: {record.status}")
+
+        # 允许更新的字段
+        allowed_fields = {"supplier_name", "receiver", "po_number", "notes"}
+        for field, value in update_data.items():
+            if field in allowed_fields and value is not None:
+                setattr(record, field, value)
+
+        # 更新品项
+        if "items" in update_data:
+            new_items = []
+            for item_data in update_data["items"]:
+                sku = item_data.get("sku", "").strip().upper()
+                product = cls._product_cache.get(sku)
+                if product:
+                    new_items.append(ReceivingItem(
+                        sku=sku,
+                        sku_name=product.name,
+                        ordered_qty=float(item_data.get("ordered_qty", 0)),
+                        received_qty=float(item_data.get("received_qty", 0)),
+                        unit=item_data.get("unit", "kg"),
+                        batch_id=item_data.get("batch_id"),
+                    ))
+            if new_items:
+                record.items = new_items
+
+        cls._save_to_json()
+        return record.model_dump()
+
+    @classmethod
+    def submit_for_inspection(cls, record_id: str) -> Dict[str, Any]:
+        """
+        提交收货单进入质检流程。
+
+        状态流转: draft → pending → inspecting (如果有照片则自动触发VLM)
+        """
+        record = cls._receiving_cache.get(record_id)
+        if not record:
+            raise ValueError(f"收货记录不存在: {record_id}")
+        if record.status != "draft":
+            raise ValueError(f"只有草稿状态可以提交: 当前{record.status}")
+        if not record.items:
+            raise ValueError("没有收货品项，无法提交")
+
+        record.status = "pending"
+
+        # AUTO-001: 如果有照片，自动进入inspecting状态
+        if record.photos:
+            record.status = "inspecting"
+
+        cls._save_to_json()
+        logger.info("提交收货质检: %s → %s", record_id, record.status)
+        return {
+            "record_id": record_id,
+            "status": record.status,
+            "message": "已提交质检" + ("，正在执行VLM分析..." if record.photos else ""),
+        }
+
+    @classmethod
+    def add_photo(cls, record_id: str, photo_url: str, photo_type: str = "overview") -> Dict[str, Any]:
+        """上传/添加收货照片。"""
+        record = cls._receiving_cache.get(record_id)
+        if not record:
+            raise ValueError(f"收货记录不存在: {record_id}")
+
+        photo_entry = f"{photo_type}:{photo_url}"
+        if photo_entry not in record.photos:
+            record.photos.append(photo_entry)
+
+        cls._save_to_json()
+        return {"record_id": record_id, "photo_count": len(record.photos), "photos": record.photos}
+
+    @classmethod
+    def run_vlm_inspection(cls, record_id: str, use_mock: bool = True) -> Dict[str, Any]:
+        """
+        执行VLM视觉质检。
+
+        当VLM Bridge未部署时，使用Mock模式基于规则生成质检结果。
+        """
+        import time
+
+        record = cls._receiving_cache.get(record_id)
+        if not record:
+            raise ValueError(f"收货记录不存在: {record_id}")
+        if record.status not in ("pending", "inspecting"):
+            raise ValueError(f"当前状态不允许执行质检: {record.status}")
+
+        record.status = "inspecting"
+        quality_results = []
+
+        for item in record.items:
+            if use_mock:
+                result = cls._mock_vlm_quality_check(item)
+            else:
+                # TODO: 调用真实 VLM Bridge API
+                result = cls._mock_vlm_quality_check(item)  # 暂时仍用Mock
+
+            result.inspected_at = datetime.now()
+            quality_results.append(result)
+
+        record.quality_results = quality_results
+
+        # 计算整体是否通过
+        record.total_passed = all(r.passed for r in quality_results) if quality_results else True
+
+        # AUTO-002: 分析完成 → 待审批
+        record.status = "pending_approval"
+
+        cls._save_to_json()
+        logger.info("VLM质检完成: %s, 结果=%d项, 整体通过=%s",
+                    record_id, len(quality_results), record.total_passed)
+
+        return {
+            "record_id": record_id,
+            "status": record.status,
+            "total_passed": record.total_passed,
+            "quality_count": len(quality_results),
+            "quality_results": [r.model_dump() for r in quality_results],
+        }
+
+    @classmethod
+    def _mock_vlm_quality_check(cls, item: ReceivingItem) -> QualityCheckResult:
+        """
+        Mock VLM质检（展会Demo用）。
+
+        基于规则模拟VLM分析结果:
+          - 短重>15% 或 温度>-8°C → D级(拒收)
+          - 短重7-15% 或 温度>-12°C → C级(合格需关注)
+          - 短重3-7% → B级(良好)
+          - 其他 → A级(优秀)
+        """
+        variance = 0.0
+        if item.ordered_qty > 0:
+            variance = abs((item.ordered_qty - item.received_qty) / item.ordered_qty * 100)
+
+        temp = item.temperature_on_arrival or -18.0
+        defects = []
+
+        # 温度检查 (BR-10)
+        temp_ok = temp <= -12.0
+        if not temp_ok:
+            defects.append(f"到货温度{temp}°C超标(应≤-12°C)")
+
+        # 短重分级
+        if variance > 15 or temp > -8:
+            grade = "D"
+            passed = False
+            if variance > 15:
+                defects.append(f"短重{variance:.1f}%超阈值(>15%)")
+            if not defects:
+                defects.append("品质严重不达标")
+            rejection_reason = "; ".join(defects)
+        elif variance > 7 or (temp > -12 and temp <= -8):
+            grade = "C"
+            passed = True
+            defects.append("轻微异常需关注")
+            rejection_reason = None
+        elif variance > 3:
+            grade = "B"
+            passed = True
+            rejection_reason = None
+        else:
+            grade = "A"
+            passed = True
+            rejection_reason = None
+
+        return QualityCheckResult(
+            sku=item.sku,
+            passed=passed,
+            grade=grade,
+            weight_variance_pct=round(variance, 2) if item.ordered_qty > 0 else None,
+            temperature_ok=temp_ok,
+            visual_defects=defects,
+            vlm_analysis={"mock": True, "confidence": 0.85 + (0.1 if grade == "A" else 0)},
+            rejection_reason=rejection_reason,
+        )
+
+    @classmethod
+    def approve_receiving(cls, record_id: str, approver: str, notes: str = None) -> Dict[str, Any]:
+        """
+        潘厨审批：全部通过。
+
+        BR-07: 有grade=D的品项时不允许全部通过。
+        """
+        record = cls._receiving_cache.get(record_id)
+        if not record:
+            raise ValueError(f"收货记录不存在: {record_id}")
+        if record.status != "pending_approval":
+            raise ValueError(f"当前状态不允许审批: {record.status}")
+
+        # BR-07: D级阻断
+        for qr in record.quality_results:
+            if qr.grade == "D":
+                raise ValueError(
+                    f"存在D级品项({qr.sku})，不允许全部通过。请使用'部分通过'或'拒收'"
+                )
+
+        record.status = "approved"
+        record.approved_by = approver
+        record.approved_at = datetime.now()
+        if notes:
+            record.notes = (record.notes or "") + f"\n[审批意见] {notes}"
+
+        cls._save_to_json()
+        logger.info("收货审批通过: %s, 审批人=%s", record_id, approver)
+        return record.model_dump()
+
+    @classmethod
+    def partial_approve(cls, record_id: str, approver: str, notes: str = None) -> Dict[str, Any]:
+        """潘厨审批：部分通过（部分品项拒收）。"""
+        record = cls._receiving_cache.get(record_id)
+        if not record:
+            raise ValueError(f"收货记录不存在: {record_id}")
+        if record.status != "pending_approval":
+            raise ValueError(f"当前状态不允许审批: {record.status}")
+
+        record.status = "partial"
+        record.total_passed = False
+        record.approved_by = approver
+        record.approved_at = datetime.now()
+        if notes:
+            record.notes = (record.notes or "") + f"\n[部分通过] {notes}"
+        else:
+            record.notes = (record.notes or "") + "\n[部分通过] 部分品项存在品质问题"
+
+        cls._save_to_json()
+        logger.info("收货部分通过: %s, 审批人=%s", record_id, approver)
+        return record.model_dump()
+
+    @classmethod
+    def reject_receiving(cls, record_id: str, approver: str, reason: str) -> Dict[str, Any]:
+        """
+        潘厨审批：整批拒收。
+
+        必须提供拒收原因。
+        """
+        record = cls._receiving_cache.get(record_id)
+        if not record:
+            raise ValueError(f"收货记录不存在: {record_id}")
+        if record.status != "pending_approval":
+            raise ValueError(f"当前状态不允许审批: {record.status}")
+        if not reason or not reason.strip():
+            raise ValueError("拒收必须填写原因")
+
+        record.status = "rejected"
+        record.total_passed = False
+        record.approved_by = approver
+        record.approved_at = datetime.now()
+        record.notes = (record.notes or "") + f"\n[拒收] {reason}"
+
+        # 标记所有质检结果为未通过
+        for qr in record.quality_results:
+            if qr.passed:
+                qr.passed = False
+
+        cls._save_to_json()
+        logger.info("收货拒收: %s, 审批人=%s, 原因=%s", record_id, approver, reason)
+        return record.model_dump()
+
+    @classmethod
+    def return_for_revision(cls, record_id: str, approver: str, reason: str) -> Dict[str, Any]:
+        """潘厨退回修改（信息不全时使用）。"""
+        record = cls._receiving_cache.get(record_id)
+        if not record:
+            raise ValueError(f"收货记录不存在: {record_id}")
+        if record.status != "pending_approval":
+            raise ValueError(f"当前状态不允许退回: {record.status}")
+
+        record.status = "draft"
+        record.notes = (record.notes or "") + f"\n[退回修改] {reason} (by {approver})"
+        # 清空之前的质检结果
+        record.quality_results = []
+
+        cls._save_to_json()
+        logger.info("收货退回修改: %s, 操作人=%s", record_id, approver)
+        return record.model_dump()
+
+    @classmethod
+    def get_receiving_stats(cls) -> Dict[str, Any]:
+        """获取收货统计概览（今日+本周）。"""
+        from datetime import timedelta
+
+        now = datetime.now()
+        today_start = now.replace(hour=0, minute=0, second=0, microsecond=0)
+        week_start = today_start - timedelta(days=today_start.weekday())
+
+        all_records = list(cls._receiving_cache.values())
+
+        # 今日统计
+        today_records = [r for r in all_records if r.received_at and r.received_at >= today_start]
+        today_passed = sum(1 for r in today_records if r.status == "approved")
+        today_partial = sum(1 for r in today_records if r.status == "partial")
+        today_rejected = sum(1 for r in today_records if r.status == "rejected")
+        today_total = len(today_records)
+
+        # 本周统计
+        week_records = [r for r in all_records if r.received_at and r.received_at >= week_start]
+        week_pass_rate = (
+            sum(1 for r in week_records if r.status in ("approved", "partial")) / max(len(week_records), 1)
+        )
+
+        # 供应商统计
+        supplier_stats = {}
+        for r in week_records:
+            name = r.supplier_name
+            if name not in supplier_stats:
+                supplier_stats[name] = {"records": 0, "grades": [], "total_variance": 0}
+            supplier_stats[name]["records"] += 1
+            for qr in r.quality_results:
+                supplier_stats[name]["grades"].append(qr.grade)
+            for item in r.items:
+                if item.ordered_qty > 0:
+                    v = (item.ordered_qty - item.received_qty) / item.ordered_qty * 100
+                    supplier_stats[name]["total_variance"] += v
+
+        # Top供应商排行
+        top_suppliers = sorted(
+            [
+                {
+                    "name": name,
+                    "records": stats["records"],
+                    "avg_grade": cls._calc_avg_grade(stats["grades"]),
+                }
+                for name, stats in supplier_stats.items()
+            ],
+            key=lambda x: x["records"],
+            reverse=True,
+        )[:5]
+
+        # 告警检测
+        alerts = []
+        for name, stats in supplier_stats.items():
+            rejected_count = sum(1 for g in stats["grades"] if g == "D")
+            if rejected_count >= 3:
+                alerts.append({
+                    "type": "short_weight",
+                    "supplier": name,
+                    "count": rejected_count,
+                    "msg": f"连续{rejected_count}次严重问题",
+                })
+
+        return {
+            "today": {
+                "total_records": today_total,
+                "passed": today_passed,
+                "partial": today_partial,
+                "rejected": today_rejected,
+                "pass_rate": today_passed / max(today_total, 1),
+            },
+            "week": {
+                "total_records": len(week_records),
+                "avg_pass_rate": round(week_pass_rate, 2),
+                "top_suppliers": top_suppliers,
+            },
+            "alerts": alerts,
+        }
+
+    @classmethod
+    def _calc_avg_grade(cls, grades: List[str]) -> str:
+        """计算平均等级。"""
+        if not grades:
+            return "-"
+        grade_map = {"A": 4, "B": 3, "C": 2, "D": 1}
+        avg_score = sum(grade_map.get(g, 0) for g in grades) / len(grades)
+        if avg_score >= 3.5:
+            return "A"
+        elif avg_score >= 2.5:
+            return "B+"
+        elif avg_score >= 1.5:
+            return "C"
+        else:
+            return "D"
+
+    @classmethod
+    def get_supplier_receiving_history(cls, supplier_name: str, limit: int = 20) -> Dict[str, Any]:
+        """获取供应商收货历史（用于N07供应商画像）。"""
+        records = [
+            r for r in cls._receiving_cache.values()
+            if supplier_name in r.supplier_name
+        ]
+        records.sort(key=lambda r: r.received_at or datetime.min, reverse=True)
+        records = records[:limit]
+
+        # 聚合统计数据
+        total = len(records)
+        passed = sum(1 for r in records if r.status == "approved")
+        partial = sum(1 for r in records if r.status == "partial")
+        rejected = sum(1 for r in records if r.status == "rejected")
+
+        all_grades = []
+        total_variance = 0.0
+        variance_count = 0
+        for r in records:
+            for qr in r.quality_results:
+                all_grades.append(qr.grade)
+                if qr.weight_variance_pct is not None:
+                    total_variance += qr.weight_variance_pct
+                    variance_count += 1
+
+        return {
+            "supplier_name": supplier_name,
+            "total_records": total,
+            "pass_rate": round(passed / max(total, 1), 2),
+            "avg_grade": cls._calc_avg_grade(all_grades),
+            "avg_variance_pct": round(total_variance / max(variance_count, 1), 2) if variance_count else None,
+            "records": [r.model_dump() for r in records],
+        }
+
+    @classmethod
+    def seed_demo_receiving_data(cls) -> int:
+        """
+        加载展会Demo用的收货数据。
+
+        包含3种典型场景: 正常(A级)、部分通过(C级)、拒收(D级)
+        """
+        now = datetime.now()
+        yesterday = now - timedelta(days=1)
+        day_before = now - timedelta(days=2)
+
+        demo_records = [
+            # 场景A: 正常收货 — 全部A级通过
+            ReceivingRecord(
+                record_id="RC-DEMO-001",
+                store_id="store-jiaojiang",
+                supplier_name="杭州冻品供应链",
+                po_number="PO-20260730-001",
+                received_at=yesterday,
+                receiver="张三",
+                items=[
+                    ReceivingItem(sku="FP-MW-001", sku_name="精品毛肚", ordered_qty=10.0, received_qty=10.0, unit="kg",
+                                  batch_id="20260728-HDW", temperature_on_arrival=-16.0),
+                    ReceivingItem(sku="FP-NB-003", sku_name="肥牛卷", ordered_qty=5.0, received_qty=4.9, unit="kg",
+                                  batch_id="20260729-ZJ", temperature_on_arrival=-15.5),
+                ],
+                quality_results=[
+                    QualityCheckResult(sku="FP-MW-001", passed=True, grade="A", weight_variance_pct=0.0,
+                                       temperature_ok=True, vlm_analysis={"mock": True}),
+                    QualityCheckResult(sku="FP-NB-003", passed=True, grade="B", weight_variance_pct=2.0,
+                                       temperature_ok=True, visual_defects=["轻微短重"], vlm_analysis={"mock": True}),
+                ],
+                photos=["overview:/static/demo/receiving-demo1.jpg"],
+                total_passed=True,
+                status="approved",
+                approved_by="潘厨",
+                approved_at=yesterday,
+            ),
+            # 场景B: 部分通过 — 有C级品项
+            ReceivingRecord(
+                record_id="RC-DEMO-002",
+                store_id="store-jiaojiang",
+                supplier_name="张记肉业",
+                po_number="PO-20260729-002",
+                received_at=day_before,
+                receiver="李四",
+                items=[
+                    ReceivingItem(sku="FP-HS-002", sku_name="雪花肥牛", ordered_qty=8.0, received_qty=7.2, unit="kg",
+                                  batch_id="20260727-ZJ", temperature_on_arrival=-11.0),
+                ],
+                quality_results=[
+                    QualityCheckResult(sku="FP-HS-002", passed=True, grade="C", weight_variance_pct=10.0,
+                                       temperature_ok=False, visual_defects=["温度偏高(-11°C)", "短重10%"],
+                                       vlm_analysis={"mock": True}),
+                ],
+                photos=["overview:/static/demo/receiving-demo2.jpg", "defect:/static/demo/receiving-demo2-defect.jpg"],
+                total_passed=False,
+                status="partial",
+                approved_by="潘厨",
+                approved_at=day_before,
+                notes="[部分通过] 温度偏高但可用，已加强入库后优先使用",
+            ),
+            # 场景C: 整批拒收 — D级
+            ReceivingRecord(
+                record_id="RC-DEMO-003",
+                store_id="store-jiaojiang",
+                supplier_name="李记海鲜",
+                po_number="PO-20260728-003",
+                received_at=day_before,
+                receiver="王五",
+                items=[
+                    ReceivingItem(sku="FP-HX-001", sku_name="基围虾", ordered_qty=3.0, received_qty=2.4, unit="kg",
+                                  batch_id="20260726-LJ", temperature_on_arrival=-5.0),
+                ],
+                quality_results=[
+                    QualityCheckResult(sku="FP-HX-001", passed=False, grade="D", weight_variance_pct=20.0,
+                                       temperature_ok=False, visual_defects=["严重短重20%", "温度严重超标(-5°C)", "疑似解冻"],
+                                       rejection_reason="短重20%且温度-5°C严重超标，整批拒收",
+                                       vlm_analysis={"mock": True}),
+                ],
+                photos=["overview:/static/demo/receiving-demo3.jpg", "defect:/static/demo/receiving-demo3-defect.jpg"],
+                total_passed=False,
+                status="rejected",
+                approved_by="潘厨",
+                approved_at=day_before,
+                notes="[拒收] 短重20%且温度-5°C严重超标，疑似运输途中解冻，整批退回",
+            ),
+        ]
+
+        count = 0
+        for record in demo_records:
+            if record.record_id not in cls._receiving_cache:
+                cls._receiving_cache[record.record_id] = record
+                count += 1
+
+        cls._save_to_json()
+        logger.info("Demo收货数据加载完成: %d 条", count)
+        return count

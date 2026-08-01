@@ -1,0 +1,214 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>收货详情 — 火瞳 Edge UI</title>
+    <link rel="stylesheet" href="/assets/edge-ui.css">
+    <style>
+        body { background: #f5f6fa; }
+        .detail-container { max-width: 960px; margin: 0 auto; padding: 20px; }
+
+        .back-link { display: inline-flex; align-items: center; gap: 6px; color: #666; text-decoration: none; font-size: 14px; margin-bottom: 16px; }
+        .back-link:hover { color: #e94560; }
+
+        /* 头部信息卡 */
+        .header-card { background: #fff; border-radius: 12px; padding: 24px; box-shadow: 0 2px 8px rgba(0,0,0,0.08); margin-bottom: 20px; position: relative; overflow: hidden; }
+        .header-card::before { content: ''; position: absolute; top: 0; left: 0; right: 0; height: 4px; background: linear-gradient(90deg, #e94560, #ff6b6b); }
+        .header-top { display: flex; justify-content: space-between; align-items: flex-start; margin-bottom: 16px; }
+        .record-title { font-size: 22px; font-weight: 700; color: #1a1a2e; }
+        .record-id-badge { font-family: monospace; font-size: 14px; color: #e94560; background: #fef0f1; padding: 4px 10px; border-radius: 4px; }
+        .status-badge { display: inline-flex; align-items: center; gap: 6px; padding: 6px 16px; border-radius: 20px; font-size: 14px; font-weight: 600; }
+        .status-draft { background: #fff3cd; color: #856404; }
+        .status-pending { background: #cce5ff; color: #004085; }
+        .status-inspecting { background: #e2e3e5; color: #383d41; animation: pulse 1.5s infinite; }
+        .status-pending_approval { background: #ffeeba; color: #856404; }
+        .status-approved { background: #d4edda; color: #155724; }
+        .status-partial { background: #fff3cd; color: #856404; }
+        .status-rejected { background: #f8d7da; color: #721c24; }
+        @keyframes pulse { 0%,100%{opacity:1} 50%{opacity:.6} }
+
+        .header-meta { display: grid; grid-template-columns: repeat(4, 1fr); gap: 16px; }
+        .meta-item { display: flex; flex-direction: column; }
+        .meta-label { font-size: 12px; color: #888; margin-bottom: 2px; }
+        .meta-value { font-size: 15px; font-weight: 600; color: #333; }
+
+        /* 品项表格 */
+        .section-card { background: #fff; border-radius: 12px; padding: 20px; box-shadow: 0 2px 8px rgba(0,0,0,0.08); margin-bottom: 20px; }
+        .section-title { font-size: 16px; font-weight: 700; color: #333; margin-bottom: 16px; display: flex; align-items: center; gap: 8px; padding-bottom: 12px; border-bottom: 1px solid #f0f0f0; }
+
+        .items-table { width: 100%; border-collapse: collapse; }
+        .items-table th { background: #f8f9fa; padding: 10px 12px; text-align: left; font-size: 13px; color: #555; font-weight: 600; }
+        .items-table td { padding: 10px 12px; font-size: 14px; border-bottom: 1px solid #f0f0f0; vertical-align: middle; }
+        .sku-code { font-family: monospace; background: #f0f0f5; padding: 2px 8px; border-radius: 4px; font-size: 13px; color: #e94560; font-weight: 600; }
+        .variance-normal { color: #28a745; font-weight: 600; }
+        .variance-warning { color: #ffc107; font-weight: 600; }
+        .variance-danger { color: #dc3545; font-weight: 600; }
+
+        /* 照片区 */
+        .photos-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(150px, 1fr)); gap: 12px; }
+        .photo-thumb { aspect-ratio: 1; background: #f0f0f5; border-radius: 8px; display: flex; align-items: center; justify-content: center; cursor: pointer; transition: transform 0.2s; overflow: hidden; position: relative; }
+        .photo-thumb:hover { transform: scale(1.03); }
+        .photo-thumb img { width: 100%; height: 100%; object-fit: cover; }
+        .photo-placeholder { color: #999; font-size: 32px; }
+        .photo-type-tag { position: absolute; bottom: 4px; left: 4px; background: rgba(0,0,0,0.7); color: #fff; padding: 2px 8px; border-radius: 4px; font-size: 11px; }
+
+        /* VLM质检结果 */
+        .vlm-result-card { border: 1px solid #eee; border-radius: 8px; padding: 16px; margin-bottom: 12px; }
+        .vlm-result-card.grade-A { border-left: 4px solid #28a745; background: #fafffb; }
+        .vlm-result-card.grade-B { border-left: 4px solid #17a2b8; background: #f7fffe; }
+        .vlm-result-card.grade-C { border-left: 4px solid #ffc107; background: #fffcf0; }
+        .vlm-result-card.grade-D { border-left: 4px solid #dc3545; background: #fff5f5; }
+
+        .grade-badge { display: inline-block; width: 36px; height: 36px; line-height: 36px; text-align: center; border-radius: 50%; font-size: 18px; font-weight: 800; }
+        .grade-A { background: #d4edda; color: #155724; }
+        .grade-B { background: #cce5ff; color: #004085; }
+        .grade-C { background: #fff3cd; color: #856404; }
+        .grade-D { background: #f8d7da; color: #721c24; }
+
+        .result-header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 8px; }
+        .result-sku { font-weight: 600; font-size: 15px; }
+        .defect-list { list-style: none; padding: 0; margin: 8px 0 0 0; }
+        .defect-list li { padding: 4px 0; font-size: 13px; color: #666; display: flex; align-items: center; gap: 6px; }
+        .defect-list li::before { content: "⚠"; color: #ffc107; }
+
+        /* 审批操作区 */
+        .approval-section { background: linear-gradient(135deg, #667eea 0%, #764ba2 100%); border-radius: 12px; padding: 24px; color: #fff; }
+        .approval-title { font-size: 18px; font-weight: 700; margin-bottom: 16px; display: flex; align-items: center; gap: 8px; }
+        .approval-actions { display: flex; gap: 12px; flex-wrap: wrap; margin-top: 16px; }
+        .approval-btn { padding: 12px 24px; border: none; border-radius: 8px; font-size: 15px; font-weight: 600; cursor: pointer; transition: all 0.2s; display: flex; align-items: center; gap: 6px; }
+        .btn-approve { background: #28a745; color: #fff; }
+        .btn-approve:hover { background: #218838; transform: translateY(-1px); }
+        .btn-partial { background: #ffc107; color: #333; }
+        .btn-partial:hover { background: #e0a800; transform: translateY(-1px); }
+        .btn-reject { background: #dc3545; color: #fff; }
+        .btn-reject:hover { background: #c82333; transform: translateY(-1px); }
+        .btn-return { background: rgba(255,255,255,0.2); color: #fff; border: 1px solid rgba(255,255,255,0.3); }
+        .btn-return:hover { background: rgba(255,255,255,0.3); }
+
+        .notes-input { width: 100%; padding: 12px; border: none; border-radius: 8px; font-size: 14px; margin-bottom: 12px; resize: vertical; min-height: 60px; box-sizing: border-box; }
+        .notes-input:focus { outline: 2px solid rgba(255,255,255,0.5); }
+
+        .reason-input { width: 100%; padding: 12px; border: none; border-radius: 8px; font-size: 14px; margin-bottom: 12px; box-sizing: border-box; background: #fff; color: #333; }
+
+        /* 已完成状态 */
+        .completed-info { background: #f8f9fa; border-radius: 8px; padding: 16px; margin-top: 12px; }
+        .completed-info p { margin: 4px 0; font-size: 13px; color: #666; }
+        .completed-info strong { color: #333; }
+
+        @media (max-width: 768px) {
+            .header-meta { grid-template-columns: 1fr 1fr; }
+            .approval-actions { flex-direction: column; }
+            .approval-btn { width: 100%; justify-content: center; }
+        }
+    </style>
+</head>
+<body>
+    <div class="detail-container">
+        <!-- 返回链接 -->
+        <a href="/receiving.html" class="back-link">🔙 返回收货列表</a>
+
+        <!-- 头部信息 -->
+        <div class="header-card">
+            <div class="header-top">
+                <div>
+                    <div class="record-title">📦 收货质检单</div>
+                    <div class="record-id-badge" id="detail-record-id">RC-XXXXXXXX-XXXX</div>
+                </div>
+                <div class="status-badge status-pending" id="detail-status">待处理</div>
+            </div>
+            <div class="header-meta">
+                <div class="meta-item">
+                    <span class="meta-label">供应商</span>
+                    <span class="meta-value" id="detail-supplier">-</span>
+                </div>
+                <div class="meta-item">
+                    <span class="meta-label">收货人</span>
+                    <span class="meta-value" id="detail-receiver">-</span>
+                </div>
+                <div class="meta-item">
+                    <span class="meta-label">采购单号</span>
+                    <span class="meta-value" id="detail-po">-</span>
+                </div>
+                <div class="meta-item">
+                    <span class="meta-label">收货时间</span>
+                    <span class="meta-value" id="detail-time">-</span>
+                </div>
+            </div>
+        </div>
+
+        <!-- 收货品项 -->
+        <div class="section-card">
+            <h3 class="section-title">📋 收货品项</h3>
+            <table class="items-table" id="items-table">
+                <thead><tr><th>SKU</th><th>品名</th><th>订单量</th><th>实收量</th><th>短重率</th><th>温度</th></tr></thead>
+                <tbody id="items-tbody"></tbody>
+            </table>
+        </div>
+
+        <!-- 照片 -->
+        <div class="section-card" id="photos-section" style="display:none;">
+            <h3 class="section-title">📷 收货照片</h3>
+            <div class="photos-grid" id="photos-grid"></div>
+        </div>
+
+        <!-- VLM质检结果 -->
+        <div class="section-card" id="quality-section" style="display:none;">
+            <h3 class="section-title">🤖 VLM质检结果</h3>
+            <div id="quality-results"></div>
+        </div>
+
+        <!-- 潘厨审批区 (仅 pending_approval 状态显示) -->
+        <div class="section-card approval-section" id="approval-section" style="display:none;">
+            <h3 class="approval-title">✅ 潘厨审批</h3>
+            <p style="font-size:14px;opacity:0.9;margin-bottom:12px;">请审核以上质检结果，选择审批操作：</p>
+
+            <textarea class="notes-input" id="approval-notes" placeholder="审批意见（可选）..."></textarea>
+
+            <div class="approval-actions">
+                <button class="approval-btn btn-approve" onclick="doApprove()">✅ 全部通过</button>
+                <button class="approval-btn btn-partial" onclick="doPartial()">⚠️ 部分通过</button>
+                <button class="approval-btn btn-reject" onclick="showRejectConfirm()">❌ 整批拒收</button>
+                <button class="approval-btn btn-return" onclick="doReturn()">🔙 退回修改</button>
+            </div>
+        </div>
+
+        <!-- 拒收原因弹窗 -->
+        <div class="modal-overlay" id="reject-modal">
+            <div class="modal" style="max-width:450px;">
+                <div class="modal-header">
+                    <h2 class="modal-title">⛔ 拒收确认</h2>
+                    <button class="close-btn" onclick="hideRejectModal()">&times;</button>
+                </div>
+                <p style="color:#666;margin-bottom:12px;font-size:14px;">请填写拒收原因（必填）：</p>
+                <input type="text" class="reason-input" id="reject-reason" placeholder="如：短重超标、温度异常、品质不达标...">
+                <div class="modal-footer">
+                    <button class="btn btn-secondary" onclick="hideRejectModal()">取消</button>
+                    <button class="btn btn-danger" onclick="doReject()">确认拒收</button>
+                </div>
+            </div>
+        </div>
+
+        <!-- 已完成状态信息 -->
+        <div class="section-card completed-info" id="completed-section" style="display:none;">
+            <h3 class="section-title">📋 审批记录</h3>
+            <div id="completed-details"></div>
+        </div>
+    </div>
+
+    <script src="/assets/receiving.js"></script>
+    <script>
+        // 页面加载时获取URL参数并加载数据
+        document.addEventListener('DOMContentLoaded', function() {
+            const params = new URLSearchParams(window.location.search);
+            const recordId = params.get('id');
+            if (recordId) {
+                loadDetail(recordId);
+            } else {
+                document.querySelector('.detail-container').innerHTML =
+                    '<p style="text-align:center;padding:40px;color:#999;">❌ 缺少收货单ID参数<br><a href="/receiving.html">返回列表</a></p>';
+            }
+        });
+    </script>
+</body>
+</html>
