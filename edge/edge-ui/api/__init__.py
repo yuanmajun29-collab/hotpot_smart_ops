@@ -49,4 +49,12 @@ def register_routes(app):
     from api.receiving_api import router as receiving_router
     app.include_router(receiving_router, prefix="/api/v1", tags=["收货质检"])
 
-    print("[Edge UI] API路由注册完成: /api/v1/* (10个模块, 含收货质检)")
+    # === 采购订单管理 (D1-S03 · 2026-08-01) ===
+    from api.purchase_order_api import router as po_router
+    app.include_router(po_router, prefix="/api/v1", tags=["采购订单"])
+
+    # === 供应商协同与评分 (D1-S04 · 2026-08-01) ===
+    from api.supplier_api import router as supplier_router
+    app.include_router(supplier_router, prefix="/api/v1", tags=["供应商协同"])
+
+    print("[Edge UI] API路由注册完成: /api/v1/* (12个模块, 含供应商协同)")

@@ -532,8 +532,22 @@ class SupplyChainManager:
                     k: ReceivingRecord(**v) for k, v in data.get("receiving_records", {}).items()
                 }
                 cls._receiving_counter = data.get("receiving_counter", 0)
-                logger.info("从 JSON 加载货品数据: %d 个产品, %d 条收货记录",
-                            len(cls._product_cache), len(cls._receiving_cache))
+                # S03: 加载采购订单数据
+                cls._po_cache = {
+                    k: PurchaseOrder(**v) for k, v in data.get("purchase_orders", {}).items()
+                }
+                cls._po_counter = data.get("po_counter", 0)
+                # S04: 加载供应商数据
+                cls._supplier_cache = data.get("suppliers", {})
+                cls._supplier_counter = data.get("supplier_counter", 0)
+                cls._score_cache = data.get("score_snapshots", {})
+                cls._adjustment_cache = data.get("score_adjustments", {})
+                logger.info(
+                    "从 JSON 加载货品数据: %d 个产品, %d 条收货记录, "
+                    "%d 个采购订单, %d 个供应商",
+                    len(cls._product_cache), len(cls._receiving_cache),
+                    len(cls._po_cache), len(cls._supplier_cache),
+                )
             except Exception as e:
                 logger.error("加载 JSON 数据失败: %s", e)
 
@@ -550,6 +564,14 @@ class SupplyChainManager:
                     # S02: 保存收货数据
                     "receiving_records": {k: v.model_dump() for k, v in cls._receiving_cache.items()},
                     "receiving_counter": cls._receiving_counter,
+                    # S03: 保存采购订单数据
+                    "purchase_orders": {k: v.model_dump() for k, v in cls._po_cache.items()},
+                    "po_counter": cls._po_counter,
+                    # S04: 保存供应商数据
+                    "suppliers": cls._supplier_cache,
+                    "supplier_counter": cls._supplier_counter,
+                    "score_snapshots": cls._score_cache,
+                    "score_adjustments": cls._adjustment_cache,
                 }
                 with open(cls._data_file, "w", encoding="utf-8") as f:
                     json.dump(data, f, ensure_ascii=False, indent=2, default=str)
@@ -1665,4 +1687,1062 @@ class SupplyChainManager:
 
         cls._save_to_json()
         logger.info("Demo收货数据加载完成: %d 条", count)
+        return count
+
+    # ================================================================
+    # S03: 采购订单管理 (D1-S03 · 2026-08-01)
+    # ================================================================
+
+    _po_cache: Dict[str, PurchaseOrder] = {}
+    _po_counter: int = 0
+
+    @classmethod
+    def _get_next_po_number(cls) -> str:
+        """生成下一个采购单号: PO-YYYYMMDD-XXXX"""
+        cls._po_counter += 1
+        today = datetime.now().strftime("%Y%m%d")
+        return f"PO-{today}-{cls._po_counter:04d}"
+
+    @classmethod
+    def create_purchase_order(cls, order_data: dict) -> PurchaseOrder:
+        """
+        创建采购订单 (BR-01~BR-07)
+
+        验证规则:
+        - items ≥ 1 (BR-01)
+        - SKU必须存在于ProductMaster (BR-02)
+        - quantity > 0 (BR-03)
+        - 自动计算 amount 和 total_amount (BR-05/06)
+        """
+        items_data = order_data.get("items", [])
+        if not items_data:
+            raise ValueError("订单至少包含1个行项目 (BR-01)")
+
+        po_items = []
+        total = 0.0
+
+        for item_data in items_data:
+            sku = item_data.get("sku", "")
+            # BR-02: 校验SKU存在
+            if sku not in cls._product_cache:
+                raise ValueError(f"SKU不存在: {sku} (BR-02)")
+
+            product = cls._product_cache[sku]
+            quantity = item_data.get("quantity", 0)
+            # BR-03
+            if quantity <= 0:
+                raise ValueError(f"数量必须大于0: {sku} (BR-03)")
+
+            # BR-04: 单价取行项目指定值或ProductMaster.unit_price
+            unit_price = item_data.get("unit_price") or product.unit_price
+            amount = round(quantity * unit_price, 2)
+            total += amount
+
+            po_items.append(PurchaseOrderItem(
+                sku=sku,
+                sku_name=product.name,
+                quantity=quantity,
+                unit=product.unit,
+                unit_price=unit_price,
+                amount=amount,
+                supplier=item_data.get("supplier"),
+                expected_date=item_data.get("expected_date"),
+                notes=item_data.get("notes"),
+                received_qty=0.0,
+            ))
+
+        po_number = cls._get_next_po_number()
+        now = datetime.now()
+
+        order = PurchaseOrder(
+            po_number=po_number,
+            store_id=order_data.get("store_id", "store-jiaojiang"),
+            ordered_by=order_data.get("ordered_by", ""),
+            ordered_at=now,
+            items=po_items,
+            total_amount=round(total, 2),
+            status="draft",
+            supplier=order_data.get("supplier"),
+            delivery_address=order_data.get("delivery_address"),
+            expected_date=order_data.get("expected_date"),
+            notes=order_data.get("notes"),
+            forecast_ref=order_data.get("forecast_ref"),
+            auto_generated=order_data.get("auto_generated", False),
+            created_at=now,
+            updated_at=now,
+        )
+
+        cls._po_cache[po_number] = order
+        cls._save_to_json()
+        logger.info("创建采购订单: %s (%d项, ¥%.2f)", po_number, len(po_items), total)
+        return order
+
+    @classmethod
+    def get_po_list(
+        cls,
+        page: int = 1,
+        page_size: int = 20,
+        status: Optional[str] = None,
+        supplier: Optional[str] = None,
+        start_date: Optional[str] = None,
+        end_date: Optional[str] = None,
+    ) -> dict:
+        """采购订单列表（分页+筛选）"""
+        orders = list(cls._po_cache.values())
+
+        # 筛选
+        if status:
+            orders = [o for o in orders if o.status == status]
+        if supplier:
+            orders = [o for o in orders if o.supplier and supplier in o.supplier]
+        if start_date:
+            try:
+                sd = datetime.fromisoformat(start_date)
+                orders = [o for o in orders if o.ordered_at and o.ordered_at >= sd]
+            except ValueError:
+                pass
+        if end_date:
+            try:
+                ed = datetime.fromisoformat(end_date)
+                orders = [o for o in orders if o.ordered_at and o.ordered_at <= ed]
+            except ValueError:
+                pass
+
+        # 按下单时间倒序
+        orders.sort(key=lambda o: o.ordered_at or datetime.min, reverse=True)
+
+        total = len(orders)
+        start_idx = (page - 1) * page_size
+        page_orders = orders[start_idx : start_idx + page_size]
+
+        return {
+            "total": total,
+            "page": page,
+            "page_size": page_size,
+            "total_pages": (total + page_size - 1) // page_size if total else 0,
+            "items": [o.model_dump() for o in page_orders],
+        }
+
+    @classmethod
+    def get_po_detail(cls, po_number: str) -> PurchaseOrder:
+        """获取订单详情"""
+        if po_number not in cls._po_cache:
+            raise KeyError(f"采购订单不存在: {po_number}")
+        return cls._po_cache[po_number]
+
+    @classmethod
+    def update_purchase_order(cls, po_number: str, update_data: dict) -> PurchaseOrder:
+        """更新订单（仅draft状态, BR-08）"""
+        order = cls.get_po_detail(po_number)
+        if order.status != "draft":
+            raise PermissionError(f"仅草稿状态可编辑 (当前: {order.status}, BR-08)")
+
+        # 更新基本信息
+        for field in ["supplier", "delivery_address", "expected_date", "notes"]:
+            if field in update_data:
+                setattr(order, field, update_data[field])
+
+        # 更新行项目
+        if "items" in update_data:
+            new_items = []
+            total = 0.0
+            for item_data in update_data["items"]:
+                sku = item_data.get("sku", "")
+                if sku not in cls._product_cache:
+                    raise ValueError(f"SKU不存在: {sku}")
+                product = cls._product_cache[sku]
+                quantity = item_data.get("quantity", 0)
+                if quantity <= 0:
+                    raise ValueError(f"数量必须大于0: {sku}")
+                unit_price = item_data.get("unit_price") or product.unit_price
+                amount = round(quantity * unit_price, 2)
+                total += amount
+                new_items.append(PurchaseOrderItem(
+                    sku=sku, sku_name=product.name, quantity=quantity,
+                    unit=product.unit, unit_price=unit_price, amount=amount,
+                    supplier=item_data.get("supplier"),
+                    expected_date=item_data.get("expected_date"),
+                    notes=item_data.get("notes"),
+                    received_qty=item_data.get("received_qty", 0),
+                ))
+            order.items = new_items
+            order.total_amount = round(total, 2)
+
+        order.updated_at = datetime.now()
+        cls._save_to_json()
+        return order
+
+    @classmethod
+    def delete_purchase_order(cls, po_number: str) -> bool:
+        """删除草稿订单"""
+        order = cls.get_po_detail(po_number)
+        if order.status != "draft":
+            raise PermissionError(f"仅可删除草稿订单 (当前: {order.status})")
+        del cls._po_cache[po_number]
+        cls._save_to_json()
+        logger.info("删除采购订单: %s", po_number)
+        return True
+
+    @classmethod
+    def submit_po(cls, po_number: str) -> PurchaseOrder:
+        """提交订单（draft → submitted）"""
+        order = cls.get_po_detail(po_number)
+        if order.status != "draft":
+            raise PermissionError(f"仅草稿状态可提交 (当前: {order.status})")
+        if not order.items:
+            raise ValueError("空订单不可提交")
+        order.status = "submitted"
+        order.updated_at = datetime.now()
+        cls._save_to_json()
+        logger.info("提交采购订单: %s → submitted", po_number)
+        return order
+
+    @classmethod
+    def confirm_po(cls, po_number: str, notes: Optional[str] = None) -> PurchaseOrder:
+        """确认订单（submitted → confirmed, 曹总操作）"""
+        order = cls.get_po_detail(po_number)
+        if order.status != "submitted":
+            raise PermissionError(f"仅已提交状态可确认 (当前: {order.status})")
+        order.status = "confirmed"
+        order.confirmed_by = "曹总"
+        order.confirmed_at = datetime.now()
+        if notes:
+            order.notes = (order.notes or "") + f"\n[确认备注] {notes}"
+        order.updated_at = datetime.now()
+        cls._save_to_json()
+        logger.info("确认采购订单: %s → confirmed", po_number)
+        return order
+
+    @classmethod
+    def cancel_po(cls, po_number: str, reason: str) -> PurchaseOrder:
+        """取消订单 (BR-09~BR-11)"""
+        order = cls.get_po_detail(po_number)
+        if order.status in ("received", "partial"):
+            raise PermissionError(f"已收货订单不可取消 (当前: {order.status}, BR-11)")
+        if order.status not in ("draft", "submitted", "confirmed"):
+            raise PermissionError(f"当前状态不可取消: {order.status} (BR-09)")
+        if order.status == "confirmed":
+            # BR-10: 已确认订单需检查是否有关联收货
+            linked_receiving = [
+                r for r in cls._receiving_cache.values()
+                if r.po_number == po_number
+            ]
+            if linked_receiving:
+                raise PermissionError("已关联收货记录的订单不可取消 (BR-10)")
+        order.status = "cancelled"
+        order.cancelled_by = "店长"
+        order.cancelled_at = datetime.now()
+        order.cancel_reason = reason
+        order.updated_at = datetime.now()
+        cls._save_to_json()
+        logger.info("取消采购订单: %s → cancelled (原因: %s)", po_number, reason)
+        return order
+
+    @classmethod
+    def return_po_to_draft(cls, po_number: str) -> PurchaseOrder:
+        """退回草稿（submitted → draft）"""
+        order = cls.get_po_detail(po_number)
+        if order.status != "submitted":
+            raise PermissionError(f"仅已提交状态可退回 (当前: {order.status})")
+        order.status = "draft"
+        order.updated_at = datetime.now()
+        cls._save_to_json()
+        logger.info("退回采购订单: %s → draft", po_number)
+        return order
+
+    @classmethod
+    def mark_po_received(cls, po_number: str, received_by: str = "") -> PurchaseOrder:
+        """手动标记全部收货（confirmed/partial → received）"""
+        order = cls.get_po_detail(po_number)
+        if order.status not in ("confirmed", "partial"):
+            raise PermissionError(f"仅待收货/部分收货状态可标记 (当前: {order.status})")
+
+        # 标记所有item为已收全
+        for item in order.items:
+            item.received_qty = item.quantity
+
+        order.status = "received"
+        order.received_by = received_by or "系统"
+        order.received_at = datetime.now()
+        order.updated_at = datetime.now()
+        cls._save_to_json()
+        logger.info("标记采购订单已收货: %s → received", po_number)
+        return order
+
+    @classmethod
+    def _update_po_status_from_receiving(cls, po_number: str) -> Optional[PurchaseOrder]:
+        """
+        S02联动: 收货审批通过后更新PO状态 (BR-12)
+
+        由 receiving 模块在 approve 操作后调用。
+        遍历PO的所有行项目，检查 received_qty vs quantity。
+        """
+        if po_number not in cls._po_cache:
+            return None
+
+        order = cls._po_cache[po_number]
+        if order.status not in ("confirmed", "partial"):
+            return order
+
+        all_complete = True
+        any_received = False
+
+        for item in order.items:
+            if item.received_qty > 0:
+                any_received = True
+            if item.received_qty < item.quantity:
+                all_complete = False
+
+        old_status = order.status
+        if all_complete:
+            order.status = "received"
+            order.received_at = datetime.now()
+        elif any_received:
+            order.status = "partial"
+        # else: 保持原状态
+
+        if order.status != old_status:
+            order.updated_at = datetime.now()
+            cls._save_to_json()
+            logger.info("PO状态自动更新: %s %s→%s (S02联动)", po_number, old_status, order.status)
+
+        return order
+
+    @classmethod
+    def get_po_receiving_links(cls, po_number: str) -> list:
+        """获取PO关联的收货记录列表"""
+        cls.get_po_detail(po_number)  # 验证PO存在
+        return [
+            r.model_dump()
+            for r in cls._receiving_cache.values()
+            if r.po_number == po_number
+        ]
+
+    @classmethod
+    def get_po_stats(cls, store_id: str = "store-jiaojiang") -> dict:
+        """采购统计概览"""
+        now = datetime.now()
+        today_start = now.replace(hour=0, minute=0, second=0, microsecond=0)
+        week_start = today_start - timedelta(days=today_start.weekday())
+
+        orders = list(cls._po_cache.values())
+
+        today_orders = [o for o in orders if o.ordered_at and o.ordered_at >= today_start]
+        week_orders = [o for o in orders if o.ordered_at and o.ordered_at >= week_start]
+
+        # 待收货 = confirmed 状态
+        pending_receive = sum(1 for o in orders if o.status == "confirmed")
+
+        # 状态分布
+        status_breakdown = {}
+        for s in ("draft", "submitted", "confirmed", "partial", "received", "cancelled"):
+            status_breakdown[s] = sum(1 for o in orders if o.status == s)
+
+        # 供应商排行
+        supplier_totals: Dict[str, dict] = {}
+        for o in orders:
+            if o.supplier:
+                if o.supplier not in supplier_totals:
+                    supplier_totals[o.supplier] = {"order_count": 0, "total_amount": 0.0}
+                supplier_totals[o.supplier]["order_count"] += 1
+                supplier_totals[o.supplier]["total_amount"] += o.total_amount
+
+        top_suppliers = sorted(
+            supplier_totals.items(),
+            key=lambda x: x[1]["total_amount"],
+            reverse=True,
+        )[:5]
+
+        return {
+            "store_id": store_id,
+            "today_orders": len(today_orders),
+            "week_orders": len(week_orders),
+            "total_amount_today": round(sum(o.total_amount for o in today_orders), 2),
+            "total_amount_week": round(sum(o.total_amount for o in week_orders), 2),
+            "pending_receive": pending_receive,
+            "status_breakdown": status_breakdown,
+            "top_suppliers": [
+                {"name": name, **stats}
+                for name, stats in top_suppliers
+            ],
+        }
+
+    @classmethod
+    def get_supplier_po_history(cls, supplier_name: str) -> dict:
+        """供应商采购历史趋势"""
+        orders = [
+            o for o in cls._po_cache.values()
+            if o.supplier and supplier_name in o.supplier
+        ]
+        orders.sort(key=lambda o: o.ordered_at or datetime.min)
+
+        monthly_totals: Dict[str, float] = {}
+        monthly_counts: Dict[str, int] = {}
+
+        for o in orders:
+            if o.ordered_at:
+                key = o.ordered_at.strftime("%Y-%m")
+                monthly_totals[key] = monthly_totals.get(key, 0) + o.total_amount
+                monthly_counts[key] = monthly_counts.get(key, 0) + 1
+
+        return {
+            "supplier_name": supplier_name,
+            "total_orders": len(orders),
+            "total_amount": round(sum(o.total_amount for o in orders), 2),
+            "avg_order_value": round(
+                sum(o.total_amount for o in orders) / max(len(orders), 1), 2
+            ),
+            "monthly_trend": [
+                {"month": k, "amount": v, "count": monthly_counts.get(k, 0)}
+                for k, v in sorted(monthly_totals.items())
+            ],
+            "recent_orders": [o.model_dump() for o in orders[-10:]],
+        }
+
+    @classmethod
+    def seed_demo_po_data(cls) -> int:
+        """
+        加载展会Demo用的采购订单数据。
+
+        4种场景: 已收货(A)/待确认(B)/部分收货(C)/草稿(D)
+        """
+        now = datetime.now()
+        yesterday = now - timedelta(days=1)
+        day_before = now - timedelta(days=2)
+        three_days_ago = now - timedelta(days=3)
+
+        demo_orders = [
+            # 场景A: 已完成全流程
+            PurchaseOrder(
+                po_number="PO-DEMO-001",
+                store_id="store-jiaojiang",
+                ordered_by="店长-张三",
+                ordered_at=three_days_ago,
+                supplier="杭州冻品供应链",
+                expected_date=date.today() - timedelta(days=1),
+                status="received",
+                total_amount=1810.0,
+                items=[
+                    PurchaseOrderItem(sku="FP-MW-001", sku_name="精品毛肚", quantity=10.0,
+                                     unit="盒", unit_price=128.0, amount=1280.0, received_qty=10.0),
+                    PurchaseOrderItem(sku="FP-NB-003", sku_name="肥牛卷", quantity=5.0,
+                                     unit="kg", unit_price=106.0, amount=530.0, received_qty=5.0),
+                ],
+                confirmed_by="曹总", confirmed_at=three_days_ago,
+                received_by="收货员-赵六", received_at=yesterday,
+                notes="周末备货常规补货",
+                created_at=three_days_ago, updated_at=yesterday,
+            ),
+            # 场景B: 待确认
+            PurchaseOrder(
+                po_number="PO-DEMO-002",
+                store_id="store-jiaojiang",
+                ordered_by="店长-李四",
+                ordered_at=now,
+                supplier="张记肉业",
+                expected_date=date.today() + timedelta(days=2),
+                status="submitted",
+                total_amount=856.0,
+                items=[
+                    PurchaseOrderItem(sku="FP-HS-002", sku_name="雪花肥牛", quantity=8.0,
+                                     unit="kg", unit_price=107.0, amount=856.0, received_qty=0),
+                ],
+                notes="雪花肥牛补货，请尽快确认",
+                created_at=now, updated_at=now,
+            ),
+            # 场景C: 部分收货
+            PurchaseOrder(
+                po_number="PO-DEMO-003",
+                store_id="store-jiaojiang",
+                ordered_by="店长-张三",
+                ordered_at=day_before,
+                supplier="杭州冻品供应链",
+                expected_date=date.today(),
+                status="partial",
+                total_amount=2144.0,
+                items=[
+                    PurchaseOrderItem(sku="FP-MW-001", sku_name="精品毛肚", quantity=5.0,
+                                     unit="盒", unit_price=128.0, amount=640.0, received_qty=5.0),
+                    PurchaseOrderItem(sku="FP-HX-001", sku_name="基围虾", quantity=3.0,
+                                     unit="kg", unit_price=168.0, amount=504.0, received_qty=0),
+                    PurchaseOrderItem(sku="FP-YR-005", sku_name="鸭血", quantity=20.0,
+                                     unit="份", unit_price=50.0, amount=1000.0, received_qty=20.0),
+                ],
+                confirmed_by="曹总", confirmed_at=day_before,
+                notes="分批到货：毛肚和鸭血已到，虾明日送达",
+                created_at=day_before, updated_at=yesterday,
+            ),
+            # 场景D: 今日草稿
+            PurchaseOrder(
+                po_number="PO-DEMO-004",
+                store_id="store-jiaojiang",
+                ordered_by="店长-王五",
+                ordered_at=now,
+                supplier="杭州冻品供应链",
+                expected_date=date.today() + timedelta(days=1),
+                status="draft",
+                total_amount=938.0,
+                items=[
+                    PurchaseOrderItem(sku="FP-GD-004", sku_name="贡菜", quantity=10.0,
+                                     unit="kg", unit_price=28.0, amount=280.0, received_qty=0),
+                    PurchaseOrderItem(sku="FP-YR-005", sku_name="鸭血", quantity=10.0,
+                                     unit="份", unit_price=50.0, amount=500.0, received_qty=0),
+                    PurchaseOrderItem(sku="FP-DJ-007", sku_name="豆皮", quantity=5.0,
+                                     unit="kg", unit_price=31.6, amount=158.0, received_qty=0),
+                ],
+                notes="下周初备货，待确认品类",
+                created_at=now, updated_at=now,
+            ),
+        ]
+
+        count = 0
+        for order in demo_orders:
+            if order.po_number not in cls._po_cache:
+                cls._po_cache[order.po_number] = order
+                count += 1
+
+        cls._save_to_json()
+        logger.info("Demo采购订单数据加载完成: %d 条", count)
+        return count
+
+    # ============================================================
+    # S04 — 供应商协同与评分 (2026-08-01)
+    # ============================================================
+
+    _supplier_cache: Dict[str, dict] = {}  # supplier_id → supplier dict
+    _supplier_counter: int = 0
+    _score_cache: Dict[str, dict] = {}     # score_id → score snapshot
+    _adjustment_cache: Dict[str, dict] = {} # adjustment_id → adjustment
+
+    @classmethod
+    def _get_next_supplier_id(cls) -> str:
+        cls._supplier_counter += 1
+        return f"SUP-{cls._supplier_counter:04d}"
+
+    @classmethod
+    def create_supplier(
+        cls,
+        name: str,
+        contact_person: str = "",
+        phone: str = "",
+        address: str = "",
+        license_no: Optional[str] = None,
+        supplied_skus: Optional[List[str]] = None,
+        contract_start: Optional[date] = None,
+        contract_end: Optional[date] = None,
+        notes: Optional[str] = None,
+    ) -> dict:
+        """创建供应商档案 (BR-05: 初始状态=pending)"""
+        # 名称唯一性检查
+        for s in cls._supplier_cache.values():
+            if s.get("name") == name:
+                raise ValueError(f"供应商名称已存在: {name}")
+
+        # SKU合法性检查
+        valid_skus = []
+        if supplied_skus:
+            for sku in supplied_skus:
+                if sku in cls._product_cache:
+                    valid_skus.append(sku)
+                else:
+                    logger.warning("SKU不存在，跳过: %s", sku)
+
+        now = datetime.now()
+        supplier_id = cls._get_next_supplier_id()
+        supplier = {
+            "supplier_id": supplier_id,
+            "name": name,
+            "contact_person": contact_person,
+            "phone": phone,
+            "address": address,
+            "license_no": license_no,
+            "status": "pending",  # BR-05: 待审核
+            "supplied_skus": valid_skus,
+            "score_overall": None,
+            "score_quality": None,
+            "score_delivery": None,
+            "score_price": None,
+            "score_service": None,
+            "score_grade": None,
+            "last_score_at": None,
+            "total_orders": 0,
+            "total_amount": 0.0,
+            "on_time_rate": 100.0,
+            "reject_rate": 0.0,
+            "contract_start": contract_start.isoformat() if contract_start else None,
+            "contract_end": contract_end.isoformat() if contract_end else None,
+            "notes": notes,
+            "created_at": now.isoformat(),
+            "updated_at": now.isoformat(),
+        }
+        cls._supplier_cache[supplier_id] = supplier
+        cls._save_to_json()
+        logger.info("供应商创建成功: %s (%s)", supplier_id, name)
+        return supplier
+
+    @classmethod
+    def get_supplier_list(
+        cls,
+        page: int = 1,
+        page_size: int = 20,
+        status: Optional[str] = None,
+        keyword: Optional[str] = None,
+        grade: Optional[str] = None,
+        sort_by: str = "-score_overall",
+    ) -> dict:
+        """供应商列表（筛选+排序+分页）"""
+        suppliers = list(cls._supplier_cache.values())
+
+        # 状态过滤
+        if status:
+            suppliers = [s for s in suppliers if s.get("status") == status]
+
+        # 等级过滤
+        if grade:
+            suppliers = [s for s in suppliers if s.get("score_grade") == grade]
+
+        # 关键词搜索
+        if keyword:
+            kw = keyword.lower()
+            suppliers = [s for s in suppliers if
+                         kw in s.get("name", "").lower() or
+                         kw in s.get("contact_person", "").lower() or
+                         kw in s.get("phone", "")]
+
+        # 排序
+        reverse = sort_by.startswith("-")
+        sort_field = sort_by.lstrip("-")
+        suppliers.sort(
+            key=lambda x: x.get(sort_field) or (0 if sort_field.startswith("score") or sort_field in ("total_orders", "total_amount") else ""),
+            reverse=reverse,
+        )
+
+        # 分页
+        total = len(suppliers)
+        start = (page - 1) * page_size
+        items = suppliers[start:start + page_size]
+
+        return {
+            "total": total,
+            "page": page,
+            "page_size": page_size,
+            "items": items,
+        }
+
+    @classmethod
+    def get_supplier_detail(cls, supplier_id: str) -> dict:
+        """供应商详情（含最新评分）"""
+        if supplier_id not in cls._supplier_cache:
+            raise KeyError(f"供应商不存在: {supplier_id}")
+        return cls._supplier_cache[supplier_id]
+
+    @classmethod
+    def update_supplier(cls, supplier_id: str, **kwargs) -> dict:
+        """编辑供应商信息"""
+        if supplier_id not in cls._supplier_cache:
+            raise KeyError(f"供应商不存在: {supplier_id}")
+
+        supplier = cls._supplier_cache[supplier_id]
+        updatable_fields = [
+            "contact_person", "phone", "address", "license_no",
+            "supplied_skus", "contract_start", "contract_end", "notes",
+        ]
+        for field, value in kwargs.items():
+            if field in updatable_fields:
+                if isinstance(value, date):
+                    value = value.isoformat()
+                supplier[field] = value
+        supplier["updated_at"] = datetime.now().isoformat()
+
+        cls._save_to_json()
+        return supplier
+
+    @classmethod
+    def delete_supplier(cls, supplier_id: str) -> bool:
+        """删除供应商（仅允许pending状态）"""
+        if supplier_id not in cls._supplier_cache:
+            raise KeyError(f"供应商不存在: {supplier_id}")
+        supplier = cls._supplier_cache[supplier_id]
+        if supplier.get("status") != "pending":
+            raise ValueError(f"仅允许删除待审核状态的供应商，当前状态: {supplier['status']}")
+        del cls._supplier_cache[supplier_id]
+        cls._save_to_json()
+        return True
+
+    @classmethod
+    def activate_supplier(cls, supplier_id: str) -> dict:
+        """激活供应商 (pending→active) + 初始化评分"""
+        if supplier_id not in cls._supplier_cache:
+            raise KeyError(f"供应商不存在: {supplier_id}")
+        supplier = cls._supplier_cache[supplier_id]
+        if supplier["status"] != "pending":
+            raise ValueError(f"仅待审核状态可激活，当前: {supplier['status']}")
+
+        supplier["status"] = "active"
+        supplier["updated_at"] = datetime.now().isoformat()
+
+        # 初始化评分（BR-03/04: MVP默认值）
+        supplier["score_quality"] = 85.0
+        supplier["score_delivery"] = 80.0
+        supplier["score_price"] = 80.0   # BR-03: 无比价数据时中性分
+        supplier["score_service"] = 75.0   # BR-04: 无评价数据时默认
+        supplier["score_overall"] = round(
+            85.0 * 0.40 + 80.0 * 0.25 + 80.0 * 0.20 + 75.0 * 0.15, 1
+        )
+        supplier["score_grade"] = cls._grade_from_score(supplier["score_overall"])
+        supplier["last_score_at"] = datetime.now().isoformat()
+
+        cls._save_to_json()
+        logger.info("供应商激活: %s → active, 初始评分: %.1f(%s)",
+                    supplier_id, supplier["score_overall"], supplier["score_grade"])
+        return supplier
+
+    @classmethod
+    def suspend_supplier(cls, supplier_id: str, reason: str = "") -> dict:
+        """停用供应商 (active/probation→suspended) BR-08"""
+        if supplier_id not in cls._supplier_cache:
+            raise KeyError(f"供应商不存在: {supplier_id}")
+        supplier = cls._supplier_cache[supplier_id]
+        if supplier["status"] not in ("active", "probation"):
+            raise ValueError(f"当前状态不允许停用: {supplier['status']}")
+
+        supplier["status"] = "suspended"
+        supplier["notes"] = f"{supplier.get('notes') or ''} | 停用原因: {reason}".strip(" |")
+        supplier["updated_at"] = datetime.now().isoformat()
+        cls._save_to_json()
+        return supplier
+
+    @classmethod
+    def blacklist_supplier(cls, supplier_id: str, reason: str) -> dict:
+        """拉黑供应商 (suspended→blacklisted) BR-12"""
+        if supplier_id not in cls._supplier_cache:
+            raise KeyError(f"供应商不存在: {supplier_id}")
+        supplier = cls._supplier_cache[supplier_id]
+        if supplier["status"] != "suspended":
+            raise ValueError(f"仅停用状态可拉黑，当前: {supplier['status']}")
+
+        supplier["status"] = "blacklisted"
+        supplier["score_overall"] = 25.0  # 黑名单固定低分
+        supplier["score_grade"] = "D"
+        supplier["notes"] = f"{supplier.get('notes') or ''} | 拉黑原因: {reason}".strip(" |")
+        supplier["updated_at"] = datetime.now().isoformat()
+        cls._save_to_json()
+        logger.warning("供应商拉黑: %s - 原因: %s", supplier_id, reason)
+        return supplier
+
+    @classmethod
+    def restore_supplier(cls, supplier_id: str) -> dict:
+        """恢复供应商 (suspended/blacklisted→active) BR-11/13"""
+        if supplier_id not in cls._supplier_cache:
+            raise KeyError(f"供应商不存在: {supplier_id}")
+        supplier = cls._supplier_cache[supplier_id]
+        if supplier["status"] not in ("suspended", "blacklisted"):
+            raise ValueError(f"当前状态无需恢复: {supplier['status']}")
+
+        supplier["status"] = "active"
+        supplier["updated_at"] = datetime.now().isoformat()
+        cls._save_to_json()
+        return supplier
+
+    @classmethod
+    def get_supplier_score(cls, supplier_id: str) -> dict:
+        """获取供应商评分详情（四维+历史快照）"""
+        if supplier_id not in cls._supplier_cache:
+            raise KeyError(f"供应商不存在: {supplier_id}")
+
+        supplier = cls._supplier_cache[supplier_id]
+        now_str = datetime.now().strftime("%Y-%m")
+
+        # 收集历史快照
+        history = [
+            s for s in cls._score_cache.values()
+            if s.get("supplier_id") == supplier_id
+        ]
+        history.sort(key=lambda x: x.get("period", ""))
+
+        return {
+            "supplier_id": supplier_id,
+            "name": supplier["name"],
+            "current": {
+                "overall": supplier.get("score_overall"),
+                "quality_score": supplier.get("score_quality"),
+                "delivery_score": supplier.get("score_delivery"),
+                "price_score": supplier.get("score_price"),
+                "service_score": supplier.get("score_service"),
+                "grade": supplier.get("score_grade"),
+                "calc_at": supplier.get("last_score_at"),
+            },
+            "dimensions": {
+                "quality": {"score": supplier.get("score_quality"), "weight": 0.40},
+                "delivery": {"score": supplier.get("score_delivery"), "weight": 0.25},
+                "price": {"score": supplier.get("score_price"), "weight": 0.20},
+                "service": {"score": supplier.get("score_service"), "weight": 0.15},
+            },
+            "trend": [
+                {"period": s["period"], "overall": s.get("overall"), "grade": s.get("grade")}
+                for s in history[-6:]  # 最近6个月
+            ],
+            "adjustments": [
+                {"id": a["id"], "adjustment": a["adjustment"], "reason": a.get("reason"),
+                 "adjusted_by": a.get("adjusted_by"), "adjusted_at": a.get("adjusted_at")}
+                for a in cls._adjustment_cache.values()
+                if a.get("supplier_id") == supplier_id
+            ],
+        }
+
+    @classmethod
+    def get_score_history(cls, supplier_id: str) -> List[dict]:
+        """评分历史趋势（月度快照）"""
+        if supplier_id not in cls._supplier_cache:
+            raise KeyError(f"供应商不存在: {supplier_id}")
+
+        history = [
+            s for s in cls._score_cache.values()
+            if s.get("supplier_id") == supplier_id
+        ]
+        history.sort(key=lambda x: x.get("period", ""))
+        return history
+
+    @classmethod
+    def adjust_score(cls, supplier_id: str, adjustment: float, reason: str, operator: str) -> dict:
+        """人工调整评分 (单次±10限制)"""
+        if abs(adjustment) > 10:
+            raise ValueError("单次调整幅度不超过±10分")
+        if not reason:
+            raise ValueError("调整原因为必填项")
+
+        if supplier_id not in cls._supplier_cache:
+            raise KeyError(f"供应商不存在: {supplier_id}")
+
+        supplier = cls._supplier_cache[supplier_id]
+        old_score = supplier.get("score_overall") or 0
+        new_score = max(0, min(100, round(old_score + adjustment, 1)))
+
+        supplier["score_overall"] = new_score
+        supplier["score_grade"] = cls._grade_from_score(new_score)
+        supplier["last_score_at"] = datetime.now().isoformat()
+        supplier["updated_at"] = datetime.now().isoformat()
+
+        # 记录调整
+        adj_id = f"SA-{len(cls._adjustment_cache) + 1:04d}"
+        cls._adjustment_cache[adj_id] = {
+            "id": adj_id,
+            "supplier_id": supplier_id,
+            "adjustment": adjustment,
+            "reason": reason,
+            "adjusted_by": operator,
+            "adjusted_at": datetime.now().isoformat(),
+        }
+
+        cls._save_to_json()
+        logger.info("供应商评分调整: %s %.1f→%.1f (%+.1f, 原因: %s)",
+                    supplier_id, old_score, new_score, adjustment, reason)
+        return supplier
+
+    @classmethod
+    def get_supplier_orders(cls, supplier_id: str) -> List[dict]:
+        """关联采购订单列表"""
+        if supplier_id not in cls._supplier_cache:
+            raise KeyError(f"供应商不存在: {supplier_id}")
+        supplier = cls._supplier_cache[supplier_id]
+        name = supplier["name"]
+
+        orders = []
+        for po in cls._po_cache.values():
+            if po.supplier == name or po.supplier == supplier_id:
+                orders.append(po.model_dump())
+        orders.sort(key=lambda x: x.get("ordered_at", ""), reverse=True)
+        return orders[:20]  # 最近20条
+
+    @classmethod
+    def get_supplier_stats(cls) -> dict:
+        """供应商统计概览"""
+        suppliers = list(cls._supplier_cache.values())
+        return {
+            "total": len(suppliers),
+            "active": sum(1 for s in suppliers if s["status"] == "active"),
+            "probation": sum(1 for s in suppliers if s["status"] == "probation"),
+            "suspended": sum(1 for s in suppliers if s["status"] == "suspended"),
+            "blacklisted": sum(1 for s in suppliers if s["status"] == "blacklisted"),
+            "pending": sum(1 for s in suppliers if s["status"] == "pending"),
+            "avg_score": round(
+                (s.get("score_overall") or 0 for s in suppliers if s.get("score_overall") is not None),
+                1,
+            ) if any(s.get("score_overall") is not None for s in suppliers) else None,
+            "grade_distribution": {
+                g: sum(1 for s in suppliers if s.get("score_grade") == g)
+                for g in ["A", "B", "C", "D"]
+            },
+        }
+
+    @classmethod
+    def get_supplier_ranking(cls, limit: int = 10) -> List[dict]:
+        """供应商排行榜（按评分降序）"""
+        suppliers = [
+            s for s in cls._supplier_cache.values()
+            if s.get("score_overall") is not None and s["status"] == "active"
+        ]
+        suppliers.sort(key=lambda x: x.get("score_overall", 0), reverse=True)
+        return suppliers[:limit]
+
+    @staticmethod
+    def _grade_from_score(score: Optional[float]) -> str:
+        """根据分数映射等级"""
+        if score is None:
+            return "-"
+        if score >= 90:
+            return "A"
+        elif score >= 75:
+            return "B"
+        elif score >= 60:
+            return "C"
+        else:
+            return "D"
+
+    @classmethod
+    def seed_demo_suppliers(cls) -> int:
+        """加载Demo种子数据 - 5个供应商覆盖全部状态和等级"""
+        demo_data = [
+            {
+                "name": "杭州冻品供应链",
+                "contact_person": "王总",
+                "phone": "138xxxx1234",
+                "address": "杭州市余杭区勾庄农贸市场冻品区B12号",
+                "license_no": "SC23310116000xxx",
+                "supplied_skus": ["FP-MW-001", "FP-HG-001", "FP-YX-001", "FP-FN-001"],
+                "contract_start": date(2026, 1, 1),
+                "contract_end": date(2027, 1, 1),
+                "notes": "主力毛肚/黄喉/鸭血/肥牛供应商，王总直供",
+                "_preset_status": "active",
+                "_preset_score": 92.5,
+                "_preset_grade": "A",
+                "_preset_orders": 24,
+                "_preset_on_time": 95.0,
+                "_preset_reject": 1.0,
+            },
+            {
+                "name": "宁波海鲜批发中心",
+                "contact_person": "李经理",
+                "phone": "139xxxx5678",
+                "address": "宁波市江北区路林市场海鲜区A08号",
+                "license_no": "SC23320206000yyy",
+                "supplied_skus": ["FP-HX-001", "FP-XH-001"],
+                "contract_start": date(2026, 3, 1),
+                "contract_end": date(2027, 3, 1),
+                "notes": "海鲜丸/虾滑，价格略高但品质稳定",
+                "_preset_status": "active",
+                "_preset_score": 82.0,
+                "_preset_grade": "B",
+                "_preset_orders": 18,
+                "_preset_on_time": 87.5,
+                "_preset_reject": 5.0,
+            },
+            {
+                "name": "温州牛肉供应链",
+                "contact_person": "张总",
+                "phone": "137xxxx9012",
+                "address": "温州市鹿城区农贸市场牛羊肉区C03号",
+                "license_no": "SC23330307000zzz",
+                "supplied_skus": ["FP-FN-002", "FP-NR-001"],
+                "contract_start": date(2026, 4, 1),
+                "contract_end": date(2027, 4, 1),
+                "notes": "近期有2次D级质检，已进入观察期",
+                "_preset_status": "probation",
+                "_preset_score": 62.0,
+                "_preset_grade": "C",
+                "_preset_orders": 8,
+                "_preset_on_time": 71.2,
+                "_preset_reject": 18.0,
+            },
+            {
+                "name": "上海调味品贸易公司",
+                "contact_person": "赵总",
+                "phone": "136xxxx3456",
+                "address": "上海市普陀区真北路调味品市场D15号",
+                "license_no": "SC23310607000www",
+                "supplied_skus": ["FP-GD-001", "FP-JL-001"],
+                "contract_start": date(2026, 2, 1),
+                "contract_end": date(2027, 2, 1),
+                "notes": "因价格纠纷暂停合作",
+                "_preset_status": "suspended",
+                "_preset_score": None,
+                "_preset_grade": None,
+                "_preset_orders": 3,
+                "_preset_on_time": 60.0,
+                "_preset_reject": 8.0,
+            },
+            {
+                "name": "XX冒牌冻品批发",
+                "contact_person": "",
+                "phone": "",
+                "address": "不详",
+                "license_no": None,
+                "supplied_skus": [],
+                "contract_start": None,
+                "contract_end": None,
+                "notes": "曾发现以劣充好，已拉黑处理",
+                "_preset_status": "blacklisted",
+                "_preset_score": 25.0,
+                "_preset_grade": "D",
+                "_preset_orders": 2,
+                "_preset_on_time": 35.0,
+                "_preset_reject": 100.0,
+            },
+        ]
+
+        count = 0
+        for data in demo_data:
+            preset_status = data.pop("_preset_status")
+            preset_score = data.pop("_preset_score")
+            preset_grade = data.pop("_preset_grade")
+            preset_orders = data.pop("_preset_orders")
+            preset_on_time = data.pop("_preset_on_time")
+            preset_reject = data.pop("_preset_reject")
+
+            supplier = cls.create_supplier(**data)
+            supplier["status"] = preset_status
+            if preset_score is not None:
+                supplier["score_overall"] = preset_score
+                supplier["score_grade"] = preset_grade
+                # 反推各维度分（近似）
+                supplier["score_quality"] = round(preset_score * (0.4 / 0.4) * 0.95, 1) if preset_score >= 60 else preset_score * 0.7
+                supplier["score_delivery"] = round(preset_on_time * 0.9, 1)
+                supplier["score_price"] = 80.0
+                supplier["score_service"] = 75.0
+                supplier["last_score_at"] = datetime.now().isoformat()
+            supplier["total_orders"] = preset_orders
+            supplier["on_time_rate"] = preset_on_time
+            supplier["reject_rate"] = preset_reject
+            supplier["updated_at"] = datetime.now().isoformat()
+            count += 1
+
+        # 生成历史评分快照
+        periods = ["2026-03", "2026-04", "2026-05", "2026-06", "2026-07", "2026-08"]
+        for i, sup in enumerate(cls._supplier_cache.values()):
+            if sup.get("score_overall") is None:
+                continue
+            base = sup["score_overall"]
+            for j, period in enumerate(periods):
+                variance = (j - len(periods) / 2) * 2  # 趋势波动
+                sscore = max(0, min(100, round(base + variance + (i * -3), 1)))
+                sid = f"SS-{period.replace('-', '')}-{sup['supplier_id']}"
+                cls._score_cache[sid] = {
+                    "id": sid,
+                    "supplier_id": sup["supplier_id"],
+                    "period": period,
+                    "quality_score": round(sscore * 0.95, 1),
+                    "delivery_score": round(sscore * 0.88, 1),
+                    "price_score": 80.0,
+                    "service_score": 75.0,
+                    "overall": sscore,
+                    "grade": cls._grade_from_score(sscore),
+                    "order_count": max(1, preset_orders // 6),
+                    "receiving_count": max(1, preset_orders // 3),
+                    "rejection_count": max(0, int(preset_reject * preset_orders / 100 / 6)),
+                    "calc_at": datetime.now().isoformat(),
+                }
+
+        cls._save_to_json()
+        logger.info("Demo供应商数据加载完成: %d 个供应商, %d 条评分快照",
+                    count, len(cls._score_cache))
         return count

@@ -1,0 +1,145 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>采购订单详情 - 火瞳 Edge UI</title>
+  <link rel="stylesheet" href="/static/assets/edge-ui-common.css">
+  <style>
+    body { background: #f5f7fa; }
+    .container { max-width: 960px; margin: 0 auto; padding: 20px; }
+
+    .back-link { display: inline-flex; align-items: center; gap: 6px; color: #4a6cf7; text-decoration: none; font-size: 14px; margin-bottom: 16px; cursor: pointer; }
+
+    /* 订单头部 */
+    .order-header { background: #fff; border-radius: 12px; padding: 24px; box-shadow: 0 1px 4px rgba(0,0,0,0.08); margin-bottom: 20px; }
+    .oh-top { display: flex; justify-content: space-between; align-items: flex-start; flex-wrap: wrap; gap: 12px; }
+    .oh-title { font-size: 22px; font-weight: 700; color: #1a1a2e; }
+    .badge { display: inline-block; padding: 4px 14px; border-radius: 14px; font-size: 13px; font-weight: 700; margin-left: 10px; vertical-align: middle; }
+    .badge-draft { background: #f0f0f0; color: #666; }
+    .badge-submitted { background: #fff3cd; color: #856404; }
+    .badge-confirmed { background: #cce5ff; color: #004085; }
+    .badge-partial { background: #ffeeba; color: #856404; }
+    .badge-received { background: #d4edda; color: #155724; }
+    .badge-cancelled { background: #e2e3e5; color: #383d41; }
+
+    .oh-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); gap: 12px; margin-top: 16px; }
+    .oh-field { font-size: 13px; }
+    .oh-field .label { color: #888; display: block; margin-bottom: 2px; }
+    .oh-field .value { color: #333; font-weight: 600; }
+
+    /* 行项目表格 */
+    .section-card { background: #fff; border-radius: 12px; padding: 20px; box-shadow: 0 1px 4px rgba(0,0,0,0.08); margin-bottom: 20px; }
+    .section-title { font-size: 16px; font-weight: 700; color: #1a1a2e; margin-bottom: 14px; padding-bottom: 8px; border-bottom: 2px solid #f0f0f0; }
+
+    table { width: 100%; border-collapse: collapse; }
+    th { background: #f5f7fa; padding: 10px 14px; text-align: left; font-size: 12px; color: #666; font-weight: 600; }
+    td { padding: 10px 14px; border-top: 1px solid #f0f0f0; font-size: 13px; }
+    .progress-bar { width: 100px; height: 18px; background: #eee; border-radius: 9px; overflow: hidden; position: relative; }
+    .progress-fill { height: 100%; border-radius: 9px; transition: width 0.3s; }
+    .progress-fill.full { background: linear-gradient(90deg, #28a745, #5cb85c); }
+    .progress-fill.partial { background: linear-gradient(90deg, #ffc107, #ffb300); }
+    .progress-fill.none { background: #ddd; }
+    .progress-text { position: absolute; top: 50%; left: 50%; transform: translate(-50%, -50%); font-size: 10px; font-weight: 700; color: #555; }
+
+    /* 关联收货记录 */
+    .receiving-link { display: block; padding: 10px 14px; background: #f8f9fa; border-radius: 6px; margin-bottom: 8px; text-decoration: none; color: #333; font-size: 13px; border-left: 3px solid #4a6cf7; }
+    .receiving-link:hover { background: #eef1f7; }
+    .rl-status { float: right; font-weight: 600; font-size: 12px; }
+    .rl-passed { color: #28a745; }
+    .rl-partial { color: #ffc107; }
+    .rl-rejected { color: #dc3545; }
+
+    /* 操作区 */
+    .action-zone { background: linear-gradient(135deg, #667eea 0%, #764ba2 100%); border-radius: 12px; padding: 24px; margin-bottom: 20px; }
+    .action-zone h4 { color: #fff; margin: 0 0 16px 0; font-size: 15px; }
+    .action-btns { display: flex; gap: 10px; flex-wrap: wrap; }
+    .action-btns button { padding: 10px 22px; border: none; border-radius: 8px; font-size: 14px; font-weight: 600; cursor: pointer; transition: transform 0.15s; }
+    .action-btns button:hover { transform: translateY(-1px); }
+    .btn-confirm { background: #fff; color: #667eea; }
+    .btn-submit { background: #17a2b8; color: #fff; }
+    .btn-cancel-po { background: #dc3545; color: #fff; }
+    .btn-return { background: #ffc107; color: #333; }
+    .btn-receive { background: #28a745; color: #fff; }
+    .btn-edit { background: rgba(255,255,255,0.9); color: #333; }
+    .btn-delete { background: rgba(220,53,69,0.85); color: #fff; }
+
+    .terminal-state { text-align: center; padding: 30px; color: #888; font-size: 15px; }
+    .terminal-icon { font-size: 48px; margin-bottom: 10px; }
+
+    /* 取消原因弹窗 */
+    .modal-overlay { display: none; position: fixed; top: 0; left: 0; right: 0; bottom: 0; background: rgba(0,0,0,0.5); z-index: 1000; justify-content: center; align-items: center; }
+    .modal-overlay.active { display: flex; }
+    .modal-box { background: #fff; border-radius: 12px; padding: 24px; width: 420px; max-width: 90vw; }
+    .modal-box h3 { margin: 0 0 16px 0; }
+    .modal-box textarea { width: 100%; padding: 10px; border: 1px solid #ddd; border-radius: 6px; font-size: 14px; resize: vertical; min-height: 80px; box-sizing: border-box; }
+    .modal-actions { display: flex; gap: 10px; justify-content: flex-end; margin-top: 16px; }
+    .modal-actions button { padding: 8px 20px; border: none; border-radius: 6px; font-size: 14px; cursor: pointer; font-weight: 600; }
+  </style>
+</head>
+<body>
+  <div class="container">
+    <!-- 返回链接 -->
+    <a class="back-link" onclick="history.back()">← 返回订单列表</a>
+
+    <!-- 订单头部 -->
+    <div class="order-header" id="orderHeader">
+      <div class="oh-top">
+        <div>
+          <span class="oh-title" id="poNumber">-</span>
+          <span class="badge badge-draft" id="statusBadge">-</span>
+        </div>
+      </div>
+      <div class="oh-grid" id="ohGrid"></div>
+    </div>
+
+    <!-- 行项目 -->
+    <div class="section-card">
+      <div class="section-title">📦 订单明细</div>
+      <table>
+        <thead><tr><th>SKU</th><th>名称</th><th>订购量</th><th>已收货</th><th>单价</th><th>小计</th><th>收货进度</th></tr></thead>
+        <tbody id="itemsBody"></tbody>
+      </table>
+    </div>
+
+    <!-- 关联收货记录 -->
+    <div class="section-card" id="receivingSection" style="display:none;">
+      <div class="section-title">🔗 关联收货记录 (S02联动)</div>
+      <div id="receivingList"></div>
+    </div>
+
+    <!-- 操作区 -->
+    <div class="action-zone" id="actionZone">
+      <h4>订单操作</h4>
+      <div class="action-btns" id="actionBtns"></div>
+    </div>
+  </div>
+
+  <!-- 取消原因弹窗 -->
+  <div class="modal-overlay" id="cancelModal">
+    <div class="modal-box">
+      <h3>取消订单</h3>
+      <p style="color:#666;font-size:13px;margin-bottom:10px;">请输入取消原因：</p>
+      <textarea id="cancelReason" placeholder="请说明取消原因..."></textarea>
+      <div class="modal-actions">
+        <button onclick="hideCancelModal()" style="background:#eee;color:#666;">取消</button>
+        <button onclick="doCancel()" style="background:#dc3545;color:#fff;">确认取消</button>
+      </div>
+    </div>
+  </div>
+
+  <script src="/static/assets/purchase-order.js"></script>
+  <script>
+    // 页面加载时获取URL参数中的po_number
+    document.addEventListener('DOMContentLoaded', () => {
+      const params = new URLSearchParams(window.location.search);
+      const poNumber = params.get('po_number');
+      if (poNumber) {
+        loadDetail(poNumber);
+      } else {
+        document.getElementById('poNumber').textContent = '错误：缺少订单号';
+      }
+    });
+  </script>
+</body>
+</html>

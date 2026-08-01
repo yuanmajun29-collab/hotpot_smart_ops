@@ -1,0 +1,183 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>供应商详情 - 火瞳 Edge UI</title>
+    <link rel="stylesheet" href="assets/edge-ui.css">
+    <style>
+        .detail-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 16px; margin-bottom: 20px; }
+        .info-card, .score-card {
+            background: #fff; border-radius: 12px; padding: 20px;
+            box-shadow: 0 1px 3px rgba(0,0,0,0.08);
+        }
+        .info-card h3, .score-card h3 { margin: 0 0 14px 0; font-size: 15px; color: #374151; }
+        .info-row { display: flex; justify-content: space-between; padding: 6px 0;
+                     border-bottom: 1px solid #f3f4f6; font-size: 13px; }
+        .info-row:last-child { border-bottom: none; }
+        .info-label { color: #6b7280; }
+        .info-value { font-weight: 500; }
+
+        /* 评分雷达区域 */
+        .radar-placeholder {
+            width: 200px; height: 200px; margin: 0 auto; position: relative;
+            background: linear-gradient(135deg, #f9fafb, #f3f4f6);
+            border-radius: 50%; display: flex; align-items: center; justify-content: center;
+        }
+        .radar-center-text { text-align: center; }
+        .radar-score-big { font-size: 36px; font-weight: 700; color: #1f2937; }
+        .radar-grade-badge { font-size: 18px; font-weight: 600; margin-top: 2px; }
+
+        /* 维度条 */
+        .dim-item { margin-bottom: 12px; }
+        .dim-header { display: flex; justify-content: space-between; font-size: 13px; margin-bottom: 4px; }
+        .dim-name { color: #374151; font-weight: 500; }
+        .dim-score { color: #1f2937; font-weight: 600; }
+        .dim-bar { width: 100%; height: 8px; background: #e5e7eb; border-radius: 4px; overflow: hidden; }
+        .dim-fill { height: 100%; border-radius: 4px; transition: width 0.5s ease; }
+        .dim-quality { background: linear-gradient(90deg, #3b82f6, #2563eb); }
+        .dim-delivery { background: linear-gradient(90deg, #22c55e, #16a34a); }
+        .dim-price { background: linear-gradient(90deg, #f59e0b, #d97706); }
+        .dim-service { background: linear-gradient(90deg, #8b5cf6, #7c3aed); }
+
+        /* 趋势图 */
+        .trend-chart { height: 140px; position: relative; border-left: 2px solid #e5e7eb;
+                        border-bottom: 2px solid #e5e7eb; margin: 10px 0 20px; }
+        .trend-point { position: absolute; width: 8px; height: 8px; border-radius: 50%;
+                       background: #3b82f6; transform: translate(-50%, 50%); cursor: pointer; }
+        .trend-point:hover { transform: translate(-50%, 50%) scale(1.5); }
+        .trend-label { position: absolute; font-size: 11px; color: #9ca3af;
+                      transform: translateX(-50%); bottom: -18px; }
+
+        /* 操作区 */
+        .action-zone {
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            border-radius: 12px; padding: 24px; color: #fff;
+        }
+        .action-zone .status-title { font-size: 18px; font-weight: 600; margin-bottom: 6px; }
+        .action-zone .status-desc { opacity: 0.85; font-size: 13px; margin-bottom: 16px; }
+        .action-btns { display: flex; gap: 10px; flex-wrap: wrap; }
+        .action-btn {
+            padding: 8px 18px; border-radius: 8px; border: 1px solid rgba(255,255,255,0.3);
+            background: rgba(255,255,255,0.15); color: #fff; cursor: pointer;
+            font-size: 13px; transition: all 0.2s;
+        }
+        .action-btn:hover { background: rgba(255,255,255,0.3); }
+        .action-btn.danger:hover { background: rgba(239,68,68,0.5); }
+        .action-btn.success:hover { background: rgba(34,197,94,0.5); }
+
+        /* 关联数据区 */
+        .related-section { display: grid; grid-template-columns: 1fr 1fr; gap: 16px; margin-top: 20px; }
+        .related-card { background: #fff; border-radius: 12px; padding: 16px;
+                         box-shadow: 0 1px 3px rgba(0,0,0,0.08); }
+        .related-card h4 { margin: 0 0 10px 0; font-size: 14px; color: #374151; }
+        .related-item { padding: 8px 0; border-bottom: 1px solid #f3f4f6; font-size: 13px;
+                       display: flex; justify-content: space-between; }
+        .related-item:last-child { border-bottom: none; }
+
+        @media (max-width: 768px) {
+            .detail-grid, .related-section { grid-template-columns: 1fr; }
+        }
+    </style>
+</head>
+<body class="edge-ui-body">
+    <div class="app-container">
+        <header class="top-nav">
+            <div class="nav-left">
+                <a href="supplier.html" class="back-btn">← 返回列表</a>
+                <h1 id="page-title">供应商详情</h1>
+            </div>
+            <div class="nav-right">
+                <button class="btn btn-sm btn-outline" onclick="editSupplier()">编辑</button>
+            </div>
+        </header>
+
+        <!-- 基本信息 + 评分概览 -->
+        <section class="detail-grid" id="detail-top">
+            <!-- 左：基本信息 -->
+            <div class="info-card" id="info-card">
+                <h3>📦 供应商档案</h3>
+                <div id="info-content">加载中...</div>
+            </div>
+            <!-- 右：评分雷达 -->
+            <div class="score-card" id="score-card">
+                <h3>📊 综合评分</h3>
+                <div id="score-content">加载中...</div>
+            </div>
+        </section>
+
+        <!-- 评分趋势 -->
+        <section class="info-card" style="margin-bottom:20px">
+            <h3>📈 评分趋势（近6月）</h3>
+            <div id="trend-content" style="height:160px">暂无历史数据</div>
+        </section>
+
+        <!-- 维度明细 -->
+        <section class="info-card" style="margin-bottom:20px">
+            <h3>📋 维度明细</h3>
+            <div id="dimension-content"></div>
+        </section>
+
+        <!-- 关联订单 + 收货记录 -->
+        <section class="related-section" id="related-section" style="display:none">
+            <div class="related-card">
+                <h4>📦 关联采购订单</h4>
+                <div id="orders-content"></div>
+            </div>
+            <div class="related-card">
+                <h4>📥 关联收货记录</h4>
+                <div id="receiving-content"></div>
+            </div>
+        </section>
+
+        <!-- 操作区 -->
+        <section class="action-zone" id="action-zone" style="margin-top:20px">
+            <div id="action-content"></div>
+        </section>
+    </div>
+
+    <!-- 调整评分弹窗 -->
+    <div class="modal-overlay" id="adjust-modal" style="display:none">
+        <div class="modal-content" style="max-width:420px">
+            <div class="modal-header">
+                <h3>调整评分</h3>
+                <button class="modal-close" onclick="closeAdjustModal()">&times;</button>
+            </div>
+            <form onsubmit="doAdjust(event)">
+                <div class="form-group">
+                    <label>调整分值 (-10 ~ +10)</label>
+                    <input type="number" id="adjust-value" min="-10" max="10" step="0.5"
+                           required style="font-size:20px;text-align:center">
+                    <small class="form-hint">正数加分，负数扣分</small>
+                </div>
+                <div class="form-group">
+                    <label>调整原因 *</label>
+                    <textarea id="adjust-reason" rows="3" required
+                              placeholder="请说明调整原因..."></textarea>
+                </div>
+                <div class="modal-footer">
+                    <button type="button" class="btn btn-outline" onclick="closeAdjustModal()">取消</button>
+                    <button type="submit" class="btn btn-primary">确认调整</button>
+                </div>
+            </form>
+        </div>
+    </div>
+
+    <!-- 操作确认弹窗 -->
+    <div class="modal-overlay" id="confirm-modal" style="display:none">
+        <div class="modal-content" style="max-width:400px">
+            <div class="modal-header">
+                <h3 id="confirm-title">确认操作</h3>
+                <button class="modal-close" onclick="closeConfirmModal()">&times;</button>
+            </div>
+            <p id="confirm-message" style="padding:10px 0;color:#6b7280;font-size:14px"></p>
+            <div class="modal-footer">
+                <button type="button" class="btn btn-outline" onclick="closeConfirmModal()">取消</button>
+                <button type="button" class="btn btn-danger" id="confirm-btn">确认</button>
+            </div>
+        </div>
+    </div>
+
+    <script src="assets/supplier.js"></script>
+</body>
+</html>
