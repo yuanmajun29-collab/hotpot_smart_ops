@@ -537,8 +537,17 @@ class SupplyChainManager:
                     k: PurchaseOrder(**v) for k, v in data.get("purchase_orders", {}).items()
                 }
                 cls._po_counter = data.get("po_counter", 0)
-                logger.info("从 JSON 加载货品数据: %d 个产品, %d 条收货记录, %d 个采购订单",
-                            len(cls._product_cache), len(cls._receiving_cache), len(cls._po_cache))
+                # S04: 加载供应商数据
+                cls._supplier_cache = data.get("suppliers", {})
+                cls._supplier_counter = data.get("supplier_counter", 0)
+                cls._score_cache = data.get("score_snapshots", {})
+                cls._adjustment_cache = data.get("score_adjustments", {})
+                logger.info(
+                    "从 JSON 加载货品数据: %d 个产品, %d 条收货记录, "
+                    "%d 个采购订单, %d 个供应商",
+                    len(cls._product_cache), len(cls._receiving_cache),
+                    len(cls._po_cache), len(cls._supplier_cache),
+                )
             except Exception as e:
                 logger.error("加载 JSON 数据失败: %s", e)
 
@@ -558,6 +567,11 @@ class SupplyChainManager:
                     # S03: 保存采购订单数据
                     "purchase_orders": {k: v.model_dump() for k, v in cls._po_cache.items()},
                     "po_counter": cls._po_counter,
+                    # S04: 保存供应商数据
+                    "suppliers": cls._supplier_cache,
+                    "supplier_counter": cls._supplier_counter,
+                    "score_snapshots": cls._score_cache,
+                    "score_adjustments": cls._adjustment_cache,
                 }
                 with open(cls._data_file, "w", encoding="utf-8") as f:
                     json.dump(data, f, ensure_ascii=False, indent=2, default=str)
@@ -2189,4 +2203,546 @@ class SupplyChainManager:
 
         cls._save_to_json()
         logger.info("Demo采购订单数据加载完成: %d 条", count)
+        return count
+
+    # ============================================================
+    # S04 — 供应商协同与评分 (2026-08-01)
+    # ============================================================
+
+    _supplier_cache: Dict[str, dict] = {}  # supplier_id → supplier dict
+    _supplier_counter: int = 0
+    _score_cache: Dict[str, dict] = {}     # score_id → score snapshot
+    _adjustment_cache: Dict[str, dict] = {} # adjustment_id → adjustment
+
+    @classmethod
+    def _get_next_supplier_id(cls) -> str:
+        cls._supplier_counter += 1
+        return f"SUP-{cls._supplier_counter:04d}"
+
+    @classmethod
+    def create_supplier(
+        cls,
+        name: str,
+        contact_person: str = "",
+        phone: str = "",
+        address: str = "",
+        license_no: Optional[str] = None,
+        supplied_skus: Optional[List[str]] = None,
+        contract_start: Optional[date] = None,
+        contract_end: Optional[date] = None,
+        notes: Optional[str] = None,
+    ) -> dict:
+        """创建供应商档案 (BR-05: 初始状态=pending)"""
+        # 名称唯一性检查
+        for s in cls._supplier_cache.values():
+            if s.get("name") == name:
+                raise ValueError(f"供应商名称已存在: {name}")
+
+        # SKU合法性检查
+        valid_skus = []
+        if supplied_skus:
+            for sku in supplied_skus:
+                if sku in cls._product_cache:
+                    valid_skus.append(sku)
+                else:
+                    logger.warning("SKU不存在，跳过: %s", sku)
+
+        now = datetime.now()
+        supplier_id = cls._get_next_supplier_id()
+        supplier = {
+            "supplier_id": supplier_id,
+            "name": name,
+            "contact_person": contact_person,
+            "phone": phone,
+            "address": address,
+            "license_no": license_no,
+            "status": "pending",  # BR-05: 待审核
+            "supplied_skus": valid_skus,
+            "score_overall": None,
+            "score_quality": None,
+            "score_delivery": None,
+            "score_price": None,
+            "score_service": None,
+            "score_grade": None,
+            "last_score_at": None,
+            "total_orders": 0,
+            "total_amount": 0.0,
+            "on_time_rate": 100.0,
+            "reject_rate": 0.0,
+            "contract_start": contract_start.isoformat() if contract_start else None,
+            "contract_end": contract_end.isoformat() if contract_end else None,
+            "notes": notes,
+            "created_at": now.isoformat(),
+            "updated_at": now.isoformat(),
+        }
+        cls._supplier_cache[supplier_id] = supplier
+        cls._save_to_json()
+        logger.info("供应商创建成功: %s (%s)", supplier_id, name)
+        return supplier
+
+    @classmethod
+    def get_supplier_list(
+        cls,
+        page: int = 1,
+        page_size: int = 20,
+        status: Optional[str] = None,
+        keyword: Optional[str] = None,
+        grade: Optional[str] = None,
+        sort_by: str = "-score_overall",
+    ) -> dict:
+        """供应商列表（筛选+排序+分页）"""
+        suppliers = list(cls._supplier_cache.values())
+
+        # 状态过滤
+        if status:
+            suppliers = [s for s in suppliers if s.get("status") == status]
+
+        # 等级过滤
+        if grade:
+            suppliers = [s for s in suppliers if s.get("score_grade") == grade]
+
+        # 关键词搜索
+        if keyword:
+            kw = keyword.lower()
+            suppliers = [s for s in suppliers if
+                         kw in s.get("name", "").lower() or
+                         kw in s.get("contact_person", "").lower() or
+                         kw in s.get("phone", "")]
+
+        # 排序
+        reverse = sort_by.startswith("-")
+        sort_field = sort_by.lstrip("-")
+        suppliers.sort(
+            key=lambda x: x.get(sort_field) or (0 if sort_field.startswith("score") or sort_field in ("total_orders", "total_amount") else ""),
+            reverse=reverse,
+        )
+
+        # 分页
+        total = len(suppliers)
+        start = (page - 1) * page_size
+        items = suppliers[start:start + page_size]
+
+        return {
+            "total": total,
+            "page": page,
+            "page_size": page_size,
+            "items": items,
+        }
+
+    @classmethod
+    def get_supplier_detail(cls, supplier_id: str) -> dict:
+        """供应商详情（含最新评分）"""
+        if supplier_id not in cls._supplier_cache:
+            raise KeyError(f"供应商不存在: {supplier_id}")
+        return cls._supplier_cache[supplier_id]
+
+    @classmethod
+    def update_supplier(cls, supplier_id: str, **kwargs) -> dict:
+        """编辑供应商信息"""
+        if supplier_id not in cls._supplier_cache:
+            raise KeyError(f"供应商不存在: {supplier_id}")
+
+        supplier = cls._supplier_cache[supplier_id]
+        updatable_fields = [
+            "contact_person", "phone", "address", "license_no",
+            "supplied_skus", "contract_start", "contract_end", "notes",
+        ]
+        for field, value in kwargs.items():
+            if field in updatable_fields:
+                if isinstance(value, date):
+                    value = value.isoformat()
+                supplier[field] = value
+        supplier["updated_at"] = datetime.now().isoformat()
+
+        cls._save_to_json()
+        return supplier
+
+    @classmethod
+    def delete_supplier(cls, supplier_id: str) -> bool:
+        """删除供应商（仅允许pending状态）"""
+        if supplier_id not in cls._supplier_cache:
+            raise KeyError(f"供应商不存在: {supplier_id}")
+        supplier = cls._supplier_cache[supplier_id]
+        if supplier.get("status") != "pending":
+            raise ValueError(f"仅允许删除待审核状态的供应商，当前状态: {supplier['status']}")
+        del cls._supplier_cache[supplier_id]
+        cls._save_to_json()
+        return True
+
+    @classmethod
+    def activate_supplier(cls, supplier_id: str) -> dict:
+        """激活供应商 (pending→active) + 初始化评分"""
+        if supplier_id not in cls._supplier_cache:
+            raise KeyError(f"供应商不存在: {supplier_id}")
+        supplier = cls._supplier_cache[supplier_id]
+        if supplier["status"] != "pending":
+            raise ValueError(f"仅待审核状态可激活，当前: {supplier['status']}")
+
+        supplier["status"] = "active"
+        supplier["updated_at"] = datetime.now().isoformat()
+
+        # 初始化评分（BR-03/04: MVP默认值）
+        supplier["score_quality"] = 85.0
+        supplier["score_delivery"] = 80.0
+        supplier["score_price"] = 80.0   # BR-03: 无比价数据时中性分
+        supplier["score_service"] = 75.0   # BR-04: 无评价数据时默认
+        supplier["score_overall"] = round(
+            85.0 * 0.40 + 80.0 * 0.25 + 80.0 * 0.20 + 75.0 * 0.15, 1
+        )
+        supplier["score_grade"] = cls._grade_from_score(supplier["score_overall"])
+        supplier["last_score_at"] = datetime.now().isoformat()
+
+        cls._save_to_json()
+        logger.info("供应商激活: %s → active, 初始评分: %.1f(%s)",
+                    supplier_id, supplier["score_overall"], supplier["score_grade"])
+        return supplier
+
+    @classmethod
+    def suspend_supplier(cls, supplier_id: str, reason: str = "") -> dict:
+        """停用供应商 (active/probation→suspended) BR-08"""
+        if supplier_id not in cls._supplier_cache:
+            raise KeyError(f"供应商不存在: {supplier_id}")
+        supplier = cls._supplier_cache[supplier_id]
+        if supplier["status"] not in ("active", "probation"):
+            raise ValueError(f"当前状态不允许停用: {supplier['status']}")
+
+        supplier["status"] = "suspended"
+        supplier["notes"] = f"{supplier.get('notes') or ''} | 停用原因: {reason}".strip(" |")
+        supplier["updated_at"] = datetime.now().isoformat()
+        cls._save_to_json()
+        return supplier
+
+    @classmethod
+    def blacklist_supplier(cls, supplier_id: str, reason: str) -> dict:
+        """拉黑供应商 (suspended→blacklisted) BR-12"""
+        if supplier_id not in cls._supplier_cache:
+            raise KeyError(f"供应商不存在: {supplier_id}")
+        supplier = cls._supplier_cache[supplier_id]
+        if supplier["status"] != "suspended":
+            raise ValueError(f"仅停用状态可拉黑，当前: {supplier['status']}")
+
+        supplier["status"] = "blacklisted"
+        supplier["score_overall"] = 25.0  # 黑名单固定低分
+        supplier["score_grade"] = "D"
+        supplier["notes"] = f"{supplier.get('notes') or ''} | 拉黑原因: {reason}".strip(" |")
+        supplier["updated_at"] = datetime.now().isoformat()
+        cls._save_to_json()
+        logger.warning("供应商拉黑: %s - 原因: %s", supplier_id, reason)
+        return supplier
+
+    @classmethod
+    def restore_supplier(cls, supplier_id: str) -> dict:
+        """恢复供应商 (suspended/blacklisted→active) BR-11/13"""
+        if supplier_id not in cls._supplier_cache:
+            raise KeyError(f"供应商不存在: {supplier_id}")
+        supplier = cls._supplier_cache[supplier_id]
+        if supplier["status"] not in ("suspended", "blacklisted"):
+            raise ValueError(f"当前状态无需恢复: {supplier['status']}")
+
+        supplier["status"] = "active"
+        supplier["updated_at"] = datetime.now().isoformat()
+        cls._save_to_json()
+        return supplier
+
+    @classmethod
+    def get_supplier_score(cls, supplier_id: str) -> dict:
+        """获取供应商评分详情（四维+历史快照）"""
+        if supplier_id not in cls._supplier_cache:
+            raise KeyError(f"供应商不存在: {supplier_id}")
+
+        supplier = cls._supplier_cache[supplier_id]
+        now_str = datetime.now().strftime("%Y-%m")
+
+        # 收集历史快照
+        history = [
+            s for s in cls._score_cache.values()
+            if s.get("supplier_id") == supplier_id
+        ]
+        history.sort(key=lambda x: x.get("period", ""))
+
+        return {
+            "supplier_id": supplier_id,
+            "name": supplier["name"],
+            "current": {
+                "overall": supplier.get("score_overall"),
+                "quality_score": supplier.get("score_quality"),
+                "delivery_score": supplier.get("score_delivery"),
+                "price_score": supplier.get("score_price"),
+                "service_score": supplier.get("score_service"),
+                "grade": supplier.get("score_grade"),
+                "calc_at": supplier.get("last_score_at"),
+            },
+            "dimensions": {
+                "quality": {"score": supplier.get("score_quality"), "weight": 0.40},
+                "delivery": {"score": supplier.get("score_delivery"), "weight": 0.25},
+                "price": {"score": supplier.get("score_price"), "weight": 0.20},
+                "service": {"score": supplier.get("score_service"), "weight": 0.15},
+            },
+            "trend": [
+                {"period": s["period"], "overall": s.get("overall"), "grade": s.get("grade")}
+                for s in history[-6:]  # 最近6个月
+            ],
+            "adjustments": [
+                {"id": a["id"], "adjustment": a["adjustment"], "reason": a.get("reason"),
+                 "adjusted_by": a.get("adjusted_by"), "adjusted_at": a.get("adjusted_at")}
+                for a in cls._adjustment_cache.values()
+                if a.get("supplier_id") == supplier_id
+            ],
+        }
+
+    @classmethod
+    def get_score_history(cls, supplier_id: str) -> List[dict]:
+        """评分历史趋势（月度快照）"""
+        if supplier_id not in cls._supplier_cache:
+            raise KeyError(f"供应商不存在: {supplier_id}")
+
+        history = [
+            s for s in cls._score_cache.values()
+            if s.get("supplier_id") == supplier_id
+        ]
+        history.sort(key=lambda x: x.get("period", ""))
+        return history
+
+    @classmethod
+    def adjust_score(cls, supplier_id: str, adjustment: float, reason: str, operator: str) -> dict:
+        """人工调整评分 (单次±10限制)"""
+        if abs(adjustment) > 10:
+            raise ValueError("单次调整幅度不超过±10分")
+        if not reason:
+            raise ValueError("调整原因为必填项")
+
+        if supplier_id not in cls._supplier_cache:
+            raise KeyError(f"供应商不存在: {supplier_id}")
+
+        supplier = cls._supplier_cache[supplier_id]
+        old_score = supplier.get("score_overall") or 0
+        new_score = max(0, min(100, round(old_score + adjustment, 1)))
+
+        supplier["score_overall"] = new_score
+        supplier["score_grade"] = cls._grade_from_score(new_score)
+        supplier["last_score_at"] = datetime.now().isoformat()
+        supplier["updated_at"] = datetime.now().isoformat()
+
+        # 记录调整
+        adj_id = f"SA-{len(cls._adjustment_cache) + 1:04d}"
+        cls._adjustment_cache[adj_id] = {
+            "id": adj_id,
+            "supplier_id": supplier_id,
+            "adjustment": adjustment,
+            "reason": reason,
+            "adjusted_by": operator,
+            "adjusted_at": datetime.now().isoformat(),
+        }
+
+        cls._save_to_json()
+        logger.info("供应商评分调整: %s %.1f→%.1f (%+.1f, 原因: %s)",
+                    supplier_id, old_score, new_score, adjustment, reason)
+        return supplier
+
+    @classmethod
+    def get_supplier_orders(cls, supplier_id: str) -> List[dict]:
+        """关联采购订单列表"""
+        if supplier_id not in cls._supplier_cache:
+            raise KeyError(f"供应商不存在: {supplier_id}")
+        supplier = cls._supplier_cache[supplier_id]
+        name = supplier["name"]
+
+        orders = []
+        for po in cls._po_cache.values():
+            if po.supplier == name or po.supplier == supplier_id:
+                orders.append(po.model_dump())
+        orders.sort(key=lambda x: x.get("ordered_at", ""), reverse=True)
+        return orders[:20]  # 最近20条
+
+    @classmethod
+    def get_supplier_stats(cls) -> dict:
+        """供应商统计概览"""
+        suppliers = list(cls._supplier_cache.values())
+        return {
+            "total": len(suppliers),
+            "active": sum(1 for s in suppliers if s["status"] == "active"),
+            "probation": sum(1 for s in suppliers if s["status"] == "probation"),
+            "suspended": sum(1 for s in suppliers if s["status"] == "suspended"),
+            "blacklisted": sum(1 for s in suppliers if s["status"] == "blacklisted"),
+            "pending": sum(1 for s in suppliers if s["status"] == "pending"),
+            "avg_score": round(
+                (s.get("score_overall") or 0 for s in suppliers if s.get("score_overall") is not None),
+                1,
+            ) if any(s.get("score_overall") is not None for s in suppliers) else None,
+            "grade_distribution": {
+                g: sum(1 for s in suppliers if s.get("score_grade") == g)
+                for g in ["A", "B", "C", "D"]
+            },
+        }
+
+    @classmethod
+    def get_supplier_ranking(cls, limit: int = 10) -> List[dict]:
+        """供应商排行榜（按评分降序）"""
+        suppliers = [
+            s for s in cls._supplier_cache.values()
+            if s.get("score_overall") is not None and s["status"] == "active"
+        ]
+        suppliers.sort(key=lambda x: x.get("score_overall", 0), reverse=True)
+        return suppliers[:limit]
+
+    @staticmethod
+    def _grade_from_score(score: Optional[float]) -> str:
+        """根据分数映射等级"""
+        if score is None:
+            return "-"
+        if score >= 90:
+            return "A"
+        elif score >= 75:
+            return "B"
+        elif score >= 60:
+            return "C"
+        else:
+            return "D"
+
+    @classmethod
+    def seed_demo_suppliers(cls) -> int:
+        """加载Demo种子数据 - 5个供应商覆盖全部状态和等级"""
+        demo_data = [
+            {
+                "name": "杭州冻品供应链",
+                "contact_person": "王总",
+                "phone": "138xxxx1234",
+                "address": "杭州市余杭区勾庄农贸市场冻品区B12号",
+                "license_no": "SC23310116000xxx",
+                "supplied_skus": ["FP-MW-001", "FP-HG-001", "FP-YX-001", "FP-FN-001"],
+                "contract_start": date(2026, 1, 1),
+                "contract_end": date(2027, 1, 1),
+                "notes": "主力毛肚/黄喉/鸭血/肥牛供应商，王总直供",
+                "_preset_status": "active",
+                "_preset_score": 92.5,
+                "_preset_grade": "A",
+                "_preset_orders": 24,
+                "_preset_on_time": 95.0,
+                "_preset_reject": 1.0,
+            },
+            {
+                "name": "宁波海鲜批发中心",
+                "contact_person": "李经理",
+                "phone": "139xxxx5678",
+                "address": "宁波市江北区路林市场海鲜区A08号",
+                "license_no": "SC23320206000yyy",
+                "supplied_skus": ["FP-HX-001", "FP-XH-001"],
+                "contract_start": date(2026, 3, 1),
+                "contract_end": date(2027, 3, 1),
+                "notes": "海鲜丸/虾滑，价格略高但品质稳定",
+                "_preset_status": "active",
+                "_preset_score": 82.0,
+                "_preset_grade": "B",
+                "_preset_orders": 18,
+                "_preset_on_time": 87.5,
+                "_preset_reject": 5.0,
+            },
+            {
+                "name": "温州牛肉供应链",
+                "contact_person": "张总",
+                "phone": "137xxxx9012",
+                "address": "温州市鹿城区农贸市场牛羊肉区C03号",
+                "license_no": "SC23330307000zzz",
+                "supplied_skus": ["FP-FN-002", "FP-NR-001"],
+                "contract_start": date(2026, 4, 1),
+                "contract_end": date(2027, 4, 1),
+                "notes": "近期有2次D级质检，已进入观察期",
+                "_preset_status": "probation",
+                "_preset_score": 62.0,
+                "_preset_grade": "C",
+                "_preset_orders": 8,
+                "_preset_on_time": 71.2,
+                "_preset_reject": 18.0,
+            },
+            {
+                "name": "上海调味品贸易公司",
+                "contact_person": "赵总",
+                "phone": "136xxxx3456",
+                "address": "上海市普陀区真北路调味品市场D15号",
+                "license_no": "SC23310607000www",
+                "supplied_skus": ["FP-GD-001", "FP-JL-001"],
+                "contract_start": date(2026, 2, 1),
+                "contract_end": date(2027, 2, 1),
+                "notes": "因价格纠纷暂停合作",
+                "_preset_status": "suspended",
+                "_preset_score": None,
+                "_preset_grade": None,
+                "_preset_orders": 3,
+                "_preset_on_time": 60.0,
+                "_preset_reject": 8.0,
+            },
+            {
+                "name": "XX冒牌冻品批发",
+                "contact_person": "",
+                "phone": "",
+                "address": "不详",
+                "license_no": None,
+                "supplied_skus": [],
+                "contract_start": None,
+                "contract_end": None,
+                "notes": "曾发现以劣充好，已拉黑处理",
+                "_preset_status": "blacklisted",
+                "_preset_score": 25.0,
+                "_preset_grade": "D",
+                "_preset_orders": 2,
+                "_preset_on_time": 35.0,
+                "_preset_reject": 100.0,
+            },
+        ]
+
+        count = 0
+        for data in demo_data:
+            preset_status = data.pop("_preset_status")
+            preset_score = data.pop("_preset_score")
+            preset_grade = data.pop("_preset_grade")
+            preset_orders = data.pop("_preset_orders")
+            preset_on_time = data.pop("_preset_on_time")
+            preset_reject = data.pop("_preset_reject")
+
+            supplier = cls.create_supplier(**data)
+            supplier["status"] = preset_status
+            if preset_score is not None:
+                supplier["score_overall"] = preset_score
+                supplier["score_grade"] = preset_grade
+                # 反推各维度分（近似）
+                supplier["score_quality"] = round(preset_score * (0.4 / 0.4) * 0.95, 1) if preset_score >= 60 else preset_score * 0.7
+                supplier["score_delivery"] = round(preset_on_time * 0.9, 1)
+                supplier["score_price"] = 80.0
+                supplier["score_service"] = 75.0
+                supplier["last_score_at"] = datetime.now().isoformat()
+            supplier["total_orders"] = preset_orders
+            supplier["on_time_rate"] = preset_on_time
+            supplier["reject_rate"] = preset_reject
+            supplier["updated_at"] = datetime.now().isoformat()
+            count += 1
+
+        # 生成历史评分快照
+        periods = ["2026-03", "2026-04", "2026-05", "2026-06", "2026-07", "2026-08"]
+        for i, sup in enumerate(cls._supplier_cache.values()):
+            if sup.get("score_overall") is None:
+                continue
+            base = sup["score_overall"]
+            for j, period in enumerate(periods):
+                variance = (j - len(periods) / 2) * 2  # 趋势波动
+                sscore = max(0, min(100, round(base + variance + (i * -3), 1)))
+                sid = f"SS-{period.replace('-', '')}-{sup['supplier_id']}"
+                cls._score_cache[sid] = {
+                    "id": sid,
+                    "supplier_id": sup["supplier_id"],
+                    "period": period,
+                    "quality_score": round(sscore * 0.95, 1),
+                    "delivery_score": round(sscore * 0.88, 1),
+                    "price_score": 80.0,
+                    "service_score": 75.0,
+                    "overall": sscore,
+                    "grade": cls._grade_from_score(sscore),
+                    "order_count": max(1, preset_orders // 6),
+                    "receiving_count": max(1, preset_orders // 3),
+                    "rejection_count": max(0, int(preset_reject * preset_orders / 100 / 6)),
+                    "calc_at": datetime.now().isoformat(),
+                }
+
+        cls._save_to_json()
+        logger.info("Demo供应商数据加载完成: %d 个供应商, %d 条评分快照",
+                    count, len(cls._score_cache))
         return count

@@ -1,0 +1,185 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>供应商协同与评分 - 火瞳 Edge UI</title>
+    <link rel="stylesheet" href="assets/edge-ui.css">
+    <style>
+        .stat-card { transition: transform 0.2s; }
+        .stat-card:hover { transform: translateY(-2px); }
+        .grade-badge {
+            display: inline-block; padding: 2px 10px; border-radius: 12px;
+            font-size: 13px; font-weight: 600;
+        }
+        .grade-A { background: #ecfdf5; color: #065f46; }
+        .grade-B { background: #f0fdf4; color: #166534; }
+        .grade-C { background: #fffbeb; color: #92400e; }
+        .grade-D { background: #fef2f2; color: #991b1b; }
+        .status-dot {
+            width: 8px; height: 8px; border-radius: 50%; display: inline-block; margin-right: 4px;
+        }
+        .status-active { background: #22c55e; }
+        .status-probation { background: #f59e0b; }
+        .status-suspended { background: #f97316; }
+        .status-blacklisted { background: #1f2937; }
+        .status-pending { background: #9ca3af; }
+        .score-bar {
+            width: 60px; height: 6px; border-radius: 3px;
+            background: #e5e7eb; overflow: hidden;
+        }
+        .score-bar-fill { height: 100%; border-radius: 3px; transition: width 0.3s; }
+        .score-high { background: linear-gradient(90deg, #22c55e, #16a34a); }
+        .score-mid { background: linear-gradient(90deg, #f59e0b, #d97706); }
+        .score-low { background: linear-gradient(90deg, #ef4444, #dc2626); }
+    </style>
+</head>
+<body class="edge-ui-body">
+    <div class="app-container">
+        <!-- 顶部导航 -->
+        <header class="top-nav">
+            <div class="nav-left">
+                <a href="index.html" class="back-btn">← 返回</a>
+                <h1>供应商协同与评分</h1>
+            </div>
+            <div class="nav-right">
+                <span class="badge">D1-S04</span>
+            </div>
+        </header>
+
+        <!-- 统计卡片 -->
+        <section class="stats-grid">
+            <div class="stat-card" id="stat-total">
+                <div class="stat-number">--</div>
+                <div class="stat-label">总供应商数</div>
+            </div>
+            <div class="stat-card" id="stat-active">
+                <div class="stat-number" style="color:#22c55e">--</div>
+                <div class="stat-label">活跃合作</div>
+            </div>
+            <div class="stat-card" id="stat-probation">
+                <div class="stat-number" style="color:#f59e0b">--</div>
+                <div class="stat-label">观察期</div>
+            </div>
+            <div class="stat-card" id="stat-suspended">
+                <div class="stat-number" style="color:#f97316">--</div>
+                <div class="stat-label">已停用</div>
+            </div>
+            <div class="stat-card" id="stat-blacklisted">
+                <div class="stat-number" style="color:#ef4444">--</div>
+                <div class="stat-label">黑名单</div>
+            </div>
+        </section>
+
+        <!-- 工具栏 -->
+        <section class="toolbar">
+            <div class="toolbar-left">
+                <input type="text" id="search-input" placeholder="搜索供应商名称/联系人..." class="search-input">
+                <select id="filter-status" class="filter-select">
+                    <option value="">全部状态</option>
+                    <option value="active">活跃合作</option>
+                    <option value="probation">观察期</option>
+                    <option value="suspended">已停用</option>
+                    <option value="blacklisted">黑名单</option>
+                    <option value="pending">待审核</option>
+                </select>
+                <select id="filter-grade" class="filter-select">
+                    <option value="">全部等级</option>
+                    <option value="A">A级 (优秀)</option>
+                    <option value="B">B级 (良好)</option>
+                    <option value="C">C级 (及格)</option>
+                    <option value="D">D级 (不合格)</option>
+                </select>
+            </div>
+            <div class="toolbar-right">
+                <button class="btn btn-primary" onclick="showCreateModal()">+ 新建供应商</button>
+                <button class="btn btn-outline" onclick="loadDemoData()">📥 Demo数据</button>
+            </div>
+        </section>
+
+        <!-- 数据表格 -->
+        <section class="table-container">
+            <table class="data-table" id="supplier-table">
+                <thead>
+                    <tr>
+                        <th>供应商名称</th>
+                        <th>联系人</th>
+                        <th>状态</th>
+                        <th>综合评分</th>
+                        <th>等级</th>
+                        <th>订单数</th>
+                        <th>准时率</th>
+                        <th>拒收率</th>
+                        <th>操作</th>
+                    </tr>
+                </thead>
+                <tbody id="supplier-tbody"></tbody>
+            </table>
+            <div class="pagination" id="pagination"></div>
+        </section>
+    </div>
+
+    <!-- 新建供应商弹窗 -->
+    <div class="modal-overlay" id="create-modal" style="display:none">
+        <div class="modal-content" style="max-width:580px">
+            <div class="modal-header">
+                <h3>新建供应商档案</h3>
+                <button class="modal-close" onclick="closeCreateModal()">&times;</button>
+            </div>
+            <form id="create-form" onsubmit="submitSupplier(event)">
+                <div class="form-group">
+                    <label>供应商名称 *</label>
+                    <input type="text" name="name" required maxlength="50"
+                           placeholder="如：杭州冻品供应链">
+                </div>
+                <div class="form-row">
+                    <div class="form-group flex-1">
+                        <label>联系人</label>
+                        <input type="text" name="contact_person" placeholder="如：王总">
+                    </div>
+                    <div class="form-group flex-1">
+                        <label>联系电话</label>
+                        <input type="tel" name="phone" placeholder="138xxxx1234">
+                    </div>
+                </div>
+                <div class="form-group">
+                    <label>地址</label>
+                    <input type="text" name="address" placeholder="详细地址">
+                </div>
+                <div class="form-row">
+                    <div class="form-group flex-1">
+                        <label>食品经营许可证号</label>
+                        <input type="text" name="license_no" placeholder="SCxxxxxxxxxxxxx">
+                    </div>
+                </div>
+                <div class="form-group">
+                    <label>供应SKU（逗号分隔，可选）</label>
+                    <input type="text" name="supplied_skus_text"
+                           placeholder="如：FP-MW-001, FP-HG-001">
+                    <small class="form-hint">留空则不关联SKU，后续可编辑补充</small>
+                </div>
+                <div class="form-row">
+                    <div class="form-group flex-1">
+                        <label>合同开始日期</label>
+                        <input type="date" name="contract_start">
+                    </div>
+                    <div class="form-group flex-1">
+                        <label>合同到期日期</label>
+                        <input type="date" name="contract_end">
+                    </div>
+                </div>
+                <div class="form-group">
+                    <label>备注</label>
+                    <textarea name="notes" rows="2" placeholder="备注信息"></textarea>
+                </div>
+                <div class="modal-footer">
+                    <button type="button" class="btn btn-outline" onclick="closeCreateModal()">取消</button>
+                    <button type="submit" class="btn btn-primary">创建</button>
+                </div>
+            </form>
+        </div>
+    </div>
+
+    <script src="assets/supplier.js"></script>
+</body>
+</html>
