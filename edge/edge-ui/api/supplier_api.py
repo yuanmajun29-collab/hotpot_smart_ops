@@ -29,7 +29,7 @@ from typing import List, Optional
 from fastapi import APIRouter, Depends, Query, HTTPException
 from pydantic import BaseModel, Field
 
-from hotpot_platform.auth.session import get_current_session
+from middleware import get_current_session
 from hotpot_platform.cloud.supply_chain.manager import SupplyChainManager
 
 logger = logging.getLogger(__name__)

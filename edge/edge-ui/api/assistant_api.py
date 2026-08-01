@@ -10,7 +10,7 @@ from pydantic import BaseModel
 from typing import Optional
 from datetime import datetime
 
-from hotpot_platform.auth.session import get_current_session
+from middleware import get_current_session
 from hotpot_platform.cloud.supply_chain.manager import SupplyChainManager
 
 router = APIRouter()

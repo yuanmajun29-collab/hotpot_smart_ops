@@ -199,7 +199,7 @@ async def update_purchase_order(
         raise HTTPException(status_code=400, detail=str(e))
 
 
-@router.delete("/purchase-orders/{po_number}", response_model=dict, status_code=204)
+@router.delete("/purchase-orders/{po_number}", status_code=204)
 async def delete_purchase_order(
     po_number: str,
     session: dict = Depends(get_current_session),

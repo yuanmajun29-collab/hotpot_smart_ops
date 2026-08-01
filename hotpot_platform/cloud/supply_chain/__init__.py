@@ -28,7 +28,7 @@ from hotpot_platform.cloud.supply_chain.models import (  # noqa: F401
 )
 
 # ---- 核心管理器 ----
-from hotpot_platform.cloud.supply_chain.manager import SupplyChainManager  # noqa: F401
+# from hotpot_platform.cloud.supply_chain.manager import SupplyChainManager  # REMOVED: circular import fix (Jetson deploy 2026-08-01)
 
 
 __all__ = [
