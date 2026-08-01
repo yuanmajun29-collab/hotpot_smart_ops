@@ -532,8 +532,13 @@ class SupplyChainManager:
                     k: ReceivingRecord(**v) for k, v in data.get("receiving_records", {}).items()
                 }
                 cls._receiving_counter = data.get("receiving_counter", 0)
-                logger.info("从 JSON 加载货品数据: %d 个产品, %d 条收货记录",
-                            len(cls._product_cache), len(cls._receiving_cache))
+                # S03: 加载采购订单数据
+                cls._po_cache = {
+                    k: PurchaseOrder(**v) for k, v in data.get("purchase_orders", {}).items()
+                }
+                cls._po_counter = data.get("po_counter", 0)
+                logger.info("从 JSON 加载货品数据: %d 个产品, %d 条收货记录, %d 个采购订单",
+                            len(cls._product_cache), len(cls._receiving_cache), len(cls._po_cache))
             except Exception as e:
                 logger.error("加载 JSON 数据失败: %s", e)
 
@@ -550,6 +555,9 @@ class SupplyChainManager:
                     # S02: 保存收货数据
                     "receiving_records": {k: v.model_dump() for k, v in cls._receiving_cache.items()},
                     "receiving_counter": cls._receiving_counter,
+                    # S03: 保存采购订单数据
+                    "purchase_orders": {k: v.model_dump() for k, v in cls._po_cache.items()},
+                    "po_counter": cls._po_counter,
                 }
                 with open(cls._data_file, "w", encoding="utf-8") as f:
                     json.dump(data, f, ensure_ascii=False, indent=2, default=str)
@@ -1665,4 +1673,520 @@ class SupplyChainManager:
 
         cls._save_to_json()
         logger.info("Demo收货数据加载完成: %d 条", count)
+        return count
+
+    # ================================================================
+    # S03: 采购订单管理 (D1-S03 · 2026-08-01)
+    # ================================================================
+
+    _po_cache: Dict[str, PurchaseOrder] = {}
+    _po_counter: int = 0
+
+    @classmethod
+    def _get_next_po_number(cls) -> str:
+        """生成下一个采购单号: PO-YYYYMMDD-XXXX"""
+        cls._po_counter += 1
+        today = datetime.now().strftime("%Y%m%d")
+        return f"PO-{today}-{cls._po_counter:04d}"
+
+    @classmethod
+    def create_purchase_order(cls, order_data: dict) -> PurchaseOrder:
+        """
+        创建采购订单 (BR-01~BR-07)
+
+        验证规则:
+        - items ≥ 1 (BR-01)
+        - SKU必须存在于ProductMaster (BR-02)
+        - quantity > 0 (BR-03)
+        - 自动计算 amount 和 total_amount (BR-05/06)
+        """
+        items_data = order_data.get("items", [])
+        if not items_data:
+            raise ValueError("订单至少包含1个行项目 (BR-01)")
+
+        po_items = []
+        total = 0.0
+
+        for item_data in items_data:
+            sku = item_data.get("sku", "")
+            # BR-02: 校验SKU存在
+            if sku not in cls._product_cache:
+                raise ValueError(f"SKU不存在: {sku} (BR-02)")
+
+            product = cls._product_cache[sku]
+            quantity = item_data.get("quantity", 0)
+            # BR-03
+            if quantity <= 0:
+                raise ValueError(f"数量必须大于0: {sku} (BR-03)")
+
+            # BR-04: 单价取行项目指定值或ProductMaster.unit_price
+            unit_price = item_data.get("unit_price") or product.unit_price
+            amount = round(quantity * unit_price, 2)
+            total += amount
+
+            po_items.append(PurchaseOrderItem(
+                sku=sku,
+                sku_name=product.name,
+                quantity=quantity,
+                unit=product.unit,
+                unit_price=unit_price,
+                amount=amount,
+                supplier=item_data.get("supplier"),
+                expected_date=item_data.get("expected_date"),
+                notes=item_data.get("notes"),
+                received_qty=0.0,
+            ))
+
+        po_number = cls._get_next_po_number()
+        now = datetime.now()
+
+        order = PurchaseOrder(
+            po_number=po_number,
+            store_id=order_data.get("store_id", "store-jiaojiang"),
+            ordered_by=order_data.get("ordered_by", ""),
+            ordered_at=now,
+            items=po_items,
+            total_amount=round(total, 2),
+            status="draft",
+            supplier=order_data.get("supplier"),
+            delivery_address=order_data.get("delivery_address"),
+            expected_date=order_data.get("expected_date"),
+            notes=order_data.get("notes"),
+            forecast_ref=order_data.get("forecast_ref"),
+            auto_generated=order_data.get("auto_generated", False),
+            created_at=now,
+            updated_at=now,
+        )
+
+        cls._po_cache[po_number] = order
+        cls._save_to_json()
+        logger.info("创建采购订单: %s (%d项, ¥%.2f)", po_number, len(po_items), total)
+        return order
+
+    @classmethod
+    def get_po_list(
+        cls,
+        page: int = 1,
+        page_size: int = 20,
+        status: Optional[str] = None,
+        supplier: Optional[str] = None,
+        start_date: Optional[str] = None,
+        end_date: Optional[str] = None,
+    ) -> dict:
+        """采购订单列表（分页+筛选）"""
+        orders = list(cls._po_cache.values())
+
+        # 筛选
+        if status:
+            orders = [o for o in orders if o.status == status]
+        if supplier:
+            orders = [o for o in orders if o.supplier and supplier in o.supplier]
+        if start_date:
+            try:
+                sd = datetime.fromisoformat(start_date)
+                orders = [o for o in orders if o.ordered_at and o.ordered_at >= sd]
+            except ValueError:
+                pass
+        if end_date:
+            try:
+                ed = datetime.fromisoformat(end_date)
+                orders = [o for o in orders if o.ordered_at and o.ordered_at <= ed]
+            except ValueError:
+                pass
+
+        # 按下单时间倒序
+        orders.sort(key=lambda o: o.ordered_at or datetime.min, reverse=True)
+
+        total = len(orders)
+        start_idx = (page - 1) * page_size
+        page_orders = orders[start_idx : start_idx + page_size]
+
+        return {
+            "total": total,
+            "page": page,
+            "page_size": page_size,
+            "total_pages": (total + page_size - 1) // page_size if total else 0,
+            "items": [o.model_dump() for o in page_orders],
+        }
+
+    @classmethod
+    def get_po_detail(cls, po_number: str) -> PurchaseOrder:
+        """获取订单详情"""
+        if po_number not in cls._po_cache:
+            raise KeyError(f"采购订单不存在: {po_number}")
+        return cls._po_cache[po_number]
+
+    @classmethod
+    def update_purchase_order(cls, po_number: str, update_data: dict) -> PurchaseOrder:
+        """更新订单（仅draft状态, BR-08）"""
+        order = cls.get_po_detail(po_number)
+        if order.status != "draft":
+            raise PermissionError(f"仅草稿状态可编辑 (当前: {order.status}, BR-08)")
+
+        # 更新基本信息
+        for field in ["supplier", "delivery_address", "expected_date", "notes"]:
+            if field in update_data:
+                setattr(order, field, update_data[field])
+
+        # 更新行项目
+        if "items" in update_data:
+            new_items = []
+            total = 0.0
+            for item_data in update_data["items"]:
+                sku = item_data.get("sku", "")
+                if sku not in cls._product_cache:
+                    raise ValueError(f"SKU不存在: {sku}")
+                product = cls._product_cache[sku]
+                quantity = item_data.get("quantity", 0)
+                if quantity <= 0:
+                    raise ValueError(f"数量必须大于0: {sku}")
+                unit_price = item_data.get("unit_price") or product.unit_price
+                amount = round(quantity * unit_price, 2)
+                total += amount
+                new_items.append(PurchaseOrderItem(
+                    sku=sku, sku_name=product.name, quantity=quantity,
+                    unit=product.unit, unit_price=unit_price, amount=amount,
+                    supplier=item_data.get("supplier"),
+                    expected_date=item_data.get("expected_date"),
+                    notes=item_data.get("notes"),
+                    received_qty=item_data.get("received_qty", 0),
+                ))
+            order.items = new_items
+            order.total_amount = round(total, 2)
+
+        order.updated_at = datetime.now()
+        cls._save_to_json()
+        return order
+
+    @classmethod
+    def delete_purchase_order(cls, po_number: str) -> bool:
+        """删除草稿订单"""
+        order = cls.get_po_detail(po_number)
+        if order.status != "draft":
+            raise PermissionError(f"仅可删除草稿订单 (当前: {order.status})")
+        del cls._po_cache[po_number]
+        cls._save_to_json()
+        logger.info("删除采购订单: %s", po_number)
+        return True
+
+    @classmethod
+    def submit_po(cls, po_number: str) -> PurchaseOrder:
+        """提交订单（draft → submitted）"""
+        order = cls.get_po_detail(po_number)
+        if order.status != "draft":
+            raise PermissionError(f"仅草稿状态可提交 (当前: {order.status})")
+        if not order.items:
+            raise ValueError("空订单不可提交")
+        order.status = "submitted"
+        order.updated_at = datetime.now()
+        cls._save_to_json()
+        logger.info("提交采购订单: %s → submitted", po_number)
+        return order
+
+    @classmethod
+    def confirm_po(cls, po_number: str, notes: Optional[str] = None) -> PurchaseOrder:
+        """确认订单（submitted → confirmed, 曹总操作）"""
+        order = cls.get_po_detail(po_number)
+        if order.status != "submitted":
+            raise PermissionError(f"仅已提交状态可确认 (当前: {order.status})")
+        order.status = "confirmed"
+        order.confirmed_by = "曹总"
+        order.confirmed_at = datetime.now()
+        if notes:
+            order.notes = (order.notes or "") + f"\n[确认备注] {notes}"
+        order.updated_at = datetime.now()
+        cls._save_to_json()
+        logger.info("确认采购订单: %s → confirmed", po_number)
+        return order
+
+    @classmethod
+    def cancel_po(cls, po_number: str, reason: str) -> PurchaseOrder:
+        """取消订单 (BR-09~BR-11)"""
+        order = cls.get_po_detail(po_number)
+        if order.status in ("received", "partial"):
+            raise PermissionError(f"已收货订单不可取消 (当前: {order.status}, BR-11)")
+        if order.status not in ("draft", "submitted", "confirmed"):
+            raise PermissionError(f"当前状态不可取消: {order.status} (BR-09)")
+        if order.status == "confirmed":
+            # BR-10: 已确认订单需检查是否有关联收货
+            linked_receiving = [
+                r for r in cls._receiving_cache.values()
+                if r.po_number == po_number
+            ]
+            if linked_receiving:
+                raise PermissionError("已关联收货记录的订单不可取消 (BR-10)")
+        order.status = "cancelled"
+        order.cancelled_by = "店长"
+        order.cancelled_at = datetime.now()
+        order.cancel_reason = reason
+        order.updated_at = datetime.now()
+        cls._save_to_json()
+        logger.info("取消采购订单: %s → cancelled (原因: %s)", po_number, reason)
+        return order
+
+    @classmethod
+    def return_po_to_draft(cls, po_number: str) -> PurchaseOrder:
+        """退回草稿（submitted → draft）"""
+        order = cls.get_po_detail(po_number)
+        if order.status != "submitted":
+            raise PermissionError(f"仅已提交状态可退回 (当前: {order.status})")
+        order.status = "draft"
+        order.updated_at = datetime.now()
+        cls._save_to_json()
+        logger.info("退回采购订单: %s → draft", po_number)
+        return order
+
+    @classmethod
+    def mark_po_received(cls, po_number: str, received_by: str = "") -> PurchaseOrder:
+        """手动标记全部收货（confirmed/partial → received）"""
+        order = cls.get_po_detail(po_number)
+        if order.status not in ("confirmed", "partial"):
+            raise PermissionError(f"仅待收货/部分收货状态可标记 (当前: {order.status})")
+
+        # 标记所有item为已收全
+        for item in order.items:
+            item.received_qty = item.quantity
+
+        order.status = "received"
+        order.received_by = received_by or "系统"
+        order.received_at = datetime.now()
+        order.updated_at = datetime.now()
+        cls._save_to_json()
+        logger.info("标记采购订单已收货: %s → received", po_number)
+        return order
+
+    @classmethod
+    def _update_po_status_from_receiving(cls, po_number: str) -> Optional[PurchaseOrder]:
+        """
+        S02联动: 收货审批通过后更新PO状态 (BR-12)
+
+        由 receiving 模块在 approve 操作后调用。
+        遍历PO的所有行项目，检查 received_qty vs quantity。
+        """
+        if po_number not in cls._po_cache:
+            return None
+
+        order = cls._po_cache[po_number]
+        if order.status not in ("confirmed", "partial"):
+            return order
+
+        all_complete = True
+        any_received = False
+
+        for item in order.items:
+            if item.received_qty > 0:
+                any_received = True
+            if item.received_qty < item.quantity:
+                all_complete = False
+
+        old_status = order.status
+        if all_complete:
+            order.status = "received"
+            order.received_at = datetime.now()
+        elif any_received:
+            order.status = "partial"
+        # else: 保持原状态
+
+        if order.status != old_status:
+            order.updated_at = datetime.now()
+            cls._save_to_json()
+            logger.info("PO状态自动更新: %s %s→%s (S02联动)", po_number, old_status, order.status)
+
+        return order
+
+    @classmethod
+    def get_po_receiving_links(cls, po_number: str) -> list:
+        """获取PO关联的收货记录列表"""
+        cls.get_po_detail(po_number)  # 验证PO存在
+        return [
+            r.model_dump()
+            for r in cls._receiving_cache.values()
+            if r.po_number == po_number
+        ]
+
+    @classmethod
+    def get_po_stats(cls, store_id: str = "store-jiaojiang") -> dict:
+        """采购统计概览"""
+        now = datetime.now()
+        today_start = now.replace(hour=0, minute=0, second=0, microsecond=0)
+        week_start = today_start - timedelta(days=today_start.weekday())
+
+        orders = list(cls._po_cache.values())
+
+        today_orders = [o for o in orders if o.ordered_at and o.ordered_at >= today_start]
+        week_orders = [o for o in orders if o.ordered_at and o.ordered_at >= week_start]
+
+        # 待收货 = confirmed 状态
+        pending_receive = sum(1 for o in orders if o.status == "confirmed")
+
+        # 状态分布
+        status_breakdown = {}
+        for s in ("draft", "submitted", "confirmed", "partial", "received", "cancelled"):
+            status_breakdown[s] = sum(1 for o in orders if o.status == s)
+
+        # 供应商排行
+        supplier_totals: Dict[str, dict] = {}
+        for o in orders:
+            if o.supplier:
+                if o.supplier not in supplier_totals:
+                    supplier_totals[o.supplier] = {"order_count": 0, "total_amount": 0.0}
+                supplier_totals[o.supplier]["order_count"] += 1
+                supplier_totals[o.supplier]["total_amount"] += o.total_amount
+
+        top_suppliers = sorted(
+            supplier_totals.items(),
+            key=lambda x: x[1]["total_amount"],
+            reverse=True,
+        )[:5]
+
+        return {
+            "store_id": store_id,
+            "today_orders": len(today_orders),
+            "week_orders": len(week_orders),
+            "total_amount_today": round(sum(o.total_amount for o in today_orders), 2),
+            "total_amount_week": round(sum(o.total_amount for o in week_orders), 2),
+            "pending_receive": pending_receive,
+            "status_breakdown": status_breakdown,
+            "top_suppliers": [
+                {"name": name, **stats}
+                for name, stats in top_suppliers
+            ],
+        }
+
+    @classmethod
+    def get_supplier_po_history(cls, supplier_name: str) -> dict:
+        """供应商采购历史趋势"""
+        orders = [
+            o for o in cls._po_cache.values()
+            if o.supplier and supplier_name in o.supplier
+        ]
+        orders.sort(key=lambda o: o.ordered_at or datetime.min)
+
+        monthly_totals: Dict[str, float] = {}
+        monthly_counts: Dict[str, int] = {}
+
+        for o in orders:
+            if o.ordered_at:
+                key = o.ordered_at.strftime("%Y-%m")
+                monthly_totals[key] = monthly_totals.get(key, 0) + o.total_amount
+                monthly_counts[key] = monthly_counts.get(key, 0) + 1
+
+        return {
+            "supplier_name": supplier_name,
+            "total_orders": len(orders),
+            "total_amount": round(sum(o.total_amount for o in orders), 2),
+            "avg_order_value": round(
+                sum(o.total_amount for o in orders) / max(len(orders), 1), 2
+            ),
+            "monthly_trend": [
+                {"month": k, "amount": v, "count": monthly_counts.get(k, 0)}
+                for k, v in sorted(monthly_totals.items())
+            ],
+            "recent_orders": [o.model_dump() for o in orders[-10:]],
+        }
+
+    @classmethod
+    def seed_demo_po_data(cls) -> int:
+        """
+        加载展会Demo用的采购订单数据。
+
+        4种场景: 已收货(A)/待确认(B)/部分收货(C)/草稿(D)
+        """
+        now = datetime.now()
+        yesterday = now - timedelta(days=1)
+        day_before = now - timedelta(days=2)
+        three_days_ago = now - timedelta(days=3)
+
+        demo_orders = [
+            # 场景A: 已完成全流程
+            PurchaseOrder(
+                po_number="PO-DEMO-001",
+                store_id="store-jiaojiang",
+                ordered_by="店长-张三",
+                ordered_at=three_days_ago,
+                supplier="杭州冻品供应链",
+                expected_date=date.today() - timedelta(days=1),
+                status="received",
+                total_amount=1810.0,
+                items=[
+                    PurchaseOrderItem(sku="FP-MW-001", sku_name="精品毛肚", quantity=10.0,
+                                     unit="盒", unit_price=128.0, amount=1280.0, received_qty=10.0),
+                    PurchaseOrderItem(sku="FP-NB-003", sku_name="肥牛卷", quantity=5.0,
+                                     unit="kg", unit_price=106.0, amount=530.0, received_qty=5.0),
+                ],
+                confirmed_by="曹总", confirmed_at=three_days_ago,
+                received_by="收货员-赵六", received_at=yesterday,
+                notes="周末备货常规补货",
+                created_at=three_days_ago, updated_at=yesterday,
+            ),
+            # 场景B: 待确认
+            PurchaseOrder(
+                po_number="PO-DEMO-002",
+                store_id="store-jiaojiang",
+                ordered_by="店长-李四",
+                ordered_at=now,
+                supplier="张记肉业",
+                expected_date=date.today() + timedelta(days=2),
+                status="submitted",
+                total_amount=856.0,
+                items=[
+                    PurchaseOrderItem(sku="FP-HS-002", sku_name="雪花肥牛", quantity=8.0,
+                                     unit="kg", unit_price=107.0, amount=856.0, received_qty=0),
+                ],
+                notes="雪花肥牛补货，请尽快确认",
+                created_at=now, updated_at=now,
+            ),
+            # 场景C: 部分收货
+            PurchaseOrder(
+                po_number="PO-DEMO-003",
+                store_id="store-jiaojiang",
+                ordered_by="店长-张三",
+                ordered_at=day_before,
+                supplier="杭州冻品供应链",
+                expected_date=date.today(),
+                status="partial",
+                total_amount=2144.0,
+                items=[
+                    PurchaseOrderItem(sku="FP-MW-001", sku_name="精品毛肚", quantity=5.0,
+                                     unit="盒", unit_price=128.0, amount=640.0, received_qty=5.0),
+                    PurchaseOrderItem(sku="FP-HX-001", sku_name="基围虾", quantity=3.0,
+                                     unit="kg", unit_price=168.0, amount=504.0, received_qty=0),
+                    PurchaseOrderItem(sku="FP-YR-005", sku_name="鸭血", quantity=20.0,
+                                     unit="份", unit_price=50.0, amount=1000.0, received_qty=20.0),
+                ],
+                confirmed_by="曹总", confirmed_at=day_before,
+                notes="分批到货：毛肚和鸭血已到，虾明日送达",
+                created_at=day_before, updated_at=yesterday,
+            ),
+            # 场景D: 今日草稿
+            PurchaseOrder(
+                po_number="PO-DEMO-004",
+                store_id="store-jiaojiang",
+                ordered_by="店长-王五",
+                ordered_at=now,
+                supplier="杭州冻品供应链",
+                expected_date=date.today() + timedelta(days=1),
+                status="draft",
+                total_amount=938.0,
+                items=[
+                    PurchaseOrderItem(sku="FP-GD-004", sku_name="贡菜", quantity=10.0,
+                                     unit="kg", unit_price=28.0, amount=280.0, received_qty=0),
+                    PurchaseOrderItem(sku="FP-YR-005", sku_name="鸭血", quantity=10.0,
+                                     unit="份", unit_price=50.0, amount=500.0, received_qty=0),
+                    PurchaseOrderItem(sku="FP-DJ-007", sku_name="豆皮", quantity=5.0,
+                                     unit="kg", unit_price=31.6, amount=158.0, received_qty=0),
+                ],
+                notes="下周初备货，待确认品类",
+                created_at=now, updated_at=now,
+            ),
+        ]
+
+        count = 0
+        for order in demo_orders:
+            if order.po_number not in cls._po_cache:
+                cls._po_cache[order.po_number] = order
+                count += 1
+
+        cls._save_to_json()
+        logger.info("Demo采购订单数据加载完成: %d 条", count)
         return count
