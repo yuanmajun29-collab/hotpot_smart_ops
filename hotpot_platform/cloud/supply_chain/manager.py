@@ -35,6 +35,15 @@ from hotpot_platform.cloud.supply_chain.models import (
     PurchaseOrder,
     PurchaseOrderItem,
     SupplierScoreUpdate,
+    # S01 货品主数据 (D1 新增)
+    ProductMaster,
+    ProductCategory,
+    ChangeRequest,
+    TemporarySubstitute,
+    ProductCreateRequest,
+    ProductUpdateRequest,
+    ProductListResponse,
+    ProductStatsResponse,
 )
 
 logger = logging.getLogger(__name__)
@@ -462,3 +471,535 @@ class SupplyChainManager:
             forecast_ref=row_dict.get("forecast_ref"),
             auto_generated=bool(row_dict.get("auto_generated")),
         )
+
+    # ================================================================
+    # S01: 货品主数据管理 (D1 新增 · 2026-08-01)
+    # ================================================================
+
+    # ── 内存缓存 (Edge UI 轻量模式) ──
+    _product_cache: Dict[str, ProductMaster] = {}  # sku_code → ProductMaster
+    _category_cache: List[ProductCategory] = []
+    _change_requests: List[ChangeRequest] = []
+    _substitutes: List[TemporarySubstitute] = []
+    _data_file: Optional[str] = None  # JSON 持久化路径
+
+    @classmethod
+    def init_product_data(cls, data_file: str = None) -> None:
+        """初始化货品数据存储（从JSON文件加载或创建空库）。"""
+        cls._data_file = data_file
+        if data_file:
+            cls._load_from_json()
+        if not cls._category_cache:
+            cls._init_default_categories()
+        logger.info("货品主数据初始化完成: %d 个货品, %d 个分类",
+                     len(cls._product_cache), len(cls._category_cache))
+
+    @classmethod
+    def _init_default_categories(cls) -> None:
+        """初始化默认品类分类。"""
+        cls._category_cache = [
+            ProductCategory(category_code="FROZEN_MEAT", category_name="冻品荤菜", sort_order=1),
+            ProductCategory(category_code="HOTPOT_BASE", category_name="锅底/汤底", sort_order=2),
+            ProductCategory(category_code="VEGETABLE", category_name="素菜", sort_order=3),
+            ProductCategory(category_code="STAPLE", category_name="主食/小吃", sort_order=4),
+            ProductCategory(category_code="DRINK", category_name="酒水饮料", sort_order=5),
+            ProductCategory(category_code="SEASONING", category_name="调料蘸料", sort_order=6),
+        ]
+
+    @classmethod
+    def _load_from_json(cls) -> None:
+        """从 JSON 文件加载数据（Edge UI 轻量持久化）。"""
+        import os
+        if cls._data_file and os.path.exists(cls._data_file):
+            try:
+                with open(cls._data_file, "r", encoding="utf-8") as f:
+                    data = json.load(f)
+                cls._product_cache = {
+                    k: ProductMaster(**v) for k, v in data.get("products", {}).items()
+                }
+                cls._category_cache = [
+                    ProductCategory(**c) for c in data.get("categories", [])
+                ]
+                cls._change_requests = [
+                    ChangeRequest(**r) for r in data.get("change_requests", [])
+                ]
+                logger.info("从 JSON 加载货品数据: %d 个产品", len(cls._product_cache))
+            except Exception as e:
+                logger.error("加载 JSON 数据失败: %s", e)
+
+    @classmethod
+    def _save_to_json(cls) -> None:
+        """保存数据到 JSON 文件。"""
+        import os
+        if cls._data_file:
+            try:
+                data = {
+                    "products": {k: v.model_dump() for k, v in cls._product_cache.items()},
+                    "categories": [c.model_dump() for c in cls._category_cache],
+                    "change_requests": [r.model_dump() for r in cls._change_requests],
+                }
+                with open(cls._data_file, "w", encoding="utf-8") as f:
+                    json.dump(data, f, ensure_ascii=False, indent=2, default=str)
+            except Exception as e:
+                logger.error("保存 JSON 数据失败: %s", e)
+
+    # ── CRUD 操作 ──
+
+    @classmethod
+    def create_product_master(cls, req: ProductCreateRequest, operator: str = "") -> ProductMaster:
+        """
+        创建货品主数据。
+
+        规则:
+          - SKU 编码唯一性检查
+          - 自动设置审计字段
+          - 初始状态为 draft, version=1, locked=False
+        """
+        sku = req.sku_code.strip().upper()
+
+        # 唯一性检查
+        if sku in cls._product_cache:
+            raise ValueError(f"SKU 已存在: {sku}")
+
+        now = datetime.now()
+        product = ProductMaster(
+            sku_code=sku,
+            name=req.name.strip(),
+            specification=req.specification.strip(),
+            brand=req.brand.strip(),
+            unit_price=req.unit_price,
+            unit=req.unit or "份",
+            category=req.category,
+            supplier_id=req.supplier_id,
+            supplier_name=req.supplier_name,
+            image_url=req.image_url,
+            location_code=req.location_code,
+            storage_area=req.storage_area,
+            shelf_life_days=req.shelf_life_days,
+            min_stock_qty=req.min_stock_qty,
+            tags=req.tags or [],
+            status="draft",
+            locked=False,
+            version=1,
+            created_by=operator,
+            created_at=now,
+            updated_by=operator,
+            updated_at=now,
+        )
+
+        cls._product_cache[sku] = product
+        cls._save_to_json()
+
+        logger.info("货品创建成功: %s (%s) by=%s", product.name, sku, operator)
+        return product
+
+    @classmethod
+    def get_product_by_sku(cls, sku_code: str) -> Optional[ProductMaster]:
+        """按 SKU 查询货品详情。"""
+        return cls._product_cache.get(sku_code.strip().upper())
+
+    @classmethod
+    def list_product_masters(
+        cls,
+        page: int = 1,
+        page_size: int = 20,
+        keyword: str = "",
+        category: str = "",
+        status: str = "",
+        supplier_id: str = "",
+    ) -> ProductListResponse:
+        """
+        货品列表（分页 + 搜索 + 筛选）。
+
+        Args:
+            page: 页码 (从1开始)
+            page_size: 每页数量
+            keyword: 搜索关键词 (匹配名称/品牌/SKU)
+            category: 品类筛选
+            status: 状态筛选
+            supplier_id: 供应商筛选
+        """
+        # 过滤
+        items = list(cls._product_cache.values())
+
+        if keyword:
+            kw = keyword.lower()
+            items = [p for p in items if kw in p.name.lower() or kw in p.brand.lower()
+                     or kw in p.sku_code.lower() or kw in (p.specification or "").lower()]
+
+        if category:
+            items = [p for p in items if p.category == category]
+
+        if status:
+            items = [p for p in items if p.status == status]
+
+        if supplier_id:
+            items = [p for p in items if p.supplier_id == supplier_id]
+
+        total = len(items)
+
+        # 排序 (按名称)
+        items.sort(key=lambda p: p.name)
+
+        # 分页
+        start = (page - 1) * page_size
+        end = start + page_size
+        paged_items = items[start:end]
+
+        return ProductListResponse(
+            total=total,
+            page=page,
+            page_size=page_size,
+            items=paged_items,
+            categories=cls._category_cache,
+        )
+
+    @classmethod
+    def update_product_master(
+        cls, sku_code: str, req: ProductUpdateRequest, operator: str = ""
+    ) -> ProductMaster:
+        """
+        更新货品主数据。
+
+        规则:
+          - 锁定后的关键字段不可修改 (name/specification/brand/unit_price)
+          - 非锁定状态可修改所有字段
+          - 自动更新版本审计字段
+        """
+        sku = sku_code.strip().upper()
+        product = cls._product_cache.get(sku)
+        if not product:
+            raise ValueError(f"SKU 不存在: {sku}")
+
+        now = datetime.now()
+        update_data = req.model_dump(exclude_unset=True)
+
+        # 锁定检查：关键字段保护
+        locked_fields = {"name", "specification", "brand", "unit_price"}
+        if product.locked:
+            violated = locked_fields & set(update_data.keys())
+            if violated:
+                raise PermissionError(
+                    f"货品已锁定，以下字段不可直接修改: {', '.join(violated)}。"
+                    f"请通过变更申请流程修改。"
+                )
+
+        # 应用更新
+        for field, value in update_data.items():
+            setattr(product, field, value)
+
+        product.updated_by = operator
+        product.updated_at = now
+
+        cls._product_cache[sku] = product
+        cls._save_to_json()
+
+        logger.info("货品更新成功: %s by=%s", sku, operator)
+        return product
+
+    @classmethod
+    def lock_product_master(cls, sku_code: str, operator: str = "") -> ProductMaster:
+        """
+        锁定货品标准。
+
+        锁定后:
+          - 名称/规格/品牌/价格四项关键字段不可直接修改
+          - 修改需提交变更申请单
+          - 状态从 draft → active
+        """
+        sku = sku_code.strip().upper()
+        product = cls._product_cache.get(sku)
+        if not product:
+            raise ValueError(f"SKU 不存在: {sku}")
+
+        if product.locked:
+            return product  # 已锁定，幂等操作
+
+        product.locked = True
+        product.status = "active"
+        product.updated_by = operator
+        product.updated_at = datetime.now()
+
+        cls._product_cache[sku] = product
+        cls._save_to_json()
+
+        logger.info("货品锁定成功: %s (%s) by=%s", product.name, sku, operator)
+        return product
+
+    @classmethod
+    def unlock_product_master(cls, sku_code: str, operator: str = "", reason: str = "") -> ProductMaster:
+        """解锁货品（管理员操作，需填写原因）。"""
+        sku = sku_code.strip().upper()
+        product = cls._product_cache.get(sku)
+        if not product:
+            raise ValueError(f"SKU 不存在: {sku}")
+
+        if not product.locked:
+            return product
+
+        product.locked = False
+        product.updated_by = operator
+        product.updated_at = datetime.now()
+
+        cls._product_cache[sku] = product
+        cls._save_to_json()
+
+        logger.info("货品解锁成功: %s (%s) by=%s reason=%s", product.name, sku, operator, reason)
+        return product
+
+    @classmethod
+    def delete_product_master(cls, sku_code: str, operator: str = "") -> bool:
+        """删除货品（仅 draft 状态可删除）。"""
+        sku = sku_code.strip().upper()
+        product = cls._product_cache.get(sku)
+        if not product:
+            raise ValueError(f"SKU 不存在: {sku}")
+
+        if product.locked or product.status == "active":
+            raise PermissionError("已锁定或激活的货品不可删除，请先停用")
+
+        del cls._product_cache[sku]
+        cls._save_to_json()
+
+        logger.info("货品删除成功: %s by=%s", sku, operator)
+        return True
+
+    # ── 变更管理 ──
+
+    @classmethod
+    def submit_change_request(
+        cls, sku_code: str, change: ChangeRequest, operator: str = ""
+    ) -> ChangeRequest:
+        """提交变更申请单。"""
+        sku = sku_code.strip().upper()
+        product = cls._product_cache.get(sku)
+        if not product:
+            raise ValueError(f"SKU 不存在: {sku}")
+
+        request_id = change.request_id or f"CR-{uuid.uuid4().hex[:8].upper()}"
+        now = datetime.now()
+
+        change.request_id = request_id
+        change.sku_code = sku
+        change.old_value = {
+            "name": product.name,
+            "specification": product.specification,
+            "brand": product.brand,
+            "unit_price": product.unit_price,
+            "version": product.version,
+        }
+        change.requested_by = operator
+        change.requested_at = now
+        change.status = "pending"
+
+        cls._change_requests.append(change)
+        cls._save_to_json()
+
+        logger.info("变更申请提交: %s type=%s by=%s", request_id, change.change_type, operator)
+        return change
+
+    @classmethod
+    def approve_change_request(
+        cls, request_id: str, approved: bool, approver: str = "", notes: str = ""
+    ) -> Optional[ChangeRequest]:
+        """审批变更申请。"""
+        for cr in cls._change_requests:
+            if cr.request_id == request_id and cr.status == "pending":
+                now = datetime.now()
+                cr.status = "approved" if approved else "rejected"
+                cr.approved_by = approver
+                cr.approved_at = now
+                cr.approval_notes = notes
+
+                if approved:
+                    # 应用变更到货品主数据
+                    product = cls._product_cache.get(cr.sku_code)
+                    if product:
+                        for field, value in cr.new_value.items():
+                            if hasattr(product, field):
+                                setattr(product, field, value)
+                        product.version += 1
+                        product.updated_by = approver
+                        product.updated_at = now
+                        cr.effective_version = product.version
+                        cls._product_cache[cr.sku_code] = product
+
+                cls._save_to_json()
+                logger.info("变更审批: %s → %s by=%s", request_id, cr.status, approver)
+                return cr
+
+        return None
+
+    @classmethod
+    def list_change_requests(
+        cls, sku_code: str = "", status: str = ""
+    ) -> List[ChangeRequest]:
+        """查询变更申请列表。"""
+        requests = cls._change_requests
+        if sku_code:
+            requests = [r for r in requests if r.sku_code == sku_code.strip().upper()]
+        if status:
+            requests = [r for r in requests if r.status == status]
+        return sorted(requests, key=lambda r: r.requested_at or datetime.min, reverse=True)
+
+    # ── 统计 ──
+
+    @classmethod
+    def get_product_stats(cls) -> ProductStatsResponse:
+        """货品统计概览。"""
+        products = list(cls._product_cache.values())
+        total = len(products)
+        active = sum(1 for p in products if p.status == "active")
+        locked = sum(1 for p in products if p.locked)
+        draft = sum(1 for p in products if p.status == "draft")
+
+        categories = set(p.category for p in products)
+        suppliers = set(p.supplier_name for p in products if p.supplier_name)
+        avg_price = sum(p.unit_price for p in products) / total if total > 0 else 0
+
+        cat_breakdown: Dict[str, int] = {}
+        for p in products:
+            cat_breakdown[p.category] = cat_breakdown.get(p.category, 0) + 1
+
+        return ProductStatsResponse(
+            total_products=total,
+            active_products=active,
+            locked_products=locked,
+            draft_products=draft,
+            total_categories=len(categories),
+            total_suppliers=len(suppliers),
+            avg_unit_price=round(avg_price, 2),
+            category_breakdown=cat_breakdown,
+        )
+
+    @classmethod
+    def get_categories(cls) -> List[ProductCategory]:
+        """获取可用分类列表。"""
+        return cls._category_cache
+
+    # ── 种子数据 (展会演示用) ──
+
+    @classmethod
+    def load_seed_data(cls) -> int:
+        """
+        加载模拟种子数据（展会演示用）。
+
+        包含 20+ 火锅常用冻品 SKU，覆盖全品类。
+        返回导入的货品数量。
+        """
+        if cls._product_cache:
+            return len(cls._product_cache)  # 已有数据不重复加载
+
+        now = datetime.now()
+        seed_products = [
+            # ── 冻品荤菜 ──
+            ProductMaster(sku_code="FP-MW-001", name="精品毛肚", specification="500g/盒",
+                         brand="海霸王", unit_price=128.0, unit="盒", category="FROZEN_MEAT",
+                         supplier_name="杭州冻品供应链", storage_area="冷冻", shelf_life_days=180,
+                         status="active", locked=True, version=1, created_at=now),
+            ProductMaster(sku_code="FP-MW-002", name="鲜鸭肠", specification="400g/份",
+                         brand="喜得佳", unit_price=38.0, unit="份", category="FROZEN_MEAT",
+                         supplier_name="杭州冻品供应链", storage_area="冷冻", shelf_life_days=90,
+                         status="active", locked=True, version=1, created_at=now),
+            ProductMaster(sku_code="FP-MW-003", name="麻辣牛肉", specification="350g/盒",
+                         brand="海霸王", unit_price=68.0, unit="盒", category="FROZEN_MEAT",
+                         supplier_name="杭州冻品供应链", storage_area="冷冻", shelf_life_days=180,
+                         status="active", locked=True, version=1, created_at=now),
+            ProductMaster(sku_code="FP-MW-004", name="虾滑", specification="200g/盒",
+                         brand="桂冠", unit_price=45.0, unit="盒", category="FROZEN_MEAT",
+                         supplier_name="杭州冻品供应链", storage_area="冷冻", shelf_life_days=120,
+                         status="active", locked=True, version=1, created_at=now),
+            ProductMaster(sku_code="FP-MW-005", name="手工羊肉卷", specification="300g/盒",
+                         brand="小肥羊", unit_price=58.0, unit="盒", category="FROZEN_MEAT",
+                         supplier_name="杭州冻品供应链", storage_area="冷冻", shelf_life_days=180,
+                         status="active", locked=True, version=1, created_at=now),
+            ProductMaster(sku_code="FP-MW-006", name="脆嫩毛肚", specification="450g/盒",
+                         brand="喜得佳", unit_price=118.0, unit="盒", category="FROZEN_MEAT",
+                         supplier_name="杭州冻品供应链", storage_area="冷冻", shelf_life_days=180,
+                         status="active", locked=False, version=1, created_at=now, tags=["热销"]),
+            ProductMaster(sku_code="FP-MW-007", name="牛黄喉", specification="350g/份",
+                         brand="海霸王", unit_price=42.0, unit="份", category="FROZEN_MEAT",
+                         supplier_name="杭州冻品供应链", storage_area="冷冻", shelf_life_days=90,
+                         status="draft", locked=False, version=1, created_at=now),
+            ProductMaster(sku_code="FP-MW-008", name="千层肚", specification="300g/盒",
+                         brand="喜得佳", unit_price=78.0, unit="盒", category="FROZEN_MEAT",
+                         supplier_name="杭州冻品供应链", storage_area="冷冻", shelf_life_days=150,
+                         status="draft", locked=False, version=1, created_at=now),
+
+            # ── 锅底/汤底 ──
+            ProductMaster(sku_code="FP-GD-001", name="番茄锅底", specification="800g/袋",
+                         brand="海底捞", unit_price=28.0, unit="袋", category="HOTPOT_BASE",
+                         supplier_name="杭州调味品批发", storage_area="常温", shelf_life_days=365,
+                         status="active", locked=True, version=1, created_at=now),
+            ProductMaster(sku_code="FP-GD-002", name="麻辣牛油锅底", specification="500g/盒",
+                         brand="名扬", unit_price=35.0, unit="盒", category="HOTPOT_BASE",
+                         supplier_name="杭州调味品批发", storage_area="常温", shelf_life_days=365,
+                         status="active", locked=True, version=1, created_at=now, tags=["招牌"]),
+            ProductMaster(sku_code="FP-GD-003", name="菌汤锅底", specification="600g/盒",
+                         brand="海底捞", unit_price=32.0, unit="盒", category="HOTPOT_BASE",
+                         supplier_name="杭州调味品批发", storage_area="常温", shelf_life_days=270,
+                         status="active", locked=True, version=1, created_at=now),
+
+            # ── 素菜 ──
+            ProductMaster(sku_code="FP-SC-001", name="娃娃菜", specification="500g/份",
+                         brand="本地直供", unit_price=8.0, unit="份", category="VEGETABLE",
+                         supplier_name="本地蔬菜合作社", storage_area="冷藏", shelf_life_days=5,
+                         status="active", locked=True, version=1, created_at=now),
+            ProductMaster(sku_code="FP-SC-002", name="土豆片", specification="400g/份",
+                         brand="本地直供", unit_price=6.0, unit="份", category="VEGETABLE",
+                         supplier_name="本地蔬菜合作社", storage_area="常温", shelf_life_days=14,
+                         status="active", locked=True, version=1, created_at=now),
+            ProductMaster(sku_code="FP-SC-003", name="莲藕", specification="400g/份",
+                         brand="本地直供", unit_price=10.0, unit="份", category="VEGETABLE",
+                         supplier_name="本地蔬菜合作社", storage_area="常温", shelf_life_days=7,
+                         status="active", locked=True, version=1, created_at=now),
+            ProductMaster(sku_code="FP-SC-004", name="腐竹", specification="200g/包",
+                         brand="桂冠", unit_price=12.0, unit="包", category="VEGETABLE",
+                         supplier_name="杭州干货批发", storage_area="常温", shelf_life_days=300,
+                         status="draft", locked=False, version=1, created_at=now),
+
+            # ── 主食/小吃 ──
+            ProductMaster(sku_code="FP-ZS-001", name="宽粉", specification="250g/袋",
+                         brand="川南", unit_price=8.0, unit="袋", category="STAPLE",
+                         supplier_name="杭州干货批发", storage_area="常温", shelf_life_days=270,
+                         status="active", locked=True, version=1, created_at=now),
+            ProductMaster(sku_code="FP-ZS-002", name="红糖糍粑", specification="300g/盒",
+                         brand="蜀香", unit_price=22.0, unit="盒", category="STAPLE",
+                         supplier_name="杭州冻品供应链", storage_area="冷冻", shelf_life_days=180,
+                         status="active", locked=True, version=1, created_at=now, tags=["新品"]),
+            ProductMaster(sku_code="FP-ZS-003", name="小酥肉", specification="400g/盒",
+                         brand="蜀香", unit_price=32.0, unit="盒", category="STAPLE",
+                         supplier_name="杭州冻品供应链", storage_area="冷冻", shelf_life_days=180,
+                         status="draft", locked=False, version=1, created_at=now),
+
+            # ── 酒水饮料 ──
+            ProductMaster(sku_code="FP-YS-001", name="冰镇可乐", specification="330ml*24罐/箱",
+                         brand="可口可乐", unit_price=48.0, unit="箱", category="DRINK",
+                         supplier_name="杭州饮料批发", storage_area="常温", shelf_life_days=365,
+                         status="active", locked=True, version=1, created_at=now),
+            ProductMaster(sku_code="FP-YS-002", name="雪花啤酒", specification="500ml*12瓶/箱",
+                         brand="华润雪花", unit_price=45.0, unit="箱", category="DRINK",
+                         supplier_name="杭州饮料批发", storage_area="冷藏", shelf_life_days=180,
+                         status="active", locked=True, version=1, created_at=now),
+            ProductMaster(sku_code="FP-YS-003", name="酸梅汤", specification="500ml*15瓶/箱",
+                         brand="信远斋", unit_price=36.0, unit="箱", category="DRINK",
+                         supplier_name="杭州饮料批发", storage_area="常温", shelf息_days=240,
+                         status="draft", locked=False, version=1, created_at=now),
+
+            # ── 调料蘸料 ──
+            ProductMaster(sku_code="FP-TL-001", name="香油碟", specification="100ml*50盒/箱",
+                         brand="金龙鱼", unit_price=65.0, unit="箱", category="SEASONING",
+                         supplier_name="杭州调味品批发", storage_area="常温", shelf_life_days=365,
+                         status="active", locked=True, version=1, created_at=now),
+            ProductMaster(sku_code="FP-TL-002", name="蒜泥香油", specification="200ml*30盒/箱",
+                         brand="海底捞", unit_price=58.0, unit="箱", category="SEASONING",
+                         supplier_name="杭州调味品批发", storage_area="常温", shelf_life_days=270,
+                         status="active", locked=True, version=1, created_at=now),
+        ]
+
+        for p in seed_products:
+            cls._product_cache[p.sku_code] = p
+
+        cls._save_to_json()
+        logger.info("种子数据加载完成: %d 个货品", len(seed_products))
+        return len(seed_products)
