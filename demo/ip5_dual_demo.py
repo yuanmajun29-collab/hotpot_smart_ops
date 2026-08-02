@@ -196,9 +196,10 @@ def run_live_mode(client):
                                 "suggestion_id": sug_id, "title": sug_title})
 
         # Step 5: ★ 核心操作 - 采纳建议 (PUT)
-        print_step(5, 6, "🤖 ★ 执行 PUT /suggestions/{sug_id}/accept")
+        print_step(5, 8, "🤖 ★ 执行 PUT /suggestions/{sug_id}/accept")
         print(f"\n     ⚡ 正在调用D3集成引擎...")
-        print(f"     IP-5: 建议采纳 → 触发 IntegrationEngine → 自动创建PO")
+        print(f"     IP-5 (修正版): 建议采纳 → 生成待审批采购任务（符合最终方案要求）")
+        print(f"     📜 方案依据: 'AI 不自动创建正式采购订单' (第六章)")
 
         accept_resp, accept_status = client.api("PUT", f"/api/v1/assistant/suggestions/{sug_id}/accept")
 
@@ -207,18 +208,109 @@ def run_live_mode(client):
             print(f"     🎉 ✅✅✅ ACCEPT SUCCESS! ✅✅✅")
             print(f"     {'='*50}")
             print(f"     建议已被成功采纳!")
-            print(f"     D3引擎已触发 PO 自动创建流程...")
+            print(f"     D3引擎已生成 **待审批采购任务** (非直接PO)")
 
             results["steps"].append({"step": 5, "action": "AcceptSuggestion", "status": "OK",
-                                    "http_status": accept_status})
+                                    "http_status": accept_status, "note": "已生成待审批任务"})
         else:
             print(f"     ❌ Accept失败 (HTTP {accept_status}): {str(accept_resp)[:150]}")
             results["steps"].append({"step": 5, "action": "AcceptSuggestion", "status": "FAIL",
                                     "http_status": accept_status})
             return {**results, "result": "FAIL"}
 
-        # Step 6: 验证PO是否自动创建
-        print_step(6, 6, "验证PO自动创建结果")
+        # Step 6: 查看待审批任务
+        print_step(6, 8, "📋 查看待审批采购任务 [新增: IP-5修正流程]")
+        task_resp, task_status = client.api("GET", "/api/v1/assistant/tasks/purchase/pending")
+
+        pending_tasks = []
+        if isinstance(task_resp, dict) and 'data' in task_resp:
+            pending_tasks = task_resp['data']
+        elif isinstance(task_resp, list):
+            pending_tasks = task_resp
+
+        target_task = None
+        if pending_tasks:
+            target_task = pending_tasks[0]
+            task_id = target_task.get('id', 'unknown')
+            task_title = target_task.get('title', '未知')
+
+            print(f"\n     📝 待审批采购任务:")
+            print(f"        任务ID: {task_id}")
+            print(f'        标题: "{task_title}"')
+            print(f'        状态: {target_task.get("status", "?")}')
+            print(f'        目标角色: {target_task.get("target_role", "?")}')
+            print(f'        审批流程: {target_task.get("approval_workflow", {})}')
+
+            results["steps"].append({"step": 6, "action": "GetPendingTask", "status": "OK",
+                                    "task_id": task_id, "task_title": task_title})
+        else:
+            print(f"     ⚠️ 未找到待审批采购任务 (可能需要等待几秒)")
+            results["steps"].append({"step": 6, "action": "GetPendingTask", "status": "PARTIAL"})
+            # 继续执行，尝试从tasks列表中查找
+
+        # Step 7: ★★★ 人工审批环节（核心！体现"人确认关键动作"）
+        print_step(7, 8, "👨‍💼 ★★★ POST /tasks/{task_id}/approve-purchase [人工审批]")
+
+        if not target_task:
+            # 尝试从所有pending tasks中查找purchase_approval类型
+            all_tasks_resp, _ = client.api("GET", "/api/v1/assistant/tasks?role=purchaser&status=pending")
+            all_tasks = []
+            if isinstance(all_tasks_resp, dict) and 'data' in all_tasks_resp:
+                all_tasks = all_tasks_resp['data']
+            elif isinstance(all_tasks_resp, list):
+                all_tasks = all_tasks_resp
+
+            target_task = next((t for t in all_tasks if t.get('type') == 'purchase_approval'), None)
+
+        if target_task:
+            task_id = target_task.get('id')
+            print(f"\n     👆 模拟采购负责人操作: 审批通过采购任务")
+            print(f"     任务ID: {task_id}")
+
+            approve_resp, approve_status = client.api(
+                "POST",
+                f"/api/v1/assistant/tasks/{task_id}/approve-purchase",
+                {"approved_by": "purchaser_demo", "notes": "展会演示审批"}
+            )
+
+            if approve_status == 200 and isinstance(approve_resp, dict):
+                po_number = approve_resp.get('data', {}).get('po_number', '?')
+                approved_at = approve_resp.get('data', {}).get('approved_at', '?')
+
+                print(f"\n     {'='*55}")
+                print(f"     🎊 ✅✅✅ APPROVAL SUCCESS! ✅✅✅")
+                print(f"     {'='*55}")
+                print(f"     采购任务审批通过!")
+                print(f"     正式采购订单已创建: **{po_number}**")
+                print(f"     审批时间: {approved_at}")
+                print(f"\n     🎯 IP-5完整闭环验证:")
+                print(f"        ① AI建议 → ② 用户采纳 → ③ 生成待办")
+                print(f"        ④ 推送负责人 → ⑤ 人工审批 → ⑥ 创建正式PO")
+
+                results["steps"].append({"step": 7, "action": "ApprovePurchase", "status": "OK",
+                                        "po_number": po_number, "approved_at": approved_at})
+                results["result"] = "PASS"
+                results["po_created"] = {
+                    "po_number": po_number,
+                    "approved_by": "purchaser_demo",
+                    "flow": "suggestion→task→approval→po",  # 符合方案要求!
+                }
+                results["key_message"] = (
+                    "D3集成引擎核心价值 (修正版): "
+                    "AI建议 → 人采纳 → 系统生成待办 → **人审批确认** → 创建订单"
+                )
+            else:
+                print(f"     ❌ 审批失败 (HTTP {approve_status}): {str(approve_resp)[:150]}")
+                results["steps"].append({"step": 7, "action": "ApprovePurchase", "status": "FAIL"})
+                results["result"] = "FAIL"
+        else:
+            print(f"     ⚠️ 未找到可审批的采购任务 (可能系统延迟)")
+            print(f"     💡 提示: 在实际系统中，采购负责人会在UI上看到待办通知")
+            results["steps"].append({"step": 7, "action": "ApprovePurchase", "status": "SKIP"})
+            results["result"] = "PARTIAL"
+
+        # Step 8: 验证最终PO列表
+        print_step(8, 8, "验证最终PO列表 (含新审批创建的PO)")
         po_resp, _ = client.api("GET", "/api/v1/purchase-orders?limit=5")
 
         po_count = 0

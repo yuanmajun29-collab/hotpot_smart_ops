@@ -3841,6 +3841,185 @@ class SupplyChainManager:
         return cls._suggestion_cache.get(suggestion_id)
 
     @classmethod
+    def create_purchase_approval_task(
+        cls,
+        suggestion_id: str,
+        sku: str,
+        qty: int = 10,
+        supplier_id: Optional[str] = None,
+        target_role: str = "purchaser",
+        priority: str = "high",
+        title: Optional[str] = None,
+        description: Optional[str] = None,
+    ) -> Optional[dict]:
+        """
+        从AI采购建议创建待审批采购任务（符合最终方案IP-5修正要求）
+
+        ⚠️ 设计原则（2026-08-02）:
+        根据《火瞳餐饮AI智能体运营系统_最终方案》第六章明确规定:
+        - "AI 不自动创建正式采购订单"
+        - 采购Agent行动边界: "可生成建议和待办；**正式下单必须审批**"
+
+        因此正确流程是:
+        1. AI生成采购建议 → 2. 用户采纳建议 → 3. 系统生成待审批任务(本方法)
+        → 4. 推送给采购负责人 → 5. 人工审批 → 6. 审批通过后才调用create_po_from_suggestion()
+
+        Args:
+            suggestion_id: 来源AI建议ID
+            sku: 产品SKU
+            qty: 采购数量
+            supplier_id: 供应商ID（可选，自动选择A级）
+            target_role: 目标角色（默认purchaser）
+            priority: 任务优先级 (high/medium/low)
+            title: 任务标题（可选，自动生成）
+            description: 任务描述（可选）
+
+        Returns:
+            创建的任务字典，失败返回None
+        """
+        import uuid
+
+        # 验证SKU存在性
+        prod = cls._product_cache.get(sku)
+        if not prod:
+            logger.error(f"[IP-5] ❌ 创建待审批任务失败: SKU不存在 {sku}")
+            return None
+
+        # 自动推断供应商（如未指定）
+        if not supplier_id:
+            # 选择评分最高的A级供应商
+            a_suppliers = [s for s in cls._supplier_cache.values()
+                           if getattr(s, 'score', 0) >= 80]
+            if a_suppliers:
+                supplier_id = a_suppliers[0].supplier_id
+                logger.info(f"[IP-5] 自动选择供应商: {supplier_id}")
+
+        # 生成任务ID
+        task_id = f"PO-APPROVAL-{uuid4().hex[:8].upper()}"
+
+        # 构建任务数据
+        now = datetime.now()
+        task = {
+            "id": task_id,
+            "type": "purchase_approval",  # 特殊类型：采购审批
+            "suggestion_id": suggestion_id,
+            "title": title or f"审批采购: {prod.name if hasattr(prod, 'name') else sku} x{qty}",
+            "description": description or (
+                f"AI建议采购{prod.name if hasattr(prod, 'name') else sku}，数量{qty}。"
+                f"请审核后决定是否创建正式采购订单。\n"
+                f"来源: AI建议(ID:{suggestion_id}) | 生成时间: {now.strftime('%Y-%m-%d %H:%M')}"
+            ),
+            "status": "pending_approval",  # 待审批状态（关键！）
+            "target_role": target_role,
+            "priority": priority,
+            "created_at": now.isoformat(),
+            "updated_at": now.isoformat(),
+            "action_params": {
+                "sku": sku,
+                "qty": qty,
+                "supplier_id": supplier_id,
+                "product_name": getattr(prod, 'name', sku),
+                "unit_price": getattr(prod, 'unit_price', 0),
+                "estimated_total": qty * getattr(prod, 'unit_price', 0),
+            },
+            # 审批流程元数据（审计追踪）
+            "approval_workflow": {
+                "created_by": "ai_agent",  # 由AI Agent生成
+                "created_at": now.isoformat(),
+                "approved_by": None,       # 等待人工审批
+                "approved_at": None,
+                "po_created": False,       # PO尚未创建
+                "po_number": None,
+                "rejection_reason": None,
+            },
+            # 来源追踪
+            "source_trace": {
+                "suggestion_id": suggestion_id,
+                "suggestion_title": cls._suggestion_cache.get(suggestion_id, {}).get('title', ''),
+                "integration_point": "IP-5",
+                "compliant_with": "最终方案第六章: AI不自动创建正式PO",
+            }
+        }
+
+        # 存入任务缓存
+        cls._task_cache[task_id] = task
+        cls._save_to_json()
+
+        logger.info(f"[IP-5] ✅ 待审批采购任务已创建: {task_id}")
+        logger.info(f"[IP-5]    SKU={sku}, Qty={qty}, Supplier={supplier_id}, Target={target_role}")
+
+        return task
+
+    @classmethod
+    def approve_purchase_task(cls, task_id: str, approved_by: str = "manual") -> Optional[dict]:
+        """
+        审批采购任务 → 创建正式PO（人工确认后执行）
+
+        这是IP-5流程的"人确认关键动作"环节，符合最终方案第七章要求:
+        - "正式下单必须审批"
+        - "最终签字由授权人员完成"
+
+        Args:
+            task_id: 待审批任务ID
+            approved_by: 审批人标识（role或user_id）
+
+        Returns:
+            包含任务更新信息和PO信息的字典，失败返回None
+        """
+        # 获取任务
+        task = cls._task_cache.get(task_id)
+        if not task:
+            logger.error(f"[IP-5] ❌ 审批失败: 任务不存在 {task_id}")
+            return None
+
+        # 状态检查
+        if task.get("type") != "purchase_approval":
+            logger.error(f"[IP-5] ❌ 审批失败: 任务类型错误 {task.get('type')}")
+            return None
+
+        if task.get("status") != "pending_approval":
+            logger.warning(f"[IP-5] ⚠️ 任务状态不允许审批: {task.get('status')}")
+            return None
+
+        # 执行审批：调用原有的PO创建逻辑
+        action_params = task.get("action_params", {})
+        po = cls.create_po_from_suggestion(
+            suggestion_id=task["suggestion_id"],
+            sku=action_params.get("sku"),
+            qty=action_params.get("qty"),
+            supplier_id=action_params.get("supplier_id"),
+        )
+
+        if po:
+            # 更新任务状态和审计信息
+            now = datetime.now()
+            task["status"] = "approved"
+            task["updated_at"] = now.isoformat()
+            task["approval_workflow"]["approved_by"] = approved_by
+            task["approval_workflow"]["approved_at"] = now.isoformat()
+            task["approval_workflow"]["po_created"] = True
+            task["approval_workflow"]["po_number"] = po.order_no
+
+            cls._save_to_json()
+
+            logger.info(f"[IP-5] ✅ 采购任务审批通过: {task_id} → PO {po.order_no} (审批人: {approved_by})")
+
+            # 返回完整结果
+            return {
+                "task": task,
+                "po_number": po.order_no,
+                "po_id": po.po_id,
+                "approved_at": now.isoformat(),
+                "approved_by": approved_by,
+            }
+        else:
+            logger.error(f"[IP-5] ❌ 审批通过但PO创建失败: {task_id}")
+            task["status"] = "approval_failed"
+            task["approval_workflow"]["rejection_reason"] = "PO创建系统错误"
+            cls._save_to_json()
+            return None
+
+    @classmethod
     def create_po_from_suggestion(
         cls,
         suggestion_id: str,

@@ -442,6 +442,219 @@ class TestD3IntegrationP0(unittest.TestCase):
         # 注意: 如果有真实数据可能会创建PO，这里主要验证逻辑分支
         print(f"   ✅ 非采购建议处理正确: {'已跳过' if result is None else '需检查'}")
 
+    # =====================================================================
+    # TC-005 修正版: IP-5 D2建议接受 → 待审批任务 → 人工审批 → PO创建
+    # （2026-08-02 新增，符合最终方案第六章要求）
+    # =====================================================================
+
+    def test_tc005_corrected_accept_creates_approval_task_not_po(self):
+        """
+        TC-005修正: AI采购建议被采纳后应生成**待审批任务**（而非直接PO）
+
+        ⚠️ 这是P0修正的核心验证点！
+        根据《最终方案》第六章: "AI 不自动创建正式采购订单"
+
+        验证点:
+          1. 建议接受事件触发后调用 create_purchase_approval_task()
+          2. 生成的任务 type=purchase_approval（不是PO）
+          3. 任务状态 status=pending_approval（等待人工审批）
+          4. 任务包含完整的审批流程元数据
+        """
+        print("\n📋 TC-005✓: IP-5修正版 — 建议采纳→待审批任务（非直接PO）")
+
+        from hotpot_platform.cloud.supply_chain.manager import SupplyChainManager
+
+        # 调用新增的待审批任务创建方法
+        task = SupplyChainManager.create_purchase_approval_task(
+            suggestion_id="TEST-SUG-CORRECTED-001",
+            sku="FP-HNRC-001",  # 肥牛卷
+            qty=20,
+            supplier_id="SUP-WANG-001",  # 王总方
+            target_role="purchaser",
+            priority="high",
+            title=f"审批采购: 肥牛卷 x20",
+            description="AI建议采购肥牛卷，数量20，请审批后创建正式采购订单...",
+        )
+
+        # 验证任务已创建且属性正确
+        self.assertIsNotNone(task, "待审批任务不应为None")
+        self.assertEqual(task["type"], "purchase_approval", "任务类型应为purchase_approval")
+        self.assertEqual(task["status"], "pending_approval", "状态应为pending_approval")
+        self.assertEqual(task["target_role"], "purchaser", "目标角色应为采购负责人")
+
+        # 验证审批流程元数据
+        approval_wf = task.get("approval_workflow", {})
+        self.assertEqual(approval_wf.get("created_by"), "ai_agent", "创建者应为ai_agent")
+        self.assertIsNone(approval_wf.get("approved_by"), "approved_by初始应为None（等待人工）")
+        self.assertFalse(approval_wf.get("po_created"), "po_created初始应为False")
+
+        # 验证来源追溯信息
+        source_trace = task.get("source_trace", {})
+        self.assertEqual(source_trace.get("integration_point"), "IP-5", "应标记集成点为IP-5")
+        self.assertIn("最终方案", source_trace.get("compliant_with", ""), "应符合最终方案要求")
+
+        print(f"   🎉 待审批任务创建成功（符合最终方案要求）!")
+        print(f"      任务ID: {task['id']}")
+        print(f'      标题: "{task["title"]}"')
+        print(f"      状态: {task['status']} (⏳ 等待人工审批)")
+        print(f"      目标角色: {task['target_role']}")
+        print(f"      审批流程: created_by={approval_wf['created_by']}, po_created={approval_wf['po_created']}")
+
+    def test_tc005_corrected_approval_task_contains_action_params(self):
+        """
+        TC-005修正增强: 待审批任务应包含完整的采购行动参数
+
+        验证点:
+          1. action_params包含sku/qty/supplier_id
+          2. action_params可用于后续PO创建
+          3. 任务ID格式为 PO-APPROVAL-XXX
+        """
+        print("\n📋 TC-005✓+: 待审批任务参数完整性")
+
+        from hotpot_platform.cloud.supply_chain.manager import SupplyChainManager
+
+        task = SupplyChainManager.create_purchase_approval_task(
+            suggestion_id="TEST-SUG-PARAMS-001",
+            sku="FP-HNRC-002",  # 羊肉卷
+            qty=15,
+            supplier_id="SUP-LI-002",
+        )
+
+        if task:
+            action_params = task.get("action_params", {})
+
+            # 验证关键参数存在
+            self.assertIn("sku", action_params, "action_params必须包含sku")
+            self.assertIn("qty", action_params, "action_params必须包含qty")
+            self.assertEqual(action_params["sku"], "FP-HNRC-002", "SKU应匹配")
+            self.assertEqual(action_params["qty"], 15, "数量应匹配")
+
+            # 验证任务ID格式
+            self.assertTrue(task["id"].startswith("PO-APPROVAL-"), "任务ID应以PO-APPROVAL-开头")
+
+            print(f"   ✅ 行动参数完整:")
+            print(f"      SKU: {action_params['sku']}")
+            print(f"      数量: {action_params['qty']}")
+            print(f'      任务ID格式: {task["id"]}')
+        else:
+            self.fail("待审批任务创建失败")
+
+    def test_tc005_corrected_human_approval_creates_po(self):
+        """
+        TC-005修正核心: 人工审批通过后才创建正式PO
+
+        ⚠️ 这是"人确认关键动作"环节的验证！
+
+        流程:
+          1. 先创建待审批任务
+          2. 调用 approve_purchase_task() 模拟人工审批
+          3. 验证PO被创建且任务状态更新
+
+        验证点:
+          1. 审批后任务状态变为 approved
+          2. 审批后 po_created=True
+          3. 返回结果包含PO编号
+          4. approved_by 记录审批人
+        """
+        print("\n📋 TC-005✓✓: 人工审批 → 创建正式PO（人确认关键动作）")
+
+        from hotpot_platform.cloud.supply_chain.manager import SupplyChainManager
+
+        # Step 1: 创建待审批任务
+        task = SupplyChainManager.create_purchase_approval_task(
+            suggestion_id="TEST-SUG-APPROVAL-001",
+            sku="FP-HNRC-001",
+            qty=25,
+            supplier_id="SUP-WANG-001",
+        )
+        self.assertIsNotNone(task, "前置条件: 待审批任务必须创建成功")
+        task_id = task["id"]
+
+        print(f"   Step1: 待审批任务已创建 → {task_id}")
+
+        # Step 2: 模拟人工审批（这是"人确认关键动作"！）
+        result = SupplyChainManager.approve_purchase_task(
+            task_id=task_id,
+            approved_by="purchaser_zhangsan",  # 模拟采购负责人张三
+        )
+
+        # Step 3: 验证审批结果
+        self.assertIsNotNone(result, "审批结果不应为None")
+        self.assertIn("task", result, "结果应包含更新后的任务")
+        self.assertIn("po_number", result, "结果应包含PO编号")
+
+        updated_task = result["task"]
+        po_number = result["po_number"]
+
+        # 验证任务状态变更
+        self.assertEqual(updated_task["status"], "approved", "审批后任务状态应为approved")
+        self.assertEqual(updated_task["approval_workflow"]["approved_by"], "purchaser_zhangsan", "应记录审批人")
+        self.assertTrue(updated_task["approval_workflow"]["po_created"], "po_created应为True")
+        self.assertEqual(updated_task["approval_workflow"]["po_number"], po_number, "应记录PO编号")
+
+        print(f"   Step2: 人工审批通过 ✅ (approved_by=purchaser_zhangsan)")
+        print(f"   Step3: 正式PO已创建 → {po_number}")
+        print(f"\n   🎊 IP-5修正流程完整验证通过:")
+        print(f"      ① AI建议 → ② 用户采纳 → ③ 生成待办({task_id})")
+        print(f"      → ④ 推送负责人 → ⑤ 人工审批 → ⑥ 创建正式PO({po_number})")
+
+    def test_tc005_corrected_approve_nonexistent_task_fails(self):
+        """
+        TC-005修正边界: 审批不存在的任务应返回None
+
+        验证点:
+          1. 传入无效task_id返回None
+          2. 不抛出异常
+          3. 错误信息清晰
+        """
+        print("\n📋 TC-005✓边界: 审批不存在任务的处理")
+
+        from hotpot_platform.cloud.supply_chain.manager import SupplyChainManager
+
+        result = SupplyChainManager.approve_purchase_task(
+            task_id="PO-APPROVAL-NONEXISTENT",
+            approved_by="test_user",
+        )
+
+        self.assertIsNone(result, "不存在的任务应返回None")
+        print(f"   ✅ 正确处理了不存在的任务ID (返回None)")
+
+    def test_tc005_corrected_full_flow_comparison(self):
+        """
+        TC-005对比: 旧流程 vs 修正流程 对比展示
+
+        本测试用于文档化展示修正前后的差异，帮助理解设计决策。
+        """
+        print("\n📋 TC-005对比: 旧流程 vs 修正流程")
+
+        from hotpot_platform.cloud.supply_chain.manager import SupplyChainManager
+
+        print("\n   ┌─────────────────────────────────────────────────────────┐")
+        print("   │  🔴 旧流程 (已废弃, 违反最终方案)                        │")
+        print("   │     Accept Suggestion → 自动调用 create_po_from_suggestion() │")
+        print("   │     ❌ 问题: AI直接创建正式PO，无人工审批环节             │")
+        print("   └─────────────────────────────────────────────────────────┘")
+
+        print("\   ┌─────────────────────────────────────────────────────────┐")
+        print("   │  🟢 修正流程 (当前实现, 符合最终方案)                    │")
+        print("   │     Accept Suggestion → create_purchase_approval_task()  │")
+        print("   │       → 生成 pending_approval 任务                      │")
+        print("   │       → 推送给采购负责人                                 │")
+        print("   │       → 人工调用 approve_purchase_task()                │")
+        print("   │       → 审批通过后才创建正式PO                           │")
+        print("   │     ✅ 优点: 符合'AI不自动创建正式PO'原则                │")
+        print("   └─────────────────────────────────────────────────────────┘")
+
+        # 快速验证两个方法都存在
+        self.assertTrue(hasattr(SupplyChainManager, 'create_po_from_suggestion'), "旧方法仍保留(向后兼容)")
+        self.assertTrue(hasattr(SupplyChainManager, 'create_purchase_approval_task'), "新方法已添加")
+        self.assertTrue(hasattr(SupplyChainManager, 'approve_purchase_task'), "审批方法已添加")
+
+        print(f"\n   ✅ API完整性验证通过:")
+        print(f"      - create_po_from_suggestion() (保留, 向后兼容)")
+        print(f"      - create_purchase_approval_task() (新增, 修正流程Step1)")
+        print(f"      - approve_purchase_task() (新增, 修正流程Step2)")
+
 
 # =====================================================================
 # 辅助: 运行所有测试

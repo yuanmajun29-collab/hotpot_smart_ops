@@ -436,17 +436,26 @@ class IntegrationEngine:
         )
 
     def _register_ip5_handlers(self):
-        """IP-5: D2建议接受 → D1采购订单创建（核心集成点）"""
+        """IP-5: D2建议接受 → 生成待审批采购任务（符合最终方案要求）
+
+        ⚠️ 重要设计决策（2026-08-02修正）:
+        根据《火瞳餐饮AI智能体运营系统_最终方案》第六章明确规定:
+        - "AI 不自动创建正式采购订单"
+        - 采购Agent行动边界: "可生成建议和待办；**正式下单必须审批**"
+
+        因此IP-5的正确流程是:
+        用户采纳建议 → 生成待审批任务(Task) → 推送给采购负责人 → 人工审批 → 才创建正式PO
+        """
 
         def handle_suggestion_accepted(event: Event):
-            """AI采购建议被采纳后自动创建采购订单"""
+            """AI采购建议被采纳后生成待审批采购任务（需人工确认后才创建PO）"""
             self._metrics["ip5_calls"] += 1
             suggestion_id = event.payload.get("suggestion_id")
 
-            logger.info(f"[IP-5] 🎯 核心集成: 建议被采纳，准备创建PO: SUG={suggestion_id}")
+            logger.info(f"[IP-5] 🎯 建议被采纳，生成待审批采购任务: SUG={suggestion_id}")
 
             if not self._manager:
-                logger.error("[IP-5] ❌ Manager未绑定，无法创建PO")
+                logger.error("[IP-5] ❌ Manager未绑定，无法创建任务")
                 return
 
             # 获取建议详情
@@ -460,7 +469,7 @@ class IntegrationEngine:
                 logger.info(f"[IP-5] 跳过非采购建议: type={suggestion.get('suggestion_type')}")
                 return
 
-            # 自动创建PO
+            # 提取参数
             action_params = suggestion.get("action_params", {})
             sku = action_params.get("sku")
             qty = action_params.get("qty", 10)
@@ -471,23 +480,35 @@ class IntegrationEngine:
                 return
 
             try:
-                po = self._manager.create_po_from_suggestion(
+                # ✅ 修正后：不再直接创建PO，而是生成待审批任务
+                task = self._manager.create_purchase_approval_task(
                     suggestion_id=suggestion_id,
                     sku=sku,
                     qty=qty,
                     supplier_id=supplier_id,
+                    target_role="purchaser",  # 推送给采购负责人
+                    priority="high",
+                    title=f"审批采购: {sku} x{qty}",
+                    description=f"AI建议采购{sku}，数量{qty}，请审批后创建正式采购订单。来源建议ID: {suggestion_id}",
                 )
-                if po:
-                    logger.info(f"[IP-5] ✅ 成功创建PO: {po.order_no} (来自建议{suggestion_id})")
 
-                    # 发布PO创建事件（触发IP-3联动）
-                    self.on_po_created(
-                        po_id=po.po_id or "",
-                        order_no=po.order_no,
-                        supplier_name=po.supplier_name or "",
-                    )
+                if task:
+                    logger.info(f"[IP-5] ✅ 已生成待审批采购任务: {task['id']} (需人工审批后才创建PO)")
+
+                    # 发布任务创建事件（通知相关角色）
+                    self.publish_event(IntegrationEvent.D2_TASK_CREATED, {
+                        "task_id": task["id"],
+                        "task_type": "purchase_approval",
+                        "target_role": task.get("target_role"),
+                        "suggestion_id": suggestion_id,
+                        "requires_approval": True,  # 标记需要审批
+                    })
+                else:
+                    logger.error("[IP-5] ❌ 创建待审批任务失败")
+                    self._metrics["errors"] += 1
+
             except Exception as e:
-                logger.error(f"[IP-5] ❌ 创建PO失败: {e}", exc_info=True)
+                logger.error(f"[IP-5] ❌ 处理建议接受事件失败: {e}", exc_info=True)
                 self._metrics["errors"] += 1
 
         self._event_bus.subscribe(

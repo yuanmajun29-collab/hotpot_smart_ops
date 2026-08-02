@@ -119,6 +119,80 @@ async def dismiss_task(
 
 
 # =====================================================================
+# 采购审批流程（IP-5修正：符合最终方案要求）
+# =====================================================================
+
+class ApprovePurchaseTaskRequest(BaseModel):
+    """采购任务审批请求"""
+    approved_by: str = Field("manual", description="审批人标识（role或user_id）")
+    notes: Optional[str] = Field(None, description="审批备注")
+
+
+@router.post("/assistant/tasks/{task_id}/approve-purchase")
+async def approve_purchase_task(
+    task_id: str,
+    req: ApprovePurchaseTaskRequest,
+    session: dict = Depends(get_current_session),
+):
+    """
+    审批采购任务 → 创建正式采购订单
+
+    ⚠️ 这是IP-5流程的"人确认关键动作"环节
+    根据《火瞳餐饮AI智能体运营系统_最终方案》第七章:
+    - 采购Agent: "可生成建议和待办；**正式下单必须审批**"
+    - 收货/质检Agent: "最终签字由授权人员完成"
+
+    流程:
+    用户调用此API → 系统验证任务状态 → 调用create_po_from_suggestion()
+    → 返回PO信息 + 更新任务审计记录
+    """
+    # 执行审批
+    result = SupplyChainManager.approve_purchase_task(
+        task_id=task_id,
+        approved_by=req.approved_by or session.get("user", {}).get("role", "unknown"),
+    )
+
+    if not result:
+        # 区分不同错误类型
+        task = SupplyChainManager.get_task_detail(task_id)
+        if not task:
+            raise HTTPException(status_code=404, detail=f"采购任务不存在: {task_id}")
+        elif task.get("status") == "approved":
+            raise HTTPException(status_code=400, detail="该任务已审批通过，请勿重复操作")
+        elif task.get("status") != "pending_approval":
+            raise HTTPException(status_code=400, detail=f"任务状态不允许审批: {task.get('status')}")
+        else:
+            raise HTTPException(status_code=500, detail="审批处理失败，请查看系统日志")
+
+    return {
+        "code": 0,
+        "msg": "✅ 采购任务审批通过，正式PO已创建",
+        "data": result,
+    }
+
+
+@router.get("/assistant/tasks/purchase/pending")
+async def get_pending_purchase_tasks(
+    session: dict = Depends(get_current_session),
+):
+    """获取待审批的采购任务列表（IP-5修正后新增）"""
+    all_tasks = SupplyChainManager.get_tasks(role="purchaser", status="pending")
+
+    # 过滤出采购审批类型的待办
+    purchase_tasks = [
+        t for t in all_tasks
+        if t.get("type") == "purchase_approval" and t.get("status") == "pending_approval"
+    ]
+
+    return {
+        "code": 0,
+        "data": purchase_tasks,
+        "total": len(purchase_tasks),
+        "msg": f"共{len(purchase_tasks)}个待审批采购任务",
+    }
+
+
+# =====================================================================
 # AI 建议操作
 # =====================================================================
 
