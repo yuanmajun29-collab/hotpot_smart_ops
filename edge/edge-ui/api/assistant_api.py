@@ -47,6 +47,28 @@ async def get_dashboard_kpi(session: dict = Depends(get_current_session)):
     return {"code": 0, "data": dashboard.get("kpis", []), "msg": "ok"}
 
 
+@router.get("/assistant/dashboard/full")
+async def get_dashboard_full(
+    include_kitchen: bool = Query(False, description="是否包含A02后厨面板"),
+    include_purchase: bool = Query(False, description="是否包含A03采购面板"),
+    session: dict = Depends(get_current_session),
+):
+    """
+    A01+ 增强版完整工作台 (Dashboard Full API)
+
+    聚合所有面板数据，用于展会S4场景"店长工作台"展示:
+    - 基础: KPI + Tasks + Suggestions + Trends (来自A01)
+    - 可选: A02后厨助理面板 (备货+温控+SOP)
+    - 可选: A03采购助理面板 (PO跟踪+比价)
+    - 额外: D3集成引擎指标
+    """
+    data = SupplyChainManager.get_dashboard_full(
+        include_kitchen=include_kitchen,
+        include_purchase=include_purchase,
+    )
+    return {"code": 0, "data": data, "msg": "ok"}
+
+
 # =====================================================================
 # 待办事项 CRUD
 # =====================================================================
