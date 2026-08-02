@@ -45,6 +45,11 @@ function loadDashboard() {
     console.error('Dashboard load error:', err);
     document.getElementById('kpiRow').innerHTML = '<div class="kpi-card" style="grid-column:1/-1"><div class="kpi-label" style="color:#ef4444">加载失败，请先加载Demo数据</div></div>';
   });
+
+  // 加载Gateway审批状态 (P1增强)
+  if (document.getElementById('approvalList')) {
+    loadApprovalStatus();
+  }
 }
 
 function renderKPIs(kpis) {
@@ -469,6 +474,134 @@ function loadDemoData() {
     alert(`Demo 数据加载完成!\n待办: ${result.tasks_count || '?'} 条\nAI建议: 若干条\n\n请刷新页面查看效果。`);
     // Reload current page data
     initCurrentPage();
+  });
+}
+
+// ====== Gateway Approval Status (P1增强) ======
+
+function loadApprovalStatus() {
+  // 检查Gateway状态
+  fetch(`${API_BASE}/gateway/status`)
+    .then(r => r.json())
+    .then(d => {
+      const badge = document.getElementById('gatewayStatus');
+      if (d.data && d.data.gateway_enabled) {
+        badge.className = 'gateway-badge gw-active';
+        badge.textContent = '✓ Gateway在线';
+        // 加载审批列表
+        loadApprovalList();
+      } else {
+        badge.className = 'gateway-badge gw-inactive';
+        badge.textContent = '✗ Gateway离线';
+        document.getElementById('approvalList').innerHTML =
+          '<div class="empty-state"><div class="icon">&#128276;</div>Gateway未启用，审批功能不可用</div>';
+        document.getElementById('approvalCount').textContent = '';
+      }
+    })
+    .catch(err => {
+      console.warn('Gateway status check failed:', err);
+      document.getElementById('gatewayStatus').className = 'gateway-badge gw-inactive';
+      document.getElementById('gatewayStatus').textContent = '? 未知';
+    });
+}
+
+function loadApprovalList() {
+  // 获取待审批任务列表 (从Dashboard数据中提取)
+  fetch(`${API_BASE}/dashboard/full`, { credentials: 'include' })
+    .then(r => r.json())
+    .then(d => {
+      const container = document.getElementById('approvalList');
+      const countEl = document.getElementById('approvalCount');
+
+      if (!d.data || !d.data.pending_approvals) {
+        // 如果没有pending_approvals字段，显示模拟数据或空状态
+        container.innerHTML = `
+          <div class="approval-card">
+            <div class="approval-header">
+              <span class="approval-title">暂无待审批任务</span>
+              <span class="approval-badge">0</span>
+            </div>
+            <div style="font-size:13px;color:#9ca3af;padding:8px 0;">
+              所有采购任务已处理完毕 ✓
+            </div>
+          </div>`;
+        countEl.textContent = '(0)';
+        return;
+      }
+
+      const approvals = d.data.pending_approvals;
+      countEl.textContent = `(${approvals.length})`;
+
+      if (approvals.length === 0) {
+        container.innerHTML = `
+          <div class="approval-card">
+            <div class="approval-header">
+              <span class="approval-title">暂无待审批任务</span>
+              <span class="approval-badge">0</span>
+            </div>
+            <div style="font-size:13px;color:#9ca3af;padding:8px 0;">
+              所有采购任务已处理完毕 ✓
+            </div>
+          </div>`;
+        return;
+      }
+
+      // 渲染审批列表
+      container.innerHTML = approvals.map(item => `
+        <div class="approval-card">
+          <div class="approval-header">
+            <span class="approval-title">${item.title || '采购审批'}</span>
+            <span class="approval-badge">${getPriorityLabel(item.priority)}</span>
+          </div>
+          <div class="approval-item">
+            <div class="approval-icon icon-po">&#128722;</div>
+            <div class="approval-info">
+              <div class="approval-sku">${item.sku || item.description || '商品采购'}</div>
+              <div class="approval-meta">
+                数量: ${item.qty || '?'} | 申请人: ${item.requester || '系统AI'}
+                | ${formatTime(item.created_at)}
+              </div>
+            </div>
+            <div class="approval-action">
+              <button class="btn-approve-sm" onclick="handleApprove('${item.task_id || item.id}')">审批</button>
+            </div>
+          </div>
+        </div>
+      `).join('');
+    })
+    .catch(err => {
+      console.error('Approval list load error:', err);
+      document.getElementById('approvalList').innerHTML =
+        '<div class="empty-state"><div class="icon">&#9888;</div>加载失败</div>';
+    });
+}
+
+function getPriorityLabel(priority) {
+  const map = { high: '紧急', medium: '普通', low: '低' };
+  return map[priority] || priority || '普通';
+}
+
+function handleApprove(taskId) {
+  if (!confirm('确认审批此采购任务？\n\n这将创建正式采购订单。')) return;
+
+  fetch(`${API_BASE}/tasks/${taskId}/approve-purchase`, {
+    method: 'PUT',
+    headers: { 'Content-Type': 'application/json' },
+    credentials: 'include',
+    body: JSON.stringify({ approved_by: 'store_manager', comment: '店长审批通过' })
+  })
+  .then(r => r.json())
+  .then(d => {
+    if (d.code === 0 || d.data) {
+      alert('✅ 审批成功！采购订单已创建。');
+      loadApprovalList(); // 刷新列表
+      loadDashboard(); // 刷新Dashboard
+    } else {
+      alert('❌ 审批失败: ' + (d.detail || d.msg || '未知错误'));
+    }
+  })
+  .catch(err => {
+    alert('❌ 请求失败: ' + err.message);
   });
 }
 
