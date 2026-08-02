@@ -51,6 +51,7 @@ import logging
 import time
 import uuid
 from datetime import datetime
+from dataclasses import dataclass, field
 from enum import Enum
 from typing import Any, Callable, Dict, List, Optional, Tuple, Union
 

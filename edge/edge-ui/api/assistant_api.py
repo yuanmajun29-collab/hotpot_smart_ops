@@ -6,11 +6,11 @@ D2 岗位 AI 助理 API 层
 """
 
 from fastapi import APIRouter, Depends, Query, HTTPException
-from pydantic import BaseModel
+from pydantic import BaseModel, Field
 from typing import Optional
 from datetime import datetime
 
-from hotpot_platform.auth.session import get_current_session
+from middleware import get_current_session
 from hotpot_platform.cloud.supply_chain.manager import SupplyChainManager
 
 router = APIRouter()
@@ -487,7 +487,7 @@ async def get_gateway_status(session: dict = Depends(get_current_session)):
             RiskLevel,
             PermissionMatrix,
         )
-        from hotpot_platform.cloud.agent_framework import get_gateway
+        from hotpot_platform.cloud.agent_framework.agent_gateway import get_gateway
 
         gateway = get_gateway()
         stats = gateway.get_audit_stats()
