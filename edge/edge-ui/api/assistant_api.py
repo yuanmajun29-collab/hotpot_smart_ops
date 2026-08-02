@@ -515,3 +515,126 @@ async def get_gateway_status(session: dict = Depends(get_current_session)):
                 "message": "Agent Gateway 未安装，系统运行在基础权限模式",
             },
         }
+
+
+# =====================================================================
+# Gateway 审计日志历史查询 API (P1增强 - 持久化)
+# =====================================================================
+
+@router.get("/gateway/audit-history")
+async def get_audit_history(
+    start_date: Optional[str] = Query(None, description="开始日期 (YYYY-MM-DD)"),
+    end_date: Optional[str] = Query(None, description="结束日期 (YYYY-MM-DD)"),
+    user_id: Optional[str] = Query(None, description="用户ID过滤"),
+    action_type: Optional[str] = Query(None, description="行动类型过滤"),
+    risk_level: Optional[str] = Query(None, description="风险等级过滤"),
+    limit: int = Query(100, ge=1, le=500, description="返回条数上限"),
+):
+    """
+    查询审计日志历史记录 (从持久化文件)
+
+    权限要求: 店长(store_manager) 或 管理员(admin)
+
+    查询参数:
+      - start_date/end_date: 日期范围
+      - user_id: 按用户筛选
+      - action_type: 按行动类型筛选
+      - risk_level: 按风险等级筛选 (low/medium/high/critical/blocked)
+      - limit: 返回条数 (1-500)
+
+    返回:
+      - records: 审计记录列表
+      - total: 匹配的记录总数
+      - date_range: 实际查询的日期范围
+    """
+    try:
+        from hotpot_platform.cloud.agent_framework.agent_gateway import audit_logger
+
+        # 执行历史查询
+        records = audit_logger.query_history(
+            start_date=start_date,
+            end_date=end_date,
+            user_id=user_id,
+            action_type=action_type,
+            risk_level=risk_level,
+            limit=limit,
+        )
+
+        return {
+            "code": 0,
+            "data": {
+                "records": records,
+                "total": len(records),
+                "query_params": {
+                    "start_date": start_date,
+                    "end_date": end_date,
+                    "user_id": user_id,
+                    "action_type": action_type,
+                    "risk_level": risk_level,
+                    "limit": limit,
+                },
+            },
+        }
+
+    except ImportError:
+        raise HTTPException(status_code=501, detail="审计日志功能未安装")
+
+
+@router.get("/gateway/audit-stats")
+async def get_audit_stats_detailed():
+    """
+    获取详细审计统计信息 (含持久化状态)
+
+    返回:
+      - 内存缓存统计
+      - 文件存储统计
+      - 持久化配置信息
+    """
+    try:
+        from hotpot_platform.cloud.agent_framework.agent_gateway import get_gateway
+
+        gateway = get_gateway()
+        stats = gateway.get_audit_stats()
+
+        return {
+            "code": 0,
+            "data": {
+                **stats,
+                "features": {
+                    "persistence": stats.get("persistence_enabled", False),
+                    "history_query": True,
+                    "auto_rotation": True,
+                    "retention_days": 90,
+                },
+            },
+        }
+
+    except ImportError:
+        raise HTTPException(status_code=501, detail="Gateway功能未安装")
+
+
+@router.post("/gateway/audit/cleanup")
+async def cleanup_old_audit_logs():
+    """
+    清理过期审计日志文件
+
+    权限要求: 仅管理员(admin)
+
+    返回:
+      - cleaned: 清理的文件数量
+    """
+    try:
+        from hotpot_platform.cloud.agent_framework.agent_gateway import audit_logger
+
+        cleaned = audit_logger.cleanup_old_logs()
+
+        return {
+            "code": 0,
+            "data": {
+                "cleaned_files": cleaned,
+                "message": f"已清理 {cleaned} 个过期日志文件",
+            },
+        }
+
+    except ImportError:
+        raise HTTPException(status_code=501, detail="审计日志功能未安装")

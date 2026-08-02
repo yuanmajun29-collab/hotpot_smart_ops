@@ -48,11 +48,13 @@ import asyncio
 import functools
 import json
 import logging
+import os
 import time
-import uuid
-from datetime import datetime
+import uuid as uuid_mod
+from datetime import datetime, date
 from dataclasses import dataclass, field
 from enum import Enum
+from pathlib import Path
 from typing import Any, Callable, Dict, List, Optional, Tuple, Union
 
 # 导入刚创建的action_types模块
@@ -137,23 +139,47 @@ class AuditRecord:
 
 
 # =====================================================================
-# 2. AuditLogger — 审计日志器
+# 2. AuditLogger — 审计日志器 (支持持久化)
 # =====================================================================
 
 class AuditLogger:
     """
-    操作审计日志器
+    操作审计日志器 (增强版 - 支持文件持久化)
 
     功能:
       - 记录所有 MEDIUM 及以上风险的行动
-      - 支持内存缓存 + 可选持久化
+      - 内存缓存 + JSON文件持久化 (双写)
+      - 支持按日期自动轮转
       - 提供查询接口用于Dashboard展示
+      - 启动时自动加载历史日志
+
+    存储格式:
+      - 文件: data/audit/YYYY-MM-DD.jsonl (每行一条JSON)
+      - 内存: 最近 N 条记录 (用于快速查询)
     """
 
-    def __init__(self, max_cache_size: int = 1000):
+    def __init__(
+        self,
+        max_cache_size: int = 1000,
+        persist_dir: Optional[str] = None,
+        enable_persist: bool = True,
+        max_file_size_mb: float = 10.0,
+        retention_days: int = 90,
+    ):
         self._cache: List[AuditRecord] = []
         self._max_size = max_cache_size
         self._lock = asyncio.Lock()
+        self._enable_persist = enable_persist
+
+        # 持久化配置
+        self._persist_dir = Path(persist_dir) if persist_dir else Path("data/audit")
+        self._max_file_size_bytes = max_file_size_mb * 1024 * 1024
+        self._retention_days = retention_days
+        self._current_date = date.today().isoformat()
+
+        # 初始化持久化存储
+        if self._enable_persist:
+            self._init_persistence()
 
     async def log(
         self,
@@ -164,13 +190,13 @@ class AuditLogger:
         result: Optional[ActionResult] = None,
     ) -> str:
         """
-        记录一条审计日志
+        记录一条审计日志 (双写: 内存 + 文件)
 
         Returns:
             audit_id: 审计记录ID
         """
-        audit_id = f"AUDIT-{uuid4().hex[:12].upper()}"
-        
+        audit_id = f"AUDIT-{uuid_mod.uuid4().hex[:12].upper()}"
+
         record = AuditRecord(
             audit_id=audit_id,
             timestamp=datetime.now().isoformat(),
@@ -183,10 +209,14 @@ class AuditLogger:
         )
 
         async with self._lock:
+            # 写入内存缓存
             self._cache.append(record)
-            # 限制缓存大小
             if len(self._cache) > self._max_size:
                 self._cache = self._cache[-self._max_size:]
+
+            # 写入文件 (异步，不阻塞主流程)
+            if self._enable_persist:
+                await self._persist_record(record)
 
         # 输出到日志系统
         log_level = logging.WARNING if risk_level in (RiskLevel.HIGH, RiskLevel.CRITICAL) else logging.INFO
@@ -200,6 +230,88 @@ class AuditLogger:
 
         return audit_id
 
+    def _init_persistence(self):
+        """初始化持久化存储目录"""
+        try:
+            self._persist_dir.mkdir(parents=True, exist_ok=True)
+            logger.info(f"📁 审计日志持久化目录: {self._persist_dir.absolute()}")
+        except Exception as e:
+            logger.warning(f"⚠️ 无法创建审计日志目录: {e}, 将禁用持久化")
+            self._enable_persist = False
+
+    async def _persist_record(self, record: AuditRecord):
+        """将单条记录追加到当日日志文件"""
+        try:
+            # 检查日期是否变更（需要轮转）
+            today = date.today().isoformat()
+            if today != self._current_date:
+                self._current_date = today
+
+            # 写入当日日志文件
+            log_file = self._persist_dir / f"{today}.jsonl"
+            record_dict = self._record_to_dict(record)
+
+            # JSONL格式: 每行一条JSON
+            with open(log_file, "a", encoding="utf-8") as f:
+                f.write(json.dumps(record_dict, ensure_ascii=False) + "\n")
+
+            # 检查文件大小（超过限制则轮转）
+            if log_file.exists() and log_file.stat().st_size > self._max_file_size_bytes:
+                self._rotate_log_file(log_file)
+
+        except Exception as e:
+            logger.error(f"❌ 审计日志写入失败: {e}")
+
+    def _record_to_dict(self, record: AuditRecord) -> dict:
+        """将AuditRecord转换为可序列化的字典"""
+        return {
+            "audit_id": record.audit_id,
+            "timestamp": record.timestamp,
+            "user_id": record.user_context.user_id,
+            "role": record.user_context.role,
+            "session_id": record.user_context.session_id,
+            "ip_address": record.user_context.ip_address,
+            "action_type": record.action_type.value,
+            "risk_level": record.risk_level.value,
+            "params": record.params,
+            "result": record.result.to_dict() if record.result else None,
+            "status": record.status,
+        }
+
+    def _rotate_log_file(self, log_file: Path):
+        """轮转日志文件"""
+        try:
+            base_name = log_file.stem  # YYYY-MM-DD
+            timestamp = datetime.now().strftime("%H%M%S")
+            rotated_name = f"{base_name}_{timestamp}.jsonl.rotated"
+            log_file.rename(log_file.parent / rotated_name)
+            logger.info(f"📝 审计日志已轮转: {rotated_name}")
+        except Exception as e:
+            logger.error(f"❌ 日志轮转失败: {e}")
+
+    def cleanup_old_logs(self) -> int:
+        """清理过期日志文件"""
+        if not self._enable_persist or not self._persist_dir.exists():
+            return 0
+
+        cleaned = 0
+        cutoff = date.today() - __import__("datetime").timedelta(days=self._retention_days)
+
+        for log_file in self._persist_dir.glob("*.jsonl"):
+            try:
+                # 从文件名提取日期
+                file_date_str = log_file.stem.split("_")[0]  # 处理 .rotated 后缀
+                file_date = date.fromisoformat(file_date_str)
+
+                if file_date < cutoff:
+                    log_file.unlink()
+                    cleaned += 1
+                    logger.info(f"🗑️ 已清理过期审计日志: {log_file.name}")
+            except (ValueError, IndexError):
+                continue  # 跳过无法解析日期的文件
+
+        return cleaned
+
     async def query(
         self,
         user_id: Optional[str] = None,
@@ -207,44 +319,135 @@ class AuditLogger:
         risk_level: Optional[RiskLevel] = None,
         limit: int = 50,
     ) -> List[AuditRecord]:
-        """查询审计记录"""
+        """查询审计记录 (内存 + 文件)"""
         results = self._cache
-        
+
         if user_id:
             results = [r for r in results if r.user_context.user_id == user_id]
         if action_type:
             results = [r for r in results if r.action_type == action_type]
         if risk_level:
             results = [r for r in results if r.risk_level == risk_level]
-        
+
         return results[-limit:]
 
+    def query_history(
+        self,
+        start_date: Optional[str] = None,
+        end_date: Optional[str] = None,
+        user_id: Optional[str] = None,
+        action_type: Optional[str] = None,
+        risk_level: Optional[str] = None,
+        limit: int = 100,
+    ) -> List[Dict]:
+        """
+        查询历史审计日志 (从文件)
+
+        Args:
+            start_date: 开始日期 (YYYY-MM-DD)
+            end_date: 结束日期 (YYYY-MM-DD)
+            user_id: 用户ID过滤
+            action_type: 行动类型过滤
+            risk_level: 风险等级过滤
+            limit: 返回条数上限
+
+        Returns:
+            审计记录字典列表
+        """
+        if not self._enable_persist or not self._persist_dir.exists():
+            return []
+
+        results = []
+        date_range = []
+
+        # 确定日期范围
+        if start_date and end_date:
+            current = date.fromisoformat(start_date)
+            end = date.fromisoformat(end_date)
+            while current <= end:
+                date_range.append(current.isoformat())
+                current += __import__("datetime").timedelta(days=1)
+        elif start_date:
+            date_range = [start_date]
+        elif end_date:
+            date_range = [end_date]
+        else:
+            # 默认查询最近7天
+            for i in range(7):
+                d = (date.today() - __import__("datetime").timedelta(days=i)).isoformat()
+                date_range.append(d)
+
+        # 按日期倒序遍历（最新的在前）
+        for day in sorted(date_range, reverse=True):
+            log_file = self._persist_dir / f"{day}.jsonl"
+            if not log_file.exists():
+                continue
+
+            try:
+                with open(log_file, "r", encoding="utf-8") as f:
+                    for line in f:
+                        line = line.strip()
+                        if not line:
+                            continue
+
+                        record = json.loads(line)
+
+                        # 应用过滤条件
+                        if user_id and record.get("user_id") != user_id:
+                            continue
+                        if action_type and record.get("action_type") != action_type:
+                            continue
+                        if risk_level and record.get("risk_level") != risk_level:
+                            continue
+
+                        results.append(record)
+
+                        if len(results) >= limit:
+                            return results
+            except Exception as e:
+                logger.warning(f"⚠️ 读取审计日志失败 {log_file}: {e}")
+                continue
+
+        return results[:limit]
+
     def get_stats(self) -> Dict[str, Any]:
-        """获取审计统计信息"""
-        total = len(self._cache)
+        """获取审计统计信息 (内存 + 文件)"""
+        total_memory = len(self._cache)
         by_risk = {}
         by_role = {}
         by_action = {}
-        
+
         for record in self._cache:
             # 按风险等级统计
             risk = record.risk_level.value
             by_risk[risk] = by_risk.get(risk, 0) + 1
-            
+
             # 按角色统计
             role = record.user_context.role
             by_role[role] = by_role.get(role, 0) + 1
-            
+
             # 按行动类型统计
             action = record.action_type.value
             by_action[action] = by_action.get(action, 0) + 1
-        
+
+        # 文件统计
+        file_count = 0
+        total_size = 0
+        if self._enable_persist and self._persist_dir.exists():
+            for log_file in self._persist_dir.glob("*.jsonl"):
+                file_count += 1
+                total_size += log_file.stat().st_size
+
         return {
-            "total_records": total,
+            "total_records": total_memory,
             "by_risk_level": by_risk,
             "by_role": by_role,
             "by_action_type": by_action,
-            "cache_size": f"{total}/{self._max_size}",
+            "cache_size": f"{total_memory}/{self._max_size}",
+            "persistence_enabled": self._enable_persist,
+            "log_files": file_count,
+            "log_size_mb": round(total_size / (1024 * 1024), 2),
+            "persist_dir": str(self._persist_dir),
         }
 
 
@@ -631,7 +834,7 @@ class AgentGatewayMiddleware:
             else:
                 # 其他HIGH风险操作的默认处理
                 raise ApprovalRequiredError(
-                    task_id=f"PENDING-{uuid4().hex[:8].upper()}",
+                    task_id=f"PENDING-{uuid_mod.uuid4().hex[:8].upper()}",
                     action_type=action_type,
                     message=f"操作 {action_type.value} 需要审批，请等待管理员确认",
                 )
