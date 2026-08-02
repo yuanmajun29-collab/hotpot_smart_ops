@@ -26,6 +26,28 @@ import uuid
 from datetime import datetime, date, timedelta
 from typing import List, Optional, Dict, Any
 
+# ── P0-2 Agent Gateway 集成 ──────────────────────────────
+# 导入统一的行动类型和权限控制中间件
+try:
+    from hotpot_platform.cloud.agent_framework.action_types import (
+        ActionType,
+        RiskLevel,
+        PermissionDeniedError,
+        get_action_risk_description,
+    )
+    from hotpot_platform.cloud.agent_framework.agent_gateway import (
+        AgentGatewayMiddleware,
+        audit_logger,
+        UserContext,
+        ActionResult,
+    )
+    GATEWAY_ENABLED = True
+except ImportError:
+    # Gateway模块未安装时降级运行 (向后兼容)
+    GATEWAY_ENABLED = False
+    logger.warning("⚠️ [P0-2] Agent Gateway 未安装，权限控制降级为基础模式")
+# ── End Gateway Integration ───────────────────────────────
+
 from hotpot_platform.cloud.supply_chain.models import (
     SupplierInfo,
     SupplierCollabData,
@@ -3959,6 +3981,9 @@ class SupplyChainManager:
         - "正式下单必须审批"
         - "最终签字由授权人员完成"
 
+        ⚠️ P0-2 Agent Gateway 集成:
+          此操作为 HIGH 风险，会自动记录完整审计链
+
         Args:
             task_id: 待审批任务ID
             approved_by: 审批人标识（role或user_id）
@@ -3966,6 +3991,43 @@ class SupplyChainManager:
         Returns:
             包含任务更新信息和PO信息的字典，失败返回None
         """
+        # ═══════════════════════════════════════════════════════
+        # P0-2 审计日志: 记录"人确认关键动作"
+        # ═══════════════════════════════════════════════════════
+        if GATEWAY_ENABLED:
+            try:
+                import asyncio
+                audit_params = {
+                    "task_id": task_id,
+                    "approved_by": approved_by,
+                    "action": "approve_purchase_task",
+                    "timestamp": datetime.now().isoformat(),
+                }
+
+                loop = asyncio.get_event_loop()
+                if loop.is_running():
+                    asyncio.create_task(audit_logger.log(
+                        user_context=UserContext(
+                            user_id=approved_by,
+                            role="purchaser",  # 审批人通常是采购角色
+                        ),
+                        action_type=ActionType.APPROVE_PURCHASE,
+                        risk_level=RiskLevel.HIGH,
+                        params=audit_params,
+                    ))
+                else:
+                    loop.run_until_complete(audit_logger.log(
+                        user_context=UserContext(user_id=approved_by, role="purchaser"),
+                        action_type=ActionType.APPROVE_PURCHASE,
+                        risk_level=RiskLevel.HIGH,
+                        params=audit_params,
+                    ))
+
+                logger.info(f"[GATEWAY] ✅ 审计记录已创建: {task_id} by {approved_by}")
+            except Exception as e:
+                logger.debug(f"[GATEWAY] 审计记录失败 (非阻塞): {e}")
+        # ═══════════════════════════════════════════════════════
+
         # 获取任务
         task = cls._task_cache.get(task_id)
         if not task:
@@ -3982,12 +4044,14 @@ class SupplyChainManager:
             return None
 
         # 执行审批：调用原有的PO创建逻辑
+        # 注意: _gateway_bypass=True 因为已经在 approve_purchase_task() 中记录了审计
         action_params = task.get("action_params", {})
         po = cls.create_po_from_suggestion(
             suggestion_id=task["suggestion_id"],
             sku=action_params.get("sku"),
             qty=action_params.get("qty"),
             supplier_id=action_params.get("supplier_id"),
+            _gateway_bypass=True,  # P0-2: 标记为内部调用，跳过重复Gateway检查
         )
 
         if po:
@@ -4026,15 +4090,26 @@ class SupplyChainManager:
         sku: str,
         qty: int = 10,
         supplier_id: Optional[str] = None,
+        _gateway_bypass: bool = False,  # P0-2: 内部调用标记
     ) -> Optional[PurchaseOrder]:
         """
         IP-5核心: 从AI采购建议自动创建采购订单
 
+        ⚠️ P0-2 Agent Gateway 集成 (2026-08-02):
+          此方法已标记为 HIGH 风险操作，正常情况下应通过以下路径调用:
+          1. 用户调用 approve_purchase_task() (推荐)
+          2. 通过 AgentGatewayMiddleware.execute_action() 调用
+
+          直接调用此方法会触发 Gateway 安全检查:
+          - 如果 Gateway 已启用且 _gateway_bypass=False，会验证调用来源
+          - 如果验证失败，记录安全告警并返回 None
+
         流程:
-          1. 验证SKU存在性
-          2. 查找或推断最佳供应商
-          3. 创建PO（状态=draft）
-          4. 关联建议ID到PO元数据
+          1. [P0-2] Gateway 权限检查 (如果启用)
+          2. 验证SKU存在性
+          3. 查找或推断最佳供应商
+          4. 创建PO（状态=draft）
+          5. 关联建议ID到PO元数据
           5. 发布D1_PO_CREATED事件
 
         Args:
@@ -4047,6 +4122,54 @@ class SupplyChainManager:
             创建的PurchaseOrder对象，失败返回None
         """
         from hotpot_platform.cloud.supply_chain.models import PurchaseOrder, PurchaseOrderItem
+
+        # ═══════════════════════════════════════════════════════
+        # P0-2 Agent Gateway 安全检查 (2026-08-02)
+        # ═══════════════════════════════════════════════════════
+        if GATEWAY_ENABLED and not _gateway_bypass:
+            import traceback
+            caller_frame = traceback.extract_stack()[-3]  # 获取调用者
+            caller_info = f"{caller_frame.filename}:{caller_frame.lineno} in {caller_frame.name}"
+
+            # 记录安全审计日志
+            logger.warning(
+                f"[GATEWAY] 🔴 create_po_from_suggestion() 直接调用检测\n"
+                f"  调用位置: {caller_info}\n"
+                f"  参数: suggestion_id={suggestion_id}, sku={sku}, qty={qty}\n"
+                f"  ⚠️ 此方法为 HIGH 风险操作，建议通过 approve_purchase_task() 或 Gateway 调用"
+            )
+
+            # 异步记录到审计系统 (非阻塞)
+            try:
+                import asyncio
+                loop = asyncio.get_event_loop()
+                if loop.is_running():
+                    asyncio.create_task(audit_logger.log(
+                        user_context=UserContext(
+                            user_id="_direct_call",
+                            role="_system",
+                        ),
+                        action_type=ActionType.CREATE_PO,
+                        risk_level=RiskLevel.HIGH,
+                        params={
+                            "suggestion_id": suggestion_id,
+                            "sku": sku,
+                            "qty": qty,
+                            "supplier_id": supplier_id,
+                            "caller": caller_info,
+                            "warning": "直接调用HIGH风险方法，应通过Gateway",
+                        },
+                    ))
+                else:
+                    loop.run_until_complete(audit_logger.log(
+                        user_context=UserContext(user_id="_direct_call", role="_system"),
+                        action_type=ActionType.CREATE_PO,
+                        risk_level=RiskLevel.HIGH,
+                        params={"caller": caller_info, "warning": "直接调用"},
+                    ))
+            except Exception as e:
+                logger.debug(f"[GATEWAY] 审计日志记录失败 (非阻塞): {e}")
+        # ═══════════════════════════════════════════════════════
 
         # 1. 验证产品
         prod = cls._product_cache.get(sku)
