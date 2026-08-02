@@ -61,4 +61,12 @@ def register_routes(app):
     from api.assistant_api import router as assistant_router
     app.include_router(assistant_router, prefix="/api/v1", tags=["AI助理"])
 
-    print("[Edge UI] API路由注册完成: /api/v1/* (13个模块, 含岗位AI助理)")
+    # === 实时视频流 (MJPEG · 2026-08-03) ===
+    from api.video_stream_api import router as video_stream_router
+    app.include_router(video_stream_router, prefix="/api/v1", tags=["视频流"])
+
+    # === 双向数据流管理 (Edge↔Cloud · 2026-08-03) ===
+    from api.dataflow_api import router as dataflow_router
+    app.include_router(dataflow_router, prefix="/api/v1", tags=["数据流"])
+
+    print("[Edge UI] API路由注册完成: /api/v1/* (15个模块, 含视频流+双向数据流)")
