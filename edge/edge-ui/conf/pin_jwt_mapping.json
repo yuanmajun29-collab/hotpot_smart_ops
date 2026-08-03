@@ -1,0 +1,1 @@
+{"default_pin": "123456", "default_user": "zhangdian", "default_role": "店长", "mappings": {"123456": {"username": "zhangdian", "role": "店长"}, "654321": {"username": "chushi", "role": "厨师长"}, "111111": {"username": "quyududao", "role": "区域督导"}}, "allow_custom_pin": true, "_comment": "PIN→JWT用户映射配置。修改此文件可自定义不同PIN对应的用户角色。"}
