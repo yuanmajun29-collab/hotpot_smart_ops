@@ -11,12 +11,16 @@ Idempotent: same task escalated only once per level.
 from __future__ import annotations
 
 import logging
+import os
 import threading
 import time
 from dataclasses import dataclass, field
 from typing import Any, Dict, List, Optional
 
 logger = logging.getLogger("火瞳.task_escalator")
+
+# ---- Store configuration (multi-store ready) ------------------------------
+_DEFAULT_STORE_ID = os.environ.get("HOTPOT_STORE_ID", "store_jiaojiang")
 
 # ---- Escalation policy constants -------------------------------------------
 
@@ -57,10 +61,12 @@ class TaskEscalator:
         self,
         db: Any,
         *,
+        store_id: str = "",
         check_interval_sec: float = 30.0,
         alert_callback=None,
     ):
         self.db = db
+        self.store_id = store_id or _DEFAULT_STORE_ID
         self.check_interval = check_interval_sec
         self.alert_callback = alert_callback  # callable(event) -> None
         self._thread: Optional[threading.Thread] = None
@@ -112,15 +118,15 @@ class TaskEscalator:
         store = task_store(self.db)
         now_iso = store.utc_now_iso()
 
-        # Get all pending/in_progress cleaning tasks
+        # Get all pending/in_progress cleaning tasks for configured store
         tasks = store.list_tasks(
-            "store_jiaojiang",  # TODO: multi-store support
+            self.store_id,  # Configurable via __init__ or HOTPOT_STORE_ID env
             status="pending",
             task_type="cleaning",
             limit=100,
         )
         tasks += store.list_tasks(
-            "store_jiaojiang",
+            self.store_id,
             status="in_progress",
             task_type="cleaning",
             limit=100,

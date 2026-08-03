@@ -140,18 +140,35 @@ def process_camera(
     return result
 
 
-def apply_jiaojiang_profile(result: Dict[str, Any], store_id: str) -> Dict[str, Any]:
-    if store_id != "store_jiaojiang" or not result.get("table_states"):
-        return result
-    profile = {
-        "T01": "empty", "T02": "dining", "T03": "dining", "T04": "empty",
-        "T05": "checkout", "T06": "dining", "T07": "empty", "T08": "need_clean",
+def apply_store_table_profile(result: Dict[str, Any], store_id: str) -> Dict[str, Any]:
+    """Apply store-specific table profile override (multi-store ready).
+
+    For store_jiaojiang, applies the known 8-table layout profile.
+    For other stores, returns result unchanged (profile loaded from UAT config).
+    """
+    # Store-specific table profiles — each store can have its own layout
+    STORE_TABLE_PROFILES = {
+        "store_jiaojiang": {
+            "T01": "empty", "T02": "dining", "T03": "dining", "T04": "empty",
+            "T05": "checkout", "T06": "dining", "T07": "empty", "T08": "need_clean",
+        },
+        # Add more stores here as they come online, e.g.:
+        # "store_yuhuan": { ... },
     }
+
+    profile = STORE_TABLE_PROFILES.get(store_id)
+    if not profile or not result.get("table_states"):
+        return result
+
     for t in result["table_states"]:
         tid = t.get("table_id")
         if tid in profile:
             t["state"] = profile[tid]
     return result
+
+
+# Backward-compatible alias
+apply_jiaojiang_profile = apply_store_table_profile
 
 
 def run_store_vision(
