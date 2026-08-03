@@ -1,37 +1,46 @@
 # ============================================================
 # 火瞳（HotpotEye）— Python 依赖
-# 版本: v5.3i | 更新: 2026-07-29
+# 版本: v0.4.0 | 更新: 2026-08-03 (P0-A工程可复现改造)
 # ============================================================
 
-# 核心框架
-fastapi>=0.110.0
-uvicorn[standard]>=0.27.0
-pydantic>=2.0.0
-pyjwt>=2.8.0
-httpx>=0.27.0
+# === 核心框架 ===
+fastapi>=0.110.0,<1.0.0
+uvicorn[standard]>=0.27.0,<1.0.0
+pydantic>=2.0.0,<3.0.0
+PyJWT>=2.8.0,<3.0.0
+httpx>=0.27.0,<1.0.0
+httpx2>=2.0.0,<3.0.0          # starlette.testclient 需要 (Python 3.13+)
 
-# 数据处理
-numpy>=1.24.0
-pandas>=2.0.0
-opencv-python-headless>=4.8.0
-Pillow>=10.0.0
+# === 数据处理 ===
+numpy>=1.24.0,<3.0.0
+pandas>=2.0.0,<3.0.0
+opencv-python-headless>=4.8.0,<5.0.0
+Pillow>=10.0.0,<11.0.0
 
-# 数据库
-psycopg2-binary>=2.9.0
-aiosqlite>=0.19.0
+# === 数据库 ===
+psycopg2-binary>=2.9.0,<3.0.0
+aiosqlite>=0.19.0,<1.0.0
 
-# AI/ML 推理
-onnxruntime>=1.16.0
-torch>=2.0.0              # Jetson GPU推理(边缘端)
-ultralytics>=8.0.0        # YOLO检测(边缘端, <8.3兼容Jetson)
+# === AI/ML 推理 (边缘端/Jetson) ===
+onnxruntime>=1.16.0,<2.0.0
+torch>=2.0.0,<3.0.0              # Jetson GPU推理(边缘端)
+ultralytics>=8.0.0,<9.0.0        # YOLO检测(边缘端, <8.3兼容Jetson)
 
-# IoT / 消息队列
-paho-mqtt>=2.0.0
+# === IoT / 消息队列 ===
+paho-mqtt>=2.0.0,<3.0.0
 
-# 配置 / 工具
-pyyaml>=6.0
-aiofiles>=23.0.0
-python-multipart>=0.0.6
+# === 配置 / 工具 ===
+pyyaml>=6.0.0,<7.0.0
+aiofiles>=23.0.0,<25.0.0
+python-multipart>=0.0.6,<0.1.0
 
-# 测试
-pytest>=7.0.0
+# === 测试 ===
+pytest>=7.0.0,<9.0.0
+pytest-cov>=4.0.0,<8.0.0
+
+# ============================================================
+# 注意:
+# - 完整依赖安装: pip install -r requirements.txt (需要GPU环境)
+# - 测试环境安装: pip install -r requirements-test.txt (无硬件要求)
+# - 锁定版本: 见 requirements-lock.txt (自动生成)
+# ============================================================

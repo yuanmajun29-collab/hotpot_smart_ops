@@ -96,6 +96,19 @@ def validate_deployment_profile() -> None:
 
 def startup() -> None:
     validate_deployment_profile()
+
+    # ── P0-B Phase 2: 自动初始化审计Schema (零配置部署) ──
+    if os.environ.get("HOTPOT_DATABASE_URL"):
+        try:
+            from hotpot_platform.cloud.event_hub.middleware.db_init import init_all_schemas
+            init_results = init_all_schemas()
+            if all(init_results.values()):
+                print("[EventHub] ✅ P0-B 审计Schema初始化完成 (audit + product_master)")
+            else:
+                print("[EventHub] ⚠️ P0-B 部分Schema初始化失败，Gateway审计功能可能受限")
+        except Exception as e:
+            print(f"[EventHub] ⚠️ P0-B Schema初始化异常: {e} (非致命，继续启动)")
+
     runtime.org_registry.apply_to_hub(runtime.hub)
     seed_dir = os.environ.get("HOTPOT_SEED_DIR", "")
     if not runtime.db.is_empty():
@@ -174,6 +187,16 @@ async def _mark_deprecated(request, call_next):
 # ── 统一错误处理 ──
 from hotpot_platform.cloud.event_hub.common.errors import register_error_handlers
 register_error_handlers(app)
+
+# ── P0-B: Gateway 强制中间件 (不可绕过) ──
+# 所有 HIGH/CRITICAL 操作必须经此中间件审批
+# 审计日志落 PG append-only 表，全链路 correlation_id 串联
+try:
+    from hotpot_platform.cloud.event_hub.middleware import HubGatewayMiddleware
+    app.add_middleware(HubGatewayMiddleware)
+    print("[Hub] ✅ Gateway 中间件已启用 (强制模式)")
+except ImportError as e:
+    print(f"[Hub] ⚠️ Gateway 中间件加载失败: {e} (非致命，继续启动)")
 
 # ── 路由器自动发现（新增路由 = 在 routers/ 丢一个 .py 文件，导出 router 实例）──
 from hotpot_platform.cloud.event_hub.routers import auto_include_routers
