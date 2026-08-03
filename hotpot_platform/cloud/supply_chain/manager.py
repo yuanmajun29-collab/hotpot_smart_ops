@@ -509,10 +509,28 @@ class SupplyChainManager:
     _receiving_counter: int = 0  # 自增计数器用于生成record_id
     _data_file: Optional[str] = None  # JSON 持久化路径
 
+    # ── ADR-003 写入模式 (JSON → Hub PG 迁移) ──
+    # "json"    = 仅写本地 JSON (默认, 当前行为)
+    # "hub_pg"  = 仅写 Hub PostgreSQL (Phase 3 目标)
+    # "both"    = 双写过渡期 (Phase 2)
+    _write_mode: str = "json"
+    _hub_pg_available: bool = False  # Hub 连接检测标志
+
     @classmethod
     def init_product_data(cls, data_file: str = None) -> None:
         """初始化货品数据存储（从JSON文件加载或创建空库）。"""
         cls._data_file = data_file
+
+        # ADR-003: 从环境变量读取写入模式
+        import os
+        cls._write_mode = os.environ.get(
+            "HOTPOT_SUPPLY_CHAIN_WRITE_MODE", "json"
+        ).lower()
+        if cls._write_mode not in ("json", "hub_pg", "both"):
+            logger.warning("[ADR-003] 无效的 WRITE_MODE=%s, 回退到 json", cls._write_mode)
+            cls._write_mode = "json"
+        if cls._write_mode != "json":
+            logger.info("[ADR-003] 写入模式: %s (ADR-002 Edge写入隔离)", cls._write_mode)
         if data_file:
             cls._load_from_json()
         if not cls._category_cache:
@@ -581,8 +599,21 @@ class SupplyChainManager:
 
     @classmethod
     def _save_to_json(cls) -> None:
-        """保存数据到 JSON 文件。"""
-        import os
+        """保存数据到 JSON 文件。
+
+        .. deprecated:: 2026-08-04
+            此方法将在 Phase 3 (ADR-003) 移除。
+            新代码应使用 Hub PG 写入路径 (_save_to_hub_pg)。
+            见 ADR-002 (Edge写入隔离) 和 ADR-003 (迁移计划)。
+        """
+        import os as _os
+        import warnings
+
+        # ADR-003: hub_pg 模式下跳过 JSON 写入
+        if cls._write_mode == "hub_pg":
+            logger.debug("[ADR-003] JSON写入已跳过 (_write_mode=hub_pg)")
+            return
+
         if cls._data_file:
             try:
                 data = {
@@ -608,8 +639,43 @@ class SupplyChainManager:
                 }
                 with open(cls._data_file, "w", encoding="utf-8") as f:
                     json.dump(data, f, ensure_ascii=False, indent=2, default=str)
+
+                # ADR-003: both 模式下发出双写警告
+                if cls._write_mode == "both":
+                    warnings.warn(
+                        "[ADR-003] 双写模式: 数据同时写入JSON和Hub PG, "
+                        "JSON路径将在Phase 3移除",
+                        DeprecationWarning,
+                        stacklevel=3,
+                    )
             except Exception as e:
                 logger.error("保存 JSON 数据失败: %s", e)
+
+    @classmethod
+    def _save_to_hub_pg(cls, entity_type: str, operation: str, data: Dict[str, Any]) -> bool:
+        """将业务数据写入 Hub PostgreSQL (Phase 2 实现)。
+
+        Args:
+            entity_type: "product" | "receiving" | "purchase_order" |
+                          "supplier_score" | "task" | "suggestion"
+            operation: "create" | "update" | "delete"
+            data: 要写入的数据字典
+
+        Returns:
+            True 如果写入成功
+
+        TODO (Phase 2 · ADR-003):
+            - 通过 Hub REST API 或直连 PG 写入
+            - 加入 JWT 认证头
+            - 加入审计字段 (operator, store_id, timestamp)
+            - 异步批量写入优化
+        """
+        logger.warning(
+            "[ADR-003] _save_to_hub_pg 尚未实现 (桩方法): "
+            "entity=%s op=%s keys=%s",
+            entity_type, operation, list(data.keys()) if isinstance(data, dict) else type(data).__name__,
+        )
+        return False
 
     # ── CRUD 操作 ──
 
