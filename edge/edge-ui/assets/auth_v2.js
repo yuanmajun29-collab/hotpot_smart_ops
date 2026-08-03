@@ -146,12 +146,12 @@
     // 默认聚焦到JWT用户名输入框
     setTimeout(() => jwtUsername.focus(), 100);
 
-    // Phase 3: 纯JWT模式 - 不再显示PIN升级引导
-    // (保留代码以备将来需要时启用)
-    // if (localStorage.getItem('hotpot_last_login_mode') === 'pin' &&
-    //     !localStorage.getItem('hotpot_upgrade_dismissed')) {
-    //   setTimeout(() => showUpgradeModal(), 2000);
-    // }
+    // 检查是否显示升级引导 (上次使用PIN登录)
+    if (localStorage.getItem('hotpot_last_login_mode') === 'pin' &&
+        !localStorage.getItem('hotpot_upgrade_dismissed')) {
+      // 延迟显示，避免干扰首次体验
+      setTimeout(() => showUpgradeModal(), 2000);
+    }
   }
 
   // ── 选项卡切换 ──

@@ -1,0 +1,158 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>火瞳 Edge UI - 登录</title>
+  <link rel="stylesheet" href="assets/edge-ui.css">
+  <style>
+    .login-container {
+      display: flex;
+      justify-content: center;
+      align-items: center;
+      min-height: 100vh;
+      background: var(--color-background-tertiary);
+    }
+    .login-card {
+      background: var(--color-background-primary);
+      border: 0.5px solid var(--color-border-tertiary);
+      border-radius: var(--border-radius-lg);
+      padding: 2.5rem;
+      width: 340px;
+      text-align: center;
+    }
+    .login-logo {
+      width: 56px;
+      height: 56px;
+      margin: 0 auto 1.25rem;
+      background: linear-gradient(135deg, #E24B4A, #D85A30);
+      border-radius: 14px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      color: #fff;
+      font-size: 24px;
+      font-weight: 600;
+    }
+    .login-title {
+      font-size: 18px;
+      font-weight: 500;
+      color: var(--color-text-primary);
+      margin-bottom: 4px;
+    }
+    .login-subtitle {
+      font-size: 13px;
+      color: var(--color-text-secondary);
+      margin-bottom: 1.75rem;
+    }
+    .pin-input-group {
+      display: flex;
+      gap: 8px;
+      justify-content: center;
+      margin-bottom: 1.25rem;
+    }
+    .pin-digit {
+      width: 44px;
+      height: 52px;
+      border: 1.5px solid var(--color-border-secondary);
+      border-radius: 10px;
+      font-size: 22px;
+      font-weight: 500;
+      text-align: center;
+      color: var(--color-text-primary);
+      background: var(--color-background-secondary);
+      transition: border-color 0.15s, box-shadow 0.15s;
+      outline: none;
+    }
+    .pin-digit:focus {
+      border-color: #378ADD;
+      box-shadow: 0 0 0 3px rgba(55, 138, 221, 0.15);
+    }
+    .pin-digit.filled {
+      border-color: #378ADD;
+      background: #E6F1FB;
+    }
+    .pin-hint {
+      font-size: 12px;
+      color: var(--color-text-tertiary);
+      margin-bottom: 1.5rem;
+    }
+    .btn-login {
+      width: 100%;
+      padding: 12px;
+      border: none;
+      border-radius: 10px;
+      font-size: 14px;
+      font-weight: 500;
+      cursor: pointer;
+      transition: all 0.15s;
+      background: #378ADD;
+      color: #fff;
+    }
+    .btn-login:hover { background: #185FA5; }
+    .btn-login:disabled { opacity: 0.5; cursor: not-allowed; }
+    .btn-login.btn-setup { background: #639922; }
+    .btn-login.btn-setup:hover { background: #3B6D11; }
+
+    .error-msg {
+      color: var(--color-text-danger, #E24B4A);
+      font-size: 12px;
+      margin-top: 12px;
+      min-height: 18px;
+    }
+    .mode-toggle {
+      margin-top: 1.5rem;
+      padding-top: 1.25rem;
+      border-top: 0.5px solid var(--color-border-tertiary);
+      font-size: 12px;
+      color: var(--color-text-tertiary);
+    }
+    .mode-toggle a {
+      color: #378ADD;
+      cursor: pointer;
+      text-decoration: none;
+    }
+    .mode-toggle a:hover { text-decoration: underline; }
+
+    /* 隐藏的真实输入框 */
+    .hidden-pin-input {
+      position: absolute;
+      left: -9999px;
+      opacity: 0;
+    }
+  </style>
+</head>
+<body>
+  <div class="login-container">
+    <div class="login-card">
+      <div class="login-logo">火瞳</div>
+      <div class="login-title" id="pageTitle">边缘盒子控制台</div>
+      <div class="login-subtitle" id="pageSubtitle">请输入访问密码</div>
+
+      <!-- 隐藏的真实input，用于捕获键盘输入 -->
+      <input type="text" id="realPinInput" class="hidden-pin-input" maxlength="6" inputmode="numeric" pattern="[0-9]*" autocomplete="off">
+
+      <!-- 6位PIN显示框 -->
+      <div class="pin-input-group" id="pinGroup">
+        <input type="text" class="pin-digit" readonly tabindex="-1" data-index="0">
+        <input type="text" class="pin-digit" readonly tabindex="-1" data-index="1">
+        <input type="text" class="pin-digit" readonly tabindex="-1" data-index="2">
+        <input type="text" class="pin-digit" readonly tabindex="-1" data-index="3">
+        <input type="text" class="pin-digit" readonly tabindex="-1" data-index="4">
+        <input type="text" class="pin-digit" readonly tabindex="-1" data-index="5">
+      </div>
+
+      <div class="pin-hint" id="pinHint">输入6位数字密码</div>
+
+      <button class="btn-login" id="submitBtn" disabled>确认</button>
+      <div class="error-msg" id="errorMsg"></div>
+
+      <div class="mode-toggle" id="modeToggle" style="display:none;">
+        <span id="modeToggleText"></span>
+      </div>
+    </div>
+  </div>
+
+  <script src="assets/auth.js"></script>
+</body>
+</html>
