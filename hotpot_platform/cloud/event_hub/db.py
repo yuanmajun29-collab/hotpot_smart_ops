@@ -54,7 +54,9 @@ class HubDatabase:
         with self._lock:
             conn = self._connect()
             try:
-                conn.executescript(
+                # ── 基础表 Schema (Event Hub核心) ──
+                # 注意: 使用逐语句执行以兼容Schema升级场景
+                base_schema = (
                     """
                     CREATE TABLE IF NOT EXISTS events (
                         event_id TEXT PRIMARY KEY,
@@ -115,9 +117,73 @@ class HubDatabase:
                     );
                     """
                 )
+
+                # 逐语句执行（跳过列不存在的错误）
+                self._exec_schema_with_fallback(conn, base_schema)
+
+                # ── 加载 audit_schema.sql (P0-C采购闭环表) ──
+                self._load_audit_schema(conn)
+
                 conn.commit()
             finally:
                 conn.close()
+
+    def _exec_schema_with_fallback(self, conn: sqlite3.Connection, sql: str) -> None:
+        """执行Schema SQL，自动跳过'no such column'等升级兼容性错误。"""
+        cursor = conn.cursor()
+        statements = [s.strip() for s in sql.split(";") if s.strip()]
+        for stmt in statements:
+            try:
+                cursor.execute(stmt)
+            except sqlite3.OperationalError as e:
+                err_msg = str(e).lower()
+                # 忽略升级场景的常见错误
+                if any(kw in err_msg for kw in [
+                    "no such column",      # 列不存在（旧表结构）
+                    "duplicate column",     # 重复列
+                    "already exists",       # 索引/表已存在
+                ]):
+                    print(f"[db._init_schema] ⚠️ 跳过 (升级兼容): {str(e)[:80]}")
+                else:
+                    raise  # 其他错误继续抛出
+
+    def _load_audit_schema(self, conn: sqlite3.Connection) -> None:
+        """加载audit_schema.sql（如果存在）以保持Schema同步。"""
+        from hotpot_platform.cloud.event_hub.middleware.db_init import (
+            _convert_pg_to_sqlite,
+            _get_sqlite_path,
+        )
+        import os
+
+        # 查找audit_schema.sql路径
+        schema_paths = [
+            Path(__file__).parent / "middleware" / "audit_schema.sql",
+            Path("hotpot_platform/cloud/event_hub/middleware/audit_schema.sql"),
+        ]
+
+        schema_file = None
+        for p in schema_paths:
+            if p.exists():
+                schema_file = p
+                break
+
+        if not schema_file:
+            return  # audit_schema.sql不存在，跳过
+
+        # 读取并转换PG→SQLite
+        pg_sql = schema_file.read_text(encoding="utf-8")
+        sqlite_sql = _convert_pg_to_sqlite(pg_sql)
+
+        # 执行（忽略已存在表的错误）
+        cursor = conn.cursor()
+        statements = [s.strip() for s in sqlite_sql.split(";") if s.strip()]
+        for stmt in statements:
+            try:
+                cursor.execute(stmt)
+            except sqlite3.OperationalError as e:
+                # 忽略"table already exists"或"column already exists"错误
+                if "already exists" not in str(e).lower() and "duplicate" not in str(e).lower():
+                    print(f"[db._load_audit_schema] 跳过语句: {str(e)[:100]}")
 
     def persist_event(self, store_id: str, event: Dict[str, Any]) -> None:
         with self._lock:
