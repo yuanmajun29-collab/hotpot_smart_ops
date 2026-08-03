@@ -5,13 +5,14 @@
   <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover" />
   <meta name="apple-mobile-web-app-capable" content="yes" />
   <meta name="theme-color" content="#c62828" />
-  <title>火瞳 · 清台任务</title>
+  <title>🔥 火瞳 · 清台任务</title>
   <style>
     *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
     :root {
       --bg: #0a0a0a; --surface: #1a1a1a; --surface2: #242424;
       --text: #eee; --muted: #888; --accent: #e53935; --accent2: #ff5252;
       --ok: #43a047; --warn: #fb8c00; --border: #333; --radius: 12px;
+      --brand-gold: #ffc107; --brand-orange: #ff6f00;
     }
     body {
       font-family: -apple-system, "PingFang SC", "Helvetica Neue", sans-serif;
@@ -20,25 +21,62 @@
     }
     .app { max-width: 430px; margin: 0 auto; min-height: 100dvh; display: flex; flex-direction: column; }
 
-    /* Header */
+    /* ===== Header — 火瞳品牌强视觉 ===== */
     .header {
       position: sticky; top: 0; z-index: 100;
-      background: linear-gradient(135deg, #b71c1c 0%, #c62828 50%, #8e0000 100%);
-      padding: 16px 20px 14px; color: #fff;
+      background: linear-gradient(135deg, #b71c1c 0%, #d32f2f 40%, #8e0000 100%);
+      padding: 18px 20px 16px; color: #fff;
+      box-shadow: 0 4px 20px rgba(198,40,40,.35);
     }
     .header-top { display: flex; align-items: center; justify-content: space-between; }
-    .header-brand { display: flex; align-items: center; gap: 10px; }
+    .header-brand { display: flex; align-items: center; gap: 12px; }
+
+    /* 🔥 火瞳 Logo Seal */
     .header-seal {
-      width: 36px; height: 36px; border-radius: 10px;
-      background: rgba(255,255,255,.2); display: flex; align-items: center; justify-content: center;
-      font-size: 18px; font-weight: 700; font-family: "STSong","Songti SC","Noto Serif SC",serif;
+      width: 42px; height: 42px; border-radius: 12px;
+      background: linear-gradient(145deg, rgba(255,215,0,.25) 0%, rgba(255,111,0,.2) 100%);
+      border: 1.5px solid rgba(255,215,0,.4);
+      display: flex; align-items: center; justify-content: center;
+      font-size: 22px; font-weight: 900;
+      text-shadow: 0 1px 4px rgba(0,0,0,.5);
+      box-shadow: 0 2px 10px rgba(255,111,0,.2), inset 0 1px 0 rgba(255,255,255,.15);
+      position: relative;
+      overflow: hidden;
     }
-    .header h1 { font-size: 17px; font-weight: 600; letter-spacing: 0.5px; }
-    .header-meta { font-size: 12px; opacity: .85; margin-top: 4px; }
-    .header-stats { display: flex; gap: 16px; margin-top: 12px; }
+    .header-seal::after {
+      content: '';
+      position: absolute; top: -50%; left: -50%; width: 200%; height: 200%;
+      background: conic-gradient(from 0deg, transparent, rgba(255,215,0,.08), transparent, rgba(255,111,0,.06), transparent);
+      animation: sealShine 4s linear infinite;
+    }
+    @keyframes sealShine { to { transform: rotate(360deg); } }
+    .header-seal span {
+      position: relative; z-index: 1;
+      font-family: "STSong","Songti SC","Noto Serif SC",serif;
+      letter-spacing: -1px;
+    }
+
+    /* 品牌名 */
+    .header h1 {
+      font-size: 19px; font-weight: 700; letter-spacing: 1.5px;
+      background: linear-gradient(180deg, #fff 30%, rgba(255,215,0,.85) 100%);
+      -webkit-background-clip: text; -webkit-text-fill-color: transparent;
+      background-clip: text;
+    }
+    .header-meta {
+      font-size: 12px; opacity: .85; margin-top: 4px;
+      display: flex; align-items: center; gap: 6px;
+    }
+    .header-meta .brand-tag {
+      display: inline-block; padding: 1px 8px; border-radius: 10px;
+      background: rgba(255,215,0,.2); color: var(--brand-gold);
+      font-size: 10px; font-weight: 600; letter-spacing: 1px;
+      border: 1px solid rgba(255,215,0,.25);
+    }
+    .header-stats { display: flex; gap: 16px; margin-top: 14px; }
     .h-stat { text-align: center; flex: 1; }
-    .h-stat .num { font-size: 24px; font-weight: 700; line-height: 1.2; }
-    .h-stat .lbl { font-size: 11px; opacity: .75; }
+    .h-stat .num { font-size: 26px; font-weight: 800; line-height: 1.2; }
+    .h-stat .lbl { font-size: 11px; opacity: .7; letter-spacing: 0.5px; }
 
     /* Filter bar */
     .filter-bar {
@@ -173,15 +211,16 @@
 </head>
 <body>
 <div class="app">
-  <!-- Header -->
+  <!-- Header — 🔥 火瞳品牌 -->
   <header class="header">
     <div class="header-top">
       <div class="header-brand">
-        <div class="header-seal">馮</div>
+        <div class="header-seal"><span>🔥瞳</span></div>
         <div>
-          <h1>清台任务</h1>
+          <h1>火瞳 · 清台任务</h1>
           <div class="header-meta">
             <span id="user-info">加载中...</span>
+            <span class="brand-tag">AI VISION</span>
           </div>
         </div>
       </div>
@@ -204,9 +243,10 @@
   <!-- Task list -->
   <div class="task-list" id="task-list"></div>
 
-  <!-- Bottom hint -->
+  <!-- Bottom hint — 🔥 火瞳品牌 -->
   <div class="bottom-hint">
-    火瞳视觉AI自动检测 · <span id="refresh-timer">5s</span> 后刷新 ·
+    <span style="color:var(--accent2);font-weight:700;">🔥 火瞳</span> 视觉AI自动检测 ·
+    <span id="refresh-timer">5s</span> 后刷新 ·
     <a href="#" onclick="manualRefresh()">立即刷新</a>
   </div>
 </div>
@@ -380,9 +420,14 @@ function renderTasks() {
   if (tasks.length === 0) {
     container.innerHTML = `
       <div class="empty-state">
-        <div class="icon">${currentFilter ? "🎉" : "📋"}</div>
-        <p>${currentFilter === "pending" ? "暂无待接单的清台任务<br/>系统检测到待清台时会自动推送" :
-            currentFilter ? "该分类下暂无任务" : "暂无清台任务记录"}</p>
+        <div class="icon">${currentFilter ? "🎉" : "🔥"}</div>
+        <p style="margin-top:12px;">
+          ${currentFilter === "pending"
+            ? "<b>暂无待接单的清台任务</b><br/><span style='font-size:12px;color:var(--muted)'>🔥 火瞳视觉检测到待清台时会自动推送</span>"
+            : currentFilter
+              ? "该分类下暂无任务"
+              : "<span style='color:var(--accent2);font-weight:600;'>🔥 火瞳</span> 暂无清台任务记录"}
+        </p>
       </div>`;
     return;
   }
@@ -419,7 +464,7 @@ function renderTasks() {
         </div>
         <div class="task-info">
           <span>📍 ${task.table_id || "-"}</span>
-          <span>🤖 视觉检测</span>
+          <span style="color:var(--accent2);">🔥 火瞳AI</span>
           ${task.assignee_name ? `<span>👤 ${task.assignee_name}</span>` : ""}
         </div>
         <div class="task-time">
@@ -439,7 +484,7 @@ async function acceptTask(taskId, btnEl) {
   btnEl.innerHTML = '<span class="spinner"></span>处理中...';
   try {
     await apiPost(`/v1/tasks/${taskId}/accept`, {});
-    showToast("已接单，请尽快完成清台", "ok");
+    showToast("🔥 火瞳: 已接单，请尽快完成清台", "ok");
     doneTodayCount += 0; // count on submit
     await fetchTasks();
   } catch (e) {
@@ -454,7 +499,7 @@ async function completeTask(taskId, btnEl) {
   btnEl.innerHTML = '<span class="spinner"></span>提交中...';
   try {
     await apiPost(`/v1/tasks/${taskId}/submit`, { detail: "移动端H5完成清台" });
-    showToast("✅ 清台任务已完成!", "ok");
+    showToast("🔥 火瞳: ✅ 清台任务已完成!", "ok");
     doneTodayCount++;
     await fetchTasks();
   } catch (e) {
@@ -514,7 +559,7 @@ async function submitCorrection() {
         },
       },
     });
-    showToast("纠正已提交，感谢反馈!", "ok");
+    showToast("🔥 火瞳: 纠正已提交，感谢反馈!", "ok");
     closeCorrectSheet();
     await fetchTasks();
   } catch (e) {

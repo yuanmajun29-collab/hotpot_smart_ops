@@ -1,5 +1,5 @@
 """
-Edge vision worker (DEV-203 live mode + DEV-105 offline queue).
+🔥 火瞳 · Edge vision worker (DEV-203 live mode + DEV-105 offline queue).
 
 Supports two modes:
   - mock  : apply_jiaojiang_profile() hard-coded demo data (legacy)
@@ -38,7 +38,7 @@ _stop_requested = False
 def _handle_stop(signum: int, frame: object) -> None:
     global _stop_requested
     _stop_requested = True
-    print(f"[vision_worker] stop signal ({signum}), finishing current cycle...", file=sys.stderr)
+    print(f"[🔥火瞳.vision_worker] stop signal ({signum}), finishing current cycle...", file=sys.stderr)
 
 
 def _spawn_cleaning_tasks(
@@ -71,9 +71,9 @@ def _spawn_cleaning_tasks(
         ok = hub.try_post("/v1/tasks/ingest", {"store_id": store_id, "event": event})
         if ok:
             spawned += 1
-            print(f"[vision_worker] AUTO-TASK: 清台任务已创建 → {table_id}", file=sys.stderr)
+            print(f"[🔥火瞳.vision_worker] AUTO-TASK: 清台任务已创建 → {table_id}", file=sys.stderr)
         else:
-            print(f"[vision_worker] WARN: 清台任务创建失败(Hub离线，已排队) → {table_id}", file=sys.stderr)
+            print(f"[🔥火瞳.vision_worker] WARN: 清台任务创建失败(Hub离线，已排队) → {table_id}", file=sys.stderr)
     return spawned
 
 
@@ -120,7 +120,7 @@ def process_camera(
     if zone == "front" and not live_mode:
         result = apply_jiaojiang_profile(result, store_id)
     elif live_mode and zone == "front":
-        print(f"[vision_worker][LIVE] 推理完成，桌态: {[(t.get('table_id'), t.get('state')) for t in result.get('table_states', [])]}", file=sys.stderr)
+        print(f"[🔥火瞳.vision_worker][LIVE] 推理完成，桌态: {[(t.get('table_id'), t.get('state')) for t in result.get('table_states', [])]}", file=sys.stderr)
 
     hub.post_events(result.get("events", []))
     if result.get("table_states"):
@@ -224,7 +224,7 @@ def run_periodic(
         if cycles > 0 and cycle > cycles:
             break
 
-        print(f"[vision_worker] cycle {cycle} · {store_id} · {'LIVE' if live_mode else 'MOCK'}", file=sys.stderr)
+        print(f"[🔥火瞳.vision_worker] cycle {cycle} · {store_id} · {'LIVE' if live_mode else 'MOCK'}", file=sys.stderr)
         summary = run_store_vision(
             store_id,
             hub_url,
@@ -303,7 +303,7 @@ def main() -> None:
 
     live_mode = args.live
     if live_mode and args.backend == "mock":
-        print("[vision_worker][LIVE] WARNING: --live with --backend mock will still use mock inference. Use --backend yolo for real detection.", file=sys.stderr)
+        print("[🔥火瞳.vision_worker][LIVE] WARNING: --live with --backend mock will still use mock inference. Use --backend yolo for real detection.", file=sys.stderr)
 
     if interval > 0 or cycles > 1:
         summaries = run_periodic(

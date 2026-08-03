@@ -1,6 +1,6 @@
 #!/bin/bash
 # ============================================================
-#  火瞳 · 待清台闭环 MVP 真实验证模式启用脚本 (T4)
+#  🔥 火瞳 · 待清台闭环 MVP 真实验证模式启用脚本 (T4)
 #
 #  功能:
 #    1. 启动视觉推理 worker (--live 模式)
@@ -42,12 +42,13 @@ GREEN='\033[0;32m'
 YELLOW='\033[1;33m'
 BLUE='\033[0;34m'
 CYAN='\033[0;36m'
+BOLD_RED='\033[1;31m'   # 火瞳品牌红
 NC='\033[0m'
 
-log_info()  { echo -e "${GREEN}[T4-VERIFY]${NC}  $*"; }
-log_warn()  { echo -e "${YELLOW}[T4-VERIFY]${NC}  $*"; }
-log_error() { echo -e "${RED}[T4-VERIFY]${NC} $*"; }
-log_step()  { echo -e "${CYAN}[T4-VERIFY]${NC} ▶ $*"; }
+log_info()  { echo -e "${GREEN}[🔥火瞳.T4]${NC}  $*"; }
+log_warn()  { echo -e "${YELLOW}[🔥火瞳.T4]${NC}  $*"; }
+log_error() { echo -e "${BOLD_RED}[🔥火瞳.T4]${NC} $*"; }
+log_step()  { echo -e "${CYAN}[🔥火瞳.T4]${NC} ▶ $*"; }
 
 # ── 初始化目录 ─_
 init_dirs() {
@@ -330,9 +331,11 @@ show_status_dashboard() {
 case "${1:-start}" in
     start)
         init_dirs
-        log_info "=========================================="
-        log_info "  火瞳 · 待清台闭环 MVP 真实验证模式"
-        log_info "=========================================="
+        echo ""
+        echo -e "${BOLD_RED}╔══════════════════════════════════════════════════╗${NC}"
+        echo -e "${BOLD_RED}║${NC}  ${CYAN}🔥 🔥 🔥  火瞳 · 待清台闭环 MVP · 真实验证模式  🔥 🔥 🔥${NC}  ${BOLD_RED}║${NC}"
+        echo -e "${BOLD_RED}║${NC}       ${YELLOW}HotpotEye AI Vision — Closed-Loop MVP v1.0${NC}         ${BOLD_RED}║${NC}"
+        echo -e "${BOLD_RED}╚══════════════════════════════════════════════════╝${NC}"
         echo ""
         
         check_dependencies || exit 1

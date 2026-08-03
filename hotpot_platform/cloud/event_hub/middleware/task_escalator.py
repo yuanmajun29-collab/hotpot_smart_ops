@@ -1,4 +1,4 @@
-"""Task escalation scheduler (MVP: cleaning-task timeout → auto-escalate).
+"""🔥 火瞳 · Task escalation scheduler (MVP: cleaning-task timeout → auto-escalate).
 
 Monitors pending cleaning tasks and escalates unresponsive ones:
   - T+3min  → push to 领班 (front-hall lead) with reminder
@@ -16,7 +16,7 @@ import time
 from dataclasses import dataclass, field
 from typing import Any, Dict, List, Optional
 
-logger = logging.getLogger("task_escalator")
+logger = logging.getLogger("火瞳.task_escalator")
 
 # ---- Escalation policy constants -------------------------------------------
 
@@ -75,14 +75,14 @@ class TaskEscalator:
         self._stop_event.clear()
         self._thread = threading.Thread(target=self._loop, daemon=True, name="task-escalator")
         self._thread.start()
-        logger.info("[TaskEscalator] Started (interval=%.1fs)", self.check_interval)
+        logger.info("[🔥火瞳.TaskEscalator] Started (interval=%.1fs)", self.check_interval)
 
     def stop(self, timeout: float = 5.0) -> None:
         """Signal stop and wait for thread to finish."""
         self._stop_event.set()
         if self._thread and self._thread.is_alive():
             self._thread.join(timeout=timeout)
-        logger.info("[TaskEscalator] Stopped")
+        logger.info("[🔥火瞳.TaskEscalator] Stopped")
 
     @property
     def is_running(self) -> bool:
@@ -102,8 +102,8 @@ class TaskEscalator:
             try:
                 self._check_and_escalate()
             except Exception:
-                logger.exception("[TaskEscalator] Error in check cycle")
-        logger.debug("[TaskEscalator] Loop exited")
+                logger.exception("[🔥火瞳.TaskEscalator] Error in check cycle")
+        logger.debug("[🔥火瞳.TaskEscalator] Loop exited")
 
     def _check_and_escalate(self) -> List[EscalationEvent]:
         """One pass: find overdue tasks and escalate if needed."""
@@ -136,10 +136,10 @@ class TaskEscalator:
                     try:
                         self.alert_callback(event)
                     except Exception:
-                        logger.exception("[TaskEscalator] Alert callback error")
+                        logger.exception("[🔥火瞳.TaskEscalator] Alert callback error")
 
         if events:
-            logger.info("[TaskEscalator] %d escalation(s) this cycle", len(events))
+            logger.info("[🔥火瞳.TaskEscalator] %d escalation(s) this cycle", len(events))
         return events
 
     def _evaluate_task(self, task: Dict[str, Any], now_iso: str) -> Optional[EscalationEvent]:
@@ -217,7 +217,7 @@ class TaskEscalator:
                 note=event.message,
             )
         except Exception:
-            logger.exception("[TaskEscalator] Failed to write audit record for %s", event.task_id)
+            logger.exception("[🔥火瞳.TaskEscalator] Failed to write audit record for %s", event.task_id)
 
     # ---- public API ------------------------------------------------------
 
