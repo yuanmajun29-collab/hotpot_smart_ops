@@ -1,0 +1,687 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>采购闭环全链路追踪 - 火瞳 P0-C 展示</title>
+  <link rel="stylesheet" href="/static/assets/edge-ui-common.css">
+  <style>
+    :root {
+      --color-primary: #4a6cf7;
+      --color-success: #28a745;
+      --color-warning: #ffc107;
+      --color-danger: #dc3545;
+      --color-info: #17a2b8;
+      --bg-primary: #ffffff;
+      --bg-secondary: #f8f9fa;
+      --text-primary: #1a1a2e;
+      --text-secondary: #666;
+      --border-color: #e0e0e0;
+    }
+
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+
+    body {
+      font-family: -apple-system, 'PingFang SC', 'Microsoft YaHei', sans-serif;
+      background: var(--bg-secondary);
+      color: var(--text-primary);
+      line-height: 1.6;
+    }
+
+    .container { max-width: 1200px; margin: 0 auto; padding: 20px; }
+
+    /* 页头 */
+    .page-header {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      margin-bottom: 24px;
+      padding: 20px;
+      background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+      border-radius: 12px;
+      color: white;
+    }
+    .page-header h1 { font-size: 24px; font-weight: 600; }
+    .page-header .subtitle { font-size: 14px; opacity: 0.9; margin-top: 4px; }
+
+    /* 统计卡片 */
+    .stats-grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+      gap: 16px;
+      margin-bottom: 24px;
+    }
+    .stat-card {
+      background: white;
+      border-radius: 10px;
+      padding: 20px;
+      box-shadow: 0 2px 8px rgba(0,0,0,0.06);
+    }
+    .stat-card .icon { font-size: 32px; margin-bottom: 8px; }
+    .stat-card .value { font-size: 28px; font-weight: 700; color: var(--text-primary); }
+    .stat-card .label { font-size: 13px; color: var(--text-secondary); margin-top: 4px; }
+
+    /* 工具栏 */
+    .toolbar {
+      display: flex;
+      gap: 12px;
+      align-items: center;
+      margin-bottom: 20px;
+      flex-wrap: wrap;
+      background: white;
+      padding: 16px;
+      border-radius: 10px;
+      box-shadow: 0 2px 8px rgba(0,0,0,0.06);
+    }
+    .toolbar input, .toolbar select {
+      padding: 10px 14px;
+      border: 1px solid var(--border-color);
+      border-radius: 6px;
+      font-size: 14px;
+      outline: none;
+      transition: border-color 0.2s;
+    }
+    .toolbar input:focus, .toolbar select:focus { border-color: var(--color-primary); }
+    .toolbar input { width: 260px; }
+    .btn {
+      padding: 10px 20px;
+      border: none;
+      border-radius: 6px;
+      font-size: 14px;
+      cursor: pointer;
+      font-weight: 600;
+      transition: all 0.2s;
+    }
+    .btn-primary { background: var(--color-primary); color: white; }
+    .btn-primary:hover { opacity: 0.9; transform: translateY(-1px); }
+    .btn-outline { background: white; border: 1px solid var(--border-color); color: var(--text-primary); }
+    .btn-outline:hover { background: var(--bg-secondary); }
+
+    /* 时间线容器 */
+    .timeline-container {
+      background: white;
+      border-radius: 12px;
+      padding: 30px;
+      box-shadow: 0 2px 12px rgba(0,0,0,0.08);
+      margin-bottom: 24px;
+    }
+    .timeline-title {
+      font-size: 18px;
+      font-weight: 600;
+      margin-bottom: 24px;
+      display: flex;
+      align-items: center;
+      gap: 10px;
+    }
+
+    /* 时间线 */
+    .timeline { position: relative; padding-left: 40px; }
+    .timeline::before {
+      content: '';
+      position: absolute;
+      left: 15px;
+      top: 0;
+      bottom: 0;
+      width: 3px;
+      background: linear-gradient(to bottom, #378ADD, #BA7517, #639922, #E24B4A);
+      border-radius: 2px;
+    }
+    .timeline-item {
+      position: relative;
+      margin-bottom: 32px;
+      padding: 20px;
+      background: var(--bg-secondary);
+      border-radius: 10px;
+      border-left: 4px solid #ddd;
+      transition: all 0.3s ease;
+    }
+    .timeline-item:hover {
+      transform: translateX(4px);
+      box-shadow: 0 4px 16px rgba(0,0,0,0.1);
+    }
+    .timeline-item::before {
+      content: '';
+      position: absolute;
+      left: -33px;
+      top: 24px;
+      width: 16px;
+      height: 16px;
+      border-radius: 50%;
+      background: white;
+      border: 3px solid #ddd;
+      z-index: 1;
+    }
+    .timeline-item.phase-suggestion { border-left-color: #378ADD; }
+    .timeline-item.phase-suggestion::before { border-color: #378ADD; background: #378ADD; }
+    .timeline-item.phase-approval { border-left-color: #BA7517; }
+    .timeline-item.phase-approval::before { border-color: #BA7517; background: #BA7517; }
+    .timeline-item.phase-purchase_order { border-left-color: #639922; }
+    .timeline-item.phase-purchase_order::before { border-color: #639922; background: #639922; }
+    .timeline-item.phase-receiving { border-left-color: #E24B4A; }
+    .timeline-item.phase-receiving::before { border-color: #E24B4A; background: #E24B4A; }
+
+    .timeline-header {
+      display: flex;
+      justify-content: space-between;
+      align-items: flex-start;
+      margin-bottom: 12px;
+    }
+    .timeline-phase {
+      font-size: 13px;
+      font-weight: 600;
+      text-transform: uppercase;
+      letter-spacing: 0.5px;
+    }
+    .phase-suggestion .timeline-phase { color: #185FA5; }
+    .phase-approval .timeline-phase { color: #854F0B; }
+    .phase-purchase_order .timeline-phase { color: #3B6D11; }
+    .phase-receiving .timeline-phase { color: #A32D2D; }
+
+    .timeline-time {
+      font-size: 12px;
+      color: var(--text-secondary);
+      font-family: monospace;
+    }
+    .timeline-action {
+      font-size: 15px;
+      font-weight: 500;
+      color: var(--text-primary);
+      margin-bottom: 8px;
+    }
+    .timeline-meta {
+      display: flex;
+      gap: 16px;
+      font-size: 12px;
+      color: var(--text-secondary);
+      flex-wrap: wrap;
+    }
+    .timeline-meta span { display: flex; align-items: center; gap: 4px; }
+
+    /* correlation_id 高亮 */
+    .correlation-badge {
+      display: inline-block;
+      background: linear-gradient(135deg, #EEEDFE 0%, #CECBF6 100%);
+      color: #3C3489;
+      padding: 4px 10px;
+      border-radius: 6px;
+      font-size: 11px;
+      font-family: monospace;
+      font-weight: 600;
+      letter-spacing: 0.5px;
+      margin-top: 8px;
+    }
+
+    /* 详情面板 */
+    .detail-panel {
+      background: white;
+      border-radius: 12px;
+      padding: 24px;
+      box-shadow: 0 2px 12px rgba(0,0,0,0.08);
+      margin-bottom: 24px;
+    }
+    .detail-panel h3 {
+      font-size: 16px;
+      font-weight: 600;
+      margin-bottom: 16px;
+      display: flex;
+      align-items: center;
+      gap: 8px;
+    }
+    .detail-grid {
+      display: grid;
+      grid-template-columns: repeat(2, 1fr);
+      gap: 16px;
+    }
+    .detail-item {
+      padding: 12px;
+      background: var(--bg-secondary);
+      border-radius: 8px;
+    }
+    .detail-label {
+      font-size: 11px;
+      color: var(--text-secondary);
+      text-transform: uppercase;
+      letter-spacing: 0.5px;
+      margin-bottom: 4px;
+    }
+    .detail-value {
+      font-size: 14px;
+      font-weight: 600;
+      color: var(--text-primary);
+    }
+
+    /* 状态Badge */
+    .badge {
+      display: inline-block;
+      padding: 4px 10px;
+      border-radius: 12px;
+      font-size: 11px;
+      font-weight: 600;
+    }
+    .badge-success { background: #d4edda; color: #155724; }
+    .badge-warning { background: #fff3cd; color: #856404; }
+    .badge-danger { background: #f8d7da; color: #721c24; }
+    .badge-info { background: #d1ecf1; color: #0c5460; }
+
+    /* ADR合规标识 */
+    .adr-compliant {
+      display: inline-flex;
+      align-items: center;
+      gap: 4px;
+      background: #d4edda;
+      color: #155724;
+      padding: 4px 10px;
+      border-radius: 6px;
+      font-size: 11px;
+      font-weight: 600;
+    }
+
+    /* 响应式 */
+    @media (max-width: 768px) {
+      .container { padding: 12px; }
+      .page-header { flex-direction: column; text-align: center; }
+      .stats-grid { grid-template-columns: 1fr 1fr; }
+      .detail-grid { grid-template-columns: 1fr; }
+      .toolbar { flex-direction: column; }
+      .toolbar input { width: 100%; }
+    }
+
+    /* 加载动画 */
+    .loading {
+      text-align: center;
+      padding: 60px 20px;
+      color: var(--text-secondary);
+    }
+    .loading-spinner {
+      width: 40px;
+      height: 40px;
+      border: 4px solid var(--border-color);
+      border-top-color: var(--color-primary);
+      border-radius: 50%;
+      animation: spin 0.8s linear infinite;
+      margin: 0 auto 16px;
+    }
+    @keyframes spin { to { transform: rotate(360deg); } }
+
+    /* 空状态 */
+    .empty-state {
+      text-align: center;
+      padding: 60px 20px;
+      color: var(--text-secondary);
+    }
+    .empty-state .icon { font-size: 64px; margin-bottom: 16px; opacity: 0.3; }
+  </style>
+</head>
+<body>
+  <div class="container">
+    <!-- 页头 -->
+    <div class="page-header">
+      <div>
+        <h1>🔍 采购闭环全链路追踪</h1>
+        <div class="subtitle">P0-C 采购溯源验证 | ADR-001 合规 | correlation_id 全链路串联</div>
+      </div>
+      <div class="adr-compliant">✅ ADR-001 合规</div>
+    </div>
+
+    <!-- 统计卡片 -->
+    <div class="stats-grid" id="statsGrid">
+      <div class="stat-card">
+        <div class="icon">🔄</div>
+        <div class="value" id="totalPhases">4</div>
+        <div class="label">总环节数</div>
+      </div>
+      <div class="stat-card">
+        <div class="icon">✅</div>
+        <div class="value" id="completedPhases">0</div>
+        <div class="label">已完成环节</div>
+      </div>
+      <div class="stat-card">
+        <div class="icon">📝</div>
+        <div class="value" id="totalAudits">0</div>
+        <div class="label">审计事件数</div>
+      </div>
+      <div class="stat-card">
+        <div class="icon">⏱️</div>
+        <div class="value" id="duration">0h</div>
+        <div class="label">总耗时</div>
+      </div>
+    </div>
+
+    <!-- 工具栏 -->
+    <div class="toolbar">
+      <input type="text" id="searchInput" placeholder="输入 correlation_id 或 PO号查询..." />
+      <select id="statusFilter">
+        <option value="">全部状态</option>
+        <option value="completed">已完成</option>
+        <option value="in_progress">进行中</option>
+        <option value="pending_approval">待审批</option>
+        <option value="rejected">已拒绝</option>
+      </select>
+      <button class="btn btn-primary" onclick="loadTrace()">查询追踪</button>
+      <button class="btn btn-outline" onclick="loadDemoTrace()">加载Demo数据</button>
+    </div>
+
+    <!-- 主内容区 -->
+    <div id="mainContent">
+      <!-- 默认显示加载Demo提示 -->
+      <div class="empty-state">
+        <div class="icon">🔍</div>
+        <h3>开始追踪采购闭环</h3>
+        <p>输入 correlation_id 查询完整链路，或点击"加载Demo数据"查看示例</p>
+      </div>
+    </div>
+  </div>
+
+  <script>
+    // ============================================================
+    // 全局状态
+    // ============================================================
+    let currentTrace = null;
+
+    // ============================================================
+    // API 调用
+    // ============================================================
+
+    async function loadTrace() {
+      const correlationId = document.getElementById('searchInput').value.trim();
+      if (!correlationId) {
+        alert('请输入 correlation_id 或 PO号');
+        return;
+      }
+
+      showLoading();
+
+      try {
+        const response = await fetch(`/api/v1/supply-chain/trace/${correlationId}`, {
+          headers: { 'Authorization': `Bearer ${getAuthToken()}` }
+        });
+        const data = await response.json();
+
+        if (data.code === 200) {
+          currentTrace = data.trace;
+          renderTrace(data.trace);
+        } else {
+          showError(data.message || '查询失败');
+        }
+      } catch (error) {
+        console.error('查询失败:', error);
+        showError('网络错误，请重试');
+      }
+    }
+
+    async function loadDemoTrace() {
+      showLoading();
+
+      try {
+        const response = await fetch('/api/v1/supply-chain/demo/trace-example');
+        const data = await response.json();
+
+        if (data.code === 200) {
+          currentTrace = data.trace;
+          document.getElementById('searchInput').value = data.trace.correlation_id;
+          renderTrace(data.trace);
+        }
+      } catch (error) {
+        console.error('加载Demo失败:', error);
+        showError('加载失败');
+      }
+    }
+
+    // ============================================================
+    // 渲染函数
+    // ============================================================
+
+    function renderTrace(trace) {
+      // 更新统计卡片
+      updateStats(trace.statistics);
+
+      // 渲染时间线和详情
+      const html = `
+        ${renderTimeline(trace.timeline)}
+        ${renderDetailPanel(trace.phases)}
+        ${renderAuditEvents(trace.audit_events)}
+      `;
+
+      document.getElementById('mainContent').innerHTML = html;
+    }
+
+    function renderTimeline(timeline) {
+      if (!timeline || timeline.length === 0) {
+        return '<div class="empty-state"><div class="icon">📭</div><p>暂无时间线数据</p></div>';
+      }
+
+      const items = timeline.map(item => `
+        <div class="timeline-item phase-${item.phase}">
+          <div class="timeline-header">
+            <div>
+              <div class="timeline-phase">${item.phase_label}</div>
+              <div class="timeline-action">${item.icon} ${item.action}</div>
+            </div>
+            <div class="timeline-time">${formatTime(item.timestamp)}</div>
+          </div>
+          <div class="timeline-meta">
+            <span>👤 ${item.actor}</span>
+            <span>状态: <span class="badge badge-${getStatusClass(item.status)}">${item.status || 'completed'}</span></span>
+          </div>
+        </div>
+      `).join('');
+
+      return `
+        <div class="timeline-container">
+          <div class="timeline-title">⏱️ 全链路时间线</div>
+          <div class="correlation-badge">correlation_id: ${currentTrace?.correlation_id || 'N/A'}</div>
+          <div class="timeline">${items}</div>
+        </div>
+      `;
+    }
+
+    function renderDetailPanel(phases) {
+      if (!phases) return '';
+
+      const renderPhase = (key, data) => {
+        if (!data) return '';
+        const titles = {
+          suggestion: '🤖 环节1: AI采购建议',
+          approval: '👤 环节2: 人工审批',
+          purchase_order: '📋 环节3: PO创建',
+          receiving: '📦 环节4: 收货确认'
+        };
+
+        let detailsHtml = '';
+        if (key === 'suggestion' && data.items) {
+          detailsHtml = `
+            <div class="detail-grid">
+              <div class="detail-item"><div class="detail-label">建议ID</div><div class="detail-value">${data.suggestion_id}</div></div>
+              <div class="detail-item"><div class="detail-label">总金额</div><div class="detail-value">¥${data.total_amount?.toFixed(2)}</div></div>
+              <div class="detail-item"><div class="detail-label">AI置信度</div><div class="detail-value">${(data.confidence_score * 100).toFixed(0)}%</div></div>
+              <div class="detail-item"><div class="detail-label">建议理由</div><div class="detail-value">${data.reason}</div></div>
+            </div>
+            <div style="margin-top:12px;font-size:13px;"><strong>采购项:</strong></div>
+            ${data.items.map(item => `
+              <div style="padding:8px;background:#f8f9fa;border-radius:6px;margin-top:4px;font-size:12px;">
+                ${item.name} × ${item.qty} ${item.unit_price ? `(¥${item.unit_price}/unit)` : ''}
+              </div>
+            `).join('')}
+          `;
+        } else if (key === 'approval') {
+          detailsHtml = `
+            <div class="detail-grid">
+              <div class="detail-item"><div class="detail-label">任务ID</div><div class="detail-value">${data.task_id}</div></div>
+              <div class="detail-item"><div class="detail-label">决策</div><div class="detail-value">${data.decision === 'approve' ? '✅ 通过' : '❌ 拒绝'}</div></div>
+              <div class="detail-item"><div class="detail-label">审批人</div><div class="detail-value">${data.decided_by}</div></div>
+              <div class="detail-item"><div class="detail-label">审批备注</div><div class="detail-value">${data.decision_notes || '-'}</div></div>
+            </div>
+          `;
+        } else if (key === 'purchase_order') {
+          detailsHtml = `
+            <div class="detail-grid">
+              <div class="detail-item"><div class="detail-label">订单号</div><div class="detail-value">${data.order_id}</div></div>
+              <div class="detail-item"><div class="detail-label">供应商</div><div class="detail-value">${data.supplier_name}</div></div>
+              <div class="detail-item"><div class="detail-label">订单金额</div><div class="detail-value">¥${data.total_amount?.toFixed(2)}</div></div>
+              <div class="detail-item"><div class="detail-label">审批人</div><div class="detail-value">${data.approved_by}</div></div>
+            </div>
+          `;
+        } else if (key === 'receiving') {
+          detailsHtml = `
+            <div class="detail-grid">
+              <div class="detail-item"><div class="detail-label">收货ID</div><div class="detail-value">${data.receiving_id}</div></div>
+              <div class="detail-item"><div class="detail-label">到货温度</div><div class="detail-value">${data.temperature}°C ${data.temperature <= -16 ? '✅' : '⚠️'}</div></div>
+              <div class="detail-item"><div class="detail-label">质量等级</div><div class="detail-value">${data.quality_grade}级</div></div>
+              <div class="detail-item"><div class="detail-label">质检员</div><div class="detail-value">${data.inspector_name}</div></div>
+            </div>
+          `;
+        }
+
+        return `
+          <div class="detail-panel">
+            <h3>${titles[key] || key}</h3>
+            ${detailsHtml}
+          </div>
+        `;
+      };
+
+      return Object.entries(phases)
+        .map(([key, data]) => renderPhase(key, data))
+        .join('');
+    }
+
+    function renderAuditEvents(events) {
+      if (!events || events.length === 0) return '';
+
+      return `
+        <div class="detail-panel">
+          <h3>📋 审计事件记录 (${events.length})</h3>
+          <div style="overflow-x:auto;">
+            <table style="width:100%;font-size:12px;">
+              <thead>
+                <tr style="background:#f5f7fa;text-align:left;">
+                  <th style="padding:10px;">时间</th>
+                  <th style="padding:10px;">操作者</th>
+                  <th style="padding:10px;">操作类型</th>
+                  <th style="padding:10px;">风险等级</th>
+                  <th style="padding:10px;">结果</th>
+                </tr>
+              </thead>
+              <tbody>
+                ${events.map(event => `
+                  <tr style="border-top:1px solid #eee;">
+                    <td style="padding:8px;">${formatTime(event.timestamp)}</td>
+                    <td style="padding:8px;">${event.actor_user_id}</td>
+                    <td style="padding:8px;">${event.action_type}</td>
+                    <td style="padding:8px;">
+                      <span class="badge badge-${getRiskClass(event.risk_level)}">${event.risk_level}</span>
+                    </td>
+                    <td style="padding:8px;">
+                      <span class="badge badge-${event.result === 'success' ? 'success' : 'danger'}">${event.result}</span>
+                    </td>
+                  </tr>
+                `).join('')}
+              </tbody>
+            </table>
+          </div>
+        </div>
+      `;
+    }
+
+    // ============================================================
+    // 辅助函数
+    // ============================================================
+
+    function updateStats(stats) {
+      if (!stats) return;
+
+      animateValue('totalPhases', stats.total_phases || 0);
+      animateValue('completedPhases', stats.completed_phases || 0);
+      animateValue('totalAudits', stats.total_audit_events || 0);
+      document.getElementById('duration').textContent = `${stats.total_duration_hours || 0}h`;
+    }
+
+    function animateValue(id, end) {
+      const el = document.getElementById(id);
+      const start = parseInt(el.textContent) || 0;
+      const duration = 500;
+      const startTime = performance.now();
+
+      function update(currentTime) {
+        const elapsed = currentTime - startTime;
+        const progress = Math.min(elapsed / duration, 1);
+        const value = Math.floor(start + (end - start) * progress);
+        el.textContent = value;
+
+        if (progress < 1) {
+          requestAnimationFrame(update);
+        }
+      }
+
+      requestAnimationFrame(update);
+    }
+
+    function formatTime(isoString) {
+      if (!isoString) return '-';
+      const date = new Date(isoString);
+      return date.toLocaleString('zh-CN', {
+        month: '2-digit',
+        day: '2-digit',
+        hour: '2-digit',
+        minute: '2-digit'
+      });
+    }
+
+    function getStatusClass(status) {
+      const map = {
+        completed: 'success',
+        approved: 'success',
+        pending: 'warning',
+        rejected: 'danger',
+        pending_approval: 'info'
+      };
+      return map[status] || 'info';
+    }
+
+    function getRiskClass(risk) {
+      const map = {
+        low: 'success',
+        medium: 'warning',
+        high: 'danger',
+        critical: 'danger'
+      };
+      return map[risk] || 'info';
+    }
+
+    function showLoading() {
+      document.getElementById('mainContent').innerHTML = `
+        <div class="loading">
+          <div class="loading-spinner"></div>
+          <p>正在加载追踪数据...</p>
+        </div>
+      `;
+    }
+
+    function showError(message) {
+      document.getElementById('mainContent').innerHTML = `
+        <div class="empty-state">
+          <div class="icon">❌</div>
+          <h3>加载失败</h3>
+          <p>${message}</p>
+        </div>
+      `;
+    }
+
+    function getAuthToken() {
+      // 从localStorage或cookie获取token
+      return localStorage.getItem('auth_token') || 'demo-token';
+    }
+
+    // ============================================================
+    // 初始化
+    // ============================================================
+
+    // 页面加载时自动加载Demo数据
+    window.addEventListener('DOMContentLoaded', () => {
+      console.log('[Trace] P0-C 全链路追踪页面已加载');
+      // 可选: 自动加载Demo
+      // loadDemoTrace();
+    });
+  </script>
+</body>
+</html>
