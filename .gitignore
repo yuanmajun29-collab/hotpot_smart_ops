@@ -53,3 +53,5 @@ AGENTS.md
 .claude/
 $HOME/
 .hermes/
+# SQLite验证数据库（不提交）
+hotpot_platform/data/*.db

@@ -355,7 +355,7 @@ class DemoDataGenerator:
                 "items": [
                     {"product_id": "FP-HNRC-004", "name": "毛肚", "qty_received": 8, "qty_expected": 8},
                 ],
-                "temperature: -8.5,  # ⚠️ 异常！温度过高
+                "temperature": -8.5,  # ⚠️ 异常！温度过高
                 "weight_expected": 8.0,
                 "weight_actual": 7.5,  # ⚠️ 重量不足
                 "quality_grade": "D",  # ⚠️ D级！严重质量问题的

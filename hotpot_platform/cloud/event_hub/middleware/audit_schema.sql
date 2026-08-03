@@ -250,3 +250,143 @@ $$ LANGUAGE plpgsql;
 
 -- 示例: 清理90天前的数据
 -- SELECT cleanup_old_audit_data(90);
+
+
+-- ============================================================
+-- P0-C 采购闭环溯源表 (2026-08-03 新增)
+-- ============================================================
+
+-- 采购建议表 (环节1: AI生成)
+CREATE TABLE IF NOT EXISTS purchase_suggestions (
+    id              BIGSERIAL PRIMARY KEY,
+    suggestion_id   VARCHAR(50) NOT NULL UNIQUE,
+    correlation_id  VARCHAR(100) NOT NULL,
+    store_id        VARCHAR(50) NOT NULL,
+    created_at      TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+    created_by      VARCHAR(100) NOT NULL DEFAULT 'ai_system',
+    status          VARCHAR(20) NOT NULL DEFAULT 'pending',  -- pending/accepted/rejected
+
+    -- 建议内容 (JSON)
+    items           JSONB NOT NULL DEFAULT '[]',  -- [{sku_code, name, qty, unit_price, unit}]
+    total_amount    DECIMAL(12,2) NOT NULL DEFAULT 0.00,
+    priority        VARCHAR(20) NOT NULL DEFAULT 'normal',  -- normal/urgent/low
+    reason          TEXT,
+
+    -- AI元数据
+    confidence_score DECIMAL(3,2),
+    ai_model_version VARCHAR(50),
+    data_sources    TEXT[],  -- ['inventory', 'sales_forecast']
+
+    -- 审批关联
+    approval_task_id VARCHAR(50),
+
+    -- 时间戳
+    updated_at      TIMESTAMPTZ NOT NULL DEFAULT NOW()
+);
+
+COMMENT ON TABLE purchase_suggestions IS '采购建议表 (P0-C 环节1)';
+CREATE INDEX idx_purchase_suggestions_correlation ON purchase_suggestions(correlation_id);
+CREATE INDEX idx_purchase_suggestions_status ON purchase_suggestions(status);
+
+
+-- 审批任务表 (环节2: 人工审批)
+-- 注意: 原approval_tasks表已存在，此处扩展采购相关字段
+-- 如果需要独立表，可使用 purchase_approvals
+
+CREATE TABLE IF NOT EXISTS purchase_orders (
+    id              BIGSERIAL PRIMARY KEY,
+    order_id        VARCHAR(50) NOT NULL UNIQUE,
+    correlation_id  VARCHAR(100) NOT NULL,
+    approval_task_id VARCHAR(50),
+    suggestion_id   VARCHAR(50),
+
+    -- 订单状态
+    status          VARCHAR(20) NOT NULL DEFAULT 'draft',
+    -- draft/submitted/approved/shipped/received/cancelled
+
+    created_at      TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+    created_by      VARCHAR(100) NOT NULL DEFAULT 'system',
+
+    -- 供应商信息
+    supplier_id     VARCHAR(50),
+    supplier_name   VARCHAR(200) NOT NULL,
+
+    -- 订单内容 (JSON)
+    items           JSONB NOT NULL DEFAULT '[]',
+    total_amount    DECIMAL(12,2) NOT NULL DEFAULT 0.00,
+    currency        VARCHAR(10) NOT NULL DEFAULT 'CNY',
+
+    -- 时间节点
+    expected_delivery_date DATE,
+    actual_delivery_date   TIMESTAMPTZ,
+
+    -- 审批信息
+    approved_by     VARCHAR(100),
+    approved_at     TIMESTAMPTZ,
+
+    -- 收货关联
+    receiving_id    VARCHAR(50),
+    receiving_status VARCHAR(20),  -- pending/inspected/approved/rejected
+
+    -- 备注
+    notes           TEXT,
+
+    updated_at      TIMESTAMPTZ NOT NULL DEFAULT NOW()
+);
+
+COMMENT ON TABLE purchase_orders IS '采购订单表 (P0-C 环节3)';
+CREATE INDEX idx_purchase_orders_correlation ON purchase_orders(correlation_id);
+CREATE INDEX idx_purchase_orders_status ON purchase_orders(status);
+CREATE INDEX idx_purchase_orders_supplier ON purchase_orders(supplier_id);
+
+
+-- 收货记录表 (环节4: 质检+入库)
+CREATE TABLE IF NOT EXISTS receiving_records (
+    id              BIGSERIAL PRIMARY KEY,
+    receiving_id    VARCHAR(50) NOT NULL UNIQUE,
+    correlation_id  VARCHAR(100) NOT NULL,
+    purchase_order_id VARCHAR(50) NOT NULL,
+
+    -- 收货状态
+    status          VARCHAR(20) NOT NULL DEFAULT 'pending',
+    -- pending/inspected/pending_approval/approved/rejected
+
+    created_at      TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+    created_by      VARCHAR(100) NOT NULL,
+
+    -- 供应商信息
+    supplier_id     VARCHAR(50),
+    supplier_name   VARCHAR(200) NOT NULL,
+
+    -- 收货明细 (JSON)
+    items           JSONB NOT NULL DEFAULT '[]',
+    -- [{product_id, name, qty_received, qty_expected}]
+
+    -- 质检数据
+    temperature     DECIMAL(5,2),  -- 收货温度 (°C)
+    weight_expected DECIMAL(10,2),
+    weight_actual   DECIMAL(10,2),
+    quality_grade   CHAR(1) NOT NULL DEFAULT 'C',  -- A/B/C/D
+    quality_notes   TEXT,
+
+    -- 质检照片 (Base64或URL列表)
+    photos          TEXT[],
+
+    -- 检验员信息
+    inspector_id    VARCHAR(100) NOT NULL,
+    inspector_name  VARCHAR(100) NOT NULL,
+    inspected_at    TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+    inspector_notes TEXT,
+
+    -- 审批信息 (店长二次审批)
+    approver_id     VARCHAR(100),
+    approved_at     TIMESTAMPTZ,
+    approval_notes  TEXT,
+
+    updated_at      TIMESTAMPTZ NOT NULL DEFAULT NOW()
+);
+
+COMMENT ON TABLE receiving_records IS '收货记录表 (P0-C 环节4)';
+CREATE INDEX idx_receiving_records_correlation ON receiving_records(correlation_id);
+CREATE INDEX idx_receiving_records_po ON receiving_records(purchase_order_id);
+CREATE INDEX idx_receiving_records_quality ON receiving_records(quality_grade);

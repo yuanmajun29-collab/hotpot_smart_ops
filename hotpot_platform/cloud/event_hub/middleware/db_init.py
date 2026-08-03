@@ -151,12 +151,36 @@ def _convert_pg_to_sqlite(sql: str) -> str:
     lines = [l for l in lines if not l.strip().startswith('--') and not l.strip().startswith('#')]
     sql = '\n'.join(lines)
 
-    # 删除不支持的语句块
+    # 删除不支持的语句块（按复杂度排序）
+    # 1. CREATE FUNCTION ... $$ ... $$ (多行函数体)
+    sql = re.sub(
+        r'CREATE\s+(OR\s+REPLACE\s+)?FUNCTION\s+\w+\s*\([^)]*\)\s*'
+        r'(RETURNS\s+\w+(\s+NULL)?\s*)?'
+        r'\$\$.*?\$\$',  # 匹配 $$...$$ 函数体
+        '', sql, flags=re.IGNORECASE | re.DOTALL
+    )
+
+    # 2. COMMENT ON TABLE/COLUMN (可能跨行)
+    sql = re.sub(r'COMMENT\s+ON\s+(TABLE|COLUMN)\s+\S+\s+IS\s+\'.*?\';', '', sql, flags=re.IGNORECASE | re.DOTALL)
+
+    # 3. 其他简单语句
     sql = re.sub(r'CREATE EXTENSION.*?;', '', sql, flags=re.IGNORECASE | re.DOTALL)
-    sql = re.sub(r'COMMENT ON \w+ \w+ IS .*?;', '', sql, flags=re.DOTALL | re.IGNORECASE)
-    sql = re.sub(r'CREATE (OR REPLACE )?FUNCTION.*?$', '', sql, flags=re.MULTILINE | re.IGNORECASE)
+    sql = re.sub(r'COMMENT ON \w+ \w+ IS .*?;', '', sql, flags=re.DOTALL | re.IGNORECASE)  # 兼容旧模式
     sql = re.sub(r'CREATE (OR REPLACE )?VIEW.*?;', '', sql, flags=re.DOTALL | re.IGNORECASE)
     sql = re.sub(r'CREATE TRIGGER.*?;', '', sql, flags=re.DOTALL | re.IGNORECASE)
+
+    # 4. PG特有语法
+    # INTERVAL '24 hours' → 空或具体值（SQLite不支持）
+    sql = re.sub(r"INTERVAL\s+'[^']+'", '', sql, flags=re.IGNORECASE)
+
+    # 处理 DEFAULT (NOW()/CURRENT_TIMESTAMP + INTERVAL ...) 残留
+    # 例: DEFAULT (CURRENT_TIMESTAMP + ) → DEFAULT CURRENT_TIMESTAMP
+    sql = re.sub(r'DEFAULT\s*\(\s*CURRENT_TIMESTAMP\s*\+\s*\)', 'DEFAULT CURRENT_TIMESTAMP', sql, flags=re.IGNORECASE)
+    sql = re.sub(r'DEFAULT\s*\(\s*NOW\(\)\s*\+\s*\)', 'DEFAULT CURRENT_TIMESTAMP', sql, flags=re.IGNORECASE)
+
+    # 5. 删除外键约束中的REFERENCES（如果被引用表不存在会导致错误）
+    # 保留FOREIGN KEY定义但先不强制执行（SQLite会在INSERT时检查）
+    # 注意: 这里不做处理，让SQLite自然报错并跳过
 
     # 类型替换（按顺序，从复杂到简单）
     # 注意: BIGSERIAL/SERIAL 后面通常跟着 PRIMARY KEY，需要一起替换避免重复
