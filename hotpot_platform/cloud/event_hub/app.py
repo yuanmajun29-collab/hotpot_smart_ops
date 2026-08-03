@@ -175,6 +175,16 @@ async def _mark_deprecated(request, call_next):
 from hotpot_platform.cloud.event_hub.common.errors import register_error_handlers
 register_error_handlers(app)
 
+# ── P0-B: Gateway 强制中间件 (不可绕过) ──
+# 所有 HIGH/CRITICAL 操作必须经此中间件审批
+# 审计日志落 PG append-only 表，全链路 correlation_id 串联
+try:
+    from hotpot_platform.cloud.event_hub.middleware import HubGatewayMiddleware
+    app.add_middleware(HubGatewayMiddleware)
+    print("[Hub] ✅ Gateway 中间件已启用 (强制模式)")
+except ImportError as e:
+    print(f"[Hub] ⚠️ Gateway 中间件加载失败: {e} (非致命，继续启动)")
+
 # ── 路由器自动发现（新增路由 = 在 routers/ 丢一个 .py 文件，导出 router 实例）──
 from hotpot_platform.cloud.event_hub.routers import auto_include_routers
 auto_include_routers(app)
