@@ -1,0 +1,213 @@
+# ============================================================
+# 火瞳（HotpotEye）— CI Pipeline v1.0
+# 触发: push到main/feature/*, PR到main
+# 阶段: lint → unit → integration → smoke
+# ============================================================
+
+name: CI
+
+on:
+  push:
+    branches: [main, feature/**]
+  pull_request:
+    branches: [main]
+
+env:
+  PYTHON_VERSION: "3.12"
+
+jobs:
+  # ── Job 1: Lint & Format Check ──
+  lint:
+    name: 🔍 Lint & Format
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: ${{ env.PYTHON_VERSION }}
+          cache: pip
+
+      - name: Install dependencies
+        run: |
+          pip install -r requirements-test.txt
+          pip install ruff
+
+      - name: Ruff linter
+        run: |
+          ruff check hotpot_platform/ edge/ tests/ \
+            --select E,F,W,I,N,UP,ANN,B,A,COM,C4,T20,ISC,SIM \
+            --output-format github
+
+      - name: Ruff formatter check
+        run: |
+          ruff format --check hotpot_platform/ edge/ tests/
+
+  # ── Job 2: Unit Tests ──
+  unit-tests:
+    name: 🧪 Unit Tests
+    runs-on: ubuntu-latest
+    needs: lint
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: ${{ env.PYTHON_VERSION }}
+          cache: pip
+
+      - name: Install test dependencies
+        run: pip install -r requirements-test.txt
+
+      - name: Run unit tests (exclude integration)
+        env:
+          PYTHONPATH: .
+        run: |
+          pytest tests/ \
+            --ignore=tests/test_d3_integration.py \
+            -v \
+            --tb=short \
+            --junitxml=junit-unit.xml \
+            --cov=hotpot_platform \
+            --cov=edge \
+            --cov-report=term-missing \
+            --cov-report=xml:coverage-unit.xml \
+            -x \
+            -m "not integration and not slow"
+
+      - name: Upload unit test results
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: unit-test-results
+          path: junit-unit.xml
+
+      - name: Upload coverage report
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: coverage-report
+          path: coverage-unit.xml
+
+  # ── Job 3: Integration Tests ──
+  integration-tests:
+    name: 🔗 Integration Tests
+    runs-on: ubuntu-latest
+    needs: unit-tests
+    services:
+      postgres:
+        image: postgres:16-alpine
+        env:
+          POSTGRES_USER: hotpot_test
+          POSTGRES_PASSWORD: hotpot_test
+          POSTGRES_DB: hotpot_test
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U hotpot_test"
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 5
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: ${{ env.PYTHON_VERSION }}
+          cache: pip
+
+      - name: Install test dependencies
+        run: pip install -r requirements-test.txt
+
+      - name: Run integration tests
+        env:
+          PYTHONPATH: .
+          DATABASE_URL: postgresql://hotpot_test:hotpot_test@localhost:5432/hotpot_test
+          HOTPOT_TEST_MODE: "true"
+        run: |
+          pytest tests/test_d3_integration.py \
+            -v \
+            --tb=long \
+            --junitxml=junit-integration.xml \
+            -m "integration" \
+            -x
+
+      - name: Upload integration test results
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: integration-test-results
+          path: junit-integration.xml
+
+  # ── Job 4: Smoke Test (Hub + Edge UI) ──
+  smoke-test:
+    name: 💨 Smoke Test
+    runs-on: ubuntu-latest
+    needs: unit-tests
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: ${{ env.PYTHON_VERSION }}
+          cache: pip
+
+      - name: Install dependencies
+        run: pip install -r requirements-test.txt
+
+      - name: Start Hub in background
+        env:
+          PYTHONPATH: .
+        run: |
+          python hotpot_platform/cloud/event_hub/server.py \
+            --port 8098 \
+            --auth-mode demo &
+          sleep 5
+          curl -sf http://localhost:8098/health || { echo "Hub启动失败"; exit 1; }
+
+      - name: Run smoke tests
+        env:
+          PYTHONPATH: .
+          HOTPOT_HUB_URL: http://localhost:8098
+        run: |
+          pytest tests/test_hub_smoke.py \
+            -v \
+            --tb=short \
+            --junitxml=junit-smoke.xml \
+            -m "smoke"
+
+      - name: Upload smoke test results
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: smoke-test-results
+          path: junit-smoke.xml
+
+  # ── Job 5: Summary ──
+  summary:
+    name: 📊 CI Summary
+    runs-on: ubuntu-latest
+    needs: [lint, unit-tests, integration-tests, smoke-test]
+    if: always()
+    steps:
+      - name: Check all jobs passed
+        run: |
+          echo "## CI 结果摘要" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "| Job | 状态 |" >> $GITHUB_STEP_SUMMARY
+          echo "|------|------|" >> $GITHUB_STEP_SUMMARY
+          echo "| Lint | ${{ needs.lint.result == 'success' && '✅ 通过' || '❌ 失败' }} |" >> $GITHUB_STEP_SUMMARY
+          echo "| Unit Tests | ${{ needs.unit-tests.result == 'success' && '✅ 通过' || '❌ 失败' }} |" >> $GITHUB_STEP_SUMMARY
+          echo "| Integration | ${{ needs.integration-tests.result == 'success' && '✅ 通过' || '❌ 失败' }} |" >> $GITHUB_STEP_SUMMARY
+          echo "| Smoke Test | ${{ needs.smoke-test.result == 'success' && '✅ 通过' || '❌ 失败' }} |" >> $GITHUB_STEP_SUMMARY
+
+      - name: Fail if any job failed
+        if: |
+          needs.lint.result != 'success' ||
+          needs.unit-tests.result != 'success' ||
+          needs.smoke-test.result != 'success'
+        run: exit 1

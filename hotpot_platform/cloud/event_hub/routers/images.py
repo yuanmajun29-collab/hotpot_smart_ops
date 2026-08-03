@@ -2,8 +2,13 @@
 
 from __future__ import annotations
 
+# Python 3.13 removed imghdr; use fallback
+try:
+    import imghdr  # type: ignore[no-redef]
+except ImportError:
+    imghdr = None  # noqa: F811
+
 import base64
-import imghdr
 import time
 from pathlib import Path
 from typing import Optional
