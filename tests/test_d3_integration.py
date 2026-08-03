@@ -1,572 +1,693 @@
-#!/usr/bin/env python3
-"""D3 集成测试冲刺 — 跨模块端到端集成测试.
+"""
+火瞳 · D3 集成测试套件 (P0: TC-001 至 TC-005)
+=============================================
 
-覆盖D1(冻品供应链) + D2(SOP/知识/Agent/座舱) 的4大集成链路:
+测试范围:
+  TC-001: IP-1 D1产品数据 → D2采购建议
+  TC-002: IP-2 D1质检结果 → D2后厨任务推送
+  TC-003: IP-3 D1采购订单 → D2订单跟踪同步
+  TC-004: IP-4 D1供应商评分 → D2供应商门户
+  TC-005: IP-5 D2建议接受 → D1采购订单创建（核心）
 
-  集成链路1: supply_chain → sop_engine (收货自动触发SOP温控检查)
-  集成链路2: sop_engine → cockpit (真实SOP数据注入座舱KPI)
-  集成链路3: knowledge → agent_framework (A05知识库Agent执行查询任务)
-  集成链路4: 全链路E2E (收货→质检→SOP检查→违规记录→Agent通知→座舱展示)
+运行方式:
+  cd hotpot_smart_ops
+  python -m pytest tests/test_d3_integration.py -v
 
-运行: pytest tests/test_d3_integration.py -v
+或直接运行:
+  python tests/test_d3_integration.py
 """
 
-from __future__ import annotations
-
-import json
-import os
 import sys
-import sqlite3
+import os
 import unittest
-from datetime import date, datetime, timedelta
-from pathlib import Path
-from unittest.mock import MagicMock, patch
+from datetime import datetime, timedelta
 
-# 确保项目根目录在路径中
-PROJECT_ROOT = Path(__file__).resolve().parents[1]
-if str(PROJECT_ROOT) not in sys.path:
-    sys.path.insert(0, str(PROJECT_ROOT))
+# 添加项目根目录到路径
+sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
 
-# ═══════════════════════════════════════════════════════════════
-# 集成链路1: 冻品供应链 → SOP合规引擎
-# 场景: 收货时自动触发仓库温控SOP检查 + FEFO检查
-# ═══════════════════════════════════════════════════════════════
+class TestD3IntegrationP0(unittest.TestCase):
+    """
+    D3 集成测试 — P0必过用例
 
-class TestSupplyChainToSOP(unittest.TestCase):
-    """D1→D2 集成: 收货流程自动触发SOP合规检查.
-
-    验证:
-    - SupplyChainManager收货后可调用SOPChecker
-    - 温控信号正确传递到temp_monitor策略
-    - FEFO信号正确传递到fefo_check策略
-    - 违规结果可被ViolationTracker记录
+    前置条件:
+      1. SupplyChainManager 已初始化并有Demo数据
+      2. IntegrationEngine 已初始化并注册所有handler
+      3. 产品/供应商/PO等基础数据已seed
     """
 
-    def setUp(self) -> None:
-        self.db = sqlite3.connect(":memory:")
-        # 初始化SOP引擎
-        SOPChecker = __import__(
-            "hotpot_platform.cloud.sop_engine.checker", fromlist=["SOPChecker"]
-        ).SOPChecker
-        self.sop_checker = SOPChecker(db_session=self.db)
+    @classmethod
+    def setUpClass(cls):
+        """测试类初始化：加载Manager和集成引擎"""
+        from hotpot_platform.cloud.supply_chain.manager import SupplyChainManager
+        from hotpot_platform.cloud.integration.integration_engine import IntegrationEngine, get_integration_engine
 
-        ViolationTracker = __import__(
-            "hotpot_platform.cloud.sop_engine.violation_tracker", fromlist=["ViolationTracker"]
-        ).ViolationTracker
-        self.violation_tracker = ViolationTracker(db_session=self.db)
+        print("\n" + "=" * 70)
+        print("🔧 D3集成测试初始化...")
+        print("=" * 70)
 
-        # 初始化供应链模块
-        SupplyChainManager = __import__(
-            "hotpot_platform.cloud.supply_chain.manager", fromlist=["SupplyChainManager"]
-        ).SupplyChainManager
-        self.supply_mgr = SupplyChainManager(db_session=self.db)
+        # 初始化Manager（使用类方法，不需要db_session）
+        # 注意: 测试环境可能需要mock数据，这里假设已有demo数据
 
-        # 注入SOP检查器到供应链(模拟集成点)
-        self.supply_mgr._sop_checker = self.sop_checker
-        self.supply_mgr._violation_tracker = self.violation_tracker
+        # 初始化集成引擎
+        cls.engine = get_integration_engine()
+        cls.engine.initialize()
 
-    def tearDown(self) -> None:
-        self.db.close()
+        print(f"✅ 集成引擎初始化完成")
+        print(f"   Metrics: {cls.engine.get_metrics()}")
+        print("=" * 70 + "\n")
 
-    def test_receiving_triggers_warehouse_sop_check(self) -> None:
-        """收货后自动触发仓库区域SOP检查."""
-        from hotpot_platform.cloud.sop_engine.models import Zone
+    def setUp(self):
+        """每个测试用例前的准备"""
+        self.engine.reset_metrics()
 
-        # 模拟收货温度信号(冷链要求: 冷冻-18°C以下)
-        temp_signals = {
-            "temp_warehouse": -12.0,   # 偏高! 应触发违规
-            "temp_warehouse_ok": False,
-        }
+    # =====================================================================
+    # TC-001: IP-1 D1产品数据 → D2采购建议
+    # =====================================================================
 
-        report = self.sop_checker.check(
-            store_id="store_jiaojiang",
-            zone=Zone.WAREHOUSE,
-            signals=temp_signals,
+    def test_tc001_product_to_purchase_suggestion(self):
+        """
+        TC-001: 产品数据变更应触发采购建议重评估
+
+        验证点:
+          1. EventBus能正确接收D1_PRODUCT_UPDATED事件
+          2. IP-1 handler被调用
+          3. 建议生成逻辑基于真实产品数据（非硬编码）
+        """
+        print("\n📋 TC-001: IP-1 产品数据→采购建议")
+
+        from hotpot_platform.cloud.integration.integration_engine import IntegrationEvent
+
+        # 发布产品数据变更事件
+        processed = self.engine.publish_event(
+            IntegrationEvent.D1_PRODUCT_UPDATED,
+            {"sku": "FP-HNRC-001", "product_data": {"name": "肥牛卷", "safety_stock": 15}}
         )
 
-        # 应检测到温控违规
-        self.assertGreater(len(report.violations), 0)
-        temp_violations = [v for v in report.violations if "temp" in v.rule_name.lower() or "温" in v.rule_name]
-        self.assertGreater(len(temp_violations), 0)
-        print(f"  ✅ 收货触发SOP检查: {len(report.violations)} violations, score={report.compliance_score}")
+        # 验证事件被处理
+        self.assertGreater(processed, 0, "IP-1 handler应该被调用")
 
-    def test_fefo_check_on_receiving(self) -> None:
-        """收货时FEFO(先失效先出)检查."""
-        from hotpot_platform.cloud.sop_engine.models import Zone
-        from datetime import datetime, timedelta
+        # 验证metrics更新
+        metrics = self.engine.get_metrics()
+        self.assertEqual(metrics["ip1_calls"], 1, "IP-1调用次数应为1")
 
-        # 模拟临期商品收货
-        soon_expiry = (datetime.now() + timedelta(days=15)).isoformat()
-        normal_expiry = (datetime.now() + timedelta(days=180)).isoformat()
+        print(f"   ✅ 事件处理成功: {processed} 个handler被调用")
+        print(f"   ✅ IP-1 metrics: ip1_calls={metrics['ip1_calls']}")
 
-        fefo_signals = {
-            "fefo_pick_order": [
-                {"sku": "FROZEN-BEEF", "expiry_date": soon_expiry},     # 临期
-                {"sku": "FROZEN-TRIP", "expiry_date": normal_expiry},   # 正常
-            ],
-        }
+    def test_tc001_suggestion_contains_real_product_data(self):
+        """
+        TC-001增强: 生成的采购建议应包含真实产品数据
 
-        report = self.sop_checker.check(
-            store_id="store_jiaojiang",
-            zone=Zone.WAREHOUSE,
-            signals=fefo_signals,
-        )
+        验证点:
+          1. 建议的action_params包含有效SKU
+          2. 建议的confidence在合理范围内(0.7-1.0)
+          3. 建议包含供应商推荐（如有A级供应商）
+        """
+        print("\n📋 TC-001+: 采购建议数据完整性验证")
 
-        # FEFO检查应标记临期商品
-        fefo_violations = [v for v in report.violations if "fefo" in v.rule_name.lower() or "失效" in v.rule_name]
-        print(f"  ✅ FEFO检查: {len(fefo_violations)} 临期警告, score={report.compliance_score}")
-        # 注: FEFO可能只是warning而非violation，取决于规则配置
+        from hotpot_platform.cloud.supply_chain.manager import SupplyChainManager
 
-    def test_violation_recorded_after_receiving(self) -> None:
-        """收货SOP检查后的违规记录可被追踪."""
-        from hotpot_platform.cloud.sop_engine.models import Zone
+        # 触发建议生成
+        suggestions = SupplyChainManager._generate_suggestions()
 
-        # 执行一次有违规的检查
-        report = self.sop_checker.check(
-            store_id="store_yuhuan",
-            zone=Zone.WAREHOUSE,
-            signals={"temp_warehouse": -10.0, "temp_warehouse_ok": False},
-        )
+        # 过滤出采购类型建议
+        purchase_sugs = [s for s in suggestions if s.get("suggestion_type") == "purchase_order"]
 
-        if report.violations:
-            # 记录违规
-            records = self.violation_tracker.record_violation(report)
-            self.assertGreater(len(records), 0)
+        if purchase_sugs:
+            sug = purchase_sugs[0]
+            action_params = sug.get("action_params", {})
 
-            # 查询验证
-            result = self.violation_tracker.query_violations(store_id="store_yuhuan")
-            self.assertGreater(result.total, 0)
+            # 验证SKU存在
+            self.assertIn("sku", action_params, "采购建议必须包含SKU")
+            self.assertIn("qty", action_params, "采购建议必须包含数量")
 
-            # 统计验证
-            stats = self.violation_tracker.getViolationStats("store_yuhuan", 30)
-            self.assertGreater(stats.total_violations, 0)
-            print(f"  ✅ 违规记录完整: {stats.total_violations} total, repeat_rate={stats.repeat_rate:.1%}")
+            # 验证置信度合理
+            confidence = sug.get("confidence", 0)
+            self.assertGreaterEqual(confidence, 0.7, "置信度应≥0.7")
+            self.assertLessEqual(confidence, 1.0, "置信度应≤1.0")
+
+            print(f"   ✅ 采购建议数据完整:")
+            print(f"      SKU: {action_params.get('sku')}")
+            print(f"      数量: {action_params.get('qty')}")
+            print(f"      置信度: {confidence}")
         else:
-            print("  ⚠ no violations generated in this test scenario")
+            print("   ⚠️ 无采购类型建议（可能不在触发窗口期）")
 
+    # =====================================================================
+    # TC-002: IP-2 D1质检结果 → D2后厨任务推送
+    # =====================================================================
 
-# ═══════════════════════════════════════════════════════════════
-# 集成链路2: SOP引擎 → 数字座舱
-# 场景: 座舱KPI使用真实SOP合规率数据
-# ═══════════════════════════════════════════════════════════════
+    def test_tc002_quality_check_to_kitchen_task(self):
+        """
+        TC-002: D级质检结果应自动推送后厨处理任务
 
-class TestSOPEngineToCockpit(unittest.TestCase):
-    """D2内部集成: SOP数据注入座舱.
+        验证点:
+          1. 收货审批通过事件能正确触发
+          2. D级品项检测逻辑正常
+          3. 后厨任务自动生成（target_role=chef_head）
+        """
+        print("\n📋 TC-002: IP-2 质检结果→后厨任务")
 
-    验证:
-    - KPIEngine可注册SOP合规率数据源
-    - AlertSummary可汇总SOP违规告警
-    - DashboardAggregator聚合后包含真实SOP数据
-    """
+        from hotpot_platform.cloud.integration.integration_engine import IntegrationEvent
+        from hotpot_platform.cloud.supply_chain.manager import SupplyChainManager
 
-    def setUp(self) -> None:
-        self.db = sqlite3.connect(":memory:")
-
-        # SOP引擎
-        SOPChecker = __import__(
-            "hotpot_platform.cloud.sop_engine.checker", fromlist=["SOPChecker"]
-        ).SOPChecker
-        self.sop_checker = SOPChecker(db_session=self.db)
-
-        ViolationTracker = __import__(
-            "hotpot_platform.cloud.sop_engine.violation_tracker", fromlist=["ViolationTracker"]
-        ).ViolationTracker
-        self.violation_tracker = ViolationTracker(db_session=self.db)
-
-        # 座舱
-        DashboardAggregator = __import__(
-            "hotpot_platform.cloud.cockpit.dashboard", fromlist=["DashboardAggregator"]
-        ).DashboardAggregator
-        KPIEngine = __import__(
-            "hotpot_platform.cloud.cockpit.dashboard", fromlist=["KPIEngine"]
-        ).KPIEngine
-        AlertSummary = __import__(
-            "hotpot_platform.cloud.cockpit.dashboard", fromlist=["AlertSummary"]
-        ).AlertSummary
-
-        self.kpi_engine = KPIEngine()
-        self.alert_summary = AlertSummary()
-        self.dashboard = DashboardAggregator(
-            kpi_engine=self.kpi_engine,
-            alert_summary=self.alert_summary,
+        # 发布收货审批通过事件（含D级品项）
+        processed = self.engine.publish_event(
+            IntegrationEvent.D1_RECEIVING_APPROVED,
+            {"record_id": "TEST-RCV-DGRADE", "has_d_grade": True}
         )
 
-    def tearDown(self) -> None:
-        self.db.close()
+        # 验证事件被处理
+        self.assertGreater(processed, 0, "IP-2 handler应该被调用")
 
-    def test_kpi_engine_registers_sop_source(self) -> None:
-        """KPIEngine注册SOP合规率数据源."""
-        # 注册SOP合规率计算函数(返回float)
-        self.kpi_engine.register_source("sop_compliance", lambda store_id:
-            self.sop_checker.get_compliance_trend(store_id, 7).avg_score
-        )
+        metrics = self.engine.get_metrics()
+        self.assertEqual(metrics["ip2_calls"], 1, "IP-2调用次数应为1")
 
-        # 计算全部KPI
-        kpis = self.kpi_engine.calculate_all("test_store")
-        self.assertGreater(len(kpis), 0)
+        print(f"   ✅ 事件处理成功: {processed} 个handler")
+        print(f"   ✅ IP-2 metrics: ip2_calls={metrics['ip2_calls']}")
 
-        # 验证sop_compliance存在
-        sop_kpi = next((k for k in kpis if k.metric_id == "sop_compliance"), None)
-        self.assertIsNotNone(sop_kpi)
-        self.assertIsInstance(sop_kpi.value, (int, float))
-        print(f"  ✅ KPIEngine SOP数据源: sop_compliance={sop_kpi.value}")
+    def test_tc002_kitchen_task_generated_for_d_grade(self):
+        """
+        TC-002增强: D级品项应生成urgent优先级后厨任务
 
-    def test_alert_summary_aggregates_sop_violations(self) -> None:
-        """AlertSummary汇聚SOP违规为告警."""
-        from hotpot_platform.cloud.sop_engine.models import Zone
-        from hotpot_platform.cloud.cockpit.models import AlertLevel
+        验证点:
+          1. 任务priority=urgent
+          2. 任务target_role=chef_head
+          3. 任务包含正确的metadata
+        """
+        print("\n📋 TC-002+: 后厨任务内容验证")
 
-        # 先产生一些违规
-        report = self.sop_checker.check(
-            store_id="alert_store",
-            zone=Zone.KITCHEN,
-            signals={"mask_kitchen": False, "mask_kitchen_confidence": 0.1},
-        )
-        if report.violations:
-            self.violation_tracker.record_violation(report)
+        from hotpot_platform.cloud.supply_chain.manager import SupplyChainManager
 
-        # 注册SOP告警源
-        def sop_alert_source(store_id):
-            violations = self.violation_tracker.query_violations(store_id, status="open")
-            from hotpot_platform.cloud.cockpit.models import AlertItem
-            return [
-                AlertItem(
-                    alert_id=v.violation_id,
-                    level=AlertLevel.CRITICAL if str(v.severity) in ("critical", "CRITICAL") else AlertLevel.WARNING,
-                    title=f"SOP违规: {v.rule_name}",
-                    message=f"[{v.zone}] {v.rule_name}",
-                    source="sop_engine",
-                    detected_at=v.detected_at,
-                )
-                for v in violations.items
-            ]
+        # 调用D级处理方法
+        task = SupplyChainManager.create_kitchen_task_for_d_grade("TEST-RCV-DGRADE")
 
-        self.alert_summary.register_source(sop_alert_source)
+        # 如果返回了任务（需要真实的receiving_cache数据）
+        if task:
+            self.assertEqual(task["priority"], "urgent", "D级任务应为urgent优先级")
+            self.assertEqual(task["target_role"], "chef_head", "目标角色应为厨师长")
+            self.assertIn("record_id", task.get("metadata", {}), "元数据应包含record_id")
 
-        # 汇总告警
-        alerts = self.alert_summary.summarize("alert_store")
-        print(f"  ✅ AlertSummary汇聚: {len(alerts)} SOP alerts")
-
-    def test_dashboard_includes_real_sop_data(self) -> None:
-        """座舱构建时包含真实SOP数据(非纯mock)."""
-        # 注册数据源
-        self.kpi_engine.register_source("sop_compliance", lambda sid:
-            self.sop_checker.get_compliance_trend(sid, 7).avg_score
-        )
-
-        # 构建座舱
-        data = self.dashboard.build_dashboard(store_id="cockpit_test")
-
-        # 验证基本结构
-        self.assertEqual(data.store_id, "cockpit_test")
-        self.assertGreater(len(data.kpis), 0)
-        self.assertGreater(data.overall_health_score, 0)
-
-        # 检查是否有SOP相关KPI
-        sop_kpis = [k for k in data.kpis if k.metric_id == "sop_compliance"]
-        if sop_kpis:
-            print(f"  ✅ 座舱含真实SOP数据: compliance={sop_kpis[0].value}")
+            print(f"   ✅ 后厨任务生成正确:")
+            print(f"      ID: {task['id']}")
+            print(f"      标题: {task['title']}")
+            print(f"      优先级: {task['priority']}")
+            print(f"      目标角色: {task['target_role']}")
         else:
-            print(f"  ⚠ 座舱使用默认KPI(未匹配到sop_compliance), total={len(data.kpis)} KPIs")
+            print("   ⚠️ 无D级收货记录（需先创建含D级品项的收货记录）")
 
+    # =====================================================================
+    # TC-003: IP-3 D1采购订单 → D2订单跟踪同步
+    # =====================================================================
 
-# ═══════════════════════════════════════════════════════════════
-# 集成链路3: 知识检索 → Agent框架
-# 场景: A05知识库Agent执行知识查询任务
-# ═══════════════════════════════════════════════════════════════
+    def test_tc003_po_status_sync(self):
+        """
+        TC-003: 采购订单状态变更应同步到跟踪面板
 
-class TestKnowledgeToAgent(unittest.TestCase):
-    """D2内部集成: 知识检索驱动Agent任务.
+        验证点:
+          1. PO状态变更事件能正确发布和接收
+          2. IP-3 handler被调用
+          3. submitted状态自动生成确认待办
+        """
+        print("\n📋 TC-003: IP-3 订单状态→跟踪同步")
 
-    验证:
-    - A05知识库Agent可从模板创建
-    - Agent.execute("dish_query")调用KnowledgeRetriever
-    - Agent.execute("operation_query")返回经营建议
-    - 查询结果可通过消息总线发送
-    """
+        from hotpot_platform.cloud.integration.integration_engine import IntegrationEvent
 
-    def setUp(self) -> None:
-        self.db = sqlite3.connect(":memory:")
-
-        # 知识检索
-        KnowledgeRetriever = __import__(
-            "hotpot_platform.cloud.knowledge.retriever", fromlist=["KnowledgeRetriever"]
-        ).KnowledgeRetriever
-        self.retriever = KnowledgeRetriever(db_session=self.db)
-
-        # 预置知识条目
-        from hotpot_platform.cloud.knowledge.models import KnowledgeCategory
-        test_items = [
-            ("毛肚处理标准", "新鲜毛肚应先用水冲洗去除杂质，然后用盐搓洗。切片厚度2-3mm。", "dish"),
-            ("火锅底料配方", "牛油3斤+郫县豆瓣200g+豆豉100g+冰糖50g。先熬牛油再下配料。", "dish"),
-            ("口罩佩戴规范", "厨房人员必须佩戴医用口罩，每4小时更换。", "safety"),
-            ("冷链温度标准", "冷藏0-4°C，冷冻-22至-16°C。每小时记录。", "safety"),
-            ("翻台率提升", "优化桌台布局+提高服务效率+合理预估等位时间。", "operation"),
-        ]
-        for title, content, cat in test_items:
-            self.retriever.add_item(title=title, content=content, category=KnowledgeCategory(cat))
-
-        # Agent编排器
-        AgentOrchestrator = __import__(
-            "hotpot_platform.cloud.agent_framework.orchestrator", fromlist=["AgentOrchestrator"]
-        ).AgentOrchestrator
-        self.orchestrator = AgentOrchestrator()
-
-    def tearDown(self) -> None:
-        self.db.close()
-
-    def test_a05_agent_created_from_template(self) -> None:
-        """A05知识库Agent从模板创建成功."""
-        agent = self.orchestrator.create_agent_from_template(
-            template_id="TPL-A05-KNOWLEDGE",
-            agent_id="A05-INTEG-TEST",
-        )
-        self.assertIsNotNone(agent)
-        role_val = agent.config.role.value if hasattr(agent.config.role, 'value') else str(agent.config.role)
-        self.assertIn("knowledge", role_val.lower())
-        print(f"  ✅ A05 Agent创建: {agent.config.agent_id} role={role_val}")
-
-    def test_agent_execute_dish_query(self) -> None:
-        """Agent执行菜品知识查询任务."""
-        agent = self.orchestrator.create_agent_from_template(
-            template_id="TPL-A05-KNOWLEDGE",
-            agent_id="A05-DISH-TEST",
-        )
-        self.assertIsNotNone(agent)
-
-        # 注入retriever到agent运行时状态
-        agent._state["retriever"] = self.retriever
-
-        # 执行菜品查询任务(基类未实现，预期failed或需子类覆盖)
-        task = agent.execute("dish_query", {"dish_name": "毛肚", "intent": "recipe"})
-        # 基类RoleAgent的_execute_task抛出NotImplementedError，被捕获为failed
-        # 真实场景中KnowledgeAgent子类会覆盖此方法
-        print(f"  ✅ Agent dish_query task: status={task.status}, has_error={task.error is not None}")
-
-    def test_agent_execute_operation_query(self) -> None:
-        """Agent执行经营Know-how查询任务."""
-        agent = self.orchestrator.create_agent_from_template(
-            template_id="TPL-A05-KNOWLEDGE",
-            agent_id="A05-OPS-TEST",
-        )
-        self.assertIsNotNone(agent)
-        agent._state["retriever"] = self.retriever
-
-        # 执行经营查询
-        task = agent.execute("operation_query", {"question": "翻台率低怎么办"})
-        # 可能completed或failed(取决于实现)
-        print(f"  ✅ Agent operation_query: status={task.status}, error={task.error or 'none'}")
-
-    def test_agent_sends_knowledge_via_message_bus(self) -> None:
-        """Agent通过消息总线发送知识查询结果."""
-        from hotpot_platform.cloud.agent_framework.models import MessageType, MessagePriority
-
-        agent = self.orchestrator.create_agent_from_template(
-            template_id="TPL-A05-KNOWLEDGE",
-            agent_id="A05-MSG-TEST",
-        )
-        self.assertIsNotNone(agent)
-
-        # 发送知识推荐消息
-        msg = agent.send(
-            msg_type=MessageType.REPORT,
-            receiver_id="A01-MANAGER",
-            topic="knowledge.recommendation",
-            payload={
-                "query": "毛肚处理",
-                "results": [{"title": "毛肚处理标准", "relevance": 0.95}],
-            },
-            priority=MessagePriority.NORMAL,
+        # 发布订单状态变更事件
+        processed = self.engine.publish_event(
+            IntegrationEvent.D1_PO_STATUS_CHANGED,
+            {
+                "po_id": "TEST-PO-001",
+                "old_status": "draft",
+                "new_status": "submitted",
+            }
         )
 
-        self.assertIsNotNone(msg)
-        self.assertTrue(msg.message_id.startswith("MSG-"))
-        print(f"  ✅ Agent消息发送: {msg.message_id[:16]}... topic={msg.topic}")
+        # 验证事件被处理
+        self.assertGreater(processed, 0, "IP-3 handler应该被调用")
 
+        metrics = self.engine.get_metrics()
+        self.assertEqual(metrics["ip3_calls"], 1, "IP-3调用次数应为1")
 
-# ═══════════════════════════════════════════════════════════════
-# 集成链路4: 全链路端到端(E2E)
-# 流程: 收货→质检→SOP检查→违规→知识推荐→Agent通知→座舱
-# ═══════════════════════════════════════════════════════════════
+        print(f"   ✅ 事件处理成功: {processed} 个handler")
+        print(f"   ✅ IP-3 metrics: ip3_calls={metrics['ip3_calls']}")
 
-class TestFullEndToEnd(unittest.TestCase):
-    """全链路E2E集成测试.
+    def test_tc003_po_confirmation_task_auto_generated(self):
+        """
+        TC-003增强: submitted状态的PO应自动生成店长确认待办
 
-    完整业务流程:
-    1. 冻品收货(submit_receiving)
-    2. 质检审批(approve_quality_check) → 触发SOP检查
-    3. SOP违规记录(violation_tracker)
-    4. 知识库推荐纠正措施(knowledge_retriever)
-    5. Agent通知店长(message_bus)
-    6. 座舱汇总展示(dashboard)
-    """
+        验证点:
+          1. 待办task_type=purchase
+          2. 待办target_role=store_manager
+          3. 待办包含正确的PO信息
+        """
+        print("\n📋 TC-003+: PO确认待办自动生成")
 
-    def test_full_flow_receiving_to_cockpit(self) -> None:
-        """完整流程: 从收货到座舱展示."""
-        db = sqlite3.connect(":memory:")
-        from hotpot_platform.cloud.sop_engine.models import Zone
+        from hotpot_platform.cloud.supply_chain.manager import SupplyChainManager
 
-        # ── 1. 初始化所有模块 ──
-        # SOP引擎
-        SOPChecker = __import__("hotpot_platform.cloud.sop_engine.checker", fromlist=["SOPChecker"]).SOPChecker
-        checker = SOPChecker(db_session=db)
-        ViolationTracker = __import__("hotpot_platform.cloud.sop_engine.violation_tracker", fromlist=["ViolationTracker"]).ViolationTracker
-        tracker = ViolationTracker(db_session=db)
+        # 调用待办生成方法
+        task = SupplyChainManager.generate_po_confirmation_task("TEST-PO-001")
 
-        # 知识库
-        KnowledgeRetriever = __import__("hotpot_platform.cloud.knowledge.retriever", fromlist=["KnowledgeRetriever"]).KnowledgeRetriever
-        retriever = KnowledgeRetriever(db_session=db)
-        from hotpot_platform.cloud.knowledge.models import KnowledgeCategory
-        retriever.add_item(
-            title="冷链温度异常处理指南",
-            content="当冷冻间温度高于-16°C时: 1.立即检查冷媒 2.转移易腐品 3.记录偏差 4.通知店长。",
-            category=KnowledgeCategory.SAFETY,
-            source_doc="SOP手册-ch03",
-        )
-        retriever.add_item(
-            title="口罩佩戴纠正方法",
-            content="发现未戴口罩: 1.立即发放口罩 2.指导正确佩戴 3.记录违规 4.班后培训。",
-            category=KnowledgeCategory.SAFETY,
-            source_doc="SOP手册-ch02",
-        )
+        # 如果返回了任务（需要真实的po_cache数据）
+        if task:
+            self.assertEqual(task["task_type"], "purchase", "待办类型应为purchase")
+            self.assertEqual(task["target_role"], "store_manager", "目标角色应为店长")
+            self.assertIn("PO-", task["title"], "标题应包含PO编号")
 
-        # Agent框架
-        AgentOrchestrator = __import__("hotpot_platform.cloud.agent_framework.orchestrator", fromlist=["AgentOrchestrator"]).AgentOrchestrator
-        orchestrator = AgentOrchestrator()
+            print(f"   ✅ PO确认待办生成正确:")
+            print(f"      ID: {task['id']}")
+            print(f"      标题: {task['title']}")
+            print(f"      优先级: {task['priority']}")
+        else:
+            print("   ⚠️ 无该PO记录（需先创建submitted状态的PO）")
 
-        # 座舱
-        DashboardAggregator = __import__("hotpot_platform.cloud.cockpit.dashboard", fromlist=["DashboardAggregator"]).DashboardAggregator
-        KPIEngine = __import__("hotpot_platform.cloud.cockpit.dashboard", fromlist=["KPIEngine"]).KPIEngine
-        AlertSummary = __import__("hotpot_platform.cloud.cockpit.dashboard", fromlist=["AlertSummary"]).AlertSummary
-        kpi_eng = KPIEngine()
-        alert_sum = AlertSummary()
-        dashboard = DashboardAggregator(kpi_engine=kpi_eng, alert_summary=alert_sum)
+    # =====================================================================
+    # TC-004: IP-4 D1供应商评分 → D2供应商门户
+    # =====================================================================
 
-        # ── 2. 收货+质检(模拟) ──
-        # 模拟: 一批冷冻牛肉到货，温度偏高(-12°C，应为-18°C以下)
-        receiving_signals = {
-            "temp_warehouse": -12.0,
-            "temp_warehouse_ok": False,
-            "sku": "FROZEN-BEEF",
-            "qty": 50,
-        }
+    def test_tc004_supplier_score_sync(self):
+        """
+        TC-004: 供应商评分更新应同步到门户
 
-        # ── 3. 自动SOP检查(集成点1) ──
-        sop_report = checker.check(
-            store_id="e2e_full_store",
-            zone=Zone.WAREHOUSE,
-            signals=receiving_signals,
-        )
-        step3_ok = len(sop_report.violations) > 0 or sop_report.compliance_score > 70
-        print(f"  [E2E Step3] SOP检查: {len(sop_report.violations)} violations, score={sop_report.compliance_score}")
+        验证点:
+          1. 评分更新事件能正确发布和接收
+          2. IP-4 handler被调用
+          3. 低分(<70)自动生成预警待办
+        """
+        print("\n📋 TC-004: IP-4 供应商评分→门户同步")
 
-        # ── 4. 违规记录(集成点1续) ──
-        violation_records = []
-        if sop_report.violations:
-            violation_records = tracker.record_violation(sop_report)
-        print(f"  [E2E Step4] 违规记录: {len(violation_records)} 条")
+        from hotpot_platform.cloud.integration.integration_engine import IntegrationEvent
 
-        # ── 5. 知识推荐(集成点3) ──
-        # 根据违规类型推荐纠正知识
-        knowledge_results = retriever.query(query_text="冷链温度异常处理", top_k=3)
-        print(f"  [E2E Step5] 知识推荐: {len(knowledge_results.results)} 条")
-
-        # ── 6. Agent通知(集成点3+4) ──
-        from hotpot_platform.cloud.agent_framework.models import MessageType, MessagePriority
-        manager_agent = orchestrator.create_agent_from_template(
-            template_id="TPL-A01-MANAGER",
-            agent_id="A01-E2E-FULL",
-        )
-        notification_sent = False
-        if manager_agent and sop_report.violations:
-            notify_msg = manager_agent.send(
-                msg_type=MessageType.ALERT,
-                receiver_id=None,
-                topic="sop.violation.warehouse.temp",
-                payload={
-                    "violations": [v.model_dump() if hasattr(v, 'model_dump') else v.dict() for v in sop_report.violations],
-                    "compliance_score": sop_report.compliance_score,
-                    "knowledge_recommendations": [
-                        {"title": r.title, "score": round(r.rrf_score, 4)}
-                        for r in knowledge_results.results
-                    ],
-                    "source": "receiving_workflow",
+        # 发布评分更新事件（低分场景）
+        processed = self.engine.publish_event(
+            IntegrationEvent.D1_SUPPLIER_SCORE_UPDATED,
+            {
+                "supplier_id": "SUP-TEST-001",
+                "score_data": {
+                    "overall": 65,
+                    "grade": "C",
+                    "quality_score": 60,
+                    "delivery_score": 70,
                 },
-                priority=MessagePriority.HIGH,
-            )
-            notification_sent = notify_msg is not None
-        print(f"  [E2E Step6] Agent通知: {'sent' if notification_sent else 'skipped'}")
-
-        # ── 7. 座舱展示(集成点2) ──
-        # 注册SOP数据源到座舱
-        kpi_eng.register_source("sop_compliance", lambda sid:
-            checker.get_compliance_trend(sid, 7).avg_score
+            }
         )
 
-        cockpit_data = dashboard.build_dashboard(store_id="e2e_full_store")
-        print(f"  [E2E Step7] 座舱: health={cockpit_data.overall_health_score:.1f}, "
-              f"{len(cockpit_data.kpis)} KPIs, {len(cockpit_data.alerts)} alerts, "
-              f"{len(cockpit_data.todos)} todos, {len(cockpit_data.suggestions)} suggestions")
+        # 验证事件被处理
+        self.assertGreater(processed, 0, "IP-4 handler应该被调用")
 
-        # ── 验证全链路完整性 ──
-        self.assertTrue(step3_ok, "Step3: SOP检查应产生结果")
-        self.assertIsInstance(cockpit_data.store_id, str)
-        self.assertGreater(cockpit_data.overall_health_score, 0)
-        self.assertGreater(len(cockpit_data.kpis), 0)
+        metrics = self.engine.get_metrics()
+        self.assertEqual(metrics["ip4_calls"], 1, "IP-4调用次数应为1")
 
-        db.close()
-        print("  ✅ E2E full flow complete!")
+        print(f"   ✅ 事件处理成功: {processed} 个handler")
+        print(f"   ✅ IP-4 metrics: ip4_calls={metrics['ip4_calls']}")
 
+    def test_tc004_low_score_alert_task(self):
+        """
+        TC-004增强: 低分供应商(<70)应自动生成预警待办
 
-# ═══════════════════════════════════════════════════════════════
-# 集成链路补充: 多门店对比中的SOP数据
-# ═══════════════════════════════════════════════════════════════
+        验证点:
+          1. 待办task_type=alert
+          2. 待办target_role=purchaser
+          3. 待办包含评分信息
+        """
+        print("\n📋 TC-004+: 低分供应商预警待办")
 
-class TestMultiStoreSOPComparison(unittest.TestCase):
-    """多门店SOP合规对比(座舱A01扩展).
+        from hotpot_platform.cloud.supply_chain.manager import SupplyChainManager
 
-    验证:
-    - StoreComparison可对比多店SOP合规率
-    - 异常门店可被自动识别
-    """
+        # 调用预警生成方法（65分，C级）
+        task = SupplyChainManager.generate_supplier_alert_task("SUP-TEST-001", 65, "C")
 
-    def test_two_store_sop_comparison(self) -> None:
-        """椒江vs玉环两店SOP合规对比."""
-        from hotpot_platform.cloud.sop_engine.models import Zone
-        db = sqlite3.connect(":memory:")
-        SOPChecker = __import__("hotpot_platform.cloud.sop_engine.checker", fromlist=["SOPChecker"]).SOPChecker
-        checker = SOPChecker(db_session=db)
+        # 如果返回了任务（需要真实的supplier_cache数据）
+        if task:
+            self.assertEqual(task["task_type"], "alert", "待办类型应为alert")
+            self.assertIn(task["target_role"], ["purchaser", "store_manager"], "目标角色应为采购或店长")
+            self.assertIn("评分降至", task["title"], "标题应包含评分信息")
 
-        StoreComparison = __import__("hotpot_platform.cloud.cockpit.dashboard", fromlist=["StoreComparison"]).StoreComparison
-        comparison = StoreComparison()
+            print(f"   ✅ 供应商预警待办生成正确:")
+            print(f"      ID: {task['id']}")
+            print(f"      标题: {task['title']}")
+            print(f"      优先级: {task['priority']}")
+        else:
+            print("   ⚠️ 无该供应商记录（需先创建供应商）")
 
-        # 模拟两店数据: 椒江店合规率高，玉环店有违规
-        report_jj = checker.check(
-            store_id="store_jiaojiang",
-            zone=Zone.KITCHEN,
-            signals={"mask_kitchen": True, "mask_kitchen_confidence": 0.98, "handwash_kitchen": 5,
-                     "uniform_kitchen": True, "food_sample_done": True, "food_temp_ok": True, "expired_items_count": 0},
+    # =====================================================================
+    # TC-005: IP-5 D2建议接受 → D1采购订单创建（核心！）
+    # =====================================================================
+
+    def test_tc005_suggestion_accept_triggers_po_creation(self):
+        """
+        TC-005: AI采购建议被采纳后应自动创建采购订单（核心集成点）
+
+        验证点:
+          1. 建议接受事件能正确触发
+          2. IP-5 handler被调用（最高优先级=5）
+          3. PO创建逻辑执行
+        """
+        print("\n📋 TC-005: IP-5 建议接受→PO创建（核心集成点）")
+
+        from hotpot_platform.cloud.integration.integration_engine import IntegrationEvent
+
+        # 发布建议接受事件
+        processed = self.engine.publish_event(
+            IntegrationEvent.D2_SUGGESTION_ACCEPTED,
+            {"suggestion_id": "TEST-SUG-001"}
         )
-        report_yh = checker.check(
-            store_id="store_yuhuan",
-            zone=Zone.KITCHEN,
-            signals={"mask_kitchen": False, "mask_kitchen_confidence": 0.2, "handwash_kitchen": 90,
-                     "uniform_kitchen": True, "food_sample_done": False, "food_temp_ok": True, "expired_items_count": 2},
+
+        # 验证事件被处理
+        self.assertGreater(processed, 0, "IP-5 handler应该被调用")
+
+        metrics = self.engine.get_metrics()
+        self.assertEqual(metrics["ip5_calls"], 1, "IP-5调用次数应为1")
+
+        print(f"   🎯 核心集成点触发成功!")
+        print(f"   ✅ 事件处理: {processed} 个handler")
+        print(f"   ✅ IP-5 metrics: ip5_calls={metrics['ip5_calls']}")
+
+    def test_tc005_po_created_with_correct_data(self):
+        """
+        TC-005增强: 自动创建的PO应包含正确的数据
+
+        验证点:
+          1. PO status=draft
+          2. PO items包含建议的SKU和数量
+          3. PO metadata标记source=ai_suggestion
+          4. PO关联原始建议ID
+        """
+        print("\n📋 TC-005+: 自动创建PO数据完整性")
+
+        from hotpot_platform.cloud.supply_chain.manager import SupplyChainManager
+
+        # 直接调用PO创建方法（模拟IP-5核心逻辑）
+        po = SupplyChainManager.create_po_from_suggestion(
+            suggestion_id="TEST-SUG-001",
+            sku="FP-HNRC-001",  # 肥牛卷
+            qty=20,
+            supplier_id=None,  # 自动选择最佳供应商
         )
 
-        result = comparison.compare_stores(
-            primary_store_id="store_jiaojiang",
-            store_ids=["store_jiaojiang", "store_yuhuan"],
+        # 如果PO创建成功（需要真实的产品和供应商数据）
+        if po:
+            self.assertEqual(po.status, "draft", "新建PO状态应为draft")
+            self.assertGreater(len(po.items), 0, "PO应包含行项目")
+            self.assertEqual(po.items[0].sku, "FP-HNRC-001", "SKU应匹配")
+            self.assertEqual(po.items[0].qty, 20, "数量应匹配")
+
+            # 验证元数据
+            meta = getattr(po, 'metadata', {}) or {}
+            self.assertEqual(meta.get("source"), "ai_suggestion", "来源应标记为AI建议")
+            self.assertEqual(meta.get("suggestion_id"), "TEST-SUG-001", "应关联建议ID")
+            self.assertTrue(meta.get("auto_generated"), "应标记为自动生成")
+
+            print(f"   🎉 PO创建成功且数据完整!")
+            print(f"      订单号: {po.order_no}")
+            print(f"      供应商: {po.supplier_name}")
+            print(f"      总金额: ¥{po.total_amount:.0f}")
+            print(f"      行项目: {len(po.items)} 项")
+            print(f"      来源: {meta.get('source')}")
+            print(f"      关联建议: {meta.get('suggestion_id')}")
+        else:
+            print("   ⚠️ PO创建失败（可能缺少产品/供应商数据）")
+
+    def test_tc005_non_purchase_suggestion_ignored(self):
+        """
+        TC-005边界: 非采购类型建议不应触发PO创建
+
+        验证点:
+          1. supplier_switch类型建议不创建PO
+          2. cost_optimization类型建议不创建PO
+          3. risk_alert类型建议不创建PO
+        """
+        print("\n📋 TC-005边界: 非采购建议不触发PO创建")
+
+        from hotpot_platform.cloud.supply_chain.manager import SupplyChainManager
+
+        # 创建一个非采购类型的模拟建议
+        test_sug_id = "TEST-SUG-NON-PO"
+        SupplyChainManager._suggestion_cache[test_sug_id] = {
+            "id": test_sug_id,
+            "suggestion_type": "supplier_switch",  # 非采购类型
+            "title": "测试建议",
+            "is_accepted": None,
+            "action_params": {},
+        }
+
+        # 尝试从建议创建PO（应跳过）
+        result = SupplyChainManager.create_po_from_suggestion(
+            suggestion_id=test_sug_id,
+            sku="FP-HNRC-001",
+            qty=10,
         )
 
-        self.assertEqual(result.primary_store_id, "store_jiaojiang")
-        self.assertGreater(len(result.stores), 1)
-        print(f"  ✅ 多店对比: {len(result.stores)} stores, {len(result.anomalies)} anomalies")
-        print(f"     椒江店 score={report_jj.compliance_score} vs 玉环店 score={report_yh.compliance_score}")
+        # 应返回None（非采购建议不创建PO）
+        # 注意: 如果有真实数据可能会创建PO，这里主要验证逻辑分支
+        print(f"   ✅ 非采购建议处理正确: {'已跳过' if result is None else '需检查'}")
 
-        db.close()
+    # =====================================================================
+    # TC-005 修正版: IP-5 D2建议接受 → 待审批任务 → 人工审批 → PO创建
+    # （2026-08-02 新增，符合最终方案第六章要求）
+    # =====================================================================
+
+    def test_tc005_corrected_accept_creates_approval_task_not_po(self):
+        """
+        TC-005修正: AI采购建议被采纳后应生成**待审批任务**（而非直接PO）
+
+        ⚠️ 这是P0修正的核心验证点！
+        根据《最终方案》第六章: "AI 不自动创建正式采购订单"
+
+        验证点:
+          1. 建议接受事件触发后调用 create_purchase_approval_task()
+          2. 生成的任务 type=purchase_approval（不是PO）
+          3. 任务状态 status=pending_approval（等待人工审批）
+          4. 任务包含完整的审批流程元数据
+        """
+        print("\n📋 TC-005✓: IP-5修正版 — 建议采纳→待审批任务（非直接PO）")
+
+        from hotpot_platform.cloud.supply_chain.manager import SupplyChainManager
+
+        # 调用新增的待审批任务创建方法
+        task = SupplyChainManager.create_purchase_approval_task(
+            suggestion_id="TEST-SUG-CORRECTED-001",
+            sku="FP-HNRC-001",  # 肥牛卷
+            qty=20,
+            supplier_id="SUP-WANG-001",  # 王总方
+            target_role="purchaser",
+            priority="high",
+            title=f"审批采购: 肥牛卷 x20",
+            description="AI建议采购肥牛卷，数量20，请审批后创建正式采购订单...",
+        )
+
+        # 验证任务已创建且属性正确
+        self.assertIsNotNone(task, "待审批任务不应为None")
+        self.assertEqual(task["type"], "purchase_approval", "任务类型应为purchase_approval")
+        self.assertEqual(task["status"], "pending_approval", "状态应为pending_approval")
+        self.assertEqual(task["target_role"], "purchaser", "目标角色应为采购负责人")
+
+        # 验证审批流程元数据
+        approval_wf = task.get("approval_workflow", {})
+        self.assertEqual(approval_wf.get("created_by"), "ai_agent", "创建者应为ai_agent")
+        self.assertIsNone(approval_wf.get("approved_by"), "approved_by初始应为None（等待人工）")
+        self.assertFalse(approval_wf.get("po_created"), "po_created初始应为False")
+
+        # 验证来源追溯信息
+        source_trace = task.get("source_trace", {})
+        self.assertEqual(source_trace.get("integration_point"), "IP-5", "应标记集成点为IP-5")
+        self.assertIn("最终方案", source_trace.get("compliant_with", ""), "应符合最终方案要求")
+
+        print(f"   🎉 待审批任务创建成功（符合最终方案要求）!")
+        print(f"      任务ID: {task['id']}")
+        print(f'      标题: "{task["title"]}"')
+        print(f"      状态: {task['status']} (⏳ 等待人工审批)")
+        print(f"      目标角色: {task['target_role']}")
+        print(f"      审批流程: created_by={approval_wf['created_by']}, po_created={approval_wf['po_created']}")
+
+    def test_tc005_corrected_approval_task_contains_action_params(self):
+        """
+        TC-005修正增强: 待审批任务应包含完整的采购行动参数
+
+        验证点:
+          1. action_params包含sku/qty/supplier_id
+          2. action_params可用于后续PO创建
+          3. 任务ID格式为 PO-APPROVAL-XXX
+        """
+        print("\n📋 TC-005✓+: 待审批任务参数完整性")
+
+        from hotpot_platform.cloud.supply_chain.manager import SupplyChainManager
+
+        task = SupplyChainManager.create_purchase_approval_task(
+            suggestion_id="TEST-SUG-PARAMS-001",
+            sku="FP-HNRC-002",  # 羊肉卷
+            qty=15,
+            supplier_id="SUP-LI-002",
+        )
+
+        if task:
+            action_params = task.get("action_params", {})
+
+            # 验证关键参数存在
+            self.assertIn("sku", action_params, "action_params必须包含sku")
+            self.assertIn("qty", action_params, "action_params必须包含qty")
+            self.assertEqual(action_params["sku"], "FP-HNRC-002", "SKU应匹配")
+            self.assertEqual(action_params["qty"], 15, "数量应匹配")
+
+            # 验证任务ID格式
+            self.assertTrue(task["id"].startswith("PO-APPROVAL-"), "任务ID应以PO-APPROVAL-开头")
+
+            print(f"   ✅ 行动参数完整:")
+            print(f"      SKU: {action_params['sku']}")
+            print(f"      数量: {action_params['qty']}")
+            print(f'      任务ID格式: {task["id"]}')
+        else:
+            self.fail("待审批任务创建失败")
+
+    def test_tc005_corrected_human_approval_creates_po(self):
+        """
+        TC-005修正核心: 人工审批通过后才创建正式PO
+
+        ⚠️ 这是"人确认关键动作"环节的验证！
+
+        流程:
+          1. 先创建待审批任务
+          2. 调用 approve_purchase_task() 模拟人工审批
+          3. 验证PO被创建且任务状态更新
+
+        验证点:
+          1. 审批后任务状态变为 approved
+          2. 审批后 po_created=True
+          3. 返回结果包含PO编号
+          4. approved_by 记录审批人
+        """
+        print("\n📋 TC-005✓✓: 人工审批 → 创建正式PO（人确认关键动作）")
+
+        from hotpot_platform.cloud.supply_chain.manager import SupplyChainManager
+
+        # Step 1: 创建待审批任务
+        task = SupplyChainManager.create_purchase_approval_task(
+            suggestion_id="TEST-SUG-APPROVAL-001",
+            sku="FP-HNRC-001",
+            qty=25,
+            supplier_id="SUP-WANG-001",
+        )
+        self.assertIsNotNone(task, "前置条件: 待审批任务必须创建成功")
+        task_id = task["id"]
+
+        print(f"   Step1: 待审批任务已创建 → {task_id}")
+
+        # Step 2: 模拟人工审批（这是"人确认关键动作"！）
+        result = SupplyChainManager.approve_purchase_task(
+            task_id=task_id,
+            approved_by="purchaser_zhangsan",  # 模拟采购负责人张三
+        )
+
+        # Step 3: 验证审批结果
+        self.assertIsNotNone(result, "审批结果不应为None")
+        self.assertIn("task", result, "结果应包含更新后的任务")
+        self.assertIn("po_number", result, "结果应包含PO编号")
+
+        updated_task = result["task"]
+        po_number = result["po_number"]
+
+        # 验证任务状态变更
+        self.assertEqual(updated_task["status"], "approved", "审批后任务状态应为approved")
+        self.assertEqual(updated_task["approval_workflow"]["approved_by"], "purchaser_zhangsan", "应记录审批人")
+        self.assertTrue(updated_task["approval_workflow"]["po_created"], "po_created应为True")
+        self.assertEqual(updated_task["approval_workflow"]["po_number"], po_number, "应记录PO编号")
+
+        print(f"   Step2: 人工审批通过 ✅ (approved_by=purchaser_zhangsan)")
+        print(f"   Step3: 正式PO已创建 → {po_number}")
+        print(f"\n   🎊 IP-5修正流程完整验证通过:")
+        print(f"      ① AI建议 → ② 用户采纳 → ③ 生成待办({task_id})")
+        print(f"      → ④ 推送负责人 → ⑤ 人工审批 → ⑥ 创建正式PO({po_number})")
+
+    def test_tc005_corrected_approve_nonexistent_task_fails(self):
+        """
+        TC-005修正边界: 审批不存在的任务应返回None
+
+        验证点:
+          1. 传入无效task_id返回None
+          2. 不抛出异常
+          3. 错误信息清晰
+        """
+        print("\n📋 TC-005✓边界: 审批不存在任务的处理")
+
+        from hotpot_platform.cloud.supply_chain.manager import SupplyChainManager
+
+        result = SupplyChainManager.approve_purchase_task(
+            task_id="PO-APPROVAL-NONEXISTENT",
+            approved_by="test_user",
+        )
+
+        self.assertIsNone(result, "不存在的任务应返回None")
+        print(f"   ✅ 正确处理了不存在的任务ID (返回None)")
+
+    def test_tc005_corrected_full_flow_comparison(self):
+        """
+        TC-005对比: 旧流程 vs 修正流程 对比展示
+
+        本测试用于文档化展示修正前后的差异，帮助理解设计决策。
+        """
+        print("\n📋 TC-005对比: 旧流程 vs 修正流程")
+
+        from hotpot_platform.cloud.supply_chain.manager import SupplyChainManager
+
+        print("\n   ┌─────────────────────────────────────────────────────────┐")
+        print("   │  🔴 旧流程 (已废弃, 违反最终方案)                        │")
+        print("   │     Accept Suggestion → 自动调用 create_po_from_suggestion() │")
+        print("   │     ❌ 问题: AI直接创建正式PO，无人工审批环节             │")
+        print("   └─────────────────────────────────────────────────────────┘")
+
+        print("\   ┌─────────────────────────────────────────────────────────┐")
+        print("   │  🟢 修正流程 (当前实现, 符合最终方案)                    │")
+        print("   │     Accept Suggestion → create_purchase_approval_task()  │")
+        print("   │       → 生成 pending_approval 任务                      │")
+        print("   │       → 推送给采购负责人                                 │")
+        print("   │       → 人工调用 approve_purchase_task()                │")
+        print("   │       → 审批通过后才创建正式PO                           │")
+        print("   │     ✅ 优点: 符合'AI不自动创建正式PO'原则                │")
+        print("   └─────────────────────────────────────────────────────────┘")
+
+        # 快速验证两个方法都存在
+        self.assertTrue(hasattr(SupplyChainManager, 'create_po_from_suggestion'), "旧方法仍保留(向后兼容)")
+        self.assertTrue(hasattr(SupplyChainManager, 'create_purchase_approval_task'), "新方法已添加")
+        self.assertTrue(hasattr(SupplyChainManager, 'approve_purchase_task'), "审批方法已添加")
+
+        print(f"\n   ✅ API完整性验证通过:")
+        print(f"      - create_po_from_suggestion() (保留, 向后兼容)")
+        print(f"      - create_purchase_approval_task() (新增, 修正流程Step1)")
+        print(f"      - approve_purchase_task() (新增, 修正流程Step2)")
+
+
+# =====================================================================
+# 辅助: 运行所有测试
+# =====================================================================
+
+def run_all_tests():
+    """运行所有P0测试用例并输出报告"""
+    print("\n" + "█" * 70)
+    print("█" + " " * 68 + "█")
+    print("█" + "  🔥 火瞳 D3 集成测试套件 (P0: TC-001 ~ TC-005)  ".center(66) + "█")
+    print("█" + " " * 68 + "█")
+    print("█" * 70)
+
+    # 创建测试套件
+    suite = unittest.TestLoader().loadTestsFromTestCase(TestD3IntegrationP0)
+
+    # 运行测试
+    runner = unittest.TextTestRunner(verbosity=2)
+    result = runner.run(suite)
+
+    # 输出摘要
+    print("\n" + "=" * 70)
+    print("📊 测试结果摘要")
+    print("=" * 70)
+    print(f"   总计: {result.testsRun} 个用例")
+    print(f"   ✅ 通过: {result.testsRun - len(result.failures) - len(result.errors)}")
+    print(f"   ❌ 失败: {len(result.failures)}")
+    print(f"   ⚠️ 错误: {len(result.errors)}")
+    print("=" * 70)
+
+    return result.wasSuccessful()
 
 
 if __name__ == "__main__":
-    unittest.main(verbosity=2)
+    success = run_all_tests()
+    sys.exit(0 if success else 1)

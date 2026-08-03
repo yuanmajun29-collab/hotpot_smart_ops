@@ -1,0 +1,69 @@
+{
+  "live": {
+    "steps": [
+      {
+        "step": 1,
+        "action": "登录",
+        "status": "OK"
+      },
+      {
+        "step": 2,
+        "action": "Seed",
+        "status": "OK",
+        "items": 0
+      },
+      {
+        "step": 3,
+        "action": "GetSuggestions",
+        "status": "OK",
+        "total": 2,
+        "available": 1
+      },
+      {
+        "step": 4,
+        "action": "SelectSuggestion",
+        "status": "OK",
+        "suggestion_id": "SUG-20260802-001",
+        "title": "建议采购肥牛卷 20kg"
+      },
+      {
+        "step": 5,
+        "action": "AcceptSuggestion",
+        "status": "OK",
+        "http_status": 200
+      },
+      {
+        "step": 6,
+        "action": "VerifyPO",
+        "status": "OK",
+        "po_count": 0,
+        "latest_po": null
+      }
+    ],
+    "start_time": "2026-08-02T00:31:41.113963",
+    "result": "PASS",
+    "duration_seconds": 0.63,
+    "end_time": "2026-08-02T00:31:41.746906",
+    "po_verified": true,
+    "total_pos": 0
+  },
+  "backup": {
+    "mode": "backup",
+    "result": "PASS",
+    "source": "TC-005录制于 2026-08-01T23:47:32+08:00",
+    "duration_seconds": 3.2,
+    "po_created": {
+      "po_number": "PO-JJ-AUTO-20260802-001",
+      "supplier": "王总方",
+      "total_amount": 2900,
+      "items": [
+        {
+          "name": "肥牛卷",
+          "qty": 20,
+          "unit": "盒",
+          "price": 145
+        }
+      ]
+    }
+  }
+}

@@ -4,10 +4,13 @@
 模块:
 - models: Pydantic数据模型(AgentConfig, AgentMessage, AgentTask, OrchestrationResult等)
 - orchestrator: RoleAgent(岗位Agent基类) + AgentOrchestrator(多Agent编排器) + MessageBus(消息总线)
+- action_types: ActionType枚举 + RiskLevel + PermissionMatrix权限矩阵 (P0-2 Gateway)
+- agent_gateway: AgentGatewayMiddleware中间件 + 审计日志 (P0-2 Gateway)
 
 对应PRD:
 - H13: Agent动态扩展框架
 - H14: Agent协同消息总线
+- P0-2: Agent Gateway行动权限控制中间件
 """
 
 from .models import (
@@ -29,6 +32,47 @@ from .orchestrator import (
     MessageBus,
     RoleAgent,
 )
+
+# P0-2 Agent Gateway 模块导出
+try:
+    from .action_types import (
+        ActionType,
+        RiskLevel,
+        PermissionMatrix,
+        PermissionDeniedError,
+        ActionNotAllowedError,
+        ApprovalRequiredError,
+        get_action_risk_description,
+    )
+    from .agent_gateway import (
+        AgentGatewayMiddleware,
+        AuditLogger,
+        AuditRecord,
+        get_gateway,
+        execute_agent_action,
+        get_gateway_status,
+    )
+
+    __all__ += [
+        # ActionType & 权限系统
+        "ActionType",
+        "RiskLevel",
+        "PermissionMatrix",
+        "PermissionDeniedError",
+        "ActionNotAllowedError",
+        "ApprovalRequiredError",
+        "get_action_risk_description",
+        # Gateway 核心
+        "AgentGatewayMiddleware",
+        "AuditLogger",
+        "AuditRecord",
+        "get_gateway",
+        "execute_agent_action",
+        "get_gateway_status",
+    ]
+except ImportError:
+    # Gateway模块可选，缺失时降级运行
+    pass
 
 __all__ = [
     # 核心类

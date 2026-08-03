@@ -91,6 +91,31 @@
   .empty-state { text-align: center; padding: 32px; color: #9ca3af; }
   .empty-state .icon { font-size: 40px; margin-bottom: 8px; }
 
+  /* Approval Card (新增) */
+  .approval-card { background: linear-gradient(135deg, #fef3c7 0%, #fde68a 100%); border: 1px solid #f59e0b;
+    border-radius: 10px; padding: 14px 16px; margin-bottom: 12px; }
+  .approval-header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 8px; }
+  .approval-title { font-size: 14px; font-weight: 600; color: #92400e; }
+  .approval-badge { font-size: 11px; background: #f59e0b; color: #fff; padding: 2px 10px; border-radius: 10px; font-weight: 600; }
+  .approval-item { display: flex; align-items: center; gap: 10px; padding: 8px 0; border-bottom: 1px dashed #fcd34d; }
+  .approval-item:last-child { border-bottom: none; }
+  .approval-icon { width: 32px; height: 32px; border-radius: 8px; display: flex; align-items: center; justify-content: center;
+    font-size: 16px; flex-shrink: 0; }
+  .icon-po { background: #fee2e2; } .icon-approve { background: #d1fae5; }
+  .approval-info { flex: 1; min-width: 0; }
+  .approval-sku { font-size: 13px; font-weight: 500; color: #111827; }
+  .approval-meta { font-size: 11px; color: #9ca3af; margin-top: 2px; }
+  .approval-action { flex-shrink: 0; }
+  .btn-approve-sm { padding: 4px 12px; border-radius: 4px; font-size: 11px; cursor: pointer;
+    border: 1px solid #10b981; background: #fff; color: #10b981; transition: all 0.15s; }
+  .btn-approve-sm:hover { background: #10b981; color: #fff; }
+
+  /* Gateway Status Badge */
+  .gateway-badge { display: inline-flex; align-items: center; gap: 4px; padding: 3px 10px; border-radius: 12px;
+    font-size: 11px; font-weight: 500; }
+  .gw-active { background: #d1fae5; color: #065f46; }
+  .gw-inactive { background: #fee2e2; color: #991b1b; }
+
   /* Responsive */
   @media (max-width: 1024px) {
     .kpi-row { grid-template-columns: repeat(3, 1fr); }
@@ -140,6 +165,18 @@
       <div class="sug-list" id="sugList">
         <div class="empty-state"><div class="icon">&#129302;</div>加载中...</div>
       </div>
+    </div>
+  </div>
+
+  <!-- Approval Panel (新增 - Gateway审批状态) -->
+  <div class="panel" style="margin-top:20px;">
+    <div class="panel-title">
+      &#9989; 待审批任务
+      <span id="gatewayStatus" class="gateway-badge gw-inactive">Gateway离线</span>
+      <span id="approvalCount" style="color:#f59e0b;font-weight:700;margin-left:8px;"></span>
+    </div>
+    <div id="approvalList">
+      <div class="empty-state"><div class="icon">&#128276;</div>加载中...</div>
     </div>
   </div>
 
