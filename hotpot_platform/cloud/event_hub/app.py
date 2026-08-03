@@ -96,6 +96,19 @@ def validate_deployment_profile() -> None:
 
 def startup() -> None:
     validate_deployment_profile()
+
+    # ── P0-B Phase 2: 自动初始化审计Schema (零配置部署) ──
+    if os.environ.get("HOTPOT_DATABASE_URL"):
+        try:
+            from hotpot_platform.cloud.event_hub.middleware.db_init import init_all_schemas
+            init_results = init_all_schemas()
+            if all(init_results.values()):
+                print("[EventHub] ✅ P0-B 审计Schema初始化完成 (audit + product_master)")
+            else:
+                print("[EventHub] ⚠️ P0-B 部分Schema初始化失败，Gateway审计功能可能受限")
+        except Exception as e:
+            print(f"[EventHub] ⚠️ P0-B Schema初始化异常: {e} (非致命，继续启动)")
+
     runtime.org_registry.apply_to_hub(runtime.hub)
     seed_dir = os.environ.get("HOTPOT_SEED_DIR", "")
     if not runtime.db.is_empty():

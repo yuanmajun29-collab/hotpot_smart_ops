@@ -125,7 +125,7 @@ class AuditRecord:
     """审计记录 — 落 PG append-only 表"""
     audit_id: str = field(default_factory=lambda: str(uuid.uuid4()))
     timestamp: str = field(default_factory=lambda: datetime.now().isoformat())
-    correlation_id: str = ""  # 全链路追踪ID
+    correlation_id: str = field(default_factory=lambda: str(uuid.uuid4()))  # 自动生成UUID
 
     # 身份信息 (从 JWT 提取)
     user_id: str = ""
