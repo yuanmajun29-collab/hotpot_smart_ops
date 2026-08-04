@@ -1,0 +1,390 @@
+{
+  "verification_id": "G2-20260804-224657",
+  "timestamp": "2026-08-04T14:46:57.432377+00:00",
+  "environment": {
+    "platform": "darwin",
+    "python_version": "3.13.12",
+    "project_root": "/Users/apple/WorkBuddy/2026-07-24-20-31-16/hotpot_smart_ops",
+    "r7_data_exists": true,
+    "r7_files": [
+      "r7_demo_supply-chain.json",
+      "r7_demo_cleaning-loop.json",
+      "r7_demo_ai-assistant.json",
+      "r7_demo_vision-engine.json",
+      "r7_demo_master_report.json"
+    ]
+  },
+  "scenes": [
+    {
+      "scene_id": "cleaning-loop",
+      "scene_name": "P0 清台任务闭环",
+      "steps": [
+        {
+          "step_id": "CL-01",
+          "step_name": "加载R7清台标注数据",
+          "status": "PASS",
+          "duration_ms": 0.1552104949951172,
+          "details": "加载 r7_demo_cleaning-loop.json: 11 events, 2 tasks, 3 KPIs",
+          "evidence": {
+            "file_size_bytes": 24212,
+            "event_count": 11,
+            "task_count": 2,
+            "kpi_snapshot_count": 3,
+            "provenance_version": "v1.0.0",
+            "has_loop_def": true
+          },
+          "error": null
+        },
+        {
+          "step_id": "CL-02",
+          "step_name": "视觉事件解析与置信度检查",
+          "status": "PASS",
+          "duration_ms": 0.007867813110351562,
+          "details": "11 events, avg_conf=82.5%, min_conf=76.2%, need_clean=4",
+          "evidence": {
+            "total_events": 11,
+            "avg_confidence": 0.8247,
+            "min_confidence": 0.7616,
+            "need_clean_events": 4,
+            "accuracy_threshold": 0.7,
+            "accuracy_met": true
+          },
+          "error": null
+        },
+        {
+          "step_id": "CL-03",
+          "step_name": "自动建任务逻辑验证",
+          "status": "PASS",
+          "duration_ms": 0.007152557373046875,
+          "details": "need_clean_events=4, auto_tasks=2, spawn_rate=66.7%",
+          "evidence": {
+            "need_clean_event_count": 4,
+            "auto_task_count": 2,
+            "spawn_rate_pct": 66.7,
+            "threshold_pct": 60,
+            "spawn_rate_met": true
+          },
+          "error": null
+        },
+        {
+          "step_id": "CL-04",
+          "step_name": "任务状态流转(创建→接单→执行→完成)",
+          "status": "PASS",
+          "duration_ms": 0.0026226043701171875,
+          "details": "tasks=2, lifecycle_complete=2(100%)",
+          "evidence": {
+            "total_tasks": 2,
+            "lifecycle_complete": 2,
+            "completion_rate_pct": 100.0,
+            "lifecycle_samples": [
+              {
+                "task_id": "TSK-0001",
+                "states_covered": 3,
+                "final_status": "completed"
+              },
+              {
+                "task_id": "TSK-0002",
+                "states_covered": 3,
+                "final_status": "completed"
+              }
+            ]
+          },
+          "error": null
+        },
+        {
+          "step_id": "CL-05",
+          "step_name": "KPI指标提取与回写",
+          "status": "PASS",
+          "duration_ms": 0.0040531158447265625,
+          "details": "kpi_snapshots=3, valid=2(67%)",
+          "evidence": {
+            "total_kpi_snapshots": 3,
+            "valid_kpis": 2,
+            "writeback_rate_pct": 66.7,
+            "threshold_pct": 60,
+            "kpi_metrics": [
+              {
+                "id": "cleaning_response_time",
+                "value": 55,
+                "status": "good"
+              },
+              {
+                "id": "cleaning_response_time",
+                "value": 101,
+                "status": "good"
+              },
+              {
+                "id": null,
+                "value": null,
+                "status": null
+              }
+            ]
+          },
+          "error": null
+        },
+        {
+          "step_id": "CL-06",
+          "step_name": "全链路数据完整性校验",
+          "status": "PASS",
+          "duration_ms": 0.0069141387939453125,
+          "details": "integrity=100.0% (65/65), loop_steps=0/7",
+          "evidence": {
+            "integrity_score": 65,
+            "total_checks": 65,
+            "integrity_pct": 100.0,
+            "loop_step_count": 0,
+            "loop_completeness_pct": 0,
+            "threshold_pct": 100
+          },
+          "error": null
+        }
+      ],
+      "start_time": "2026-08-04T22:46:57.432698",
+      "end_time": "2026-08-04T22:46:57.432894",
+      "total_duration_ms": 0.0
+    },
+    {
+      "scene_id": "vision-engine",
+      "scene_name": "S1 后厨之眼 (损耗检测+SOP)",
+      "steps": [
+        {
+          "step_id": "VE-01",
+          "step_name": "加载S1视觉数据",
+          "status": "PASS",
+          "duration_ms": 0.13899803161621094,
+          "details": "加载 r7_demo_vision-engine.json",
+          "evidence": {
+            "waste_events": 27,
+            "sop_checks": 0,
+            "days_covered": 0
+          },
+          "error": null
+        },
+        {
+          "step_id": "VE-02",
+          "step_name": "损耗事件分析",
+          "status": "PASS",
+          "duration_ms": 0.0057220458984375,
+          "details": "27 events, types=['unknown'], total=0.0kg, daily_avg=0.00kg",
+          "evidence": {
+            "total_events": 27,
+            "waste_type_distribution": {
+              "unknown": 27
+            },
+            "total_weight_kg": 0,
+            "avg_daily_waste_kg": 0.0,
+            "days_analyzed": 1
+          },
+          "error": null
+        },
+        {
+          "step_id": "VE-03",
+          "step_name": "SOP合规评分",
+          "status": "PASS",
+          "duration_ms": 0.00286102294921875,
+          "details": "records=1, avg_score=95.0, min=95.0, compliance_rate=100%",
+          "evidence": {
+            "total_records": 1,
+            "avg_score": 95.0,
+            "min_score": 95,
+            "compliance_rate_pct": 100.0,
+            "pass_threshold": 85
+          },
+          "error": null
+        },
+        {
+          "step_id": "VE-04",
+          "step_name": "时间序列完整性",
+          "status": "PASS",
+          "duration_ms": 0.00286102294921875,
+          "details": "days=7, gaps=0, completeness=100%",
+          "evidence": {
+            "total_days": 7,
+            "date_gaps": 0,
+            "completeness_pct": 100.0,
+            "date_range": "2026-08-04 ~ 2026-07-29"
+          },
+          "error": null
+        }
+      ],
+      "start_time": "2026-08-04T22:46:57.432906",
+      "end_time": "2026-08-04T22:46:57.433062",
+      "total_duration_ms": 0.0
+    },
+    {
+      "scene_id": "supply-chain",
+      "scene_name": "S3 供应链 (采购→收货→质检)",
+      "steps": [
+        {
+          "step_id": "SC-01",
+          "step_name": "加载S3供应链数据",
+          "status": "PASS",
+          "duration_ms": 0.08273124694824219,
+          "details": "",
+          "evidence": {
+            "products": 6,
+            "purchase_orders": 3,
+            "receiving_records": 2
+          },
+          "error": null
+        },
+        {
+          "step_id": "SC-02",
+          "step_name": "产品主数据完整性",
+          "status": "PASS",
+          "duration_ms": 0.0069141387939453125,
+          "details": "products=6, complete=6(100%)",
+          "evidence": {
+            "total_products": 6,
+            "complete_products": 6,
+            "completeness_pct": 100.0,
+            "categories": [
+              "FROZEN_MEAT",
+              "VEGETABLE",
+              "SEASONING"
+            ],
+            "sample_skus": [
+              "PROD-001",
+              "PROD-002",
+              "PROD-003",
+              "PROD-004",
+              "PROD-005"
+            ]
+          },
+          "error": null
+        },
+        {
+          "step_id": "SC-03",
+          "step_name": "采购订单→收货映射",
+          "status": "PASS",
+          "duration_ms": 0.0021457672119140625,
+          "details": "POs=3, receiving=2, mapped=2(67%)",
+          "evidence": {
+            "total_purchase_orders": 3,
+            "total_receiving_records": 2,
+            "mapped_po_count": 2,
+            "mapping_rate_pct": 66.7
+          },
+          "error": null
+        },
+        {
+          "step_id": "SC-04",
+          "step_name": "质检等级分布",
+          "status": "PASS",
+          "duration_ms": 0.00286102294921875,
+          "details": "items=6, A=3 B=2 C=1 D=0, pass_rate=83%",
+          "evidence": {
+            "total_items": 6,
+            "grade_distribution": {
+              "A": 3,
+              "B": 2,
+              "C": 1,
+              "D": 0
+            },
+            "pass_rate_pct": 83.3,
+            "d_grade_count": 0
+          },
+          "error": null
+        }
+      ],
+      "start_time": "2026-08-04T22:46:57.433069",
+      "end_time": "2026-08-04T22:46:57.433169",
+      "total_duration_ms": 0.0
+    },
+    {
+      "scene_id": "ai-assistant",
+      "scene_name": "S4 AI助理 (岗位Agent交互)",
+      "steps": [
+        {
+          "step_id": "AA-01",
+          "step_name": "加载S4 AI助理数据",
+          "status": "PASS",
+          "duration_ms": 0.10395050048828125,
+          "details": "",
+          "evidence": {
+            "interactions": 12,
+            "messages": 7,
+            "suggestions": 5
+          },
+          "error": null
+        },
+        {
+          "step_id": "AA-02",
+          "step_name": "Agent角色覆盖",
+          "status": "PASS",
+          "duration_ms": 0.0050067901611328125,
+          "details": "roles={'kitchen', 'store_manager', 'procurement'}, covered={'kitchen', 'store_manager', 'procurement'}",
+          "evidence": {
+            "expected_roles": [
+              "kitchen",
+              "store_manager",
+              "front_hall",
+              "procurement"
+            ],
+            "actual_roles": [
+              "kitchen",
+              "store_manager",
+              "procurement"
+            ],
+            "covered_roles": [
+              "kitchen",
+              "store_manager",
+              "procurement"
+            ],
+            "coverage_rate": "3/4"
+          },
+          "error": null
+        },
+        {
+          "step_id": "AA-03",
+          "step_name": "消息交互完整性",
+          "status": "WARN",
+          "duration_ms": 0.0030994415283203125,
+          "details": "messages=7, paired=3(43%)",
+          "evidence": {
+            "total_messages": 7,
+            "request_count": 4,
+            "response_count": 3,
+            "paired_count": 3,
+            "pairing_rate_pct": 42.9
+          },
+          "error": null
+        },
+        {
+          "step_id": "AA-04",
+          "step_name": "建议采纳率",
+          "status": "PASS",
+          "duration_ms": 0.0040531158447265625,
+          "details": "suggestions=5, adopted=0(0%)",
+          "evidence": {
+            "total_suggestions": 5,
+            "adopted_count": 0,
+            "adoption_rate_pct": 0.0,
+            "suggestion_types": [
+              "库存补货建议",
+              "供应商比价",
+              "损耗率偏高提醒",
+              "SOP纠偏提醒",
+              "设备巡检提醒"
+            ]
+          },
+          "error": null
+        }
+      ],
+      "start_time": "2026-08-04T22:46:57.433175",
+      "end_time": "2026-08-04T22:46:57.433295",
+      "total_duration_ms": 0.0
+    }
+  ],
+  "summary": {
+    "total_scenes": 4,
+    "passed_scenes": 3,
+    "total_steps": 18,
+    "passed_steps": 17,
+    "failed_steps": 0,
+    "warned_steps": 1,
+    "overall_pass_rate": 94.44444444444444,
+    "verdict": "PASS"
+  },
+  "evidence_files": []
+}

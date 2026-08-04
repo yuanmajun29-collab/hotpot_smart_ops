@@ -1,8 +1,9 @@
-#!/usr/bin/env python3
 """
-Edge vision worker (DEV-203 mock mode + DEV-105 offline queue).
+🔥 火瞳 · Edge vision worker (DEV-203 live mode + DEV-105 offline queue).
 
-Uses UAT config ROI + file-based frames (no real RTSP).
+Supports two modes:
+  - mock  : apply_jiaojiang_profile() hard-coded demo data (legacy)
+  - live  : real YOLO/CLIP inference with auto cleaning-task spawn (MVP)
 """
 
 from __future__ import annotations
@@ -19,8 +20,8 @@ PROJECT_ROOT = Path(__file__).resolve().parents[2]
 if str(PROJECT_ROOT) not in sys.path:
     sys.path.insert(0, str(PROJECT_ROOT))
 
-from edge.detector.hotpot_detector import create_detector, run_on_frame
-from edge.stream.sources import create_source
+from edge.common.detector.hotpot_detector import create_detector, run_on_frame
+from edge.front_hall.inference.sources import create_source
 from common.hub_client import EdgeHubClient
 from common.store_config import (
     DEFAULT_UAT_ROOT,
@@ -37,7 +38,43 @@ _stop_requested = False
 def _handle_stop(signum: int, frame: object) -> None:
     global _stop_requested
     _stop_requested = True
-    print(f"[vision_worker] stop signal ({signum}), finishing current cycle...", file=sys.stderr)
+    print(f"[🔥火瞳.vision_worker] stop signal ({signum}), finishing current cycle...", file=sys.stderr)
+
+
+def _spawn_cleaning_tasks(
+    hub: EdgeHubClient,
+    store_id: str,
+    table_states: List[Dict[str, Any]],
+) -> int:
+    """Post need_clean tables as cleaning tasks to Hub /v1/tasks/ingest (idempotent).
+
+    Returns count of tasks spawned.
+    """
+    spawned = 0
+    for ts in table_states:
+        if ts.get("state") not in ("need_clean", "needs_cleaning"):
+            continue
+        table_id = ts.get("table_id", "unknown")
+        event = {
+            "event_id": f"vision_clean_{table_id}_{int(time.time())}",
+            "event_type": "table_need_clean",
+            "level": "info",
+            "message": f"{table_id} 待清台（视觉自动检测）",
+            "table_id": table_id,
+            "source": "vision",
+            "metadata": {
+                "confidence": ts.get("confidence", 0),
+                "store_id": store_id,
+                "auto_detected": True,
+            },
+        }
+        ok = hub.try_post("/v1/tasks/ingest", {"store_id": store_id, "event": event})
+        if ok:
+            spawned += 1
+            print(f"[🔥火瞳.vision_worker] AUTO-TASK: 清台任务已创建 → {table_id}", file=sys.stderr)
+        else:
+            print(f"[🔥火瞳.vision_worker] WARN: 清台任务创建失败(Hub离线，已排队) → {table_id}", file=sys.stderr)
+    return spawned
 
 
 def process_camera(
@@ -47,6 +84,7 @@ def process_camera(
     hub: EdgeHubClient,
     uat_root: Path,
     out_dir: Optional[Path],
+    live_mode: bool = False,
 ) -> Dict[str, Any]:
     zone = camera.get("zone", "front")
     file_path = camera_file_source(camera, zone)
@@ -78,12 +116,20 @@ def process_camera(
     if table_regions:
         result["roi_count"] = len(table_regions)
 
-    if zone == "front":
+    # Live mode: use real inference results; mock mode: override with demo data
+    if zone == "front" and not live_mode:
         result = apply_jiaojiang_profile(result, store_id)
+    elif live_mode and zone == "front":
+        print(f"[🔥火瞳.vision_worker][LIVE] 推理完成，桌态: {[(t.get('table_id'), t.get('state')) for t in result.get('table_states', [])]}", file=sys.stderr)
 
     hub.post_events(result.get("events", []))
     if result.get("table_states"):
         hub.post_tables(result["table_states"])
+        # MVP: auto-spawn cleaning tasks for need_clean tables
+        if live_mode:
+            spawned = _spawn_cleaning_tasks(hub, store_id, result["table_states"])
+            if spawned:
+                result["auto_tasks_spawned"] = spawned
 
     if out_dir:
         out_dir.mkdir(parents=True, exist_ok=True)
@@ -94,18 +140,35 @@ def process_camera(
     return result
 
 
-def apply_jiaojiang_profile(result: Dict[str, Any], store_id: str) -> Dict[str, Any]:
-    if store_id != "store_jiaojiang" or not result.get("table_states"):
-        return result
-    profile = {
-        "T01": "empty", "T02": "dining", "T03": "dining", "T04": "empty",
-        "T05": "checkout", "T06": "dining", "T07": "empty", "T08": "need_clean",
+def apply_store_table_profile(result: Dict[str, Any], store_id: str) -> Dict[str, Any]:
+    """Apply store-specific table profile override (multi-store ready).
+
+    For store_jiaojiang, applies the known 8-table layout profile.
+    For other stores, returns result unchanged (profile loaded from UAT config).
+    """
+    # Store-specific table profiles — each store can have its own layout
+    STORE_TABLE_PROFILES = {
+        "store_jiaojiang": {
+            "T01": "empty", "T02": "dining", "T03": "dining", "T04": "empty",
+            "T05": "checkout", "T06": "dining", "T07": "empty", "T08": "need_clean",
+        },
+        # Add more stores here as they come online, e.g.:
+        # "store_yuhuan": { ... },
     }
+
+    profile = STORE_TABLE_PROFILES.get(store_id)
+    if not profile or not result.get("table_states"):
+        return result
+
     for t in result["table_states"]:
         tid = t.get("table_id")
         if tid in profile:
             t["state"] = profile[tid]
     return result
+
+
+# Backward-compatible alias
+apply_jiaojiang_profile = apply_store_table_profile
 
 
 def run_store_vision(
@@ -116,6 +179,7 @@ def run_store_vision(
     out_dir: Optional[Path] = None,
     flush_queue: bool = True,
     cycle: int = 1,
+    live_mode: bool = False,
 ) -> Dict[str, Any]:
     config = load_store_config(store_id, uat_root)
     api_key = config.get("edge_api_key", "")
@@ -123,20 +187,23 @@ def run_store_vision(
     if flush_queue:
         hub.flush_queue()
 
+    mode_tag = "LIVE" if live_mode else "MOCK"
     outputs: Dict[str, Any] = {
         "store_id": store_id,
+        "mode": mode_tag.lower(),
         "cycle": cycle,
         "cameras": [],
         "started_at": time.strftime("%Y-%m-%dT%H:%M:%S"),
     }
     for camera in config.get("cameras", []):
-        res = process_camera(store_id, camera, backend, hub, uat_root, out_dir)
+        res = process_camera(store_id, camera, backend, hub, uat_root, out_dir, live_mode=live_mode)
         outputs["cameras"].append(
             {
                 "camera": camera.get("id"),
                 "zone": camera.get("zone"),
                 "events": len(res.get("events", [])),
                 "tables": len(res.get("table_states") or []),
+                "auto_tasks": res.get("auto_tasks_spawned", 0),
             }
         )
 
@@ -163,6 +230,7 @@ def run_periodic(
     interval: float,
     cycles: int,
     flush_queue_first: bool,
+    live_mode: bool = False,
 ) -> List[Dict[str, Any]]:
     summaries: List[Dict[str, Any]] = []
     cycle = 0
@@ -173,7 +241,7 @@ def run_periodic(
         if cycles > 0 and cycle > cycles:
             break
 
-        print(f"[vision_worker] cycle {cycle} · {store_id}", file=sys.stderr)
+        print(f"[🔥火瞳.vision_worker] cycle {cycle} · {store_id} · {'LIVE' if live_mode else 'MOCK'}", file=sys.stderr)
         summary = run_store_vision(
             store_id,
             hub_url,
@@ -182,6 +250,7 @@ def run_periodic(
             out_dir,
             flush_queue=flush_queue_first and cycle == 1,
             cycle=cycle,
+            live_mode=live_mode,
         )
         summaries.append(summary)
         print(json.dumps(summary, ensure_ascii=False))
@@ -228,6 +297,12 @@ def main() -> None:
         action="store_true",
         help="Use 1/min(camera fps) from UAT config as interval",
     )
+    parser.add_argument(
+        "--live",
+        action="store_true",
+        default=False,
+        help="Live mode: real inference + auto-spawn cleaning tasks (MVP)",
+    )
     args = parser.parse_args()
 
     signal.signal(signal.SIGINT, _handle_stop)
@@ -243,6 +318,10 @@ def main() -> None:
     if cycles <= 0:
         cycles = 0 if interval > 0 else 1
 
+    live_mode = args.live
+    if live_mode and args.backend == "mock":
+        print("[🔥火瞳.vision_worker][LIVE] WARNING: --live with --backend mock will still use mock inference. Use --backend yolo for real detection.", file=sys.stderr)
+
     if interval > 0 or cycles > 1:
         summaries = run_periodic(
             args.store_id,
@@ -253,6 +332,7 @@ def main() -> None:
             interval,
             cycles,
             args.flush_queue,
+            live_mode=live_mode,
         )
         if len(summaries) == 1:
             return
@@ -260,7 +340,7 @@ def main() -> None:
             json.dumps(
                 {
                     "store_id": args.store_id,
-                    "mode": "periodic",
+                    "mode": "live" if live_mode else "periodic",
                     "interval": interval,
                     "cycles_completed": len(summaries),
                     "last": summaries[-1] if summaries else None,
@@ -279,6 +359,7 @@ def main() -> None:
         uat_root,
         out,
         args.flush_queue,
+        live_mode=live_mode,
     )
     print(json.dumps(summary, ensure_ascii=False, indent=2))
 

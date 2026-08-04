@@ -1,0 +1,172 @@
+{
+  "dashboard_id": "expo-kpi-20260804_223145",
+  "generated_at": "2026-08-04T14:31:45.343446+00:00",
+  "store_id": "store_jiaojiang",
+  "store_name": "椒江店",
+  "verification_period": {
+    "start": "2026-08-01",
+    "end": "2026-08-04",
+    "days": 4
+  },
+  "kpi_metrics": [
+    {
+      "metric_id": "cleaning_response_time",
+      "metric_name": "清台响应时间",
+      "value": 127,
+      "unit": "秒",
+      "target": 180,
+      "status": "good",
+      "trend": "improving",
+      "description": "从视觉检测到任务接单的平均时间",
+      "source": "real",
+      "confidence": 0.92
+    },
+    {
+      "metric_id": "vision_detection_accuracy",
+      "metric_name": "视觉识别准确率",
+      "value": 87.3,
+      "unit": "%",
+      "target": 80,
+      "status": "good",
+      "trend": "stable",
+      "description": "YOLOv8 桌态识别准确率（基于R7标注数据验证）",
+      "source": "r7_validated",
+      "confidence": 0.88
+    },
+    {
+      "metric_id": "auto_task_spawn_rate",
+      "metric_name": "自动建任务成功率",
+      "value": 94.5,
+      "unit": "%",
+      "target": 90,
+      "status": "good",
+      "trend": "improving",
+      "description": "need_clean事件→自动创建Task的成功率",
+      "source": "real",
+      "confidence": 0.95
+    },
+    {
+      "metric_id": "sop_compliance_rate",
+      "metric_name": "SOP合规率",
+      "value": 93.1,
+      "unit": "%",
+      "target": 90,
+      "status": "good",
+      "trend": "stable",
+      "description": "后厨操作SOP合规评分均值",
+      "source": "r7_validated",
+      "confidence": 0.85
+    },
+    {
+      "metric_id": "supply_quality_pass_rate",
+      "metric_name": "供应链质检通过率",
+      "value": 89.2,
+      "unit": "%",
+      "target": 85,
+      "status": "good",
+      "trend": "improving",
+      "description": "收货质检A/B级品占比",
+      "source": "real",
+      "confidence": 0.9
+    },
+    {
+      "metric_id": "waste_reduction_rate",
+      "metric_name": "损耗降低率",
+      "value": 15.8,
+      "unit": "%",
+      "target": 10,
+      "status": "good",
+      "trend": "improving",
+      "description": "AI介入后食材损耗相对降低比例",
+      "source": "estimated",
+      "confidence": 0.75
+    },
+    {
+      "metric_id": "kpi_writeback_success_rate",
+      "metric_name": "KPI回写成功率",
+      "value": 100.0,
+      "unit": "%",
+      "target": 100,
+      "status": "good",
+      "trend": "stable",
+      "description": "任务完成→KPI写入Hub PG的成功率",
+      "source": "code_verified",
+      "confidence": 1.0
+    },
+    {
+      "metric_id": "agent_suggestion_adoption",
+      "metric_name": "AI建议采纳率",
+      "value": 68.5,
+      "unit": "%",
+      "target": 50,
+      "status": "good",
+      "trend": "improving",
+      "description": "岗位AI助理建议被采纳的比例",
+      "source": "simulated",
+      "confidence": 0.7
+    }
+  ],
+  "daily_trends": [
+    {
+      "date": "2026-07-29",
+      "detection_events": 142,
+      "auto_tasks": 18,
+      "completed_tasks": 17
+    },
+    {
+      "date": "2026-07-30",
+      "detection_events": 156,
+      "auto_tasks": 21,
+      "completed_tasks": 20
+    },
+    {
+      "date": "2026-07-31",
+      "detection_events": 138,
+      "auto_tasks": 19,
+      "completed_tasks": 19
+    },
+    {
+      "date": "2026-08-01",
+      "detection_events": 165,
+      "auto_tasks": 23,
+      "completed_tasks": 22
+    },
+    {
+      "date": "2026-08-02",
+      "detection_events": 149,
+      "auto_tasks": 20,
+      "completed_tasks": 20
+    },
+    {
+      "date": "2026-08-03",
+      "detection_events": 158,
+      "auto_tasks": 22,
+      "completed_tasks": 21
+    },
+    {
+      "date": "2026-08-04",
+      "detection_events": 162,
+      "auto_tasks": 24,
+      "completed_tasks": null
+    }
+  ],
+  "loop_status": {
+    "perception": {
+      "status": "active",
+      "detail": "海康NVR HTTP抓拍 + YOLOv8推理"
+    },
+    "decision": {
+      "status": "active",
+      "detail": "Agent Gateway 17个处理器"
+    },
+    "execution": {
+      "status": "active",
+      "detail": "Dashboard + PDA接单"
+    },
+    "verification": {
+      "status": "active",
+      "detail": "KPI反馈引擎自动回写"
+    },
+    "overall": "CLOSED"
+  }
+}

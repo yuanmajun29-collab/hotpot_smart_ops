@@ -1,0 +1,106 @@
+{
+  "report_name": "火瞳R7 展会Demo数据标注报告",
+  "version": "v1.0.0",
+  "generated_at": "2026-08-04T03:40:07.616036+00:00",
+  "store_id": "store_jiaojiang",
+  "generation_time_sec": 0.0,
+  "scenes": {
+    "supply-chain": {
+      "name": "S3 供应链管控",
+      "summary": {
+        "total_products": 6,
+        "active_pos": 1,
+        "receiving_completed": 2,
+        "quality_grade_a_pct": 82,
+        "temp_alert_count": 1
+      },
+      "data_keys": [
+        "products",
+        "purchase_orders",
+        "receiving_records",
+        "temp_trace"
+      ]
+    },
+    "vision-engine": {
+      "name": "S1 后厨之眼",
+      "summary": {
+        "total_waste_events": 27,
+        "total_waste_cny": 11585,
+        "avg_daily_waste_cny": 1655.0,
+        "sop_compliance_score": 95,
+        "top_waste_categories": [
+          {
+            "item": "黄喉",
+            "count": 9,
+            "pct": 33.3
+          },
+          {
+            "item": "肥牛卷",
+            "count": 6,
+            "pct": 22.2
+          },
+          {
+            "item": "鸭肠",
+            "count": 5,
+            "pct": 18.5
+          },
+          {
+            "item": "毛肚",
+            "count": 4,
+            "pct": 14.8
+          },
+          {
+            "item": "蔬菜拼盘",
+            "count": 3,
+            "pct": 11.1
+          }
+        ]
+      },
+      "data_keys": [
+        "waste_events",
+        "daily_waste_summary",
+        "sop_report"
+      ]
+    },
+    "ai-assistant": {
+      "name": "S4 岗位AI助理",
+      "summary": {
+        "total_interactions": 12,
+        "total_messages": 7,
+        "total_suggestions": 5,
+        "agents_active": 3
+      },
+      "data_keys": [
+        "agents",
+        "interactions",
+        "messages",
+        "suggestions"
+      ]
+    }
+  },
+  "provenance_global": {
+    "total": 69,
+    "real": 14,
+    "mock": 0,
+    "simulated": 20,
+    "hybrid": 35
+  },
+  "verification_status": {
+    "cleaning-loop": {
+      "status": "SKIP",
+      "details": "未生成"
+    },
+    "supply-chain-pg-sync": {
+      "status": "PASS",
+      "details": {
+        "products_total": 6,
+        "products_hub_pg_ready": 6,
+        "pos_total": 3,
+        "pos_hub_pg_ready": 3
+      }
+    },
+    "_overall": {
+      "status": "PASS"
+    }
+  }
+}

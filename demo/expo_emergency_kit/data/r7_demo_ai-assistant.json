@@ -1,0 +1,701 @@
+{
+  "dataset_name": "R7 岗位AI助理演示数据",
+  "version": "v1.0.0",
+  "generated_at": "2026-08-04T03:40:07.616022+00:00",
+  "scenario": "S4-岗位AI助理 (店长/后厨/采购)",
+  "provenance_summary": {
+    "total": 69,
+    "real": 14,
+    "mock": 0,
+    "simulated": 20,
+    "hybrid": 35
+  },
+  "data": {
+    "agents": [
+      {
+        "agent_id": "A01-STORE-MGR",
+        "role": "store_manager",
+        "name": "店长助理"
+      },
+      {
+        "agent_id": "A02-KITCHEN",
+        "role": "kitchen_chef",
+        "name": "后厨主管"
+      },
+      {
+        "agent_id": "A03-PROCUREMENT",
+        "role": "procurement_officer",
+        "name": "采购专员"
+      }
+    ],
+    "interactions": [
+      {
+        "interaction_id": "INT-CEE454",
+        "agent_id": "A01-STORE-MGR",
+        "agent_role": "store_manager",
+        "agent_name": "店长助理",
+        "query": "对比一下上周的数据",
+        "response": "基于预测模型，明日建议备货：{items}",
+        "timestamp": "2026-08-04T00:20:07.615736+00:00",
+        "response_time_ms": 1152,
+        "satisfaction": "high",
+        "_provenance": {
+          "version": "v1.0.0",
+          "annotator": "火瞳R7自动标注系统",
+          "annotation_time": "2026-08-04T03:40:07.614463+00:00",
+          "store_id": "store_jiaojiang",
+          "source": "simulated",
+          "source_device": "edge_jetson_jiaojiang",
+          "confidence": 0.85,
+          "verified": false,
+          "tags": [
+            "agent-interaction",
+            "ai-assistant",
+            "s4",
+            "role-store_manager"
+          ],
+          "data_id": "d61cfece"
+        }
+      },
+      {
+        "interaction_id": "INT-7A478B",
+        "agent_id": "A01-STORE-MGR",
+        "agent_role": "store_manager",
+        "agent_name": "店长助理",
+        "query": "有哪些需要关注的异常？",
+        "response": "⚠️ 发现 {alerts} 条告警，建议优先处理 {priority}",
+        "timestamp": "2026-08-03T22:34:07.615755+00:00",
+        "response_time_ms": 2818,
+        "satisfaction": "medium",
+        "_provenance": {
+          "version": "v1.0.0",
+          "annotator": "火瞳R7自动标注系统",
+          "annotation_time": "2026-08-04T03:40:07.614463+00:00",
+          "store_id": "store_jiaojiang",
+          "source": "simulated",
+          "source_device": "edge_jetson_jiaojiang",
+          "confidence": 0.85,
+          "verified": false,
+          "tags": [
+            "agent-interaction",
+            "ai-assistant",
+            "s4",
+            "role-store_manager"
+          ],
+          "data_id": "9b177e89"
+        }
+      },
+      {
+        "interaction_id": "INT-5FF6BD",
+        "agent_id": "A01-STORE-MGR",
+        "agent_role": "store_manager",
+        "agent_name": "店长助理",
+        "query": "对比一下上周的数据",
+        "response": "⚠️ 发现 {alerts} 条告警，建议优先处理 {priority}",
+        "timestamp": "2026-08-04T00:05:07.615763+00:00",
+        "response_time_ms": 1590,
+        "satisfaction": "medium",
+        "_provenance": {
+          "version": "v1.0.0",
+          "annotator": "火瞳R7自动标注系统",
+          "annotation_time": "2026-08-04T03:40:07.614463+00:00",
+          "store_id": "store_jiaojiang",
+          "source": "simulated",
+          "source_device": "edge_jetson_jiaojiang",
+          "confidence": 0.85,
+          "verified": false,
+          "tags": [
+            "agent-interaction",
+            "ai-assistant",
+            "s4",
+            "role-store_manager"
+          ],
+          "data_id": "c8c095ea"
+        }
+      },
+      {
+        "interaction_id": "INT-1DED56",
+        "agent_id": "A01-STORE-MGR",
+        "agent_role": "store_manager",
+        "agent_name": "店长助理",
+        "query": "明日备货有什么建议？",
+        "response": "基于预测模型，明日建议备货：{items}",
+        "timestamp": "2026-08-04T00:45:07.615770+00:00",
+        "response_time_ms": 1479,
+        "satisfaction": "high",
+        "_provenance": {
+          "version": "v1.0.0",
+          "annotator": "火瞳R7自动标注系统",
+          "annotation_time": "2026-08-04T03:40:07.614463+00:00",
+          "store_id": "store_jiaojiang",
+          "source": "simulated",
+          "source_device": "edge_jetson_jiaojiang",
+          "confidence": 0.85,
+          "verified": false,
+          "tags": [
+            "agent-interaction",
+            "ai-assistant",
+            "s4",
+            "role-store_manager"
+          ],
+          "data_id": "39c9d19d"
+        }
+      },
+      {
+        "interaction_id": "INT-576383",
+        "agent_id": "A02-KITCHEN",
+        "agent_role": "kitchen_chef",
+        "agent_name": "后厨主管",
+        "query": "温控有没有异常？",
+        "response": "检测到废料 {count} 件，预估损失 ¥{loss:,}",
+        "timestamp": "2026-08-04T03:36:07.615798+00:00",
+        "response_time_ms": 1063,
+        "satisfaction": "high",
+        "_provenance": {
+          "version": "v1.0.0",
+          "annotator": "火瞳R7自动标注系统",
+          "annotation_time": "2026-08-04T03:40:07.614463+00:00",
+          "store_id": "store_jiaojiang",
+          "source": "simulated",
+          "source_device": "edge_jetson_jiaojiang",
+          "confidence": 0.85,
+          "verified": false,
+          "tags": [
+            "agent-interaction",
+            "ai-assistant",
+            "s4",
+            "role-kitchen_chef"
+          ],
+          "data_id": "e7919db3"
+        }
+      },
+      {
+        "interaction_id": "INT-DF6B3B",
+        "agent_id": "A02-KITCHEN",
+        "agent_role": "kitchen_chef",
+        "agent_name": "后厨主管",
+        "query": "温控有没有异常？",
+        "response": "检测到废料 {count} 件，预估损失 ¥{loss:,}",
+        "timestamp": "2026-08-04T00:22:07.615809+00:00",
+        "response_time_ms": 2017,
+        "satisfaction": "high",
+        "_provenance": {
+          "version": "v1.0.0",
+          "annotator": "火瞳R7自动标注系统",
+          "annotation_time": "2026-08-04T03:40:07.614463+00:00",
+          "store_id": "store_jiaojiang",
+          "source": "simulated",
+          "source_device": "edge_jetson_jiaojiang",
+          "confidence": 0.85,
+          "verified": false,
+          "tags": [
+            "agent-interaction",
+            "ai-assistant",
+            "s4",
+            "role-kitchen_chef"
+          ],
+          "data_id": "58e21bf2"
+        }
+      },
+      {
+        "interaction_id": "INT-36C175",
+        "agent_id": "A02-KITCHEN",
+        "agent_role": "kitchen_chef",
+        "agent_name": "后厨主管",
+        "query": "温控有没有异常？",
+        "response": "✅ SOP 合规分 {score}/100，{passed} 项通过",
+        "timestamp": "2026-08-04T02:32:07.615815+00:00",
+        "response_time_ms": 2084,
+        "satisfaction": "medium",
+        "_provenance": {
+          "version": "v1.0.0",
+          "annotator": "火瞳R7自动标注系统",
+          "annotation_time": "2026-08-04T03:40:07.614463+00:00",
+          "store_id": "store_jiaojiang",
+          "source": "simulated",
+          "source_device": "edge_jetson_jiaojiang",
+          "confidence": 0.85,
+          "verified": false,
+          "tags": [
+            "agent-interaction",
+            "ai-assistant",
+            "s4",
+            "role-kitchen_chef"
+          ],
+          "data_id": "abc0abed"
+        }
+      },
+      {
+        "interaction_id": "INT-AF2FF1",
+        "agent_id": "A03-PROCUREMENT",
+        "agent_role": "procurement_officer",
+        "agent_name": "采购专员",
+        "query": "今天的采购单状态？",
+        "response": "{count} 个 SKU 低于安全线，已生成补货建议",
+        "timestamp": "2026-08-04T03:37:07.615973+00:00",
+        "response_time_ms": 2193,
+        "satisfaction": "medium",
+        "_provenance": {
+          "version": "v1.0.0",
+          "annotator": "火瞳R7自动标注系统",
+          "annotation_time": "2026-08-04T03:40:07.614463+00:00",
+          "store_id": "store_jiaojiang",
+          "source": "simulated",
+          "source_device": "edge_jetson_jiaojiang",
+          "confidence": 0.85,
+          "verified": false,
+          "tags": [
+            "agent-interaction",
+            "ai-assistant",
+            "s4",
+            "role-procurement_officer"
+          ],
+          "data_id": "8ce6eaf1"
+        }
+      },
+      {
+        "interaction_id": "INT-39E70A",
+        "agent_id": "A03-PROCUREMENT",
+        "agent_role": "procurement_officer",
+        "agent_name": "采购专员",
+        "query": "哪个供应商价格有优势？",
+        "response": "📊 王总方均价较市场低 {adv}%，建议优先",
+        "timestamp": "2026-08-04T02:43:07.615984+00:00",
+        "response_time_ms": 2596,
+        "satisfaction": "high",
+        "_provenance": {
+          "version": "v1.0.0",
+          "annotator": "火瞳R7自动标注系统",
+          "annotation_time": "2026-08-04T03:40:07.614463+00:00",
+          "store_id": "store_jiaojiang",
+          "source": "simulated",
+          "source_device": "edge_jetson_jiaojiang",
+          "confidence": 0.85,
+          "verified": false,
+          "tags": [
+            "agent-interaction",
+            "ai-assistant",
+            "s4",
+            "role-procurement_officer"
+          ],
+          "data_id": "93722d5b"
+        }
+      },
+      {
+        "interaction_id": "INT-F28B11",
+        "agent_id": "A03-PROCUREMENT",
+        "agent_role": "procurement_officer",
+        "agent_name": "采购专员",
+        "query": "库存低于安全线的SKU？",
+        "response": "{count} 个 SKU 低于安全线，已生成补货建议",
+        "timestamp": "2026-08-03T23:07:07.615990+00:00",
+        "response_time_ms": 636,
+        "satisfaction": "medium",
+        "_provenance": {
+          "version": "v1.0.0",
+          "annotator": "火瞳R7自动标注系统",
+          "annotation_time": "2026-08-04T03:40:07.614463+00:00",
+          "store_id": "store_jiaojiang",
+          "source": "simulated",
+          "source_device": "edge_jetson_jiaojiang",
+          "confidence": 0.85,
+          "verified": false,
+          "tags": [
+            "agent-interaction",
+            "ai-assistant",
+            "s4",
+            "role-procurement_officer"
+          ],
+          "data_id": "763191c8"
+        }
+      },
+      {
+        "interaction_id": "INT-BD1172",
+        "agent_id": "A03-PROCUREMENT",
+        "agent_role": "procurement_officer",
+        "agent_name": "采购专员",
+        "query": "今天的采购单状态？",
+        "response": "{count} 个 SKU 低于安全线，已生成补货建议",
+        "timestamp": "2026-08-04T00:47:07.616001+00:00",
+        "response_time_ms": 2162,
+        "satisfaction": "medium",
+        "_provenance": {
+          "version": "v1.0.0",
+          "annotator": "火瞳R7自动标注系统",
+          "annotation_time": "2026-08-04T03:40:07.614463+00:00",
+          "store_id": "store_jiaojiang",
+          "source": "simulated",
+          "source_device": "edge_jetson_jiaojiang",
+          "confidence": 0.85,
+          "verified": false,
+          "tags": [
+            "agent-interaction",
+            "ai-assistant",
+            "s4",
+            "role-procurement_officer"
+          ],
+          "data_id": "7106b44d"
+        }
+      },
+      {
+        "interaction_id": "INT-0C14DF",
+        "agent_id": "A03-PROCUREMENT",
+        "agent_role": "procurement_officer",
+        "agent_name": "采购专员",
+        "query": "王总方的交货准时率？",
+        "response": "{count} 个 SKU 低于安全线，已生成补货建议",
+        "timestamp": "2026-08-04T00:18:07.616007+00:00",
+        "response_time_ms": 856,
+        "satisfaction": "high",
+        "_provenance": {
+          "version": "v1.0.0",
+          "annotator": "火瞳R7自动标注系统",
+          "annotation_time": "2026-08-04T03:40:07.614463+00:00",
+          "store_id": "store_jiaojiang",
+          "source": "simulated",
+          "source_device": "edge_jetson_jiaojiang",
+          "confidence": 0.85,
+          "verified": false,
+          "tags": [
+            "agent-interaction",
+            "ai-assistant",
+            "s4",
+            "role-procurement_officer"
+          ],
+          "data_id": "79694b36"
+        }
+      }
+    ],
+    "messages": [
+      {
+        "msg_id": "MSG-A14182",
+        "from_agent": "A01-STORE-MGR",
+        "msg_type": "alert",
+        "topic": "store/daily-summary",
+        "payload": {
+          "summary": "基于预测模型，明日建议备货：{items}",
+          "interaction_id": "INT-CEE454"
+        },
+        "priority": "normal",
+        "timestamp": "2026-08-04T00:20:07.615736+00:00",
+        "_provenance": {
+          "version": "v1.0.0",
+          "annotator": "火瞳R7自动标注系统",
+          "annotation_time": "2026-08-04T03:40:07.614463+00:00",
+          "store_id": "store_jiaojiang",
+          "source": "simulated",
+          "source_device": "edge_jetson_jiaojiang",
+          "confidence": 0.8,
+          "verified": false,
+          "tags": [
+            "agent-message",
+            "message-bus",
+            "s4"
+          ],
+          "data_id": "2cb5e99c"
+        }
+      },
+      {
+        "msg_id": "MSG-291211",
+        "from_agent": "A01-STORE-MGR",
+        "msg_type": "task",
+        "topic": "store/daily-summary",
+        "payload": {
+          "summary": "基于预测模型，明日建议备货：{items}",
+          "interaction_id": "INT-1DED56"
+        },
+        "priority": "normal",
+        "timestamp": "2026-08-04T00:45:07.615770+00:00",
+        "_provenance": {
+          "version": "v1.0.0",
+          "annotator": "火瞳R7自动标注系统",
+          "annotation_time": "2026-08-04T03:40:07.614463+00:00",
+          "store_id": "store_jiaojiang",
+          "source": "simulated",
+          "source_device": "edge_jetson_jiaojiang",
+          "confidence": 0.8,
+          "verified": false,
+          "tags": [
+            "agent-message",
+            "message-bus",
+            "s4"
+          ],
+          "data_id": "1d184226"
+        }
+      },
+      {
+        "msg_id": "MSG-DA14B4",
+        "from_agent": "A02-KITCHEN",
+        "msg_type": "suggestion",
+        "topic": "kitchen/prep",
+        "payload": {
+          "summary": "检测到废料 {count} 件，预估损失 ¥{loss:,}",
+          "interaction_id": "INT-576383"
+        },
+        "priority": "low",
+        "timestamp": "2026-08-04T03:36:07.615798+00:00",
+        "_provenance": {
+          "version": "v1.0.0",
+          "annotator": "火瞳R7自动标注系统",
+          "annotation_time": "2026-08-04T03:40:07.614463+00:00",
+          "store_id": "store_jiaojiang",
+          "source": "simulated",
+          "source_device": "edge_jetson_jiaojiang",
+          "confidence": 0.8,
+          "verified": false,
+          "tags": [
+            "agent-message",
+            "message-bus",
+            "s4"
+          ],
+          "data_id": "5269c120"
+        }
+      },
+      {
+        "msg_id": "MSG-9DF5D6",
+        "from_agent": "A02-KITCHEN",
+        "msg_type": "alert",
+        "topic": "kitchen/waste",
+        "payload": {
+          "summary": "✅ SOP 合规分 {score}/100，{passed} 项通过",
+          "interaction_id": "INT-36C175"
+        },
+        "priority": "normal",
+        "timestamp": "2026-08-04T02:32:07.615815+00:00",
+        "_provenance": {
+          "version": "v1.0.0",
+          "annotator": "火瞳R7自动标注系统",
+          "annotation_time": "2026-08-04T03:40:07.614463+00:00",
+          "store_id": "store_jiaojiang",
+          "source": "simulated",
+          "source_device": "edge_jetson_jiaojiang",
+          "confidence": 0.8,
+          "verified": false,
+          "tags": [
+            "agent-message",
+            "message-bus",
+            "s4"
+          ],
+          "data_id": "8fa8b66b"
+        }
+      },
+      {
+        "msg_id": "MSG-900736",
+        "from_agent": "A03-PROCUREMENT",
+        "msg_type": "task",
+        "topic": "procurement/inventory",
+        "payload": {
+          "summary": "{count} 个 SKU 低于安全线，已生成补货建议",
+          "interaction_id": "INT-AF2FF1"
+        },
+        "priority": "normal",
+        "timestamp": "2026-08-04T03:37:07.615973+00:00",
+        "_provenance": {
+          "version": "v1.0.0",
+          "annotator": "火瞳R7自动标注系统",
+          "annotation_time": "2026-08-04T03:40:07.614463+00:00",
+          "store_id": "store_jiaojiang",
+          "source": "simulated",
+          "source_device": "edge_jetson_jiaojiang",
+          "confidence": 0.8,
+          "verified": false,
+          "tags": [
+            "agent-message",
+            "message-bus",
+            "s4"
+          ],
+          "data_id": "0e029173"
+        }
+      },
+      {
+        "msg_id": "MSG-4BC772",
+        "from_agent": "A03-PROCUREMENT",
+        "msg_type": "info",
+        "topic": "procurement/supplier",
+        "payload": {
+          "summary": "{count} 个 SKU 低于安全线，已生成补货建议",
+          "interaction_id": "INT-F28B11"
+        },
+        "priority": "low",
+        "timestamp": "2026-08-03T23:07:07.615990+00:00",
+        "_provenance": {
+          "version": "v1.0.0",
+          "annotator": "火瞳R7自动标注系统",
+          "annotation_time": "2026-08-04T03:40:07.614463+00:00",
+          "store_id": "store_jiaojiang",
+          "source": "simulated",
+          "source_device": "edge_jetson_jiaojiang",
+          "confidence": 0.8,
+          "verified": false,
+          "tags": [
+            "agent-message",
+            "message-bus",
+            "s4"
+          ],
+          "data_id": "34b5fc23"
+        }
+      },
+      {
+        "msg_id": "MSG-954AAE",
+        "from_agent": "A03-PROCUREMENT",
+        "msg_type": "suggestion",
+        "topic": "procurement/inventory",
+        "payload": {
+          "summary": "{count} 个 SKU 低于安全线，已生成补货建议",
+          "interaction_id": "INT-0C14DF"
+        },
+        "priority": "normal",
+        "timestamp": "2026-08-04T00:18:07.616007+00:00",
+        "_provenance": {
+          "version": "v1.0.0",
+          "annotator": "火瞳R7自动标注系统",
+          "annotation_time": "2026-08-04T03:40:07.614463+00:00",
+          "store_id": "store_jiaojiang",
+          "source": "simulated",
+          "source_device": "edge_jetson_jiaojiang",
+          "confidence": 0.8,
+          "verified": false,
+          "tags": [
+            "agent-message",
+            "message-bus",
+            "s4"
+          ],
+          "data_id": "080dd6fb"
+        }
+      }
+    ],
+    "suggestions": [
+      {
+        "title": "库存补货建议",
+        "desc": "3个SKU低于安全线，建议今日内完成补货",
+        "suggestion_id": "SUG-7AA32E",
+        "source_agent": "A01-STORE-MGR",
+        "status": "pending",
+        "created_at": "2026-08-04T02:52:07.615784+00:00",
+        "_provenance": {
+          "version": "v1.0.0",
+          "annotator": "火瞳R7自动标注系统",
+          "annotation_time": "2026-08-04T03:40:07.614463+00:00",
+          "store_id": "store_jiaojiang",
+          "source": "hybrid",
+          "source_device": "edge_jetson_jiaojiang",
+          "confidence": 0.85,
+          "verified": false,
+          "tags": [
+            "suggestion",
+            "decision-support",
+            "s4",
+            "role-store_manager"
+          ],
+          "data_id": "68513d00"
+        }
+      },
+      {
+        "title": "损耗率偏高提醒",
+        "desc": "今日损耗率达 7.8%，建议关注后厨备餐量",
+        "suggestion_id": "SUG-AA24D1",
+        "source_agent": "A01-STORE-MGR",
+        "status": "pending",
+        "created_at": "2026-08-04T01:50:07.615791+00:00",
+        "_provenance": {
+          "version": "v1.0.0",
+          "annotator": "火瞳R7自动标注系统",
+          "annotation_time": "2026-08-04T03:40:07.614463+00:00",
+          "store_id": "store_jiaojiang",
+          "source": "hybrid",
+          "source_device": "edge_jetson_jiaojiang",
+          "confidence": 0.85,
+          "verified": false,
+          "tags": [
+            "suggestion",
+            "decision-support",
+            "s4",
+            "role-store_manager"
+          ],
+          "data_id": "55f8e1f2"
+        }
+      },
+      {
+        "title": "SOP纠偏提醒",
+        "desc": "洗手频次偏低，建议加强监督",
+        "suggestion_id": "SUG-BF57FD",
+        "source_agent": "A02-KITCHEN",
+        "status": "pending",
+        "created_at": "2026-08-04T03:36:07.615959+00:00",
+        "_provenance": {
+          "version": "v1.0.0",
+          "annotator": "火瞳R7自动标注系统",
+          "annotation_time": "2026-08-04T03:40:07.614463+00:00",
+          "store_id": "store_jiaojiang",
+          "source": "hybrid",
+          "source_device": "edge_jetson_jiaojiang",
+          "confidence": 0.85,
+          "verified": false,
+          "tags": [
+            "suggestion",
+            "decision-support",
+            "s4",
+            "role-kitchen_chef"
+          ],
+          "data_id": "b33e7b4b"
+        }
+      },
+      {
+        "title": "设备巡检提醒",
+        "desc": "冷库2号压缩机运行时间异常，建议检查",
+        "suggestion_id": "SUG-2A266E",
+        "source_agent": "A02-KITCHEN",
+        "status": "pending",
+        "created_at": "2026-08-04T02:47:07.615967+00:00",
+        "_provenance": {
+          "version": "v1.0.0",
+          "annotator": "火瞳R7自动标注系统",
+          "annotation_time": "2026-08-04T03:40:07.614463+00:00",
+          "store_id": "store_jiaojiang",
+          "source": "hybrid",
+          "source_device": "edge_jetson_jiaojiang",
+          "confidence": 0.85,
+          "verified": false,
+          "tags": [
+            "suggestion",
+            "decision-support",
+            "s4",
+            "role-kitchen_chef"
+          ],
+          "data_id": "9dbb6b50"
+        }
+      },
+      {
+        "title": "供应商比价",
+        "desc": "张氏调料最新报价较上月降 3%，建议增加采购比例",
+        "suggestion_id": "SUG-C1985F",
+        "source_agent": "A03-PROCUREMENT",
+        "status": "pending",
+        "created_at": "2026-08-04T01:38:07.616018+00:00",
+        "_provenance": {
+          "version": "v1.0.0",
+          "annotator": "火瞳R7自动标注系统",
+          "annotation_time": "2026-08-04T03:40:07.614463+00:00",
+          "store_id": "store_jiaojiang",
+          "source": "hybrid",
+          "source_device": "edge_jetson_jiaojiang",
+          "confidence": 0.85,
+          "verified": false,
+          "tags": [
+            "suggestion",
+            "decision-support",
+            "s4",
+            "role-procurement_officer"
+          ],
+          "data_id": "f2dcc768"
+        }
+      }
+    ]
+  },
+  "summary": {
+    "total_interactions": 12,
+    "total_messages": 7,
+    "total_suggestions": 5,
+    "agents_active": 3
+  }
+}

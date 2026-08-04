@@ -241,6 +241,10 @@ class SupplyChainManager:
 
         logger.info("收货提交成功 %s supplier=%s items=%d",
                      record_id, record.supplier_name, len(record.items))
+
+        # 4. [ADR-003] 写入 Hub PG (S02)
+        cls._save_to_hub_pg("receiving", "create", record.model_dump())
+
         return record
 
     def approve_quality_check(
@@ -509,10 +513,28 @@ class SupplyChainManager:
     _receiving_counter: int = 0  # 自增计数器用于生成record_id
     _data_file: Optional[str] = None  # JSON 持久化路径
 
+    # ── ADR-003 写入模式 (JSON → Hub PG 迁移) ──
+    # "json"    = 仅写本地 JSON (默认, 当前行为)
+    # "hub_pg"  = 仅写 Hub PostgreSQL (Phase 3 目标)
+    # "both"    = 双写过渡期 (Phase 2)
+    _write_mode: str = "json"
+    _hub_pg_available: bool = False  # Hub 连接检测标志
+
     @classmethod
     def init_product_data(cls, data_file: str = None) -> None:
         """初始化货品数据存储（从JSON文件加载或创建空库）。"""
         cls._data_file = data_file
+
+        # ADR-003: 从环境变量读取写入模式
+        import os
+        cls._write_mode = os.environ.get(
+            "HOTPOT_SUPPLY_CHAIN_WRITE_MODE", "json"
+        ).lower()
+        if cls._write_mode not in ("json", "hub_pg", "both"):
+            logger.warning("[ADR-003] 无效的 WRITE_MODE=%s, 回退到 json", cls._write_mode)
+            cls._write_mode = "json"
+        if cls._write_mode != "json":
+            logger.info("[ADR-003] 写入模式: %s (ADR-002 Edge写入隔离)", cls._write_mode)
         if data_file:
             cls._load_from_json()
         if not cls._category_cache:
@@ -581,8 +603,21 @@ class SupplyChainManager:
 
     @classmethod
     def _save_to_json(cls) -> None:
-        """保存数据到 JSON 文件。"""
-        import os
+        """保存数据到 JSON 文件。
+
+        .. deprecated:: 2026-08-04
+            此方法将在 Phase 3 (ADR-003) 移除。
+            新代码应使用 Hub PG 写入路径 (_save_to_hub_pg)。
+            见 ADR-002 (Edge写入隔离) 和 ADR-003 (迁移计划)。
+        """
+        import os as _os
+        import warnings
+
+        # ADR-003: hub_pg 模式下跳过 JSON 写入
+        if cls._write_mode == "hub_pg":
+            logger.debug("[ADR-003] JSON写入已跳过 (_write_mode=hub_pg)")
+            return
+
         if cls._data_file:
             try:
                 data = {
@@ -608,8 +643,438 @@ class SupplyChainManager:
                 }
                 with open(cls._data_file, "w", encoding="utf-8") as f:
                     json.dump(data, f, ensure_ascii=False, indent=2, default=str)
+
+                # ADR-003: both 模式下发出双写警告
+                if cls._write_mode == "both":
+                    warnings.warn(
+                        "[ADR-003] 双写模式: 数据同时写入JSON和Hub PG, "
+                        "JSON路径将在Phase 3移除",
+                        DeprecationWarning,
+                        stacklevel=3,
+                    )
             except Exception as e:
                 logger.error("保存 JSON 数据失败: %s", e)
+
+    @classmethod
+    def _save_to_hub_pg(cls, entity_type: str, operation: str, data: Dict[str, Any]) -> bool:
+        """将业务数据写入 Hub PostgreSQL (Phase 2 · S01 已实现)。
+
+        Args:
+            entity_type: "product" (S01) | "receiving" (S02) | "purchase_order" (S03) |
+                          "supplier" (S04) | "task" | "suggestion"
+            operation: "create" | "update" | "delete"
+            data: 要写入的数据字典
+
+        Returns:
+            True 如果写入成功
+
+        Implementation (2026-08-04):
+            - S01 (product): ✅ 真实 UPSERT 到 supply_product_master 表
+            - S03 (purchase_order): ✅ 真实 UPSERT/DELETE 到 supply_purchase_order 表
+            - 其他 entity_type: ⚠️ 桩方法，返回 False 并记录警告
+        """
+        import os as _os
+
+        database_url = _os.environ.get("HOTPOT_DATABASE_URL", "")
+        if not database_url:
+            logger.debug("[ADR-003] HOTPOT_DATABASE_URL 未设置，跳过 Hub PG 写入")
+            return False
+
+        # ── 延迟初始化 PG 连接（仅首次调用时创建）──
+        if not getattr(cls, "_pg_db", None):
+            try:
+                from hotpot_platform.cloud.event_hub.pg_db import PostgresHubDatabase
+                cls._pg_db = PostgresHubDatabase(database_url)
+                cls._hub_pg_available = True
+                logger.info("[ADR-003] Hub PG 连接成功: %s", cls._pg_db.db_path)
+            except Exception as exc:
+                logger.error("[ADR-003] Hub PG 连接失败: %s", exc)
+                cls._hub_pg_available = False
+                return False
+
+        # ── 按 entity_type 分发 ──
+        try:
+            if entity_type == "product":
+                return cls._write_product_to_pg(cls._pg_db, operation, data)
+
+            if entity_type == "purchase_order":
+                return cls._write_purchase_order_to_pg(cls._pg_db, operation, data)
+
+            if entity_type == "receiving":
+                return cls._write_receiving_to_pg(cls._pg_db, operation, data)
+
+            # TODO (Phase 2+): 实现 supplier / task / suggestion 等实体
+            logger.warning(
+                "[ADR-003] _save_to_hub_pg: entity_type=%s 尚未实现 (桩方法)",
+                entity_type,
+            )
+            return False
+
+        except Exception as exc:
+            logger.error("[ADR-003] Hub PG 写入异常: entity=%s op=%s error=%s",
+                         entity_type, operation, exc, exc_info=True)
+            # 连接可能已断开，标记为不可用（下次调用会重连）
+            cls._hub_pg_available = False
+            return False
+
+    @classmethod
+    def _write_product_to_pg(cls, pg_db, operation: str, data: Dict[str, Any]) -> bool:
+        """S01 产品主数据 → supply_product_master 表的 UPSERT 实现。
+
+        Args:
+            pg_db: PostgresHubDatabase 实例
+            operation: "create" | "update" | "delete"
+            data: ProductMaster.model_dump() 字典或 {"sku_code": ...} 最小子集
+
+        Returns:
+            True 如果写入/删除成功
+        """
+        import os as _os
+
+        sku_code = data.get("sku_code", "")
+        if not sku_code:
+            logger.error("[ADR-003] _write_product_to_pg: 缺少 sku_code")
+            return False
+
+        store_id = _os.environ.get("HOTPOT_STORE_ID", "store_jiaojiang")
+
+        # 将完整数据序列化为 JSONB payload（保留全部字段用于审计和回放）
+        payload_str = json.dumps(data, ensure_ascii=False, default=str)
+
+        conn = pg_db._getconn()
+        try:
+            with conn.cursor() as cur:
+                if operation == "delete":
+                    cur.execute(
+                        "DELETE FROM supply_product_master WHERE sku_code = %s AND store_id = %s",
+                        (sku_code, store_id),
+                    )
+                else:
+                    # ── UPSERT: INSERT ON CONFLICT DO UPDATE ──
+                    cur.execute(
+                        """
+                        INSERT INTO supply_product_master (
+                            sku_code, name, specification, brand, unit_price, unit,
+                            category, supplier_id, supplier_name, image_url,
+                            location_code, location_name, storage_area, shelf_life_days,
+                            min_stock_qty, tags, status, locked, version,
+                            store_id, created_by, created_at, updated_by, updated_at,
+                            payload
+                        ) VALUES (
+                            %s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s::jsonb
+                        )
+                        ON CONFLICT (sku_code) DO UPDATE SET
+                            name = EXCLUDED.name,
+                            specification = EXCLUDED.specification,
+                            brand = EXCLUDED.brand,
+                            unit_price = EXCLUDED.unit_price,
+                            unit = EXCLUDED.unit,
+                            category = EXCLUDED.category,
+                            supplier_id = EXCLUDED.supplier_id,
+                            supplier_name = EXCLUDED.supplier_name,
+                            image_url = EXCLUDED.image_url,
+                            location_code = EXCLUDED.location_code,
+                            location_name = EXCLUDED.location_name,
+                            storage_area = EXCLUDED.storage_area,
+                            shelf_life_days = EXCLUDED.shelf_life_days,
+                            min_stock_qty = EXCLUDED.min_stock_qty,
+                            tags = EXCLUDED.tags,
+                            status = EXCLUDED.status,
+                            locked = EXCLUDED.locked,
+                            version = EXCLUDED.version,
+                            updated_by = EXCLUDED.updated_by,
+                            updated_at = EXCLUDED.updated_at,
+                            payload = EXCLUDED.payload
+                        """,
+                        (
+                            sku_code,
+                            data.get("name", ""),
+                            data.get("specification", ""),
+                            data.get("brand", ""),
+                            data.get("unit_price", 0),
+                            data.get("unit", "份"),
+                            data.get("category", ""),
+                            data.get("supplier_id"),
+                            data.get("supplier_name"),
+                            data.get("image_url"),
+                            data.get("location_code"),
+                            data.get("location_name"),
+                            data.get("storage_area"),
+                            data.get("shelf_life_days"),
+                            data.get("min_stock_qty"),
+                            data.get("tags") or [],
+                            data.get("status", "draft"),
+                            data.get("locked", False),
+                            data.get("version", 1),
+                            store_id,
+                            data.get("created_by"),
+                            data.get("created_at"),
+                            data.get("updated_by"),
+                            data.get("updated_at"),
+                            payload_str,
+                        ),
+                    )
+
+                conn.commit()
+
+            logger.info(
+                "[ADR-003] ✅ S01 产品主数据已写入 Hub PG: sku=%s op=%s store=%s",
+                sku_code, operation, store_id,
+            )
+            return True
+
+        finally:
+            pg_db._putconn(conn)
+
+    @classmethod
+    def _write_purchase_order_to_pg(cls, pg_db, operation: str, data: Dict[str, Any]) -> bool:
+        """S03 采购订单 → supply_purchase_order 表的 UPSERT/DELETE 实现。
+
+        Args:
+            pg_db: PostgresHubDatabase 实例
+            operation: "create" | "update" | "delete"
+            data: PurchaseOrder.model_dump() 字典或 {"po_number": ...} 最小子集
+
+        Returns:
+            True 如果写入/删除成功
+        """
+        import os as _os
+
+        po_number = data.get("po_number", "")
+        if not po_number:
+            logger.error("[ADR-003] _write_purchase_order_to_pg: 缺少 po_number")
+            return False
+
+        store_id = data.get("store_id", "") or _os.environ.get("HOTPOT_STORE_ID", "store_jiaojiang")
+
+        # 序列化 items 为 JSONB 数组
+        items_raw = data.get("items", [])
+        if isinstance(items_raw, list):
+            items_json = json.dumps([i if isinstance(i, dict) else i.model_dump() for i in items_raw], ensure_ascii=False, default=str)
+        else:
+            items_json = "[]"
+
+        payload_str = json.dumps(data, ensure_ascii=False, default=str)
+
+        conn = pg_db._getconn()
+        try:
+            with conn.cursor() as cur:
+                if operation == "delete":
+                    cur.execute(
+                        "DELETE FROM supply_purchase_order WHERE po_number = %s",
+                        (po_number,),
+                    )
+                else:
+                    # UPSERT: CREATE / UPDATE 统一处理
+                    cur.execute(
+                        """
+                        INSERT INTO supply_purchase_order
+                            (po_number, store_id, ordered_by, ordered_at, items,
+                             total_amount, status, supplier, delivery_address, notes,
+                             forecast_ref, auto_generated, payload)
+                        VALUES (%s,%s,%s,%s,%s::jsonb,%s,%s,%s,%s,%s,%s,%s,%s::jsonb)
+                        ON CONFLICT (po_number) DO UPDATE SET
+                            store_id         = EXCLUDED.store_id,
+                            ordered_by       = EXCLUDED.ordered_by,
+                            ordered_at       = EXCLUDED.ordered_at,
+                            items            = EXCLUDED.items,
+                            total_amount     = EXCLUDED.total_amount,
+                            status           = EXCLUDED.status,
+                            supplier         = EXCLUDED.supplier,
+                            delivery_address = EXCLUDED.delivery_address,
+                            notes            = EXCLUDED.notes,
+                            forecast_ref     = EXCLUDED.forecast_ref,
+                            auto_generated   = EXCLUDED.auto_generated,
+                            updated_at       = now(),
+                            payload          = EXCLUDED.payload
+                        """,
+                        (
+                            po_number,
+                            store_id,
+                            data.get("ordered_by", ""),
+                            data.get("ordered_at") or datetime.now().isoformat(),
+                            items_json,
+                            data.get("total_amount", 0),
+                            data.get("status", "draft"),
+                            data.get("supplier"),
+                            data.get("delivery_address"),
+                            data.get("notes"),
+                            data.get("forecast_ref"),
+                            bool(data.get("auto_generated", False)),
+                            payload_str,
+                        ),
+                    )
+
+                conn.commit()
+
+            logger.info(
+                "[ADR-003] ✅ S03 采购订单已写入 Hub PG: po=%s op=%s store=%s",
+                po_number, operation, store_id,
+            )
+            return True
+
+        except Exception as exc:
+            logger.error(
+                "[ADR-003] S03 PG 写入失败: po=%s op=%s error=%s",
+                po_number, operation, exc, exc_info=True,
+            )
+            return False
+
+        finally:
+            pg_db._putconn(conn)
+
+    @classmethod
+    def _write_receiving_to_pg(cls, pg_db, operation: str, data: Dict[str, Any]) -> bool:
+        """S02 收货记录 → receiving_batches 表的 UPSERT 实现。
+
+        将 ReceivingRecord 拆解为多条 receiving_batches 记录（每SKU一条），
+        并同步写入 receiving_signatures 签名表。
+
+        Args:
+            pg_db: PostgresHubDatabase 实例
+            operation: "create" | "update"
+            data: ReceivingRecord.model_dump() 字典
+
+        Returns:
+            True 如果写入成功
+        """
+        import os as _os
+
+        record_id = data.get("record_id", "")
+        if not record_id:
+            # 自动生成 batch_id 前缀
+            record_id = data.get("batch_id", f"RCV-{uuid.uuid4().hex[:8].upper()}")
+
+        store_id = data.get("store_id", "") or _os.environ.get(
+            "HOTPOT_STORE_ID", "store_jiaojiang",
+        )
+        po_number = data.get("po_number", "") or data.get("po_id", "")
+
+        # ── 提取 items 列表 (每SKU一条 batch 记录) ──
+        items_raw = data.get("items", [])
+        if isinstance(items_raw, list):
+            items = items_raw
+        else:
+            items = []
+
+        if not items:
+            logger.warning("[ADR-003] _write_receiving_to_pg: 无 items，跳过")
+            return False
+
+        conn = pg_db._getconn()
+        try:
+            with conn.cursor() as cur:
+                # ── 逐条写入 receiving_batches ──
+                success_count = 0
+                for item in items:
+                    if isinstance(item, dict):
+                        item_dict = item
+                    elif hasattr(item, "model_dump"):
+                        item_dict = item.model_dump()
+                    else:
+                        continue
+
+                    sku = item_dict.get("sku", "")
+                    if not sku:
+                        continue
+
+                    # 构造批次ID: {record_id}-{sku}
+                    batch_id = f"{record_id}-{sku}"
+
+                    # 提取质检结果（如果有）
+                    quality_results = data.get("quality_results", [])
+                    qr = next(
+                        (q for q in quality_results if isinstance(q, dict) and q.get("sku") == sku),
+                        None,
+                    )
+
+                    vlm_grade = "A"
+                    temp_c = None
+                    variance_pct = None
+                    if qr:
+                        vlm_grade = qr.get("grade", "A")
+                        temp_c = item_dict.get("temperature_on_arrival")
+                        # 计算短重率
+                        ordered = item_dict.get("ordered_qty", 0)
+                        received = item_dict.get("received_qty", 0)
+                        if ordered and ordered > 0:
+                            variance_pct = round(
+                                (ordered - received) / ordered * 100, 2,
+                            )
+
+                    # 调用 pg_db 的 upsert_receiving_batch
+                    try:
+                        result = pg_db.upsert_receiving_batch({
+                            "batch_id": batch_id,
+                            "store_id": store_id,
+                            "po_id": po_number,
+                            "sku": sku,
+                            "weight_kg": item_dict.get("received_qty", 0),
+                            "po_weight_kg": item_dict.get("ordered_qty"),
+                            "variance_pct": variance_pct,
+                            "vlm_grade": vlm_grade,
+                            "temp_c": temp_c,
+                            "status": data.get("status", "submitted"),
+                        })
+                        if result:
+                            success_count += 1
+                    except Exception as e:
+                        logger.warning(
+                            "[ADR-003] receiving batch 写入失败: batch=%s error=%s",
+                            batch_id, e,
+                        )
+
+                # ── 写入签名记录 (收货人签名) ──
+                receiver = data.get("receiver", "")
+                if receiver and record_id:
+                    try:
+                        pg_db.upsert_receiving_signature({
+                            "batch_id": f"{record_id}-RECEIVER",
+                            "store_id": store_id,
+                            "role": "receiver",
+                            "signed_by": receiver,
+                            "signed_at": data.get("received_at") or datetime.now().isoformat(),
+                        })
+                    except Exception as e:
+                        logger.warning("[ADR-003] receiver 签名写入失败: %s", e)
+
+                # ── 写入质检员签名 (如果有质检结果) ──
+                if quality_results:
+                    inspector = None
+                    for qr in quality_results:
+                        if isinstance(qr, dict) and qr.get("inspector"):
+                            inspector = qr["inspector"]
+                            break
+
+                    if inspector:
+                        try:
+                            pg_db.upsert_receiving_signature({
+                                "batch_id": f"{record_id}-INSPECTOR",
+                                "store_id": store_id,
+                                "role": "inspector",
+                                "signed_by": inspector,
+                                "signed_at": datetime.now().isoformat(),
+                            })
+                        except Exception as e:
+                            logger.warning("[ADR-003] inspector 签名写入失败: %s", e)
+
+                conn.commit()
+
+            logger.info(
+                "[ADR-003] ✅ S02 收货记录已写入 Hub PG: record=%s batches=%d/%d store=%s",
+                record_id, success_count, len(items), store_id,
+            )
+            return success_count > 0
+
+        except Exception as exc:
+            logger.error(
+                "[ADR-003] S02 PG 写入失败: record=%s op=%s error=%s",
+                record_id, operation, exc, exc_info=True,
+            )
+            return False
+
+        finally:
+            pg_db._putconn(conn)
 
     # ── CRUD 操作 ──
 
@@ -657,6 +1122,9 @@ class SupplyChainManager:
 
         cls._product_cache[sku] = product
         cls._save_to_json()
+
+        # ADR-003: 同步写入 Hub PG (S01 · product create)
+        cls._save_to_hub_pg("product", "create", product.model_dump())
 
         logger.info("货品创建成功: %s (%s) by=%s", product.name, sku, operator)
         return product
@@ -762,6 +1230,9 @@ class SupplyChainManager:
         cls._product_cache[sku] = product
         cls._save_to_json()
 
+        # ADR-003: 同步写入 Hub PG (S01 · product update)
+        cls._save_to_hub_pg("product", "update", product.model_dump())
+
         logger.info("货品更新成功: %s by=%s", sku, operator)
         return product
 
@@ -791,6 +1262,9 @@ class SupplyChainManager:
         cls._product_cache[sku] = product
         cls._save_to_json()
 
+        # ADR-003: 同步写入 Hub PG (S01 · product lock)
+        cls._save_to_hub_pg("product", "update", product.model_dump())
+
         logger.info("货品锁定成功: %s (%s) by=%s", product.name, sku, operator)
         return product
 
@@ -812,6 +1286,9 @@ class SupplyChainManager:
         cls._product_cache[sku] = product
         cls._save_to_json()
 
+        # ADR-003: 同步写入 Hub PG (S01 · product unlock)
+        cls._save_to_hub_pg("product", "update", product.model_dump())
+
         logger.info("货品解锁成功: %s (%s) by=%s reason=%s", product.name, sku, operator, reason)
         return product
 
@@ -828,6 +1305,9 @@ class SupplyChainManager:
 
         del cls._product_cache[sku]
         cls._save_to_json()
+
+        # ADR-003: 同步写入 Hub PG (S01 · product delete)
+        cls._save_to_hub_pg("product", "delete", {"sku_code": sku})
 
         logger.info("货品删除成功: %s by=%s", sku, operator)
         return True
@@ -891,6 +1371,10 @@ class SupplyChainManager:
                         product.updated_at = now
                         cr.effective_version = product.version
                         cls._product_cache[cr.sku_code] = product
+
+                # ADR-003: 审批通过后同步更新到 Hub PG
+                if approved:
+                    cls._save_to_hub_pg("product", "update", product.model_dump())
 
                 cls._save_to_json()
                 logger.info("变更审批: %s → %s by=%s", request_id, cr.status, approver)
@@ -1432,6 +1916,9 @@ class SupplyChainManager:
         except Exception as e:
             logger.debug(f"[D3] 集成引擎未初始化: {e}")
 
+        # [ADR-003] 更新 Hub PG (S02)
+        cls._save_to_hub_pg("receiving", "update", record.model_dump())
+
         return record.model_dump()
 
     @classmethod
@@ -1496,6 +1983,10 @@ class SupplyChainManager:
 
         cls._save_to_json()
         logger.info("收货拒收: %s, 审批人=%s, 原因=%s", record_id, approver, reason)
+
+        # [ADR-003] 更新 Hub PG (S02)
+        cls._save_to_hub_pg("receiving", "update", record.model_dump())
+
         return record.model_dump()
 
     @classmethod
@@ -1831,6 +2322,8 @@ class SupplyChainManager:
 
         cls._po_cache[po_number] = order
         cls._save_to_json()
+        cls._save_to_hub_pg("purchase_order", "create", order.model_dump())
+
         logger.info("创建采购订单: %s (%d项, ¥%.2f)", po_number, len(po_items), total)
         return order
 
@@ -1983,6 +2476,7 @@ class SupplyChainManager:
             order.notes = (order.notes or "") + f"\n[确认备注] {notes}"
         order.updated_at = datetime.now()
         cls._save_to_json()
+        cls._save_to_hub_pg("purchase_order", "update", {"po_number": po_number, "status": "confirmed"})
         logger.info("确认采购订单: %s → confirmed", po_number)
 
         # 🎯 D3 IP-3: 订单状态变更事件
@@ -2022,6 +2516,7 @@ class SupplyChainManager:
         order.cancel_reason = reason
         order.updated_at = datetime.now()
         cls._save_to_json()
+        cls._save_to_hub_pg("purchase_order", "update", {"po_number": po_number, "status": "cancelled"})
         logger.info("取消采购订单: %s → cancelled (原因: %s)", po_number, reason)
 
         # 🎯 D3 IP-3: 订单状态变更事件
@@ -4065,6 +4560,15 @@ class SupplyChainManager:
             task["approval_workflow"]["po_number"] = po.order_no
 
             cls._save_to_json()
+            # 审批通过后同步 PO 到 Hub PG
+            if po and getattr(po, 'order_no', None):
+                cls._save_to_hub_pg("purchase_order", "create", {
+                    "po_number": po.order_no,
+                    "store_id": getattr(po, 'store_id', ''),
+                    "status": "submitted",
+                    "total_amount": getattr(po, 'total_amount', 0),
+                    "ordered_by": approved_by,
+                })
 
             logger.info(f"[IP-5] ✅ 采购任务审批通过: {task_id} → PO {po.order_no} (审批人: {approved_by})")
 

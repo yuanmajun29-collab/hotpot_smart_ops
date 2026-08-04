@@ -33,6 +33,29 @@ from .orchestrator import (
     RoleAgent,
 )
 
+# 基础 __all__ 定义 (在 try 块之前，避免 NameError)
+__all__ = [
+    # 核心类
+    "RoleAgent",
+    "AgentOrchestrator",
+    "MessageBus",
+    # 模型
+    "AgentConfig",
+    "AgentMessage",
+    "AgentTask",
+    "AgentTemplate",
+    "OrchestrationResult",
+    "Subscription",
+    "AgentDependency",
+    # 枚举
+    "AgentStatus",
+    "MessageType",
+    "MessagePriority",
+    "Capability",
+    # 常量
+    "BUILTIN_AGENT_TEMPLATES",
+]
+
 # P0-2 Agent Gateway 模块导出
 try:
     from .action_types import (
@@ -74,24 +97,42 @@ except ImportError:
     # Gateway模块可选，缺失时降级运行
     pass
 
-__all__ = [
-    # 核心类
-    "RoleAgent",
-    "AgentOrchestrator",
-    "MessageBus",
-    # 模型
-    "AgentConfig",
-    "AgentMessage",
-    "AgentTask",
-    "AgentTemplate",
-    "OrchestrationResult",
-    "Subscription",
-    "AgentDependency",
-    # 枚举
-    "AgentStatus",
-    "MessageType",
-    "MessagePriority",
-    "Capability",
-    # 常量
-    "BUILTIN_AGENT_TEMPLATES",
-]
+# 四类岗位 Agent (Step 3: Agent Gateway 统一)
+try:
+    from .agents import (
+        StoreManagerAgent,
+        KitchenAgent,
+        ProcurementAgent,
+        FrontHallAgent,
+        create_agent,
+        create_all_agents,
+        AGENT_REGISTRY,
+    )
+
+    __all__ += [
+        "StoreManagerAgent",
+        "KitchenAgent",
+        "ProcurementAgent",
+        "FrontHallAgent",
+        "create_agent",
+        "create_all_agents",
+        "AGENT_REGISTRY",
+    ]
+except ImportError:
+    pass
+
+# G4: KPI 自动回写引擎 (闭环核心)
+try:
+    from .kpi_feedback_engine import (
+        KPIFeedbackEngine,
+        TASK_TYPE_KPI_MAPPING,
+        determine_kpi_status,
+    )
+
+    __all__ += [
+        "KPIFeedbackEngine",
+        "TASK_TYPE_KPI_MAPPING",
+        "determine_kpi_status",
+    ]
+except ImportError:
+    pass
