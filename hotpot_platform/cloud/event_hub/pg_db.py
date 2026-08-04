@@ -56,6 +56,32 @@ CREATE INDEX IF NOT EXISTS idx_spm_category ON supply_product_master(category);
 CREATE INDEX IF NOT EXISTS idx_spm_status ON supply_product_master(status);
 """
 
+# S03 — 采购订单 (Purchase Order) Hub PG 主写表
+PG_SUPPLY_PURCHASE_ORDER_SCHEMA = """
+CREATE TABLE IF NOT EXISTS supply_purchase_order (
+    po_number       VARCHAR(32)  PRIMARY KEY,
+    store_id        VARCHAR(64)  NOT NULL DEFAULT 'store_jiaojiang',
+    ordered_by      VARCHAR(64),
+    ordered_at      TIMESTAMPTZ  NOT NULL DEFAULT now(),
+    items           JSONB        NOT NULL DEFAULT '[]'::jsonb,
+    total_amount    NUMERIC(12,2) NOT NULL DEFAULT 0,
+    status          VARCHAR(20)  NOT NULL DEFAULT 'draft',
+                    CHECK (status IN ('draft','submitted','confirmed','partial','received','cancelled')),
+    supplier        VARCHAR(128),
+    delivery_address TEXT,
+    notes           TEXT,
+    forecast_ref    VARCHAR(64),
+    auto_generated  BOOLEAN      NOT NULL DEFAULT FALSE,
+    -- 审计字段
+    created_at      TIMESTAMPTZ  NOT NULL DEFAULT now(),
+    updated_at      TIMESTAMPTZ  NOT NULL DEFAULT now(),
+    payload         JSONB        NOT NULL DEFAULT '{}'::jsonb
+);
+CREATE INDEX IF NOT EXISTS idx_spo_store_id ON supply_purchase_order(store_id);
+CREATE INDEX IF NOT EXISTS idx_spo_status ON supply_purchase_order(status);
+CREATE INDEX IF NOT EXISTS idx_spo_ordered_at ON supply_purchase_order(ordered_at DESC);
+"""
+
 MAX_EVENTS_PER_STORE = 500
 POOL_MIN_CONN = 2
 POOL_MAX_CONN = 10
@@ -150,6 +176,7 @@ class PostgresHubDatabase:
                     + PG_IOT_READINGS_SCHEMA
                     + PG_DAILY_REPORTS_SCHEMA
                     + PG_SUPPLY_PRODUCT_MASTER_SCHEMA
+                    + PG_SUPPLY_PURCHASE_ORDER_SCHEMA
                     + """
                     CREATE TABLE IF NOT EXISTS waste_timeseries (
                         id SERIAL PRIMARY KEY,

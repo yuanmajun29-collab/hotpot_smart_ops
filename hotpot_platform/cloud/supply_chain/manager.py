@@ -666,6 +666,7 @@ class SupplyChainManager:
 
         Implementation (2026-08-04):
             - S01 (product): ✅ 真实 UPSERT 到 supply_product_master 表
+            - S03 (purchase_order): ✅ 真实 UPSERT/DELETE 到 supply_purchase_order 表
             - 其他 entity_type: ⚠️ 桩方法，返回 False 并记录警告
         """
         import os as _os
@@ -692,7 +693,10 @@ class SupplyChainManager:
             if entity_type == "product":
                 return cls._write_product_to_pg(cls._pg_db, operation, data)
 
-            # TODO (Phase 2+): 实现 receiving / purchase_order / supplier 等实体
+            if entity_type == "purchase_order":
+                return cls._write_purchase_order_to_pg(cls._pg_db, operation, data)
+
+            # TODO (Phase 2+): 实现 receiving / supplier / task / suggestion 等实体
             logger.warning(
                 "[ADR-003] _save_to_hub_pg: entity_type=%s 尚未实现 (桩方法)",
                 entity_type,
@@ -811,6 +815,103 @@ class SupplyChainManager:
                 sku_code, operation, store_id,
             )
             return True
+
+        finally:
+            pg_db._putconn(conn)
+
+    @classmethod
+    def _write_purchase_order_to_pg(cls, pg_db, operation: str, data: Dict[str, Any]) -> bool:
+        """S03 采购订单 → supply_purchase_order 表的 UPSERT/DELETE 实现。
+
+        Args:
+            pg_db: PostgresHubDatabase 实例
+            operation: "create" | "update" | "delete"
+            data: PurchaseOrder.model_dump() 字典或 {"po_number": ...} 最小子集
+
+        Returns:
+            True 如果写入/删除成功
+        """
+        import os as _os
+
+        po_number = data.get("po_number", "")
+        if not po_number:
+            logger.error("[ADR-003] _write_purchase_order_to_pg: 缺少 po_number")
+            return False
+
+        store_id = data.get("store_id", "") or _os.environ.get("HOTPOT_STORE_ID", "store_jiaojiang")
+
+        # 序列化 items 为 JSONB 数组
+        items_raw = data.get("items", [])
+        if isinstance(items_raw, list):
+            items_json = json.dumps([i if isinstance(i, dict) else i.model_dump() for i in items_raw], ensure_ascii=False, default=str)
+        else:
+            items_json = "[]"
+
+        payload_str = json.dumps(data, ensure_ascii=False, default=str)
+
+        conn = pg_db._getconn()
+        try:
+            with conn.cursor() as cur:
+                if operation == "delete":
+                    cur.execute(
+                        "DELETE FROM supply_purchase_order WHERE po_number = %s",
+                        (po_number,),
+                    )
+                else:
+                    # UPSERT: CREATE / UPDATE 统一处理
+                    cur.execute(
+                        """
+                        INSERT INTO supply_purchase_order
+                            (po_number, store_id, ordered_by, ordered_at, items,
+                             total_amount, status, supplier, delivery_address, notes,
+                             forecast_ref, auto_generated, payload)
+                        VALUES (%s,%s,%s,%s,%s::jsonb,%s,%s,%s,%s,%s,%s,%s,%s::jsonb)
+                        ON CONFLICT (po_number) DO UPDATE SET
+                            store_id         = EXCLUDED.store_id,
+                            ordered_by       = EXCLUDED.ordered_by,
+                            ordered_at       = EXCLUDED.ordered_at,
+                            items            = EXCLUDED.items,
+                            total_amount     = EXCLUDED.total_amount,
+                            status           = EXCLUDED.status,
+                            supplier         = EXCLUDED.supplier,
+                            delivery_address = EXCLUDED.delivery_address,
+                            notes            = EXCLUDED.notes,
+                            forecast_ref     = EXCLUDED.forecast_ref,
+                            auto_generated   = EXCLUDED.auto_generated,
+                            updated_at       = now(),
+                            payload          = EXCLUDED.payload
+                        """,
+                        (
+                            po_number,
+                            store_id,
+                            data.get("ordered_by", ""),
+                            data.get("ordered_at") or datetime.now().isoformat(),
+                            items_json,
+                            data.get("total_amount", 0),
+                            data.get("status", "draft"),
+                            data.get("supplier"),
+                            data.get("delivery_address"),
+                            data.get("notes"),
+                            data.get("forecast_ref"),
+                            bool(data.get("auto_generated", False)),
+                            payload_str,
+                        ),
+                    )
+
+                conn.commit()
+
+            logger.info(
+                "[ADR-003] ✅ S03 采购订单已写入 Hub PG: po=%s op=%s store=%s",
+                po_number, operation, store_id,
+            )
+            return True
+
+        except Exception as exc:
+            logger.error(
+                "[ADR-003] S03 PG 写入失败: po=%s op=%s error=%s",
+                po_number, operation, exc, exc_info=True,
+            )
+            return False
 
         finally:
             pg_db._putconn(conn)
@@ -2054,6 +2155,8 @@ class SupplyChainManager:
 
         cls._po_cache[po_number] = order
         cls._save_to_json()
+        cls._save_to_hub_pg("purchase_order", "create", order.model_dump())
+
         logger.info("创建采购订单: %s (%d项, ¥%.2f)", po_number, len(po_items), total)
         return order
 
@@ -2206,6 +2309,7 @@ class SupplyChainManager:
             order.notes = (order.notes or "") + f"\n[确认备注] {notes}"
         order.updated_at = datetime.now()
         cls._save_to_json()
+        cls._save_to_hub_pg("purchase_order", "update", {"po_number": po_number, "status": "confirmed"})
         logger.info("确认采购订单: %s → confirmed", po_number)
 
         # 🎯 D3 IP-3: 订单状态变更事件
@@ -2245,6 +2349,7 @@ class SupplyChainManager:
         order.cancel_reason = reason
         order.updated_at = datetime.now()
         cls._save_to_json()
+        cls._save_to_hub_pg("purchase_order", "update", {"po_number": po_number, "status": "cancelled"})
         logger.info("取消采购订单: %s → cancelled (原因: %s)", po_number, reason)
 
         # 🎯 D3 IP-3: 订单状态变更事件
@@ -4288,6 +4393,15 @@ class SupplyChainManager:
             task["approval_workflow"]["po_number"] = po.order_no
 
             cls._save_to_json()
+            # 审批通过后同步 PO 到 Hub PG
+            if po and getattr(po, 'order_no', None):
+                cls._save_to_hub_pg("purchase_order", "create", {
+                    "po_number": po.order_no,
+                    "store_id": getattr(po, 'store_id', ''),
+                    "status": "submitted",
+                    "total_amount": getattr(po, 'total_amount', 0),
+                    "ordered_by": approved_by,
+                })
 
             logger.info(f"[IP-5] ✅ 采购任务审批通过: {task_id} → PO {po.order_no} (审批人: {approved_by})")
 
