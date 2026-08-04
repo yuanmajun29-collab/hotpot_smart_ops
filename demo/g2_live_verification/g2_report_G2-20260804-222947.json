@@ -1,0 +1,228 @@
+{
+  "verification_id": "G2-20260804-222947",
+  "timestamp": "2026-08-04T14:29:47.048634+00:00",
+  "environment": {
+    "platform": "darwin",
+    "python_version": "3.13.12",
+    "project_root": "/Users/apple/WorkBuddy/2026-07-24-20-31-16/hotpot_smart_ops",
+    "r7_data_exists": true,
+    "r7_files": [
+      "r7_demo_supply-chain.json",
+      "r7_demo_cleaning-loop.json",
+      "r7_demo_ai-assistant.json",
+      "r7_demo_vision-engine.json",
+      "r7_demo_master_report.json"
+    ]
+  },
+  "scenes": [
+    {
+      "scene_id": "cleaning-loop",
+      "scene_name": "P0 清台任务闭环",
+      "steps": [
+        {
+          "step_id": "CL-01",
+          "step_name": "加载R7清台标注数据",
+          "status": "FAIL",
+          "duration_ms": 0.0,
+          "details": "",
+          "evidence": {},
+          "error": "未预期异常: VerificationStep.__init__() missing 1 required positional argument: 'status'"
+        },
+        {
+          "step_id": "CL-02",
+          "step_name": "视觉事件解析与置信度检查",
+          "status": "FAIL",
+          "duration_ms": 0.0,
+          "details": "",
+          "evidence": {},
+          "error": "未预期异常: VerificationStep.__init__() missing 1 required positional argument: 'status'"
+        },
+        {
+          "step_id": "CL-03",
+          "step_name": "自动建任务逻辑验证",
+          "status": "FAIL",
+          "duration_ms": 0.0,
+          "details": "",
+          "evidence": {},
+          "error": "未预期异常: VerificationStep.__init__() missing 1 required positional argument: 'status'"
+        },
+        {
+          "step_id": "CL-04",
+          "step_name": "任务状态流转(创建→接单→执行→完成)",
+          "status": "FAIL",
+          "duration_ms": 0.0,
+          "details": "",
+          "evidence": {},
+          "error": "未预期异常: VerificationStep.__init__() missing 1 required positional argument: 'status'"
+        },
+        {
+          "step_id": "CL-05",
+          "step_name": "KPI指标提取与回写",
+          "status": "FAIL",
+          "duration_ms": 0.0,
+          "details": "",
+          "evidence": {},
+          "error": "未预期异常: VerificationStep.__init__() missing 1 required positional argument: 'status'"
+        },
+        {
+          "step_id": "CL-06",
+          "step_name": "全链路数据完整性校验",
+          "status": "FAIL",
+          "duration_ms": 0.0,
+          "details": "",
+          "evidence": {},
+          "error": "未预期异常: VerificationStep.__init__() missing 1 required positional argument: 'status'"
+        }
+      ],
+      "start_time": "2026-08-04T22:29:47.048992",
+      "end_time": "2026-08-04T22:29:47.050339",
+      "total_duration_ms": 0.0
+    },
+    {
+      "scene_id": "vision-engine",
+      "scene_name": "S1 后厨之眼 (损耗检测+SOP)",
+      "steps": [
+        {
+          "step_id": "VE-01",
+          "step_name": "加载S1视觉数据",
+          "status": "FAIL",
+          "duration_ms": 0.0,
+          "details": "",
+          "evidence": {},
+          "error": "未预期异常: VerificationStep.__init__() missing 1 required positional argument: 'status'"
+        },
+        {
+          "step_id": "VE-02",
+          "step_name": "损耗事件分析",
+          "status": "FAIL",
+          "duration_ms": 0.0,
+          "details": "",
+          "evidence": {},
+          "error": "未预期异常: VerificationStep.__init__() missing 1 required positional argument: 'status'"
+        },
+        {
+          "step_id": "VE-03",
+          "step_name": "SOP合规评分",
+          "status": "FAIL",
+          "duration_ms": 0.0,
+          "details": "",
+          "evidence": {},
+          "error": "未预期异常: VerificationStep.__init__() missing 1 required positional argument: 'status'"
+        },
+        {
+          "step_id": "VE-04",
+          "step_name": "时间序列完整性",
+          "status": "FAIL",
+          "duration_ms": 0.0,
+          "details": "",
+          "evidence": {},
+          "error": "未预期异常: VerificationStep.__init__() missing 1 required positional argument: 'status'"
+        }
+      ],
+      "start_time": "2026-08-04T22:29:47.050370",
+      "end_time": "2026-08-04T22:29:47.050701",
+      "total_duration_ms": 0.0
+    },
+    {
+      "scene_id": "supply-chain",
+      "scene_name": "S3 供应链 (采购→收货→质检)",
+      "steps": [
+        {
+          "step_id": "SC-01",
+          "step_name": "加载S3供应链数据",
+          "status": "FAIL",
+          "duration_ms": 0.0,
+          "details": "",
+          "evidence": {},
+          "error": "未预期异常: VerificationStep.__init__() missing 1 required positional argument: 'status'"
+        },
+        {
+          "step_id": "SC-02",
+          "step_name": "产品主数据完整性",
+          "status": "FAIL",
+          "duration_ms": 0.0,
+          "details": "",
+          "evidence": {},
+          "error": "未预期异常: VerificationStep.__init__() missing 1 required positional argument: 'status'"
+        },
+        {
+          "step_id": "SC-03",
+          "step_name": "采购订单→收货映射",
+          "status": "FAIL",
+          "duration_ms": 0.0,
+          "details": "",
+          "evidence": {},
+          "error": "未预期异常: VerificationStep.__init__() missing 1 required positional argument: 'status'"
+        },
+        {
+          "step_id": "SC-04",
+          "step_name": "质检等级分布",
+          "status": "FAIL",
+          "duration_ms": 0.0,
+          "details": "",
+          "evidence": {},
+          "error": "未预期异常: VerificationStep.__init__() missing 1 required positional argument: 'status'"
+        }
+      ],
+      "start_time": "2026-08-04T22:29:47.050721",
+      "end_time": "2026-08-04T22:29:47.051043",
+      "total_duration_ms": 0.0
+    },
+    {
+      "scene_id": "ai-assistant",
+      "scene_name": "S4 AI助理 (岗位Agent交互)",
+      "steps": [
+        {
+          "step_id": "AA-01",
+          "step_name": "加载S4 AI助理数据",
+          "status": "FAIL",
+          "duration_ms": 0.0,
+          "details": "",
+          "evidence": {},
+          "error": "未预期异常: VerificationStep.__init__() missing 1 required positional argument: 'status'"
+        },
+        {
+          "step_id": "AA-02",
+          "step_name": "Agent角色覆盖",
+          "status": "FAIL",
+          "duration_ms": 0.0,
+          "details": "",
+          "evidence": {},
+          "error": "未预期异常: VerificationStep.__init__() missing 1 required positional argument: 'status'"
+        },
+        {
+          "step_id": "AA-03",
+          "step_name": "消息交互完整性",
+          "status": "FAIL",
+          "duration_ms": 0.0,
+          "details": "",
+          "evidence": {},
+          "error": "未预期异常: VerificationStep.__init__() missing 1 required positional argument: 'status'"
+        },
+        {
+          "step_id": "AA-04",
+          "step_name": "建议采纳率",
+          "status": "FAIL",
+          "duration_ms": 0.0,
+          "details": "",
+          "evidence": {},
+          "error": "未预期异常: VerificationStep.__init__() missing 1 required positional argument: 'status'"
+        }
+      ],
+      "start_time": "2026-08-04T22:29:47.051060",
+      "end_time": "2026-08-04T22:29:47.051364",
+      "total_duration_ms": 0.0
+    }
+  ],
+  "summary": {
+    "total_scenes": 4,
+    "passed_scenes": 0,
+    "total_steps": 18,
+    "passed_steps": 0,
+    "failed_steps": 18,
+    "warned_steps": 0,
+    "overall_pass_rate": 0.0,
+    "verdict": "FAIL"
+  },
+  "evidence_files": []
+}

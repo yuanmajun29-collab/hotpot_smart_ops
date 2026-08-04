@@ -1,0 +1,1102 @@
+{
+  "dataset_name": "R7 后厨之眼演示数据",
+  "version": "v1.0.0",
+  "generated_at": "2026-08-04T03:40:07.615058+00:00",
+  "scenario": "S1-后厨之眼 (废料检测+损耗分析+SOP合规)",
+  "provenance_summary": {
+    "total": 45,
+    "real": 14,
+    "mock": 0,
+    "simulated": 1,
+    "hybrid": 30
+  },
+  "data": {
+    "waste_events": [
+      {
+        "event_type": "waste_detection",
+        "timestamp": "2026-08-04T08:00:00+00:00",
+        "store_id": "store_jiaojiang",
+        "camera_zone": "kitchen_prep_area",
+        "item": "黄喉",
+        "count": 4,
+        "reason": "备货过量",
+        "est_value": 780,
+        "detector_model": "yolov8-waste-v2.1",
+        "confidence": 0.78,
+        "_provenance": {
+          "version": "v1.0.0",
+          "annotator": "火瞳R7自动标注系统",
+          "annotation_time": "2026-08-04T03:40:07.614463+00:00",
+          "store_id": "store_jiaojiang",
+          "source": "hybrid",
+          "source_device": "camera_jiaojiang_hikvision_nvr",
+          "confidence": 0.769508078744689,
+          "verified": false,
+          "tags": [
+            "waste",
+            "kitchen-vision",
+            "s1"
+          ],
+          "data_id": "bb9a0f7b"
+        }
+      },
+      {
+        "event_type": "waste_detection",
+        "timestamp": "2026-08-04T15:00:00+00:00",
+        "store_id": "store_jiaojiang",
+        "camera_zone": "kitchen_prep_area",
+        "item": "蔬菜拼盘",
+        "count": 4,
+        "reason": "摆盘失误",
+        "est_value": 100,
+        "detector_model": "yolov8-waste-v2.1",
+        "confidence": 0.88,
+        "_provenance": {
+          "version": "v1.0.0",
+          "annotator": "火瞳R7自动标注系统",
+          "annotation_time": "2026-08-04T03:40:07.614463+00:00",
+          "store_id": "store_jiaojiang",
+          "source": "hybrid",
+          "source_device": "camera_jiaojiang_hikvision_nvr",
+          "confidence": 0.8597922150552734,
+          "verified": false,
+          "tags": [
+            "waste",
+            "kitchen-vision",
+            "s1"
+          ],
+          "data_id": "34af9a74"
+        }
+      },
+      {
+        "event_type": "waste_detection",
+        "timestamp": "2026-08-04T13:00:00+00:00",
+        "store_id": "store_jiaojiang",
+        "camera_zone": "kitchen_prep_area",
+        "item": "肥牛卷",
+        "count": 2,
+        "reason": "化冻失败",
+        "est_value": 290,
+        "detector_model": "yolov8-waste-v2.1",
+        "confidence": 0.85,
+        "_provenance": {
+          "version": "v1.0.0",
+          "annotator": "火瞳R7自动标注系统",
+          "annotation_time": "2026-08-04T03:40:07.614463+00:00",
+          "store_id": "store_jiaojiang",
+          "source": "hybrid",
+          "source_device": "camera_jiaojiang_hikvision_nvr",
+          "confidence": 0.8673592475990282,
+          "verified": false,
+          "tags": [
+            "waste",
+            "kitchen-vision",
+            "s1"
+          ],
+          "data_id": "6432a15d"
+        }
+      },
+      {
+        "event_type": "waste_detection",
+        "timestamp": "2026-08-04T22:00:00+00:00",
+        "store_id": "store_jiaojiang",
+        "camera_zone": "kitchen_prep_area",
+        "item": "黄喉",
+        "count": 2,
+        "reason": "备货过量",
+        "est_value": 390,
+        "detector_model": "yolov8-waste-v2.1",
+        "confidence": 0.9,
+        "_provenance": {
+          "version": "v1.0.0",
+          "annotator": "火瞳R7自动标注系统",
+          "annotation_time": "2026-08-04T03:40:07.614463+00:00",
+          "store_id": "store_jiaojiang",
+          "source": "hybrid",
+          "source_device": "camera_jiaojiang_hikvision_nvr",
+          "confidence": 0.7530144723153381,
+          "verified": false,
+          "tags": [
+            "waste",
+            "kitchen-vision",
+            "s1"
+          ],
+          "data_id": "c75a0c68"
+        }
+      },
+      {
+        "event_type": "waste_detection",
+        "timestamp": "2026-08-04T15:00:00+00:00",
+        "store_id": "store_jiaojiang",
+        "camera_zone": "kitchen_prep_area",
+        "item": "黄喉",
+        "count": 3,
+        "reason": "备货过量",
+        "est_value": 585,
+        "detector_model": "yolov8-waste-v2.1",
+        "confidence": 0.76,
+        "_provenance": {
+          "version": "v1.0.0",
+          "annotator": "火瞳R7自动标注系统",
+          "annotation_time": "2026-08-04T03:40:07.614463+00:00",
+          "store_id": "store_jiaojiang",
+          "source": "hybrid",
+          "source_device": "camera_jiaojiang_hikvision_nvr",
+          "confidence": 0.8776859672499158,
+          "verified": false,
+          "tags": [
+            "waste",
+            "kitchen-vision",
+            "s1"
+          ],
+          "data_id": "b70fa365"
+        }
+      },
+      {
+        "event_type": "waste_detection",
+        "timestamp": "2026-08-04T08:00:00+00:00",
+        "store_id": "store_jiaojiang",
+        "camera_zone": "kitchen_prep_area",
+        "item": "毛肚",
+        "count": 3,
+        "reason": "过期变质",
+        "est_value": 840,
+        "detector_model": "yolov8-waste-v2.1",
+        "confidence": 0.81,
+        "_provenance": {
+          "version": "v1.0.0",
+          "annotator": "火瞳R7自动标注系统",
+          "annotation_time": "2026-08-04T03:40:07.614463+00:00",
+          "store_id": "store_jiaojiang",
+          "source": "hybrid",
+          "source_device": "camera_jiaojiang_hikvision_nvr",
+          "confidence": 0.7773695068883774,
+          "verified": false,
+          "tags": [
+            "waste",
+            "kitchen-vision",
+            "s1"
+          ],
+          "data_id": "e8d844f8"
+        }
+      },
+      {
+        "event_type": "waste_detection",
+        "timestamp": "2026-08-03T17:00:00+00:00",
+        "store_id": "store_jiaojiang",
+        "camera_zone": "kitchen_prep_area",
+        "item": "黄喉",
+        "count": 4,
+        "reason": "备货过量",
+        "est_value": 780,
+        "detector_model": "yolov8-waste-v2.1",
+        "confidence": 0.9,
+        "_provenance": {
+          "version": "v1.0.0",
+          "annotator": "火瞳R7自动标注系统",
+          "annotation_time": "2026-08-04T03:40:07.614463+00:00",
+          "store_id": "store_jiaojiang",
+          "source": "hybrid",
+          "source_device": "camera_jiaojiang_hikvision_nvr",
+          "confidence": 0.792564968225242,
+          "verified": false,
+          "tags": [
+            "waste",
+            "kitchen-vision",
+            "s1"
+          ],
+          "data_id": "123c004a"
+        }
+      },
+      {
+        "event_type": "waste_detection",
+        "timestamp": "2026-08-03T09:00:00+00:00",
+        "store_id": "store_jiaojiang",
+        "camera_zone": "kitchen_prep_area",
+        "item": "黄喉",
+        "count": 1,
+        "reason": "备货过量",
+        "est_value": 195,
+        "detector_model": "yolov8-waste-v2.1",
+        "confidence": 0.8,
+        "_provenance": {
+          "version": "v1.0.0",
+          "annotator": "火瞳R7自动标注系统",
+          "annotation_time": "2026-08-04T03:40:07.614463+00:00",
+          "store_id": "store_jiaojiang",
+          "source": "hybrid",
+          "source_device": "camera_jiaojiang_hikvision_nvr",
+          "confidence": 0.9185343375373953,
+          "verified": false,
+          "tags": [
+            "waste",
+            "kitchen-vision",
+            "s1"
+          ],
+          "data_id": "d8558b3f"
+        }
+      },
+      {
+        "event_type": "waste_detection",
+        "timestamp": "2026-08-02T22:00:00+00:00",
+        "store_id": "store_jiaojiang",
+        "camera_zone": "kitchen_prep_area",
+        "item": "鸭肠",
+        "count": 4,
+        "reason": "解冻过度",
+        "est_value": 660,
+        "detector_model": "yolov8-waste-v2.1",
+        "confidence": 0.94,
+        "_provenance": {
+          "version": "v1.0.0",
+          "annotator": "火瞳R7自动标注系统",
+          "annotation_time": "2026-08-04T03:40:07.614463+00:00",
+          "store_id": "store_jiaojiang",
+          "source": "hybrid",
+          "source_device": "camera_jiaojiang_hikvision_nvr",
+          "confidence": 0.8138918287559711,
+          "verified": false,
+          "tags": [
+            "waste",
+            "kitchen-vision",
+            "s1"
+          ],
+          "data_id": "f08d3608"
+        }
+      },
+      {
+        "event_type": "waste_detection",
+        "timestamp": "2026-08-02T17:00:00+00:00",
+        "store_id": "store_jiaojiang",
+        "camera_zone": "kitchen_prep_area",
+        "item": "肥牛卷",
+        "count": 3,
+        "reason": "化冻失败",
+        "est_value": 435,
+        "detector_model": "yolov8-waste-v2.1",
+        "confidence": 0.93,
+        "_provenance": {
+          "version": "v1.0.0",
+          "annotator": "火瞳R7自动标注系统",
+          "annotation_time": "2026-08-04T03:40:07.614463+00:00",
+          "store_id": "store_jiaojiang",
+          "source": "hybrid",
+          "source_device": "camera_jiaojiang_hikvision_nvr",
+          "confidence": 0.8572107448186382,
+          "verified": false,
+          "tags": [
+            "waste",
+            "kitchen-vision",
+            "s1"
+          ],
+          "data_id": "718a7942"
+        }
+      },
+      {
+        "event_type": "waste_detection",
+        "timestamp": "2026-08-01T14:00:00+00:00",
+        "store_id": "store_jiaojiang",
+        "camera_zone": "kitchen_prep_area",
+        "item": "黄喉",
+        "count": 1,
+        "reason": "备货过量",
+        "est_value": 195,
+        "detector_model": "yolov8-waste-v2.1",
+        "confidence": 0.87,
+        "_provenance": {
+          "version": "v1.0.0",
+          "annotator": "火瞳R7自动标注系统",
+          "annotation_time": "2026-08-04T03:40:07.614463+00:00",
+          "store_id": "store_jiaojiang",
+          "source": "hybrid",
+          "source_device": "camera_jiaojiang_hikvision_nvr",
+          "confidence": 0.7700651140268299,
+          "verified": false,
+          "tags": [
+            "waste",
+            "kitchen-vision",
+            "s1"
+          ],
+          "data_id": "440c5fb3"
+        }
+      },
+      {
+        "event_type": "waste_detection",
+        "timestamp": "2026-08-01T17:00:00+00:00",
+        "store_id": "store_jiaojiang",
+        "camera_zone": "kitchen_prep_area",
+        "item": "鸭肠",
+        "count": 4,
+        "reason": "解冻过度",
+        "est_value": 660,
+        "detector_model": "yolov8-waste-v2.1",
+        "confidence": 0.81,
+        "_provenance": {
+          "version": "v1.0.0",
+          "annotator": "火瞳R7自动标注系统",
+          "annotation_time": "2026-08-04T03:40:07.614463+00:00",
+          "store_id": "store_jiaojiang",
+          "source": "hybrid",
+          "source_device": "camera_jiaojiang_hikvision_nvr",
+          "confidence": 0.8974603504108082,
+          "verified": false,
+          "tags": [
+            "waste",
+            "kitchen-vision",
+            "s1"
+          ],
+          "data_id": "eebd0582"
+        }
+      },
+      {
+        "event_type": "waste_detection",
+        "timestamp": "2026-08-01T09:00:00+00:00",
+        "store_id": "store_jiaojiang",
+        "camera_zone": "kitchen_prep_area",
+        "item": "毛肚",
+        "count": 1,
+        "reason": "过期变质",
+        "est_value": 280,
+        "detector_model": "yolov8-waste-v2.1",
+        "confidence": 0.95,
+        "_provenance": {
+          "version": "v1.0.0",
+          "annotator": "火瞳R7自动标注系统",
+          "annotation_time": "2026-08-04T03:40:07.614463+00:00",
+          "store_id": "store_jiaojiang",
+          "source": "hybrid",
+          "source_device": "camera_jiaojiang_hikvision_nvr",
+          "confidence": 0.8528680799050422,
+          "verified": false,
+          "tags": [
+            "waste",
+            "kitchen-vision",
+            "s1"
+          ],
+          "data_id": "c4a4a539"
+        }
+      },
+      {
+        "event_type": "waste_detection",
+        "timestamp": "2026-08-01T11:00:00+00:00",
+        "store_id": "store_jiaojiang",
+        "camera_zone": "kitchen_prep_area",
+        "item": "毛肚",
+        "count": 1,
+        "reason": "过期变质",
+        "est_value": 280,
+        "detector_model": "yolov8-waste-v2.1",
+        "confidence": 0.79,
+        "_provenance": {
+          "version": "v1.0.0",
+          "annotator": "火瞳R7自动标注系统",
+          "annotation_time": "2026-08-04T03:40:07.614463+00:00",
+          "store_id": "store_jiaojiang",
+          "source": "hybrid",
+          "source_device": "camera_jiaojiang_hikvision_nvr",
+          "confidence": 0.877257873940922,
+          "verified": false,
+          "tags": [
+            "waste",
+            "kitchen-vision",
+            "s1"
+          ],
+          "data_id": "19641f41"
+        }
+      },
+      {
+        "event_type": "waste_detection",
+        "timestamp": "2026-07-31T15:00:00+00:00",
+        "store_id": "store_jiaojiang",
+        "camera_zone": "kitchen_prep_area",
+        "item": "鸭肠",
+        "count": 1,
+        "reason": "解冻过度",
+        "est_value": 165,
+        "detector_model": "yolov8-waste-v2.1",
+        "confidence": 0.85,
+        "_provenance": {
+          "version": "v1.0.0",
+          "annotator": "火瞳R7自动标注系统",
+          "annotation_time": "2026-08-04T03:40:07.614463+00:00",
+          "store_id": "store_jiaojiang",
+          "source": "hybrid",
+          "source_device": "camera_jiaojiang_hikvision_nvr",
+          "confidence": 0.9151948660108917,
+          "verified": false,
+          "tags": [
+            "waste",
+            "kitchen-vision",
+            "s1"
+          ],
+          "data_id": "14057b8d"
+        }
+      },
+      {
+        "event_type": "waste_detection",
+        "timestamp": "2026-07-31T08:00:00+00:00",
+        "store_id": "store_jiaojiang",
+        "camera_zone": "kitchen_prep_area",
+        "item": "毛肚",
+        "count": 4,
+        "reason": "过期变质",
+        "est_value": 1120,
+        "detector_model": "yolov8-waste-v2.1",
+        "confidence": 0.8,
+        "_provenance": {
+          "version": "v1.0.0",
+          "annotator": "火瞳R7自动标注系统",
+          "annotation_time": "2026-08-04T03:40:07.614463+00:00",
+          "store_id": "store_jiaojiang",
+          "source": "hybrid",
+          "source_device": "camera_jiaojiang_hikvision_nvr",
+          "confidence": 0.8585815637251895,
+          "verified": false,
+          "tags": [
+            "waste",
+            "kitchen-vision",
+            "s1"
+          ],
+          "data_id": "df5f3e0a"
+        }
+      },
+      {
+        "event_type": "waste_detection",
+        "timestamp": "2026-07-31T16:00:00+00:00",
+        "store_id": "store_jiaojiang",
+        "camera_zone": "kitchen_prep_area",
+        "item": "鸭肠",
+        "count": 4,
+        "reason": "解冻过度",
+        "est_value": 660,
+        "detector_model": "yolov8-waste-v2.1",
+        "confidence": 0.91,
+        "_provenance": {
+          "version": "v1.0.0",
+          "annotator": "火瞳R7自动标注系统",
+          "annotation_time": "2026-08-04T03:40:07.614463+00:00",
+          "store_id": "store_jiaojiang",
+          "source": "hybrid",
+          "source_device": "camera_jiaojiang_hikvision_nvr",
+          "confidence": 0.8393689600522384,
+          "verified": false,
+          "tags": [
+            "waste",
+            "kitchen-vision",
+            "s1"
+          ],
+          "data_id": "dd0de727"
+        }
+      },
+      {
+        "event_type": "waste_detection",
+        "timestamp": "2026-07-31T16:00:00+00:00",
+        "store_id": "store_jiaojiang",
+        "camera_zone": "kitchen_prep_area",
+        "item": "鸭肠",
+        "count": 2,
+        "reason": "解冻过度",
+        "est_value": 330,
+        "detector_model": "yolov8-waste-v2.1",
+        "confidence": 0.75,
+        "_provenance": {
+          "version": "v1.0.0",
+          "annotator": "火瞳R7自动标注系统",
+          "annotation_time": "2026-08-04T03:40:07.614463+00:00",
+          "store_id": "store_jiaojiang",
+          "source": "hybrid",
+          "source_device": "camera_jiaojiang_hikvision_nvr",
+          "confidence": 0.8333012343965345,
+          "verified": false,
+          "tags": [
+            "waste",
+            "kitchen-vision",
+            "s1"
+          ],
+          "data_id": "ca341e79"
+        }
+      },
+      {
+        "event_type": "waste_detection",
+        "timestamp": "2026-07-30T17:00:00+00:00",
+        "store_id": "store_jiaojiang",
+        "camera_zone": "kitchen_prep_area",
+        "item": "黄喉",
+        "count": 1,
+        "reason": "备货过量",
+        "est_value": 195,
+        "detector_model": "yolov8-waste-v2.1",
+        "confidence": 0.8,
+        "_provenance": {
+          "version": "v1.0.0",
+          "annotator": "火瞳R7自动标注系统",
+          "annotation_time": "2026-08-04T03:40:07.614463+00:00",
+          "store_id": "store_jiaojiang",
+          "source": "hybrid",
+          "source_device": "camera_jiaojiang_hikvision_nvr",
+          "confidence": 0.815351714655881,
+          "verified": false,
+          "tags": [
+            "waste",
+            "kitchen-vision",
+            "s1"
+          ],
+          "data_id": "3f5985d7"
+        }
+      },
+      {
+        "event_type": "waste_detection",
+        "timestamp": "2026-07-30T13:00:00+00:00",
+        "store_id": "store_jiaojiang",
+        "camera_zone": "kitchen_prep_area",
+        "item": "肥牛卷",
+        "count": 2,
+        "reason": "化冻失败",
+        "est_value": 290,
+        "detector_model": "yolov8-waste-v2.1",
+        "confidence": 0.78,
+        "_provenance": {
+          "version": "v1.0.0",
+          "annotator": "火瞳R7自动标注系统",
+          "annotation_time": "2026-08-04T03:40:07.614463+00:00",
+          "store_id": "store_jiaojiang",
+          "source": "hybrid",
+          "source_device": "camera_jiaojiang_hikvision_nvr",
+          "confidence": 0.8629870420643311,
+          "verified": false,
+          "tags": [
+            "waste",
+            "kitchen-vision",
+            "s1"
+          ],
+          "data_id": "16677b0b"
+        }
+      },
+      {
+        "event_type": "waste_detection",
+        "timestamp": "2026-07-30T15:00:00+00:00",
+        "store_id": "store_jiaojiang",
+        "camera_zone": "kitchen_prep_area",
+        "item": "蔬菜拼盘",
+        "count": 4,
+        "reason": "摆盘失误",
+        "est_value": 100,
+        "detector_model": "yolov8-waste-v2.1",
+        "confidence": 0.79,
+        "_provenance": {
+          "version": "v1.0.0",
+          "annotator": "火瞳R7自动标注系统",
+          "annotation_time": "2026-08-04T03:40:07.614463+00:00",
+          "store_id": "store_jiaojiang",
+          "source": "hybrid",
+          "source_device": "camera_jiaojiang_hikvision_nvr",
+          "confidence": 0.762384660633987,
+          "verified": false,
+          "tags": [
+            "waste",
+            "kitchen-vision",
+            "s1"
+          ],
+          "data_id": "2a3fd66b"
+        }
+      },
+      {
+        "event_type": "waste_detection",
+        "timestamp": "2026-07-30T18:00:00+00:00",
+        "store_id": "store_jiaojiang",
+        "camera_zone": "kitchen_prep_area",
+        "item": "肥牛卷",
+        "count": 4,
+        "reason": "化冻失败",
+        "est_value": 580,
+        "detector_model": "yolov8-waste-v2.1",
+        "confidence": 0.87,
+        "_provenance": {
+          "version": "v1.0.0",
+          "annotator": "火瞳R7自动标注系统",
+          "annotation_time": "2026-08-04T03:40:07.614463+00:00",
+          "store_id": "store_jiaojiang",
+          "source": "hybrid",
+          "source_device": "camera_jiaojiang_hikvision_nvr",
+          "confidence": 0.8871676525595198,
+          "verified": false,
+          "tags": [
+            "waste",
+            "kitchen-vision",
+            "s1"
+          ],
+          "data_id": "c6a8846c"
+        }
+      },
+      {
+        "event_type": "waste_detection",
+        "timestamp": "2026-07-30T13:00:00+00:00",
+        "store_id": "store_jiaojiang",
+        "camera_zone": "kitchen_prep_area",
+        "item": "蔬菜拼盘",
+        "count": 3,
+        "reason": "摆盘失误",
+        "est_value": 75,
+        "detector_model": "yolov8-waste-v2.1",
+        "confidence": 0.91,
+        "_provenance": {
+          "version": "v1.0.0",
+          "annotator": "火瞳R7自动标注系统",
+          "annotation_time": "2026-08-04T03:40:07.614463+00:00",
+          "store_id": "store_jiaojiang",
+          "source": "hybrid",
+          "source_device": "camera_jiaojiang_hikvision_nvr",
+          "confidence": 0.9057015724446912,
+          "verified": false,
+          "tags": [
+            "waste",
+            "kitchen-vision",
+            "s1"
+          ],
+          "data_id": "ac7d7265"
+        }
+      },
+      {
+        "event_type": "waste_detection",
+        "timestamp": "2026-07-29T19:00:00+00:00",
+        "store_id": "store_jiaojiang",
+        "camera_zone": "kitchen_prep_area",
+        "item": "肥牛卷",
+        "count": 3,
+        "reason": "化冻失败",
+        "est_value": 435,
+        "detector_model": "yolov8-waste-v2.1",
+        "confidence": 0.89,
+        "_provenance": {
+          "version": "v1.0.0",
+          "annotator": "火瞳R7自动标注系统",
+          "annotation_time": "2026-08-04T03:40:07.614463+00:00",
+          "store_id": "store_jiaojiang",
+          "source": "hybrid",
+          "source_device": "camera_jiaojiang_hikvision_nvr",
+          "confidence": 0.84897147116681,
+          "verified": false,
+          "tags": [
+            "waste",
+            "kitchen-vision",
+            "s1"
+          ],
+          "data_id": "c024b6c5"
+        }
+      },
+      {
+        "event_type": "waste_detection",
+        "timestamp": "2026-07-29T21:00:00+00:00",
+        "store_id": "store_jiaojiang",
+        "camera_zone": "kitchen_prep_area",
+        "item": "黄喉",
+        "count": 1,
+        "reason": "备货过量",
+        "est_value": 195,
+        "detector_model": "yolov8-waste-v2.1",
+        "confidence": 0.79,
+        "_provenance": {
+          "version": "v1.0.0",
+          "annotator": "火瞳R7自动标注系统",
+          "annotation_time": "2026-08-04T03:40:07.614463+00:00",
+          "store_id": "store_jiaojiang",
+          "source": "hybrid",
+          "source_device": "camera_jiaojiang_hikvision_nvr",
+          "confidence": 0.7781082341463564,
+          "verified": false,
+          "tags": [
+            "waste",
+            "kitchen-vision",
+            "s1"
+          ],
+          "data_id": "e2444268"
+        }
+      },
+      {
+        "event_type": "waste_detection",
+        "timestamp": "2026-07-29T11:00:00+00:00",
+        "store_id": "store_jiaojiang",
+        "camera_zone": "kitchen_prep_area",
+        "item": "黄喉",
+        "count": 2,
+        "reason": "备货过量",
+        "est_value": 390,
+        "detector_model": "yolov8-waste-v2.1",
+        "confidence": 0.8,
+        "_provenance": {
+          "version": "v1.0.0",
+          "annotator": "火瞳R7自动标注系统",
+          "annotation_time": "2026-08-04T03:40:07.614463+00:00",
+          "store_id": "store_jiaojiang",
+          "source": "hybrid",
+          "source_device": "camera_jiaojiang_hikvision_nvr",
+          "confidence": 0.7983777313438994,
+          "verified": false,
+          "tags": [
+            "waste",
+            "kitchen-vision",
+            "s1"
+          ],
+          "data_id": "85304641"
+        }
+      },
+      {
+        "event_type": "waste_detection",
+        "timestamp": "2026-07-29T11:00:00+00:00",
+        "store_id": "store_jiaojiang",
+        "camera_zone": "kitchen_prep_area",
+        "item": "肥牛卷",
+        "count": 4,
+        "reason": "化冻失败",
+        "est_value": 580,
+        "detector_model": "yolov8-waste-v2.1",
+        "confidence": 0.83,
+        "_provenance": {
+          "version": "v1.0.0",
+          "annotator": "火瞳R7自动标注系统",
+          "annotation_time": "2026-08-04T03:40:07.614463+00:00",
+          "store_id": "store_jiaojiang",
+          "source": "hybrid",
+          "source_device": "camera_jiaojiang_hikvision_nvr",
+          "confidence": 0.7751373830490047,
+          "verified": false,
+          "tags": [
+            "waste",
+            "kitchen-vision",
+            "s1"
+          ],
+          "data_id": "89cd008a"
+        }
+      }
+    ],
+    "daily_waste_summary": [
+      {
+        "date": "2026-08-04",
+        "items": [
+          {
+            "item": "黄喉",
+            "reason": "备货过量",
+            "unit_value": 195,
+            "count": 4,
+            "est_value": 780
+          },
+          {
+            "item": "蔬菜拼盘",
+            "reason": "摆盘失误",
+            "unit_value": 25,
+            "count": 4,
+            "est_value": 100
+          },
+          {
+            "item": "肥牛卷",
+            "reason": "化冻失败",
+            "unit_value": 145,
+            "count": 2,
+            "est_value": 290
+          },
+          {
+            "item": "黄喉",
+            "reason": "备货过量",
+            "unit_value": 195,
+            "count": 2,
+            "est_value": 390
+          },
+          {
+            "item": "黄喉",
+            "reason": "备货过量",
+            "unit_value": 195,
+            "count": 3,
+            "est_value": 585
+          },
+          {
+            "item": "毛肚",
+            "reason": "过期变质",
+            "unit_value": 280,
+            "count": 3,
+            "est_value": 840
+          }
+        ],
+        "total_waste_cny": 2985,
+        "event_count": 6
+      },
+      {
+        "date": "2026-08-03",
+        "items": [
+          {
+            "item": "黄喉",
+            "reason": "备货过量",
+            "unit_value": 195,
+            "count": 4,
+            "est_value": 780
+          },
+          {
+            "item": "黄喉",
+            "reason": "备货过量",
+            "unit_value": 195,
+            "count": 1,
+            "est_value": 195
+          }
+        ],
+        "total_waste_cny": 975,
+        "event_count": 2
+      },
+      {
+        "date": "2026-08-02",
+        "items": [
+          {
+            "item": "鸭肠",
+            "reason": "解冻过度",
+            "unit_value": 165,
+            "count": 4,
+            "est_value": 660
+          },
+          {
+            "item": "肥牛卷",
+            "reason": "化冻失败",
+            "unit_value": 145,
+            "count": 3,
+            "est_value": 435
+          }
+        ],
+        "total_waste_cny": 1095,
+        "event_count": 2
+      },
+      {
+        "date": "2026-08-01",
+        "items": [
+          {
+            "item": "黄喉",
+            "reason": "备货过量",
+            "unit_value": 195,
+            "count": 1,
+            "est_value": 195
+          },
+          {
+            "item": "鸭肠",
+            "reason": "解冻过度",
+            "unit_value": 165,
+            "count": 4,
+            "est_value": 660
+          },
+          {
+            "item": "毛肚",
+            "reason": "过期变质",
+            "unit_value": 280,
+            "count": 1,
+            "est_value": 280
+          },
+          {
+            "item": "毛肚",
+            "reason": "过期变质",
+            "unit_value": 280,
+            "count": 1,
+            "est_value": 280
+          }
+        ],
+        "total_waste_cny": 1415,
+        "event_count": 4
+      },
+      {
+        "date": "2026-07-31",
+        "items": [
+          {
+            "item": "鸭肠",
+            "reason": "解冻过度",
+            "unit_value": 165,
+            "count": 1,
+            "est_value": 165
+          },
+          {
+            "item": "毛肚",
+            "reason": "过期变质",
+            "unit_value": 280,
+            "count": 4,
+            "est_value": 1120
+          },
+          {
+            "item": "鸭肠",
+            "reason": "解冻过度",
+            "unit_value": 165,
+            "count": 4,
+            "est_value": 660
+          },
+          {
+            "item": "鸭肠",
+            "reason": "解冻过度",
+            "unit_value": 165,
+            "count": 2,
+            "est_value": 330
+          }
+        ],
+        "total_waste_cny": 2275,
+        "event_count": 4
+      },
+      {
+        "date": "2026-07-30",
+        "items": [
+          {
+            "item": "黄喉",
+            "reason": "备货过量",
+            "unit_value": 195,
+            "count": 1,
+            "est_value": 195
+          },
+          {
+            "item": "肥牛卷",
+            "reason": "化冻失败",
+            "unit_value": 145,
+            "count": 2,
+            "est_value": 290
+          },
+          {
+            "item": "蔬菜拼盘",
+            "reason": "摆盘失误",
+            "unit_value": 25,
+            "count": 4,
+            "est_value": 100
+          },
+          {
+            "item": "肥牛卷",
+            "reason": "化冻失败",
+            "unit_value": 145,
+            "count": 4,
+            "est_value": 580
+          },
+          {
+            "item": "蔬菜拼盘",
+            "reason": "摆盘失误",
+            "unit_value": 25,
+            "count": 3,
+            "est_value": 75
+          }
+        ],
+        "total_waste_cny": 1240,
+        "event_count": 5
+      },
+      {
+        "date": "2026-07-29",
+        "items": [
+          {
+            "item": "肥牛卷",
+            "reason": "化冻失败",
+            "unit_value": 145,
+            "count": 3,
+            "est_value": 435
+          },
+          {
+            "item": "黄喉",
+            "reason": "备货过量",
+            "unit_value": 195,
+            "count": 1,
+            "est_value": 195
+          },
+          {
+            "item": "黄喉",
+            "reason": "备货过量",
+            "unit_value": 195,
+            "count": 2,
+            "est_value": 390
+          },
+          {
+            "item": "肥牛卷",
+            "reason": "化冻失败",
+            "unit_value": 145,
+            "count": 4,
+            "est_value": 580
+          }
+        ],
+        "total_waste_cny": 1600,
+        "event_count": 4
+      }
+    ],
+    "sop_report": {
+      "compliance_score": 95,
+      "total_checks": 6,
+      "passed_count": 5,
+      "failed_count": 1,
+      "checks": [
+        {
+          "rule": "口罩佩戴",
+          "passed": false,
+          "confidence": 0.97
+        },
+        {
+          "rule": "洗手频次",
+          "passed": true,
+          "confidence": 0.92
+        },
+        {
+          "rule": "工服整洁",
+          "passed": true,
+          "confidence": 0.99
+        },
+        {
+          "rule": "食品留样",
+          "passed": true,
+          "confidence": 0.95
+        },
+        {
+          "rule": "温度记录",
+          "passed": true,
+          "confidence": 0.94
+        },
+        {
+          "rule": "FEFO先失效先出",
+          "passed": true,
+          "confidence": 0.88
+        }
+      ],
+      "inspection_time": "2026-08-04T03:40:07.615054+00:00",
+      "inspector": "AI-SOP-Checker-v2.0",
+      "_provenance": {
+        "version": "v1.0.0",
+        "annotator": "火瞳R7自动标注系统",
+        "annotation_time": "2026-08-04T03:40:07.614463+00:00",
+        "store_id": "store_jiaojiang",
+        "source": "simulated",
+        "source_device": "edge_jetson_jiaojiang",
+        "confidence": 0.9,
+        "verified": false,
+        "tags": [
+          "sop",
+          "compliance",
+          "s1"
+        ],
+        "data_id": "62256ef7"
+      }
+    }
+  },
+  "summary": {
+    "total_waste_events": 27,
+    "total_waste_cny": 11585,
+    "avg_daily_waste_cny": 1655.0,
+    "sop_compliance_score": 95,
+    "top_waste_categories": [
+      {
+        "item": "黄喉",
+        "count": 9,
+        "pct": 33.3
+      },
+      {
+        "item": "肥牛卷",
+        "count": 6,
+        "pct": 22.2
+      },
+      {
+        "item": "鸭肠",
+        "count": 5,
+        "pct": 18.5
+      },
+      {
+        "item": "毛肚",
+        "count": 4,
+        "pct": 14.8
+      },
+      {
+        "item": "蔬菜拼盘",
+        "count": 3,
+        "pct": 11.1
+      }
+    ]
+  }
+}

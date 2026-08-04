@@ -1,0 +1,822 @@
+{
+  "dataset_name": "R7 清台闭环演示数据",
+  "version": "v1.0.0",
+  "generated_at": "2026-08-04T03:40:39.977632+00:00",
+  "scenario": "P0-清台任务闭环 (感知→决策→执行→验证)",
+  "loop_definition": {
+    "step1_camera_capture": "海康NVR HTTP抓拍 → FrameGrabber",
+    "step2_vision_inference": "YOLOv8 Plan B → Pipeline.analyze_table()",
+    "step3_event_generation": "VisionWorker → Hub Events API",
+    "step4_task_creation": "TaskEscalator → Cleaning Task Auto-create",
+    "step5_pda_accept": "cleaning-tasks.html → POST /v1/tasks/{id}/accept",
+    "step6_execution_complete": "POST /v1/tasks/{id}/submit",
+    "step7_kpi_writeback": "DashboardAggregator → KPI snapshot"
+  },
+  "provenance_summary": {
+    "total": 14,
+    "real": 0,
+    "mock": 0,
+    "simulated": 2,
+    "hybrid": 12
+  },
+  "data": {
+    "events": [
+      {
+        "event_id": "EVT-0001",
+        "event_type": "vision_detection",
+        "timestamp": "2026-08-04T01:40:39.977632+00:00",
+        "store_id": "store_jiaojiang",
+        "camera_id": "CAM-FRONT-MAIN",
+        "camera_zone": "front_hall_dining_area",
+        "table_id": "T03",
+        "table_state": "need_clean",
+        "table_state_label": "待清台",
+        "detections": [],
+        "detection_count": 0,
+        "inference": {
+          "engine": "yolov8n",
+          "strategy": "plan_b",
+          "inference_ms": 95,
+          "model_version": "v2.1.0-hotpot"
+        },
+        "alerts": [
+          {
+            "type": "table_needs_cleaning",
+            "severity": "warning",
+            "message": "检测到餐桌需要清理",
+            "auto_action": "create_cleaning_task"
+          }
+        ],
+        "recommendation": "建议立即安排服务员清理 T03",
+        "_provenance": {
+          "version": "v1.0.0",
+          "annotator": "火瞳R7自动标注系统",
+          "annotation_time": "2026-08-04T03:40:39.977466+00:00",
+          "store_id": "store_jiaojiang",
+          "source": "hybrid",
+          "source_device": "camera_jiaojiang_hikvision_nvr",
+          "confidence": 0.7654768063197884,
+          "verified": false,
+          "tags": [
+            "vision",
+            "front-hall",
+            "table-detection",
+            "r7-cleaning-loop"
+          ],
+          "data_id": "c1d88e82"
+        }
+      },
+      {
+        "event_id": "EVT-0002",
+        "event_type": "vision_detection",
+        "timestamp": "2026-08-04T01:51:45.977632+00:00",
+        "store_id": "store_jiaojiang",
+        "camera_id": "CAM-FRONT-MAIN",
+        "camera_zone": "front_hall_dining_area",
+        "table_id": "T02",
+        "table_state": "checkout",
+        "table_state_label": "结账离座",
+        "detections": [],
+        "detection_count": 0,
+        "inference": {
+          "engine": "yolov8n",
+          "strategy": "plan_b",
+          "inference_ms": 248,
+          "model_version": "v2.1.0-hotpot"
+        },
+        "alerts": [],
+        "recommendation": "T02 结账离座，准备清台",
+        "_provenance": {
+          "version": "v1.0.0",
+          "annotator": "火瞳R7自动标注系统",
+          "annotation_time": "2026-08-04T03:40:39.977466+00:00",
+          "store_id": "store_jiaojiang",
+          "source": "hybrid",
+          "source_device": "camera_jiaojiang_hikvision_nvr",
+          "confidence": 0.9199427475414552,
+          "verified": false,
+          "tags": [
+            "vision",
+            "front-hall",
+            "table-detection",
+            "r7-cleaning-loop"
+          ],
+          "data_id": "7957bd88"
+        }
+      },
+      {
+        "event_id": "EVT-0003",
+        "event_type": "vision_detection",
+        "timestamp": "2026-08-04T02:02:40.977632+00:00",
+        "store_id": "store_jiaojiang",
+        "camera_id": "CAM-FRONT-MAIN",
+        "camera_zone": "front_hall_dining_area",
+        "table_id": "T03",
+        "table_state": "need_clean",
+        "table_state_label": "待清台",
+        "detections": [
+          {
+            "class": "waste",
+            "confidence": 0.95,
+            "bbox": [
+              828,
+              372,
+              123,
+              66
+            ]
+          },
+          {
+            "class": "bowl",
+            "confidence": 0.85,
+            "bbox": [
+              1526,
+              804,
+              62,
+              109
+            ]
+          },
+          {
+            "class": "cup",
+            "confidence": 0.6,
+            "bbox": [
+              431,
+              487,
+              173,
+              189
+            ]
+          }
+        ],
+        "detection_count": 3,
+        "inference": {
+          "engine": "yolov8n",
+          "strategy": "plan_b",
+          "inference_ms": 217,
+          "model_version": "v2.1.0-hotpot"
+        },
+        "alerts": [
+          {
+            "type": "table_needs_cleaning",
+            "severity": "warning",
+            "message": "检测到餐桌需要清理",
+            "auto_action": "create_cleaning_task"
+          },
+          {
+            "type": "waste_detected",
+            "severity": "warning",
+            "message": "检测到残留物: waste (置信度95%)"
+          }
+        ],
+        "recommendation": "建议立即安排服务员清理 T03",
+        "_provenance": {
+          "version": "v1.0.0",
+          "annotator": "火瞳R7自动标注系统",
+          "annotation_time": "2026-08-04T03:40:39.977466+00:00",
+          "store_id": "store_jiaojiang",
+          "source": "hybrid",
+          "source_device": "camera_jiaojiang_hikvision_nvr",
+          "confidence": 0.7809847141921964,
+          "verified": false,
+          "tags": [
+            "vision",
+            "front-hall",
+            "table-detection",
+            "r7-cleaning-loop"
+          ],
+          "data_id": "0bca16a0"
+        }
+      },
+      {
+        "event_id": "EVT-0004",
+        "event_type": "vision_detection",
+        "timestamp": "2026-08-04T02:14:29.977632+00:00",
+        "store_id": "store_jiaojiang",
+        "camera_id": "CAM-FRONT-MAIN",
+        "camera_zone": "front_hall_dining_area",
+        "table_id": "T05",
+        "table_state": "checkout",
+        "table_state_label": "结账离座",
+        "detections": [
+          {
+            "class": "chopsticks",
+            "confidence": 0.83,
+            "bbox": [
+              1170,
+              83,
+              179,
+              88
+            ]
+          },
+          {
+            "class": "plate",
+            "confidence": 0.82,
+            "bbox": [
+              39,
+              223,
+              80,
+              199
+            ]
+          },
+          {
+            "class": "plate",
+            "confidence": 0.68,
+            "bbox": [
+              873,
+              412,
+              176,
+              63
+            ]
+          }
+        ],
+        "detection_count": 3,
+        "inference": {
+          "engine": "yolov8n",
+          "strategy": "plan_b",
+          "inference_ms": 99,
+          "model_version": "v2.1.0-hotpot"
+        },
+        "alerts": [],
+        "recommendation": "T05 结账离座，准备清台",
+        "_provenance": {
+          "version": "v1.0.0",
+          "annotator": "火瞳R7自动标注系统",
+          "annotation_time": "2026-08-04T03:40:39.977466+00:00",
+          "store_id": "store_jiaojiang",
+          "source": "hybrid",
+          "source_device": "camera_jiaojiang_hikvision_nvr",
+          "confidence": 0.8662763533012535,
+          "verified": false,
+          "tags": [
+            "vision",
+            "front-hall",
+            "table-detection",
+            "r7-cleaning-loop"
+          ],
+          "data_id": "c5124819"
+        }
+      },
+      {
+        "event_id": "EVT-0005",
+        "event_type": "vision_detection",
+        "timestamp": "2026-08-04T02:26:21.977632+00:00",
+        "store_id": "store_jiaojiang",
+        "camera_id": "CAM-FRONT-MAIN",
+        "camera_zone": "front_hall_dining_area",
+        "table_id": "T02",
+        "table_state": "need_clean",
+        "table_state_label": "待清台",
+        "detections": [
+          {
+            "class": "utensils_left",
+            "confidence": 0.68,
+            "bbox": [
+              1455,
+              759,
+              142,
+              56
+            ]
+          },
+          {
+            "class": "cup",
+            "confidence": 0.64,
+            "bbox": [
+              1286,
+              23,
+              167,
+              144
+            ]
+          },
+          {
+            "class": "plate",
+            "confidence": 0.82,
+            "bbox": [
+              1455,
+              253,
+              110,
+              111
+            ]
+          },
+          {
+            "class": "cup",
+            "confidence": 0.63,
+            "bbox": [
+              1766,
+              465,
+              188,
+              91
+            ]
+          },
+          {
+            "class": "plate",
+            "confidence": 0.72,
+            "bbox": [
+              685,
+              137,
+              146,
+              53
+            ]
+          }
+        ],
+        "detection_count": 5,
+        "inference": {
+          "engine": "yolov8n",
+          "strategy": "plan_b",
+          "inference_ms": 132,
+          "model_version": "v2.1.0-hotpot"
+        },
+        "alerts": [
+          {
+            "type": "table_needs_cleaning",
+            "severity": "warning",
+            "message": "检测到餐桌需要清理",
+            "auto_action": "create_cleaning_task"
+          }
+        ],
+        "recommendation": "建议立即安排服务员清理 T02",
+        "_provenance": {
+          "version": "v1.0.0",
+          "annotator": "火瞳R7自动标注系统",
+          "annotation_time": "2026-08-04T03:40:39.977466+00:00",
+          "store_id": "store_jiaojiang",
+          "source": "hybrid",
+          "source_device": "camera_jiaojiang_hikvision_nvr",
+          "confidence": 0.7615796207974445,
+          "verified": false,
+          "tags": [
+            "vision",
+            "front-hall",
+            "table-detection",
+            "r7-cleaning-loop"
+          ],
+          "data_id": "966a01c3"
+        }
+      },
+      {
+        "event_id": "EVT-0006",
+        "event_type": "vision_detection",
+        "timestamp": "2026-08-04T02:37:44.977632+00:00",
+        "store_id": "store_jiaojiang",
+        "camera_id": "CAM-FRONT-MAIN",
+        "camera_zone": "front_hall_dining_area",
+        "table_id": "T05",
+        "table_state": "empty",
+        "table_state_label": "空桌",
+        "detections": [
+          {
+            "class": "waste",
+            "confidence": 0.89,
+            "bbox": [
+              610,
+              1033,
+              108,
+              159
+            ]
+          }
+        ],
+        "detection_count": 1,
+        "inference": {
+          "engine": "yolov8n",
+          "strategy": "plan_b",
+          "inference_ms": 105,
+          "model_version": "v2.1.0-hotpot"
+        },
+        "alerts": [
+          {
+            "type": "waste_detected",
+            "severity": "info",
+            "message": "检测到残留物: waste (置信度89%)"
+          }
+        ],
+        "recommendation": "T05 空桌，可安排入座",
+        "_provenance": {
+          "version": "v1.0.0",
+          "annotator": "火瞳R7自动标注系统",
+          "annotation_time": "2026-08-04T03:40:39.977466+00:00",
+          "store_id": "store_jiaojiang",
+          "source": "hybrid",
+          "source_device": "camera_jiaojiang_hikvision_nvr",
+          "confidence": 0.7747251726648251,
+          "verified": false,
+          "tags": [
+            "vision",
+            "front-hall",
+            "table-detection",
+            "r7-cleaning-loop"
+          ],
+          "data_id": "4d86348c"
+        }
+      },
+      {
+        "event_id": "EVT-0007",
+        "event_type": "vision_detection",
+        "timestamp": "2026-08-04T02:41:09.977632+00:00",
+        "store_id": "store_jiaojiang",
+        "camera_id": "CAM-FRONT-MAIN",
+        "camera_zone": "front_hall_dining_area",
+        "table_id": "T05",
+        "table_state": "checkout",
+        "table_state_label": "结账离座",
+        "detections": [],
+        "detection_count": 0,
+        "inference": {
+          "engine": "yolov8n",
+          "strategy": "plan_b",
+          "inference_ms": 204,
+          "model_version": "v2.1.0-hotpot"
+        },
+        "alerts": [],
+        "recommendation": "T05 结账离座，准备清台",
+        "_provenance": {
+          "version": "v1.0.0",
+          "annotator": "火瞳R7自动标注系统",
+          "annotation_time": "2026-08-04T03:40:39.977466+00:00",
+          "store_id": "store_jiaojiang",
+          "source": "hybrid",
+          "source_device": "camera_jiaojiang_hikvision_nvr",
+          "confidence": 0.7621580427737197,
+          "verified": false,
+          "tags": [
+            "vision",
+            "front-hall",
+            "table-detection",
+            "r7-cleaning-loop"
+          ],
+          "data_id": "44045441"
+        }
+      },
+      {
+        "event_id": "EVT-0008",
+        "event_type": "vision_detection",
+        "timestamp": "2026-08-04T02:51:52.977632+00:00",
+        "store_id": "store_jiaojiang",
+        "camera_id": "CAM-FRONT-MAIN",
+        "camera_zone": "front_hall_dining_area",
+        "table_id": "T05",
+        "table_state": "dining",
+        "table_state_label": "用餐中",
+        "detections": [
+          {
+            "class": "chopsticks",
+            "confidence": 0.82,
+            "bbox": [
+              292,
+              36,
+              141,
+              129
+            ]
+          }
+        ],
+        "detection_count": 1,
+        "inference": {
+          "engine": "yolov8n",
+          "strategy": "plan_b",
+          "inference_ms": 160,
+          "model_version": "v2.1.0-hotpot"
+        },
+        "alerts": [],
+        "recommendation": "T05 用餐中，持续监控",
+        "_provenance": {
+          "version": "v1.0.0",
+          "annotator": "火瞳R7自动标注系统",
+          "annotation_time": "2026-08-04T03:40:39.977466+00:00",
+          "store_id": "store_jiaojiang",
+          "source": "hybrid",
+          "source_device": "camera_jiaojiang_hikvision_nvr",
+          "confidence": 0.9181830101042584,
+          "verified": false,
+          "tags": [
+            "vision",
+            "front-hall",
+            "table-detection",
+            "r7-cleaning-loop"
+          ],
+          "data_id": "896ccdbc"
+        }
+      },
+      {
+        "event_id": "EVT-0009",
+        "event_type": "vision_detection",
+        "timestamp": "2026-08-04T03:04:16.977632+00:00",
+        "store_id": "store_jiaojiang",
+        "camera_id": "CAM-FRONT-MAIN",
+        "camera_zone": "front_hall_dining_area",
+        "table_id": "T01",
+        "table_state": "need_clean",
+        "table_state_label": "待清台",
+        "detections": [
+          {
+            "class": "plate",
+            "confidence": 0.84,
+            "bbox": [
+              1118,
+              333,
+              66,
+              120
+            ]
+          },
+          {
+            "class": "plate",
+            "confidence": 0.8,
+            "bbox": [
+              1016,
+              699,
+              62,
+              179
+            ]
+          }
+        ],
+        "detection_count": 2,
+        "inference": {
+          "engine": "yolov8n",
+          "strategy": "plan_b",
+          "inference_ms": 205,
+          "model_version": "v2.1.0-hotpot"
+        },
+        "alerts": [
+          {
+            "type": "table_needs_cleaning",
+            "severity": "warning",
+            "message": "检测到餐桌需要清理",
+            "auto_action": "create_cleaning_task"
+          }
+        ],
+        "recommendation": "建议立即安排服务员清理 T01",
+        "_provenance": {
+          "version": "v1.0.0",
+          "annotator": "火瞳R7自动标注系统",
+          "annotation_time": "2026-08-04T03:40:39.977466+00:00",
+          "store_id": "store_jiaojiang",
+          "source": "hybrid",
+          "source_device": "camera_jiaojiang_hikvision_nvr",
+          "confidence": 0.8190804948316379,
+          "verified": false,
+          "tags": [
+            "vision",
+            "front-hall",
+            "table-detection",
+            "r7-cleaning-loop"
+          ],
+          "data_id": "a9e8ee43"
+        }
+      },
+      {
+        "event_id": "EVT-0010",
+        "event_type": "vision_detection",
+        "timestamp": "2026-08-04T03:19:05.977632+00:00",
+        "store_id": "store_jiaojiang",
+        "camera_id": "CAM-FRONT-MAIN",
+        "camera_zone": "front_hall_dining_area",
+        "table_id": "T02",
+        "table_state": "dining",
+        "table_state_label": "用餐中",
+        "detections": [
+          {
+            "class": "chopsticks",
+            "confidence": 0.91,
+            "bbox": [
+              1777,
+              15,
+              152,
+              70
+            ]
+          },
+          {
+            "class": "chopsticks",
+            "confidence": 0.74,
+            "bbox": [
+              1516,
+              1067,
+              53,
+              97
+            ]
+          },
+          {
+            "class": "chopsticks",
+            "confidence": 0.85,
+            "bbox": [
+              47,
+              321,
+              70,
+              50
+            ]
+          },
+          {
+            "class": "plate",
+            "confidence": 0.78,
+            "bbox": [
+              1291,
+              600,
+              71,
+              75
+            ]
+          },
+          {
+            "class": "bowl",
+            "confidence": 0.62,
+            "bbox": [
+              1659,
+              1032,
+              199,
+              96
+            ]
+          }
+        ],
+        "detection_count": 5,
+        "inference": {
+          "engine": "yolov8n",
+          "strategy": "plan_b",
+          "inference_ms": 243,
+          "model_version": "v2.1.0-hotpot"
+        },
+        "alerts": [],
+        "recommendation": "T02 用餐中，持续监控",
+        "_provenance": {
+          "version": "v1.0.0",
+          "annotator": "火瞳R7自动标注系统",
+          "annotation_time": "2026-08-04T03:40:39.977466+00:00",
+          "store_id": "store_jiaojiang",
+          "source": "hybrid",
+          "source_device": "camera_jiaojiang_hikvision_nvr",
+          "confidence": 0.884176302590455,
+          "verified": false,
+          "tags": [
+            "vision",
+            "front-hall",
+            "table-detection",
+            "r7-cleaning-loop"
+          ],
+          "data_id": "8632616f"
+        }
+      },
+      {
+        "event_id": "EVT-0011",
+        "event_type": "vision_detection",
+        "timestamp": "2026-08-04T03:29:36.977632+00:00",
+        "store_id": "store_jiaojiang",
+        "camera_id": "CAM-FRONT-MAIN",
+        "camera_zone": "front_hall_dining_area",
+        "table_id": "T07",
+        "table_state": "dining",
+        "table_state_label": "用餐中",
+        "detections": [],
+        "detection_count": 0,
+        "inference": {
+          "engine": "yolov8n",
+          "strategy": "plan_b",
+          "inference_ms": 95,
+          "model_version": "v2.1.0-hotpot"
+        },
+        "alerts": [],
+        "recommendation": "T07 用餐中，持续监控",
+        "_provenance": {
+          "version": "v1.0.0",
+          "annotator": "火瞳R7自动标注系统",
+          "annotation_time": "2026-08-04T03:40:39.977466+00:00",
+          "store_id": "store_jiaojiang",
+          "source": "hybrid",
+          "source_device": "camera_jiaojiang_hikvision_nvr",
+          "confidence": 0.8194872267715493,
+          "verified": false,
+          "tags": [
+            "vision",
+            "front-hall",
+            "table-detection",
+            "r7-cleaning-loop"
+          ],
+          "data_id": "d0771d16"
+        }
+      }
+    ],
+    "tasks": [
+      {
+        "task_id": "TSK-0001",
+        "task_type": "cleaning",
+        "status": "completed",
+        "source_event_id": "EVT-0005",
+        "table_id": "T02",
+        "store_id": "store_jiaojiang",
+        "created_at": "2026-08-04T02:26:21.977632+00:00",
+        "accepted_at": "2026-08-04T02:27:16.977632+00:00",
+        "completed_at": "2026-08-04T02:31:06.977632+00:00",
+        "assignee": "服务员-B02",
+        "priority": "normal",
+        "deadline": "2026-08-04T02:36:21.977632+00:00",
+        "detail": "【火瞳AI】自动检测到 T02 需要清理 (建议立即安排服务员清理 T02)",
+        "source": "ai_vision_auto",
+        "_provenance": {
+          "version": "v1.0.0",
+          "annotator": "火瞳R7自动标注系统",
+          "annotation_time": "2026-08-04T03:40:39.977466+00:00",
+          "store_id": "store_jiaojiang",
+          "source": "simulated",
+          "source_device": "edge_jetson_jiaojiang",
+          "confidence": 0.95,
+          "verified": false,
+          "tags": [
+            "task",
+            "cleaning",
+            "ai-auto-created",
+            "r7-cleaning-loop"
+          ],
+          "data_id": "62928969"
+        },
+        "response_time_sec": 55,
+        "completion_time_sec": 285
+      },
+      {
+        "task_id": "TSK-0002",
+        "task_type": "cleaning",
+        "status": "completed",
+        "source_event_id": "EVT-0009",
+        "table_id": "T01",
+        "store_id": "store_jiaojiang",
+        "created_at": "2026-08-04T03:04:16.977632+00:00",
+        "accepted_at": "2026-08-04T03:05:57.977632+00:00",
+        "completed_at": "2026-08-04T03:08:22.977632+00:00",
+        "assignee": "服务员-B02",
+        "priority": "normal",
+        "deadline": "2026-08-04T03:14:16.977632+00:00",
+        "detail": "【火瞳AI】自动检测到 T01 需要清理 (建议立即安排服务员清理 T01)",
+        "source": "ai_vision_auto",
+        "_provenance": {
+          "version": "v1.0.0",
+          "annotator": "火瞳R7自动标注系统",
+          "annotation_time": "2026-08-04T03:40:39.977466+00:00",
+          "store_id": "store_jiaojiang",
+          "source": "simulated",
+          "source_device": "edge_jetson_jiaojiang",
+          "confidence": 0.95,
+          "verified": false,
+          "tags": [
+            "task",
+            "cleaning",
+            "ai-auto-created",
+            "r7-cleaning-loop"
+          ],
+          "data_id": "4601d837"
+        },
+        "response_time_sec": 101,
+        "completion_time_sec": 246
+      }
+    ],
+    "kpi_snapshots": [
+      {
+        "task_id": "TSK-0001",
+        "metric": "cleaning_response_time",
+        "value": 55,
+        "unit": "seconds",
+        "timestamp": "2026-08-04T02:27:16.977632+00:00",
+        "table_id": "T02"
+      },
+      {
+        "task_id": "TSK-0002",
+        "metric": "cleaning_response_time",
+        "value": 101,
+        "unit": "seconds",
+        "timestamp": "2026-08-04T03:05:57.977632+00:00",
+        "table_id": "T01"
+      },
+      {
+        "period_start": "2026-08-04T01:40:39.977632+00:00",
+        "period_end": "2026-08-04T03:40:39.977632+00:00",
+        "store_id": "store_jiaojiang",
+        "metrics": {
+          "total_events_detected": 11,
+          "total_tasks_created": 2,
+          "tasks_completed": 2,
+          "tasks_overdue": 0,
+          "completion_rate_pct": 100.0,
+          "avg_response_sec": 78.0,
+          "avg_response_formatted": "1分18秒",
+          "tables_monitored": 8,
+          "need_clean_detected": 4
+        },
+        "_provenance": {
+          "version": "v1.0.0",
+          "annotator": "火瞳R7自动标注系统",
+          "annotation_time": "2026-08-04T03:40:39.977466+00:00",
+          "store_id": "store_jiaojiang",
+          "source": "hybrid",
+          "source_device": "edge_jetson_jiaojiang",
+          "confidence": 0.9,
+          "verified": false,
+          "tags": [
+            "kpi",
+            "cleaning-loop",
+            "aggregated",
+            "r7-closing-metrics"
+          ],
+          "data_id": "872b8903"
+        }
+      }
+    ]
+  },
+  "summary": {
+    "total_events": 11,
+    "total_tasks": 2,
+    "tasks_completed": 2,
+    "tasks_pending": 0,
+    "tasks_overdue": 0,
+    "avg_response_time": "78.0s",
+    "data_quality_score": 100
+  }
+}
