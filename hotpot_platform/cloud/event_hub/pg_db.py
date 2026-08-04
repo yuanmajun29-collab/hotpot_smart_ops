@@ -22,6 +22,40 @@ from hotpot_platform.cloud.event_hub.domain.waste_timeseries import (
     format_alert_message,
 )
 
+# ── ADR-003: 供应链产品主数据表 (S01) ──
+PG_SUPPLY_PRODUCT_MASTER_SCHEMA = """
+CREATE TABLE IF NOT EXISTS supply_product_master (
+    sku_code TEXT PRIMARY KEY,
+    name TEXT NOT NULL,
+    specification TEXT NOT NULL,
+    brand TEXT NOT NULL,
+    unit_price REAL NOT NULL DEFAULT 0,
+    unit TEXT DEFAULT '份',
+    category TEXT NOT NULL,
+    supplier_id TEXT,
+    supplier_name TEXT,
+    image_url TEXT,
+    location_code TEXT,
+    location_name TEXT,
+    storage_area TEXT,
+    shelf_life_days INTEGER,
+    min_stock_qty REAL,
+    tags TEXT[] DEFAULT '{}',
+    status TEXT DEFAULT 'draft',
+    locked BOOLEAN DEFAULT FALSE,
+    version INTEGER DEFAULT 1,
+    store_id TEXT NOT NULL DEFAULT '',
+    created_by TEXT,
+    created_at TIMESTAMPTZ,
+    updated_by TEXT,
+    updated_at TIMESTAMPTZ,
+    payload JSONB NOT NULL
+);
+CREATE INDEX IF NOT EXISTS idx_spm_store ON supply_product_master(store_id);
+CREATE INDEX IF NOT EXISTS idx_spm_category ON supply_product_master(category);
+CREATE INDEX IF NOT EXISTS idx_spm_status ON supply_product_master(status);
+"""
+
 MAX_EVENTS_PER_STORE = 500
 POOL_MIN_CONN = 2
 POOL_MAX_CONN = 10
@@ -115,6 +149,7 @@ class PostgresHubDatabase:
                     + PG_TASKS_SCHEMA
                     + PG_IOT_READINGS_SCHEMA
                     + PG_DAILY_REPORTS_SCHEMA
+                    + PG_SUPPLY_PRODUCT_MASTER_SCHEMA
                     + """
                     CREATE TABLE IF NOT EXISTS waste_timeseries (
                         id SERIAL PRIMARY KEY,

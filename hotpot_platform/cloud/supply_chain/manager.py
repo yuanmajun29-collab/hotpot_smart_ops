@@ -653,29 +653,167 @@ class SupplyChainManager:
 
     @classmethod
     def _save_to_hub_pg(cls, entity_type: str, operation: str, data: Dict[str, Any]) -> bool:
-        """将业务数据写入 Hub PostgreSQL (Phase 2 实现)。
+        """将业务数据写入 Hub PostgreSQL (Phase 2 · S01 已实现)。
 
         Args:
-            entity_type: "product" | "receiving" | "purchase_order" |
-                          "supplier_score" | "task" | "suggestion"
+            entity_type: "product" (S01) | "receiving" (S02) | "purchase_order" (S03) |
+                          "supplier" (S04) | "task" | "suggestion"
             operation: "create" | "update" | "delete"
             data: 要写入的数据字典
 
         Returns:
             True 如果写入成功
 
-        TODO (Phase 2 · ADR-003):
-            - 通过 Hub REST API 或直连 PG 写入
-            - 加入 JWT 认证头
-            - 加入审计字段 (operator, store_id, timestamp)
-            - 异步批量写入优化
+        Implementation (2026-08-04):
+            - S01 (product): ✅ 真实 UPSERT 到 supply_product_master 表
+            - 其他 entity_type: ⚠️ 桩方法，返回 False 并记录警告
         """
-        logger.warning(
-            "[ADR-003] _save_to_hub_pg 尚未实现 (桩方法): "
-            "entity=%s op=%s keys=%s",
-            entity_type, operation, list(data.keys()) if isinstance(data, dict) else type(data).__name__,
-        )
-        return False
+        import os as _os
+
+        database_url = _os.environ.get("HOTPOT_DATABASE_URL", "")
+        if not database_url:
+            logger.debug("[ADR-003] HOTPOT_DATABASE_URL 未设置，跳过 Hub PG 写入")
+            return False
+
+        # ── 延迟初始化 PG 连接（仅首次调用时创建）──
+        if not getattr(cls, "_pg_db", None):
+            try:
+                from hotpot_platform.cloud.event_hub.pg_db import PostgresHubDatabase
+                cls._pg_db = PostgresHubDatabase(database_url)
+                cls._hub_pg_available = True
+                logger.info("[ADR-003] Hub PG 连接成功: %s", cls._pg_db.db_path)
+            except Exception as exc:
+                logger.error("[ADR-003] Hub PG 连接失败: %s", exc)
+                cls._hub_pg_available = False
+                return False
+
+        # ── 按 entity_type 分发 ──
+        try:
+            if entity_type == "product":
+                return cls._write_product_to_pg(cls._pg_db, operation, data)
+
+            # TODO (Phase 2+): 实现 receiving / purchase_order / supplier 等实体
+            logger.warning(
+                "[ADR-003] _save_to_hub_pg: entity_type=%s 尚未实现 (桩方法)",
+                entity_type,
+            )
+            return False
+
+        except Exception as exc:
+            logger.error("[ADR-003] Hub PG 写入异常: entity=%s op=%s error=%s",
+                         entity_type, operation, exc, exc_info=True)
+            # 连接可能已断开，标记为不可用（下次调用会重连）
+            cls._hub_pg_available = False
+            return False
+
+    @classmethod
+    def _write_product_to_pg(cls, pg_db, operation: str, data: Dict[str, Any]) -> bool:
+        """S01 产品主数据 → supply_product_master 表的 UPSERT 实现。
+
+        Args:
+            pg_db: PostgresHubDatabase 实例
+            operation: "create" | "update" | "delete"
+            data: ProductMaster.model_dump() 字典或 {"sku_code": ...} 最小子集
+
+        Returns:
+            True 如果写入/删除成功
+        """
+        import os as _os
+
+        sku_code = data.get("sku_code", "")
+        if not sku_code:
+            logger.error("[ADR-003] _write_product_to_pg: 缺少 sku_code")
+            return False
+
+        store_id = _os.environ.get("HOTPOT_STORE_ID", "store_jiaojiang")
+
+        # 将完整数据序列化为 JSONB payload（保留全部字段用于审计和回放）
+        payload_str = json.dumps(data, ensure_ascii=False, default=str)
+
+        conn = pg_db._getconn()
+        try:
+            with conn.cursor() as cur:
+                if operation == "delete":
+                    cur.execute(
+                        "DELETE FROM supply_product_master WHERE sku_code = %s AND store_id = %s",
+                        (sku_code, store_id),
+                    )
+                else:
+                    # ── UPSERT: INSERT ON CONFLICT DO UPDATE ──
+                    cur.execute(
+                        """
+                        INSERT INTO supply_product_master (
+                            sku_code, name, specification, brand, unit_price, unit,
+                            category, supplier_id, supplier_name, image_url,
+                            location_code, location_name, storage_area, shelf_life_days,
+                            min_stock_qty, tags, status, locked, version,
+                            store_id, created_by, created_at, updated_by, updated_at,
+                            payload
+                        ) VALUES (
+                            %s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s::jsonb
+                        )
+                        ON CONFLICT (sku_code) DO UPDATE SET
+                            name = EXCLUDED.name,
+                            specification = EXCLUDED.specification,
+                            brand = EXCLUDED.brand,
+                            unit_price = EXCLUDED.unit_price,
+                            unit = EXCLUDED.unit,
+                            category = EXCLUDED.category,
+                            supplier_id = EXCLUDED.supplier_id,
+                            supplier_name = EXCLUDED.supplier_name,
+                            image_url = EXCLUDED.image_url,
+                            location_code = EXCLUDED.location_code,
+                            location_name = EXCLUDED.location_name,
+                            storage_area = EXCLUDED.storage_area,
+                            shelf_life_days = EXCLUDED.shelf_life_days,
+                            min_stock_qty = EXCLUDED.min_stock_qty,
+                            tags = EXCLUDED.tags,
+                            status = EXCLUDED.status,
+                            locked = EXCLUDED.locked,
+                            version = EXCLUDED.version,
+                            updated_by = EXCLUDED.updated_by,
+                            updated_at = EXCLUDED.updated_at,
+                            payload = EXCLUDED.payload
+                        """,
+                        (
+                            sku_code,
+                            data.get("name", ""),
+                            data.get("specification", ""),
+                            data.get("brand", ""),
+                            data.get("unit_price", 0),
+                            data.get("unit", "份"),
+                            data.get("category", ""),
+                            data.get("supplier_id"),
+                            data.get("supplier_name"),
+                            data.get("image_url"),
+                            data.get("location_code"),
+                            data.get("location_name"),
+                            data.get("storage_area"),
+                            data.get("shelf_life_days"),
+                            data.get("min_stock_qty"),
+                            data.get("tags") or [],
+                            data.get("status", "draft"),
+                            data.get("locked", False),
+                            data.get("version", 1),
+                            store_id,
+                            data.get("created_by"),
+                            data.get("created_at"),
+                            data.get("updated_by"),
+                            data.get("updated_at"),
+                            payload_str,
+                        ),
+                    )
+
+                conn.commit()
+
+            logger.info(
+                "[ADR-003] ✅ S01 产品主数据已写入 Hub PG: sku=%s op=%s store=%s",
+                sku_code, operation, store_id,
+            )
+            return True
+
+        finally:
+            pg_db._putconn(conn)
 
     # ── CRUD 操作 ──
 
@@ -723,6 +861,9 @@ class SupplyChainManager:
 
         cls._product_cache[sku] = product
         cls._save_to_json()
+
+        # ADR-003: 同步写入 Hub PG (S01 · product create)
+        cls._save_to_hub_pg("product", "create", product.model_dump())
 
         logger.info("货品创建成功: %s (%s) by=%s", product.name, sku, operator)
         return product
@@ -828,6 +969,9 @@ class SupplyChainManager:
         cls._product_cache[sku] = product
         cls._save_to_json()
 
+        # ADR-003: 同步写入 Hub PG (S01 · product update)
+        cls._save_to_hub_pg("product", "update", product.model_dump())
+
         logger.info("货品更新成功: %s by=%s", sku, operator)
         return product
 
@@ -857,6 +1001,9 @@ class SupplyChainManager:
         cls._product_cache[sku] = product
         cls._save_to_json()
 
+        # ADR-003: 同步写入 Hub PG (S01 · product lock)
+        cls._save_to_hub_pg("product", "update", product.model_dump())
+
         logger.info("货品锁定成功: %s (%s) by=%s", product.name, sku, operator)
         return product
 
@@ -878,6 +1025,9 @@ class SupplyChainManager:
         cls._product_cache[sku] = product
         cls._save_to_json()
 
+        # ADR-003: 同步写入 Hub PG (S01 · product unlock)
+        cls._save_to_hub_pg("product", "update", product.model_dump())
+
         logger.info("货品解锁成功: %s (%s) by=%s reason=%s", product.name, sku, operator, reason)
         return product
 
@@ -894,6 +1044,9 @@ class SupplyChainManager:
 
         del cls._product_cache[sku]
         cls._save_to_json()
+
+        # ADR-003: 同步写入 Hub PG (S01 · product delete)
+        cls._save_to_hub_pg("product", "delete", {"sku_code": sku})
 
         logger.info("货品删除成功: %s by=%s", sku, operator)
         return True
@@ -957,6 +1110,10 @@ class SupplyChainManager:
                         product.updated_at = now
                         cr.effective_version = product.version
                         cls._product_cache[cr.sku_code] = product
+
+                # ADR-003: 审批通过后同步更新到 Hub PG
+                if approved:
+                    cls._save_to_hub_pg("product", "update", product.model_dump())
 
                 cls._save_to_json()
                 logger.info("变更审批: %s → %s by=%s", request_id, cr.status, approver)
