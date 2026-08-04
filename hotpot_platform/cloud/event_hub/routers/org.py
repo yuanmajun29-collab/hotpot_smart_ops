@@ -33,7 +33,7 @@ def benchmark(
 router.add_api_route("/v1/benchmark", benchmark, methods=["GET"])
 
 
-@router.get("/v1/region/overview")
+@router.get("/api/v1/region/overview")
 def region_overview(
     region_id: Optional[str] = Query(None, description="e.g. region_taizhou"),
     auth: AuthContext = Depends(get_auth_context),
@@ -43,7 +43,7 @@ def region_overview(
     return runtime.hub.get_region_overview(region_id)
 
 
-@router.get("/v1/national/overview")
+@router.get("/api/v1/national/overview")
 def national_overview(auth: AuthContext = Depends(get_auth_context)) -> Dict[str, Any]:
     """National rollup across all zones (F-HQ12)."""
     _enforce_rollup_read(auth)

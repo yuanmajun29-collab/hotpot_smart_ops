@@ -19,7 +19,7 @@ from hotpot_platform.cloud.event_hub.routers._deps import (
 router = APIRouter()
 
 
-@router.get("/v1/audit/acks")
+@router.get("/api/v1/audit/acks")
 def audit_acks(
     request: Request,
     store_id: Optional[str] = Query(None),

@@ -49,7 +49,7 @@ def _actor(auth: AuthContext) -> str:
     return auth.sub or auth.role or "user"
 
 
-@router.post("/v1/tasks")
+@router.post("/api/v1/tasks")
 def create_task(body: TaskCreateBody, auth: AuthContext = Depends(get_auth_context)) -> Dict[str, Any]:
     sid = body.store_id or auth.store_id or DEFAULT_STORE_ID
     enforce_store_write(auth, sid)
@@ -76,7 +76,7 @@ class TaskIngestBody(BaseModel):
     event: Dict[str, Any]
 
 
-@router.post("/v1/tasks/ingest")
+@router.post("/api/v1/tasks/ingest")
 def ingest_event(body: TaskIngestBody, auth: AuthContext = Depends(get_auth_context)) -> Dict[str, Any]:
     """收口入口：把告警/清台/IoT/SOP 事件经 task_factory 幂等转工单（DEV-522）。"""
     from hotpot_platform.cloud.event_hub import task_factory
@@ -88,7 +88,7 @@ def ingest_event(body: TaskIngestBody, auth: AuthContext = Depends(get_auth_cont
     return {"ok": True, "spawned": bool(task), "task": task}
 
 
-@router.get("/v1/tasks")
+@router.get("/api/v1/tasks")
 def list_tasks(
     request: Request,
     store_id: Optional[str] = Query(None),
@@ -105,7 +105,7 @@ def list_tasks(
     return {"store_id": sid, "tasks": items, "count": len(items)}
 
 
-@router.get("/v1/tasks/{task_id}")
+@router.get("/api/v1/tasks/{task_id}")
 def get_task(task_id: str, request: Request, store_id: Optional[str] = Query(None),
              auth: AuthContext = Depends(get_auth_context)) -> Dict[str, Any]:
     sid = _resolve_store_id(store_id, None, request.headers.get("X-Store-Id"), auth)
@@ -116,7 +116,7 @@ def get_task(task_id: str, request: Request, store_id: Optional[str] = Query(Non
     return {"task": row, "timeline": store.timeline(task_id)}
 
 
-@router.post("/v1/tasks/{task_id}/{action}")
+@router.post("/api/v1/tasks/{task_id}/{action}")
 def task_action(task_id: str, action: str, body: TaskActionBody,
                 auth: AuthContext = Depends(get_auth_context)) -> Dict[str, Any]:
     if action not in _ACTION_PERM:

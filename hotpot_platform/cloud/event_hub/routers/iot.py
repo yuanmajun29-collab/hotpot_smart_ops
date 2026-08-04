@@ -15,7 +15,7 @@ from common.iot_sensors import evaluate_sensor_health, sensor_profiles
 router = APIRouter()
 
 
-@router.post("/v1/iot/readings/batch")
+@router.post("/api/v1/iot/readings/batch")
 def iot_readings_batch(
     body: IotReadingsBatchBody,
     auth: AuthContext = Depends(get_auth_context),
@@ -27,7 +27,7 @@ def iot_readings_batch(
     return {"ok": True, "store_id": sid, "inserted": n}
 
 
-@router.get("/v1/iot/readings")
+@router.get("/api/v1/iot/readings")
 def iot_readings_list(
     request: Request,
     store_id: Optional[str] = Query(None),
@@ -43,7 +43,7 @@ def iot_readings_list(
     return {"store_id": sid, "sensor_id": sensor_id, "hours": hours, "readings": items, "count": len(items)}
 
 
-@router.get("/v1/iot/devices")
+@router.get("/api/v1/iot/devices")
 def iot_devices(
     request: Request,
     store_id: Optional[str] = Query(None),

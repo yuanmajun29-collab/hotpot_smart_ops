@@ -13,13 +13,13 @@ from hotpot_platform.cloud.event_hub.routers._deps import AdminStoreCreate, Admi
 router = APIRouter()
 
 
-@router.get("/v1/admin/org-tree")
+@router.get("/api/v1/admin/org-tree")
 def admin_org_tree(auth: AuthContext = Depends(get_auth_context)) -> Dict[str, Any]:
     enforce_admin(auth)
     return runtime.org_registry.get_org_tree()
 
 
-@router.get("/v1/admin/stores")
+@router.get("/api/v1/admin/stores")
 def admin_list_stores(auth: AuthContext = Depends(get_auth_context)) -> Dict[str, Any]:
     enforce_admin(auth)
     stores = runtime.org_registry.list_stores()
@@ -34,7 +34,7 @@ def admin_list_stores(auth: AuthContext = Depends(get_auth_context)) -> Dict[str
     return {"stores": stores, "count": len(stores)}
 
 
-@router.post("/v1/admin/stores")
+@router.post("/api/v1/admin/stores")
 def admin_create_store(
     body: AdminStoreCreate,
     auth: AuthContext = Depends(get_auth_context),
@@ -56,7 +56,7 @@ def admin_create_store(
     return {"ok": True, "store": item}
 
 
-@router.put("/v1/admin/stores/{store_id}")
+@router.put("/api/v1/admin/stores/{store_id}")
 def admin_update_store(
     store_id: str,
     body: AdminStoreUpdate,
@@ -72,7 +72,7 @@ def admin_update_store(
     return {"ok": True, "store": item}
 
 
-@router.get("/v1/admin/users")
+@router.get("/api/v1/admin/users")
 def admin_list_users(auth: AuthContext = Depends(get_auth_context)) -> Dict[str, Any]:
     enforce_admin(auth)
     from hotpot_platform.cloud.event_hub.auth import DEMO_USERS
@@ -93,7 +93,7 @@ def admin_list_users(auth: AuthContext = Depends(get_auth_context)) -> Dict[str,
     return {"users": users, "count": len(users), "note": "Phase 2: 迁移至 users 表"}
 
 
-@router.get("/v1/admin/audit-logs")
+@router.get("/api/v1/admin/audit-logs")
 def admin_audit_logs(
     limit: int = Query(50, ge=1, le=200),
     auth: AuthContext = Depends(get_auth_context),
@@ -103,7 +103,7 @@ def admin_audit_logs(
     return {"logs": logs, "count": len(logs)}
 
 
-@router.get("/v1/admin/pipeline/status")
+@router.get("/api/v1/admin/pipeline/status")
 def admin_pipeline_status(auth: AuthContext = Depends(get_auth_context)) -> Dict[str, Any]:
     enforce_admin(auth)
     rows = get_pipeline_status(runtime.hub)
@@ -120,7 +120,7 @@ def admin_pipeline_status(auth: AuthContext = Depends(get_auth_context)) -> Dict
     }
 
 
-@router.post("/v1/admin/pipeline/tick")
+@router.post("/api/v1/admin/pipeline/tick")
 def admin_pipeline_tick(
     body: PipelineTickBody,
     auth: AuthContext = Depends(get_auth_context),

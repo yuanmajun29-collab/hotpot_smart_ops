@@ -116,7 +116,7 @@ class TestNotifyRequest(BaseModel):
     webhook_url: Optional[str] = None  # override env-configured webhook
 
 
-@router.post("/v1/system/notify/test")
+@router.post("/api/v1/system/notify/test")
 def notify_test(
     body: TestNotifyRequest,
     auth: AuthContext = Depends(get_auth_context),
@@ -159,7 +159,7 @@ def notify_test(
     }
 
 
-@router.get("/v1/system/notify/status")
+@router.get("/api/v1/system/notify/status")
 def notify_status(
     auth: AuthContext = Depends(get_auth_context),
 ) -> Dict[str, Any]:
