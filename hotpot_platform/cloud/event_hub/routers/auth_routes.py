@@ -23,7 +23,7 @@ def auth_token(req: TokenRequest) -> Dict[str, Any]:
     return login_user(req)
 
 
-@router.get("/v1/auth/me")
+@router.get("/api/v1/auth/me")
 def auth_me(auth: AuthContext = Depends(get_auth_context)) -> Dict[str, Any]:
     return {
         "username": auth.sub,

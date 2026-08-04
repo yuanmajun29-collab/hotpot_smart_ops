@@ -19,7 +19,7 @@ from hotpot_platform.cloud.event_hub.routers._deps import (
 router = APIRouter()
 
 
-@router.post("/v1/reports/daily/generate")
+@router.post("/api/v1/reports/daily/generate")
 def daily_report_generate(
     body: DailyReportGenerateBody,
     auth: AuthContext = Depends(get_auth_context),
@@ -39,7 +39,7 @@ def daily_report_generate(
     )
 
 
-@router.get("/v1/reports/daily")
+@router.get("/api/v1/reports/daily")
 def daily_report_list(
     request: Request,
     store_id: Optional[str] = Query(None),

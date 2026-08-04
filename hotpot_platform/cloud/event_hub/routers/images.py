@@ -53,7 +53,7 @@ def _detect_image_type(raw: bytes) -> Optional[str]:
     return None
 
 
-@router.post("/v1/images")
+@router.post("/api/v1/images")
 def upload_image(body: ImageUploadBody, auth: AuthContext = Depends(get_auth_context)):
     ts = body.ts or utc_now_iso()
     safe_ts = ts.replace(":", "-").replace(" ", "T")[:19]
@@ -89,7 +89,7 @@ def upload_image(body: ImageUploadBody, auth: AuthContext = Depends(get_auth_con
     }
 
 
-@router.get("/v1/images")
+@router.get("/api/v1/images")
 def list_images(
     store_id: str = "",
     zone: str = "",
