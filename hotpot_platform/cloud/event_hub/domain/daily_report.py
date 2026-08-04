@@ -7,7 +7,10 @@ from __future__ import annotations
 
 from datetime import datetime
 from typing import Any, Dict, List
-from zoneinfo import ZoneInfo
+try:
+    from zoneinfo import ZoneInfo
+except ImportError:
+    from backports.zoneinfo import ZoneInfo  # Python 3.8 compat (椒江店 Jetson)
 
 from hotpot_platform.cloud.event_hub.domain.waste_timeseries import compute_trend_comparison
 
