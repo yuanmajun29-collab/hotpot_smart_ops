@@ -508,12 +508,98 @@ class AgentGatewayMiddleware:
         logger.info("✅ AgentGatewayMiddleware 初始化完成")
 
     def _register_default_handlers(self):
-        """注册默认的行动处理器映射"""
-        # 这里可以注册从 ActionType 到实际业务函数的映射
-        # 示例:
-        # self._handler_registry[ActionType.APPROVE_PURCHASE] = \
-        #     SupplyChainManager.approve_purchase_pass
-        pass
+        """注册默认的行动处理器映射 — 将 ActionType 路由到 SupplyChainManager 真实业务方法
+
+        Handler 签名: handler(**params) -> dict | Any
+        Gateway 在 _execute_direct / _execute_with_audit 中自动调用。
+        """
+        from hotpot_platform.cloud.supply_chain.manager import SupplyChainManager
+
+        # ── HIGH 风险: 采购相关 ──
+        self._handler_registry[ActionType.APPROVE_PURCHASE] = \
+            lambda **kw: SupplyChainManager.approve_purchase_task(
+                task_id=kw.get("task_id", ""),
+                approved_by=kw.get("approved_by", "gateway"),
+            )
+
+        self._handler_registry[ActionType.CREATE_PO] = \
+            lambda **kw: SupplyChainManager.create_purchase_approval_task(
+                suggestion_id=kw.get("suggestion_id"),
+                items=kw.get("items", []),
+                supplier=kw.get("supplier", ""),
+                store_id=kw.get("store_id", "store_jiaojiang"),
+                requested_by=kw.get("requested_by", "gateway"),
+            )
+
+        self._handler_registry[ActionType.CANCEL_PO] = \
+            lambda **kw: SupplyChainManager.cancel_po(
+                po_number=kw.get("po_number", ""),
+                reason=kw.get("reason", "Gateway审批取消"),
+            )
+
+        self._handler_registry[ActionType.CREATE_SUPPLIER] = \
+            lambda **kw: SupplyChainManager.create_supplier(
+                supplier=kw.get("supplier"),  # SupplierInfo 对象
+            )
+
+        # ── MEDIUM 风险: 供应链写操作 ──
+        self._handler_registry[ActionType.ACCEPT_SUGGESTION_PURCHASE] = \
+            lambda **kw: SupplyChainManager.create_po_from_suggestion(
+                suggestion_id=kw.get("suggestion_id"),
+                approved_by=kw.get("approved_by", "gateway"),
+            )
+
+        self._handler_registry[ActionType.SUBMIT_RECEIVING] = \
+            lambda **kw: SupplyChainManager.submit_receiving(
+                record=kw.get("record"),  # ReceivingRecord 对象
+            )
+
+        self._handler_registry[ActionType.UPDATE_SUPPLIER_SCORE] = \
+            lambda **kw: SupplyChainManager.update_supplier_score(
+                update=kw.get("update"),  # SupplierScoreUpdate 对象
+            )
+
+        # ── LOW 风险: 任务操作 ──
+        self._handler_registry[ActionType.COMPLETE_TASK] = \
+            lambda **kw: {"task_id": kw.get("task_id"), "status": "completed", "completed_at": datetime.now().isoformat()}
+
+        self._handler_registry[ActionType.DISMISS_TASK] = \
+            lambda **kw: {"task_id": kw.get("task_id"), "status": "dismissed", "dismissed_at": datetime.now().isoformat()}
+
+        self._handler_registry[ActionType.REJECT_SUGGESTION] = \
+            lambda **kw: {"suggestion_id": kw.get("suggestion_id"), "status": "rejected"}
+
+        # ── LOW 风险: 查询操作 ──
+        self._handler_registry[ActionType.QUERY_DASHBOARD] = \
+            lambda **kw: SupplyChainManager.get_dashboard_full(
+                include_kitchen=kw.get("include_kitchen", False),
+                include_purchase=kw.get("include_purchase", False),
+            )
+
+        self._handler_registry[ActionType.QUERY_TASKS] = \
+            lambda **kw: SupplyChainManager.get_tasks(
+                role=kw.get("role", "store_manager"),
+                status=kw.get("status", "pending"),
+            )
+
+        self._handler_registry[ActionType.QUERY_SUGGESTIONS] = \
+            lambda **kw: SupplyChainManager.get_suggestions(
+                role=kw.get("role", "store_manager"),
+            )
+
+        self._handler_registry[ActionType.QUERY_PURCHASE_ORDERS] = \
+            lambda **kw: SupplyChainManager.get_po_list(
+                status=kw.get("status"),
+                store_id=kw.get("store_id"),
+            )
+
+        self._handler_registry[ActionType.QUERY_SUPPLIERS] = \
+            lambda **kw: SupplyChainManager.get_supplier_list()
+
+        self._handler_registry[ActionType.QUERY_INVENTORY] = \
+            lambda **kw: SupplyChainManager.list_product_masters()
+
+        logger.info(f"✅ Gateway 已注册 {len(self._handler_registry)} 个业务处理器")
 
     def set_approval_callback(self, callback: Callable):
         """
@@ -832,12 +918,57 @@ class AgentGatewayMiddleware:
                     raise AgentGatewayError("创建审批任务失败")
             
             else:
-                # 其他HIGH风险操作的默认处理
-                raise ApprovalRequiredError(
-                    task_id=f"PENDING-{uuid_mod.uuid4().hex[:8].upper()}",
-                    action_type=action_type,
-                    message=f"操作 {action_type.value} 需要审批，请等待管理员确认",
-                )
+                # 其他HIGH风险操作 → 根据类型分发到对应业务逻辑
+                from hotpot_platform.cloud.supply_chain.manager import SupplyChainManager
+
+                if action_type == ActionType.CANCEL_PO:
+                    po_number = params.get("po_number", "")
+                    reason = params.get("reason", "Gateway审批取消")
+                    result = SupplyChainManager.cancel_po(po_number, reason)
+                    return ActionResult(
+                        success=True,
+                        action_type=action_type,
+                        risk_level=RiskLevel.HIGH,
+                        data={"po_number": po_number, "status": "cancelled", "reason": reason},
+                    )
+
+                elif action_type == ActionType.CREATE_SUPPLIER:
+                    # 创建供应商需要店长审批 → 生成审批任务
+                    supplier_info = params.get("supplier_info", {})
+                    task = SupplyChainManager.create_purchase_approval_task(
+                        suggestion_id=None,
+                        sku=f"NEW-SUPPLIER-{supplier_info.get('name', '?')}",
+                        qty=1,
+                        supplier_id=supplier_info.get("id", ""),
+                        target_role="store_manager",
+                        priority="high",
+                        title=f"审批新供应商: {supplier_info.get('name', '?')}",
+                        description=f"请求人: {user_context.user_id} ({user_context.role})",
+                    )
+                    if task:
+                        raise ApprovalRequiredError(
+                            task_id=task["id"],
+                            action_type=action_type,
+                            message=f"新供应商创建已转为审批任务 {task['id']}, 等待店长确认",
+                        )
+                    else:
+                        raise AgentGatewayError("创建供应商审批任务失败")
+
+                elif action_type == ActionType.MODIFY_INVENTORY:
+                    # 库存修改仅允许管理员特殊场景
+                    raise ApprovalRequiredError(
+                        task_id=f"INV-MOD-{uuid_mod.uuid4().hex[:8].upper()}",
+                        action_type=action_type,
+                        message="库存修改需管理员审批，请联系系统管理员",
+                    )
+
+                else:
+                    # 未知的HIGH操作 → 通用待审批
+                    raise ApprovalRequiredError(
+                        task_id=f"PENDING-{uuid_mod.uuid4().hex[:8].upper()}",
+                        action_type=action_type,
+                        message=f"操作 {action_type.value} 需要审批，请等待管理员确认",
+                    )
         else:
             # 使用自定义审批回调
             task = await self._approval_callback(
