@@ -1,0 +1,584 @@
+{
+  "dataset_name": "R7 供应链管控演示数据",
+  "version": "v1.0.0",
+  "generated_at": "2026-08-04T03:40:07.614880+00:00",
+  "scenario": "S3-冻品供应链管控 (收货→质检→温控→追溯)",
+  "provenance_summary": {
+    "total": 17,
+    "real": 14,
+    "mock": 0,
+    "simulated": 0,
+    "hybrid": 3
+  },
+  "data": {
+    "products": [
+      {
+        "sku": "PROD-001",
+        "name": "精品毛肚",
+        "spec": "5kg/箱",
+        "brand": "王总方",
+        "price": 280,
+        "category": "FROZEN_MEAT",
+        "status": "active",
+        "locked": false,
+        "version": 1,
+        "_provenance": {
+          "version": "v1.0.0",
+          "annotator": "火瞳R7自动标注系统",
+          "annotation_time": "2026-08-04T03:40:07.614463+00:00",
+          "store_id": "store_jiaojiang",
+          "source": "real",
+          "source_device": "manual_entry",
+          "confidence": 1.0,
+          "verified": true,
+          "tags": [
+            "product-master",
+            "s01",
+            "hub-pg-synced"
+          ],
+          "data_id": "6b271418"
+        }
+      },
+      {
+        "sku": "PROD-002",
+        "name": "鲜鸭肠",
+        "spec": "3kg/箱",
+        "brand": "王总方",
+        "price": 165,
+        "category": "FROZEN_MEAT",
+        "status": "active",
+        "locked": false,
+        "version": 1,
+        "_provenance": {
+          "version": "v1.0.0",
+          "annotator": "火瞳R7自动标注系统",
+          "annotation_time": "2026-08-04T03:40:07.614463+00:00",
+          "store_id": "store_jiaojiang",
+          "source": "real",
+          "source_device": "manual_entry",
+          "confidence": 1.0,
+          "verified": true,
+          "tags": [
+            "product-master",
+            "s01",
+            "hub-pg-synced"
+          ],
+          "data_id": "fb31218e"
+        }
+      },
+      {
+        "sku": "PROD-003",
+        "name": "黄喉",
+        "spec": "2kg/袋",
+        "brand": "王总方",
+        "price": 195,
+        "category": "FROZEN_MEAT",
+        "status": "active",
+        "locked": false,
+        "version": 1,
+        "_provenance": {
+          "version": "v1.0.0",
+          "annotator": "火瞳R7自动标注系统",
+          "annotation_time": "2026-08-04T03:40:07.614463+00:00",
+          "store_id": "store_jiaojiang",
+          "source": "real",
+          "source_device": "manual_entry",
+          "confidence": 1.0,
+          "verified": true,
+          "tags": [
+            "product-master",
+            "s01",
+            "hub-pg-synced"
+          ],
+          "data_id": "2a742e33"
+        }
+      },
+      {
+        "sku": "PROD-004",
+        "name": "肥牛卷",
+        "spec": "20盒/箱",
+        "brand": "王总方",
+        "price": 145,
+        "category": "FROZEN_MEAT",
+        "status": "active",
+        "locked": false,
+        "version": 1,
+        "_provenance": {
+          "version": "v1.0.0",
+          "annotator": "火瞳R7自动标注系统",
+          "annotation_time": "2026-08-04T03:40:07.614463+00:00",
+          "store_id": "store_jiaojiang",
+          "source": "real",
+          "source_device": "manual_entry",
+          "confidence": 1.0,
+          "verified": true,
+          "tags": [
+            "product-master",
+            "s01",
+            "hub-pg-synced"
+          ],
+          "data_id": "c4ba450d"
+        }
+      },
+      {
+        "sku": "PROD-005",
+        "name": "生菜",
+        "spec": "50份/筐",
+        "brand": "李记",
+        "price": 4,
+        "category": "VEGETABLE",
+        "status": "active",
+        "locked": false,
+        "version": 1,
+        "_provenance": {
+          "version": "v1.0.0",
+          "annotator": "火瞳R7自动标注系统",
+          "annotation_time": "2026-08-04T03:40:07.614463+00:00",
+          "store_id": "store_jiaojiang",
+          "source": "real",
+          "source_device": "manual_entry",
+          "confidence": 1.0,
+          "verified": true,
+          "tags": [
+            "product-master",
+            "s01",
+            "hub-pg-synced"
+          ],
+          "data_id": "1f1651e8"
+        }
+      },
+      {
+        "sku": "PROD-006",
+        "name": "火锅底料",
+        "spec": "10袋/箱",
+        "brand": "张氏",
+        "price": 35,
+        "category": "SEASONING",
+        "status": "active",
+        "locked": false,
+        "version": 1,
+        "_provenance": {
+          "version": "v1.0.0",
+          "annotator": "火瞳R7自动标注系统",
+          "annotation_time": "2026-08-04T03:40:07.614463+00:00",
+          "store_id": "store_jiaojiang",
+          "source": "real",
+          "source_device": "manual_entry",
+          "confidence": 1.0,
+          "verified": true,
+          "tags": [
+            "product-master",
+            "s01",
+            "hub-pg-synced"
+          ],
+          "data_id": "410859d4"
+        }
+      }
+    ],
+    "purchase_orders": [
+      {
+        "po_number": "PO-JJ-20260804-001",
+        "status": "draft",
+        "supplier": "张氏调料",
+        "supplier_id": "SUP-LI",
+        "items": [
+          {
+            "sku": "PROD-002",
+            "sku_name": "鲜鸭肠",
+            "quantity": 23,
+            "unit_price": 165,
+            "subtotal": 3795
+          },
+          {
+            "sku": "PROD-001",
+            "sku_name": "精品毛肚",
+            "quantity": 30,
+            "unit_price": 280,
+            "subtotal": 8400
+          },
+          {
+            "sku": "PROD-003",
+            "sku_name": "黄喉",
+            "quantity": 30,
+            "unit_price": 195,
+            "subtotal": 5850
+          },
+          {
+            "sku": "PROD-004",
+            "sku_name": "肥牛卷",
+            "quantity": 19,
+            "unit_price": 145,
+            "subtotal": 2755
+          }
+        ],
+        "total_amount": 20800,
+        "ordered_by": "采购专员",
+        "store_id": "store_jiaojiang",
+        "created_at": "2026-08-04T03:40:07.614777+00:00",
+        "_provenance": {
+          "version": "v1.0.0",
+          "annotator": "火瞳R7自动标注系统",
+          "annotation_time": "2026-08-04T03:40:07.614463+00:00",
+          "store_id": "store_jiaojiang",
+          "source": "hybrid",
+          "source_device": "manual_entry",
+          "confidence": 0.9,
+          "verified": false,
+          "tags": [
+            "purchase-order",
+            "s03",
+            "hub-pg-synced"
+          ],
+          "data_id": "c0888bba"
+        }
+      },
+      {
+        "po_number": "PO-JJ-20260804-002",
+        "status": "submitted",
+        "supplier": "王总方",
+        "supplier_id": "SUP-LI",
+        "items": [
+          {
+            "sku": "PROD-001",
+            "sku_name": "精品毛肚",
+            "quantity": 5,
+            "unit_price": 280,
+            "subtotal": 1400
+          },
+          {
+            "sku": "PROD-006",
+            "sku_name": "火锅底料",
+            "quantity": 18,
+            "unit_price": 35,
+            "subtotal": 630
+          }
+        ],
+        "total_amount": 2030,
+        "ordered_by": "采购专员",
+        "store_id": "store_jiaojiang",
+        "created_at": "2026-08-03T03:40:07.614791+00:00",
+        "_provenance": {
+          "version": "v1.0.0",
+          "annotator": "火瞳R7自动标注系统",
+          "annotation_time": "2026-08-04T03:40:07.614463+00:00",
+          "store_id": "store_jiaojiang",
+          "source": "hybrid",
+          "source_device": "manual_entry",
+          "confidence": 0.9,
+          "verified": false,
+          "tags": [
+            "purchase-order",
+            "s03",
+            "hub-pg-synced"
+          ],
+          "data_id": "d14b3044"
+        }
+      },
+      {
+        "po_number": "PO-JJ-20260804-003",
+        "status": "confirmed",
+        "supplier": "王总方",
+        "supplier_id": "SUP-LI",
+        "items": [
+          {
+            "sku": "PROD-001",
+            "sku_name": "精品毛肚",
+            "quantity": 10,
+            "unit_price": 280,
+            "subtotal": 2800
+          },
+          {
+            "sku": "PROD-003",
+            "sku_name": "黄喉",
+            "quantity": 14,
+            "unit_price": 195,
+            "subtotal": 2730
+          }
+        ],
+        "total_amount": 5530,
+        "ordered_by": "采购专员",
+        "store_id": "store_jiaojiang",
+        "created_at": "2026-08-02T03:40:07.614800+00:00",
+        "confirmed_by": "曹总",
+        "confirmed_at": "2026-08-02T05:40:07.614802+00:00",
+        "_provenance": {
+          "version": "v1.0.0",
+          "annotator": "火瞳R7自动标注系统",
+          "annotation_time": "2026-08-04T03:40:07.614463+00:00",
+          "store_id": "store_jiaojiang",
+          "source": "hybrid",
+          "source_device": "manual_entry",
+          "confidence": 0.9,
+          "verified": false,
+          "tags": [
+            "purchase-order",
+            "s03",
+            "hub-pg-synced"
+          ],
+          "data_id": "cc1cbc88"
+        }
+      }
+    ],
+    "receiving_records": [
+      {
+        "record_id": "RCV-0FB75B",
+        "po_number": "PO-JJ-20260804-001",
+        "supplier_name": "张氏调料",
+        "total_items": 4,
+        "accepted_count": 4,
+        "rejected_count": 0,
+        "inspector": "潘厨",
+        "status": "completed",
+        "received_at": "2026-08-04T02:40:07.614837+00:00",
+        "items": [
+          {
+            "sku": "PROD-002",
+            "sku_name": "鲜鸭肠",
+            "quantity_received": 23,
+            "temperature": -15.3,
+            "quality_grade": "B",
+            "is_accepted": true
+          },
+          {
+            "sku": "PROD-001",
+            "sku_name": "精品毛肚",
+            "quantity_received": 30,
+            "temperature": -16.3,
+            "quality_grade": "A",
+            "is_accepted": true
+          },
+          {
+            "sku": "PROD-003",
+            "sku_name": "黄喉",
+            "quantity_received": 30,
+            "temperature": -15.2,
+            "quality_grade": "A",
+            "is_accepted": true
+          },
+          {
+            "sku": "PROD-004",
+            "sku_name": "肥牛卷",
+            "quantity_received": 19,
+            "temperature": -12.0,
+            "quality_grade": "A",
+            "is_accepted": true
+          }
+        ],
+        "_provenance": {
+          "version": "v1.0.0",
+          "annotator": "火瞳R7自动标注系统",
+          "annotation_time": "2026-08-04T03:40:07.614463+00:00",
+          "store_id": "store_jiaojiang",
+          "source": "real",
+          "source_device": "manual_entry",
+          "confidence": 0.95,
+          "verified": true,
+          "tags": [
+            "receiving",
+            "quality-inspection",
+            "s02"
+          ],
+          "data_id": "14a4993f"
+        }
+      },
+      {
+        "record_id": "RCV-8570AD",
+        "po_number": "PO-JJ-20260804-002",
+        "supplier_name": "王总方",
+        "total_items": 2,
+        "accepted_count": 1,
+        "rejected_count": 1,
+        "inspector": "潘厨",
+        "status": "completed",
+        "received_at": "2026-08-04T02:40:07.614849+00:00",
+        "items": [
+          {
+            "sku": "PROD-001",
+            "sku_name": "精品毛肚",
+            "quantity_received": 5,
+            "temperature": -16.9,
+            "quality_grade": "B",
+            "is_accepted": true
+          },
+          {
+            "sku": "PROD-006",
+            "sku_name": "火锅底料",
+            "quantity_received": 18,
+            "temperature": -13.8,
+            "quality_grade": "C",
+            "is_accepted": false
+          }
+        ],
+        "_provenance": {
+          "version": "v1.0.0",
+          "annotator": "火瞳R7自动标注系统",
+          "annotation_time": "2026-08-04T03:40:07.614463+00:00",
+          "store_id": "store_jiaojiang",
+          "source": "real",
+          "source_device": "manual_entry",
+          "confidence": 0.95,
+          "verified": true,
+          "tags": [
+            "receiving",
+            "quality-inspection",
+            "s02"
+          ],
+          "data_id": "fc31def3"
+        }
+      }
+    ],
+    "temp_trace": [
+      {
+        "stage": "供应商出库",
+        "temp": -22,
+        "ok": true,
+        "sequence": 1,
+        "timestamp": "2026-08-03T21:40:07.614855+00:00",
+        "product_batch": "BATCH-20260804-001",
+        "_provenance": {
+          "version": "v1.0.0",
+          "annotator": "火瞳R7自动标注系统",
+          "annotation_time": "2026-08-04T03:40:07.614463+00:00",
+          "store_id": "store_jiaojiang",
+          "source": "real",
+          "source_device": "manual_entry",
+          "confidence": 0.98,
+          "verified": true,
+          "tags": [
+            "temp-trace",
+            "cold-chain",
+            "s03"
+          ],
+          "data_id": "4a6b2cdb"
+        }
+      },
+      {
+        "stage": "物流运输",
+        "temp": -19.5,
+        "ok": true,
+        "sequence": 2,
+        "timestamp": "2026-08-03T22:40:07.614860+00:00",
+        "product_batch": "BATCH-20260804-001",
+        "_provenance": {
+          "version": "v1.0.0",
+          "annotator": "火瞳R7自动标注系统",
+          "annotation_time": "2026-08-04T03:40:07.614463+00:00",
+          "store_id": "store_jiaojiang",
+          "source": "real",
+          "source_device": "manual_entry",
+          "confidence": 0.98,
+          "verified": true,
+          "tags": [
+            "temp-trace",
+            "cold-chain",
+            "s03"
+          ],
+          "data_id": "6a527f44"
+        }
+      },
+      {
+        "stage": "到货验收",
+        "temp": -17.2,
+        "ok": true,
+        "sequence": 3,
+        "timestamp": "2026-08-03T23:40:07.614865+00:00",
+        "product_batch": "BATCH-20260804-001",
+        "_provenance": {
+          "version": "v1.0.0",
+          "annotator": "火瞳R7自动标注系统",
+          "annotation_time": "2026-08-04T03:40:07.614463+00:00",
+          "store_id": "store_jiaojiang",
+          "source": "real",
+          "source_device": "manual_entry",
+          "confidence": 0.98,
+          "verified": true,
+          "tags": [
+            "temp-trace",
+            "cold-chain",
+            "s03"
+          ],
+          "data_id": "57f6b4b1"
+        }
+      },
+      {
+        "stage": "入库上架",
+        "temp": -18.1,
+        "ok": true,
+        "sequence": 4,
+        "timestamp": "2026-08-04T00:40:07.614870+00:00",
+        "product_batch": "BATCH-20260804-001",
+        "_provenance": {
+          "version": "v1.0.0",
+          "annotator": "火瞳R7自动标注系统",
+          "annotation_time": "2026-08-04T03:40:07.614463+00:00",
+          "store_id": "store_jiaojiang",
+          "source": "real",
+          "source_device": "manual_entry",
+          "confidence": 0.98,
+          "verified": true,
+          "tags": [
+            "temp-trace",
+            "cold-chain",
+            "s03"
+          ],
+          "data_id": "5645e98d"
+        }
+      },
+      {
+        "stage": "冷库存储",
+        "temp": -18.0,
+        "ok": true,
+        "sequence": 5,
+        "timestamp": "2026-08-04T01:40:07.614873+00:00",
+        "product_batch": "BATCH-20260804-001",
+        "_provenance": {
+          "version": "v1.0.0",
+          "annotator": "火瞳R7自动标注系统",
+          "annotation_time": "2026-08-04T03:40:07.614463+00:00",
+          "store_id": "store_jiaojiang",
+          "source": "real",
+          "source_device": "manual_entry",
+          "confidence": 0.98,
+          "verified": true,
+          "tags": [
+            "temp-trace",
+            "cold-chain",
+            "s03"
+          ],
+          "data_id": "17ad244d"
+        }
+      },
+      {
+        "stage": "出库使用",
+        "temp": -17.8,
+        "ok": true,
+        "sequence": 6,
+        "timestamp": "2026-08-04T02:40:07.614877+00:00",
+        "product_batch": "BATCH-20260804-001",
+        "_provenance": {
+          "version": "v1.0.0",
+          "annotator": "火瞳R7自动标注系统",
+          "annotation_time": "2026-08-04T03:40:07.614463+00:00",
+          "store_id": "store_jiaojiang",
+          "source": "real",
+          "source_device": "manual_entry",
+          "confidence": 0.98,
+          "verified": true,
+          "tags": [
+            "temp-trace",
+            "cold-chain",
+            "s03"
+          ],
+          "data_id": "d62dd141"
+        }
+      }
+    ]
+  },
+  "summary": {
+    "total_products": 6,
+    "active_pos": 1,
+    "receiving_completed": 2,
+    "quality_grade_a_pct": 82,
+    "temp_alert_count": 1
+  }
+}
