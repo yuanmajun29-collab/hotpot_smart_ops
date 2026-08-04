@@ -120,3 +120,19 @@ try:
     ]
 except ImportError:
     pass
+
+# G4: KPI 自动回写引擎 (闭环核心)
+try:
+    from .kpi_feedback_engine import (
+        KPIFeedbackEngine,
+        TASK_TYPE_KPI_MAPPING,
+        determine_kpi_status,
+    )
+
+    __all__ += [
+        "KPIFeedbackEngine",
+        "TASK_TYPE_KPI_MAPPING",
+        "determine_kpi_status",
+    ]
+except ImportError:
+    pass

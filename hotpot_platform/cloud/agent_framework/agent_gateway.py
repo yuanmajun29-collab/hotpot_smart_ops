@@ -487,6 +487,8 @@ class AgentGatewayMiddleware:
         self._audit_logger = audit_logger
         self._handler_registry: Dict[ActionType, Callable] = {}
         self._approval_callback: Optional[Callable] = None
+        # G4: 任务完成回调 (用于KPI自动回写)
+        self._task_completed_callback: Optional[Callable] = None
         self._initialized = False
 
     @classmethod
@@ -559,9 +561,9 @@ class AgentGatewayMiddleware:
                 update=kw.get("update"),  # SupplierScoreUpdate 对象
             )
 
-        # ── LOW 风险: 任务操作 ──
+        # ── LOW 风险: 任务操作 (G4: 真正落地) ──
         self._handler_registry[ActionType.COMPLETE_TASK] = \
-            lambda **kw: {"task_id": kw.get("task_id"), "status": "completed", "completed_at": datetime.now().isoformat()}
+            self._handle_complete_task
 
         self._handler_registry[ActionType.DISMISS_TASK] = \
             lambda **kw: {"task_id": kw.get("task_id"), "status": "dismissed", "dismissed_at": datetime.now().isoformat()}
@@ -612,6 +614,85 @@ class AgentGatewayMiddleware:
         """
         self._approval_callback = callback
         logger.info(f"✅ 审批回调已设置: {callback.__name__ if hasattr(callback, '__name__') else callback}")
+
+    def set_task_completed_callback(self, callback: Callable):
+        """
+        设置任务完成回调函数 (G4 KPI回写钩子) ⭐
+
+        当任务通过 COMPLETE_TASK 操作完成时，Gateway会自动调用此回调，
+        触发KPI计算和Hub PG回写，完成"感知→决策→执行→验证→回写"闭环。
+
+        回调签名: callback(task_result: Dict, user_context: UserContext) -> None
+
+        典型实现:
+            def on_task_completed(task_result, user_context):
+                # 1. 从 task_result 提取 KPI 原始数据 (如 response_time_sec)
+                # 2. 调用 KPIEngine.calculate_from_task()
+                # 3. 调用 pg_db.upsert_kpi_metric() 写入 Hub PG
+
+        Args:
+            callback: 任务完成回调函数
+        """
+        self._task_completed_callback = callback
+        logger.info(f"✅ 任务完成回调已设置 (G4 KPI回写): {callback.__name__ if hasattr(callback, '__name__') else callback}")
+
+    def _handle_complete_task(self, **kw) -> Dict:
+        """处理任务完成操作 (G4: 真正落地 + 触发KPI回写).
+
+        不再返回模拟字典，而是真正调用 TaskStore.transition() 更新状态，
+        然后触发 _task_completed_callback 进行 KPI 回写。
+        """
+        task_id = kw.get("task_id")
+        actor_id = kw.get("actor_id", "system")
+        note = kw.get("note", "任务已完成")
+
+        result = {
+            "task_id": task_id,
+            "status": "completed",
+            "completed_at": datetime.now().isoformat(),
+            "actor_id": actor_id,
+        }
+
+        try:
+            # 尝试调用 TaskStore 真正更新状态
+            from hotpot_platform.cloud.event_hub.task_store import TaskStore, TRANSITIONS
+
+            store = TaskStore.get_instance()
+            # 先 submit 再 verify (完整流程)
+            try:
+                store.transition(task_id, "submit", actor_id=actor_id, note=note)
+            except Exception:
+                pass  # 可能已经是 submitted 状态
+
+            transition_result = store.transition(
+                task_id, "verify", actor_id=actor_id, note=note
+            )
+            result["transition"] = transition_result
+            result["db_updated"] = True
+
+            logger.info(f"✅ G4: 任务 {task_id} 已完成并写入DB")
+
+        except Exception as exc:
+            # 即使 DB 更新失败，也记录结果（降级模式）
+            logger.warning(f"⚠️ G4: 任务 {task_id} DB更新失败 (降级模式): {exc}")
+            result["db_updated"] = False
+            result["error"] = str(exc)
+
+        # 触发 KPI 回写回调 (G4 核心逻辑)
+        if self._task_completed_callback:
+            try:
+                self._task_completed_callback(result, **kw)
+                result["kpi_written"] = True
+                logger.info(f"✅ G4: 任务 {task_id} KPI回写成功")
+            except Exception as exc:
+                logger.warning(f"⚠️ G4: 任务 {task_id} KPI回写失败: {exc}")
+                result["kpi_written"] = False
+                result["kpi_error"] = str(exc)
+        else:
+            result["kpi_written"] = False
+            result["kpi_skipped_reason"] = "未设置 task_completed_callback"
+
+        return result
 
     # ── 核心方法: execute_action ────────────────────────────────
 
