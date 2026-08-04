@@ -62,6 +62,30 @@ cameras:
     enabled: true
     priority: "critical"                          # 唯一摄像头=最高优先级
 
+    # 改造方案要求: 每路明确 ROI、model_profile、采样周期
+    roi:
+      x: 0
+      y: 0
+      width: 1920
+      height: 1080
+      zones:
+        - name: "kitchen_area"
+          rect: [0, 0, 960, 540]              # 左上: 后厨区域
+          purpose: ["waste_detection", "sop_compliance", "dish_counting"]
+        - name: "front_hall_area"
+          rect: [960, 0, 1920, 540]           # 右上: 前厅区域
+          purpose: ["table_state", "service_response"]
+        - name: "entrance_area"
+          rect: [0, 540, 640, 1080]           # 左下: 入口区域
+          purpose: ["customer_flow"]
+        - name: "cashier_area"
+          rect: [640, 540, 1920, 1080]        # 右下: 收银/仓库区域
+          purpose: ["receiving_check"]
+
+    model_profile: "hotpot_waste_v2"             # 边缘推理模型版本
+    sample_interval_seconds: 10                   # 采样周期(秒)
+    frame_freshness_max_age_ms: 3000              # 帧新鲜度阈值(3秒)
+
     # 覆盖场景 (单摄多用)
     scenes:
       - "S1_waste_detection"                     # 食材损耗识别
@@ -111,12 +135,15 @@ scene_camera_map:
   S5_speed_service: ["cam_a1_main"]
   customer_flow: ["cam_a1_main"]
 
-# ── 模拟模式开关 ──
+# ── 生产模式: 禁止Mock降级 ──
+# ⚠️ 改造方案要求: 移除椒江生产配置中的 file source、demo 图片和一机多区映射
+#    RTSP不可用时优先采用现场已验证的 HTTP snapshot
+#    Mock降级已移除，生产环境必须使用真实数据
 mock_mode:
-  enabled: false                                   # ❌ 关闭! HTTP抓拍已通
-  fallback_on_error: true                         # 抓拍失败时降级到mock
-  mock_source: "static_image"
-  fallback_image: "/opt/hotpot-smart-ops/data/fallback_hotpot.jpg"
+  enabled: false                                   # ❌ 永久关闭
+  fallback_on_error: false                        # ❌ 禁止降级到mock
+  # mock_source: "static_image"                   # 已移除
+  # fallback_image: "..."                        # 已移除
 
 # ── HTTP抓拍调试记录 ──
 snapshot_debug:

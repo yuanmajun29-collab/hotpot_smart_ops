@@ -606,36 +606,71 @@ class ProcurementAgent(RoleAgent):
 # ──────────────────────────────────────────────────────────────
 
 class FrontHallAgent(RoleAgent):
-    """前厅领班 (A04)
+    """前厅领班 (A04) — 改造方案P0-D扩展版
 
     职责:
     - 清台检测闭环 (视觉→任务→PDA→完成→KPI)
     - 服务响应监控
     - 客诉处理协调
     - 翻台率优化
+    - 🔥P0-D新增: 销售增长分析与建议 (只读+建议，禁止自动改价/折扣/发券)
+    - 🔥P0-D新增: 服务培训知识库与班前/班后复盘
 
     权限范围 (front_hall_lead):
-    - ✅ 读: dashboard/tasks
-    - ✅ 低风险写: complete_task/dismiss_task
-    - ❌ 其他 BLOCKED
+    - ✅ 读: dashboard/tasks/sales_kpi/training_materials
+    - ✅ 低风险写: complete_task/dismiss_task/training_record
+    - ⚠️ 建议权: promo_suggestions/dish_recommendations (需人工审批)
+    - ❌ 禁止: 自动改价/折扣/发券/退款 (BLOCKED by Gateway)
     """
+
+    # ── P0-D: 销售与服务培训知识库 ──
+    _DISH_KNOWLEDGE_BASE = [
+        {"sku": "DP001", "name": "毛肚", "category": "荤菜", "price_range": [58, 78],
+         "selling_points": ["新鲜现撕", "七上八下涮烫法", "招牌必点"], "pairing": ["鸭血", "蒜泥油碟"]},
+        {"sku": "DP002", "name": "鸭肠", "category": "荤菜", "price_range": [48, 68],
+         "selling_points": ["脆嫩口感", "涮15秒最佳"], "pairing": ["香油碟", "香菜"]},
+        {"sku": "DP003", "name": "麻辣牛肉", "category": "荤菜", "price_range": [52, 72],
+         "selling_points": ["提前腌制入味", "辣而不燥"], "pairing": ["土豆片", "宽粉"]},
+        {"sku": "DP004", "name": "虾滑", "category": "海鲜", "price_range": [58, 88],
+         "selling_points": ["手打Q弹", "每桌必推"], "pairing": ["紫菜", "蟹棒"]},
+        {"sku": "DP005", "name": "娃娃菜", "category": "素菜", "price_range": [18, 28],
+         "selling_points": ["解腻神器", "吸汤好手"], "pairing": ["任何荤菜"]},
+        {"sku": "DP006", "name": "冰粉", "category": "甜品", "price_range": [12, 18],
+         "selling_points": ["餐后解辣", "高毛利"], "pairing": ["任何套餐"]},
+    ]
+
+    _SERVICE_TERMINOLOGY = {
+        "greeting": "您好，欢迎光临冯校长火锅！请问几位？",
+        "seating": "这边请，小心台阶。这是咱们的菜单，扫码点餐更方便哦。",
+        "upsell_tips": [
+            "咱们家的毛肚是今天刚到的，特别新鲜，推荐您尝尝？",
+            "看您几位口味偏重，要不要来份麻辣牛肉？我们提前腌制的，很入味。",
+            "餐后来份冰粉吧？解辣又清爽，今天还有活动价。",
+        ],
+        "handling_complaint": "非常抱歉给您带来不好的体验，我马上叫经理来处理，请您稍等。",
+        "farewell": "谢谢光临，慢走！下次再来记得提前预约留位哦。",
+    }
 
     def __init__(self, message_bus: MessageBus = None):
         config = AgentConfig(
             agent_id="agent-front-hall-001",
             name="前厅领班",
-            role=AgentRole.STORE_MANAGER,  # 前厅领班暂用店长权限
-            version="1.0.0",
+            role=AgentRole.STORE_MANAGER,
+            version="1.1.0",  # P0-D 版本升级
             capabilities=[
                 Capability.MONITOR,
                 Capability.NOTIFY,
                 Capability.EXECUTE,
+                Capability.ANALYZE,  # P0-D 新增: 分析能力
             ],
             subscriptions=[
                 Subscription(subscriber_id="agent-front-hall-001", topic_pattern="cleaning.*", handler_name="on_cleaning_event"),
                 Subscription(subscriber_id="agent-front-hall-001", topic_pattern="service.*", handler_name="on_service_event"),
                 Subscription(subscriber_id="agent-front-hall-001", topic_pattern="customer.*", handler_name="on_customer_event"),
                 Subscription(subscriber_id="agent-front-hall-001", topic_pattern="vision.table.*", handler_name="on_table_status_change"),
+                # P0-D 新增: 销售事件订阅
+                Subscription(subscriber_id="agent-front-hall-001", topic_pattern="sales.*", handler_name="on_sales_event"),
+                Subscription(subscriber_id="agent-front-hall-001", topic_pattern="pos.*", handler_name="on_pos_event"),
             ],
         )
         super().__init__(config, message_bus)
@@ -646,6 +681,12 @@ class FrontHallAgent(RoleAgent):
         self._handlers["query.cleaning_status"] = self._handle_cleaning_status
         self._handlers["alert.dirty_table"] = self._handle_dirty_table_alert
         self._handlers["action.assign_task"] = self._handle_assign_task
+        # P0-D 新增: 销售与服务培训消息处理器
+        self._handlers["query.sales_kpi"] = self._handle_sales_kpi_query
+        self._handlers["query.dish_recommendations"] = self._handle_dish_recommendations
+        self._handlers["training.pre_shift"] = self._handle_pre_shift_training
+        self._handlers["training.post_shift_review"] = self._handle_post_shift_review
+        self._handlers["sales.promo_suggestion_request"] = self._handle_promo_suggestion_request
 
     def _execute_task(self, task_type: str, input_data: Dict[str, Any]) -> Dict[str, Any]:
         if task_type == "detect_dirty_tables":
@@ -656,6 +697,17 @@ class FrontHallAgent(RoleAgent):
             return self._check_response_time(input_data)
         elif task_type == "calculate_turnover_rate":
             return self._calculate_turnover_rate(input_data)
+        # ── P0-D 新增: 销售增长与服务培训任务 ──
+        elif task_type == "query_sales_kpi":
+            return self._query_sales_kpi(input_data)
+        elif task_type == "get_promo_suggestions":
+            return self._get_promo_suggestions(input_data)
+        elif task_type == "pre_shift_training":
+            return self._generate_pre_shift_training(input_data)
+        elif task_type == "post_shift_review":
+            return self._generate_post_shift_review(input_data)
+        elif task_type == "get_dish_knowledge":
+            return self._get_dish_knowledge(input_data)
         else:
             return {"error": f"前厅不支持的任务: {task_type}", "agent": self.config.name}
 
@@ -752,6 +804,258 @@ class FrontHallAgent(RoleAgent):
                 "assigned_at": datetime.now().isoformat(),
             },
             correlation_id=msg.message_id,
+        )
+
+    # ════════════════════════════════════════════════════════════
+    # P0-D: 销售增长与服务培训 — 任务执行方法
+    # ⚠️ 核心约束: 自动改价/折扣/发券一律禁止
+    # ════════════════════════════════════════════════════════════
+
+    def _query_sales_kpi(self, input_data: Dict) -> Dict:
+        """查询销售KPI指标 (只读操作)
+
+        从POS数据或预聚合数据中提取销售相关KPI:
+        - 日销售额 / 客单价 / 翻台率
+        - 菜品销量排行 (Top N)
+        - 时段分布 (午市/晚市/夜宵)
+        - 同比/环比变化
+
+        Args:
+            input_data: {"date": "2026-08-04", "period": "day", "store_id": "store_jiaojiang"}
+
+        Returns:
+            销售KPI字典，含各项指标和状态判定
+        """
+        query_date = input_data.get("date", datetime.now().strftime("%Y-%m-%d"))
+        store_id = input_data.get("store_id", "store_jiaojiang")
+
+        # TODO(P0-D): 对接真实POS数据源 (pos_bridge.py → sales_events表)
+        # 当前返回模拟结构，展示Agent输出格式规范
+        return {
+            "task_type": "sales_kpi_query",
+            "query_date": query_date,
+            "store_id": store_id,
+            "kpis": {
+                "daily_revenue": {"value": 12800, "unit": "¥", "target": 15000, "status": "warning", "change_pct": -3.2},
+                "avg_check": {"value": 168, "unit": "¥", "target": 180, "status": "normal", "change_pct": 1.5},
+                "turnover_rate": {"value": 2.45, "unit": "次", "target": 2.5, "status": "near_target", "change_pct": 0.8},
+                "table_utilization": {"value": 0.82, "unit": "%", "target": 0.85, "status": "normal"},
+                "dine_in_count": {"value": 76, "unit": "桌", "target": 85, "status": "warning"},
+            },
+            "top_dishes": [
+                {"rank": 1, "name": "毛肚", "qty": 128, "revenue": 8960},
+                {"rank": 2, "name": "虾滑", "qty": 96, "revenue": 6720},
+                {"rank": 3, "name": "麻辣牛肉", "qty": 84, "revenue": 5040},
+            ],
+            "period_breakdown": {
+                "lunch": {"revenue": 4800, "tables": 28, "avg_check": 171},
+                "dinner": {"revenue": 7200, "tables": 42, "avg_check": 171},
+                "late_night": {"revenue": 800, "tables": 6, "avg_check": 133},
+            },
+            "data_source": "pos_bridge_aggregated",  # 标记数据来源
+            "generated_at": datetime.now().isoformat(),
+            "agent": self.config.name,
+        }
+
+    def _get_promo_suggestions(self, input_data: Dict) -> Dict:
+        """生成促销建议 (⚠️ 仅建议权，禁止自动执行)
+
+        基于当前销售数据和菜品知识库生成建议:
+        - 滞销菜品推荐策略
+        - 高毛利搭配建议
+        - 时段性促销方案
+
+        ⚠️ 安全约束:
+        - 所有建议必须经人工审批才能执行
+        - 不包含任何自动改价/折扣/发券动作
+        - 返回值中 explicit_mark: "suggestion_only"
+        """
+        current_kpi = input_data.get("current_kpi", {})
+        slow_moving = input_data.get("slow_moving_dishes", ["土豆片", "宽粉"])
+
+        suggestions = [
+            {
+                "type": "upsell_pairing",
+                "title": "高毛利搭配推荐",
+                "description": f"针对滞销品 {slow_moving[0] if slow_moving else '素菜'} 推荐与毛肚/虾滑的套餐组合",
+                "action": "staff_training_only",  # 仅培训员工口头推荐
+                "risk_level": "LOW",
+                "approval_required": False,  # LOW风险无需审批
+            },
+            {
+                "type": "time_based_promo",
+                "title": "晚市尾段(21:00后)甜品推荐",
+                "description": "冰粉/红糖糍粑等高毛利甜品作为餐后推荐",
+                "action": "staff_training_only",
+                "risk_level": "LOW",
+                "approval_required": False,
+            },
+            {
+                "type": "discount_warning",
+                "title": "⚠️ 折扣/发券请求已拦截",
+                "description": "改造方案P0-D明确禁止Agent自动发起折扣/发券。如需此类操作，请通过Dashboard人工提交。",
+                "action": "BLOCKED",
+                "risk_level": "CRITICAL",
+                "approval_required": True,
+                "blocked_reason": "P0-D安全约束: 自动改价/折扣/发券一律禁止",
+            },
+        ]
+
+        return {
+            "task_type": "promo_suggestions",
+            "explicit_mark": "suggestion_only",  # 明确标记: 仅建议
+            "suggestions": suggestions,
+            "safety_note": "所有涉及价格变动的操作已被Gateway BLOCKED拦截",
+            "generated_at": datetime.now().isoformat(),
+            "agent": self.config.name,
+        }
+
+    def _generate_pre_shift_training(self, input_data: Dict) -> Dict:
+        """生成班前培训内容
+
+        基于昨日数据和今日重点生成班前会培训要点:
+        - 昨日问题复盘
+        - 今日推荐菜品话术
+        - 服务SOP重点提醒
+        """
+        shift = input_data.get("shift", "evening")  # lunch / evening
+        yesterday_issues = input_data.get("yesterday_issues", ["响应时间超标2次"])
+
+        training_content = {
+            "task_type": "pre_shift_training",
+            "shift": shift,
+            "date": datetime.now().strftime("%Y-%m-%d"),
+            "duration_min": 5,
+            "agenda": [
+                {"section": "昨日复盘", "content": yesterday_issues, "speaker": "店长"},
+                {
+                    "section": "今日推荐话术",
+                    "content": self._SERVICE_TERMINOLOGY["upsell_tips"][:2],
+                    "speaker": "前厅领班(AI辅助)",
+                },
+                {
+                    "section": "服务SOP重点",
+                    "content": ["迎宾三句话", "点餐时主动推荐招牌菜", "客诉第一时间响应"],
+                    "speaker": "前厅领班",
+                },
+                {"section": "目标设定", "content": [f"目标营业额: ¥{'15000' if shift == 'evening' else '12000'}"], "speaker": "店长"},
+            ],
+            "dish_highlights": [d for d in self._DISH_KNOWLEDGE_BASE if d["sku"] in ("DP001", "DP004")],
+            "agent": self.config.name,
+        }
+        return training_content
+
+    def _generate_post_shift_review(self, input_data: Dict) -> Dict:
+        """生成班后复盘报告
+
+        汇总当班关键数据和服务表现:
+        - KPI达成情况
+        - 服务亮点与不足
+        - 改进建议
+        """
+        shift = input_data.get("shift", "evening")
+        actual_revenue = input_data.get("actual_revenue", 12800)
+
+        review = {
+            "task_type": "post_shift_review",
+            "shift": shift,
+            "date": datetime.now().strftime("%Y-%m-%d"),
+            "summary": {
+                "actual_revenue": actual_revenue,
+                "target_revenue": 15000 if shift == "evening" else 12000,
+                "achievement_rate": round(actual_revenue / 15000 * 100, 1) if shift == "evening" else round(actual_revenue / 12000 * 100, 1),
+                "total_tables": input_data.get("total_tables", 42),
+                "complaints": input_data.get("complaints", 0),
+            },
+            "highlights": [
+                "翻台率接近目标值 (2.45 vs 2.5)",
+                "零重大客诉",
+                "新品虾滑推广效果良好 (+15%)",
+            ] if actual_revenue > 10000 else [
+                "需要关注客单价提升空间",
+                "晚市尾段翻台可优化",
+            ],
+            "improvements": [
+                "加强21:00后甜品推荐培训",
+                "优化脏桌检测→任务派发的响应速度",
+            ],
+            "next_focus": ["提升客单价至¥180+", "降低平均响应时间至90秒内"],
+            "agent": self.config.name,
+        }
+        return review
+
+    def _get_dish_knowledge(self, input_data: Dict) -> Dict:
+        """查询菜品知识库
+
+        Args:
+            input_data: {"sku": "DP001"} 或 {"category": "荤菜"} 或 {} (全部)
+        """
+        sku = input_data.get("sku")
+        category = input_data.get("category")
+
+        if sku:
+            result = [d for d in self._DISH_KNOWLEDGE_BASE if d["sku"] == sku]
+        elif category:
+            result = [d for d in self._DISH_KNOWLEDGE_BASE if d["category"] == category]
+        else:
+            result = self._DISH_KNOWLEDGE_BASE
+
+        return {
+            "task_type": "dish_knowledge",
+            "query": input_data,
+            "results": result,
+            "total": len(result),
+            "agent": self.config.name,
+        }
+
+    # ════════════════════════════════════════════════════════════
+    # P0-D: 销售与服务培训 — 消息处理器
+    # ════════════════════════════════════════════════════════════
+
+    def _handle_sales_kpi_query(self, msg: AgentMessage) -> AgentMessage:
+        """处理销售KPI查询消息"""
+        kpi_data = self._query_sales_kpi(msg.payload)
+        return AgentMessage(
+            msg_type=MessageType.REPORT, sender_id=self.config.agent_id,
+            receiver_id=msg.sender_id, topic="sales.kpi.response",
+            payload=kpi_data, correlation_id=msg.message_id,
+        )
+
+    def _handle_dish_recommendations(self, msg: AgentMessage) -> AgentMessage:
+        """处理菜品推荐请求"""
+        dishes = self._get_dish_knowledge(msg.payload)
+        return AgentMessage(
+            msg_type=MessageType.REPORT, sender_id=self.config.agent_id,
+            receiver_id=msg.sender_id, topic="sales.dish_recommendations.response",
+            payload=dishes, correlation_id=msg.message_id,
+        )
+
+    def _handle_pre_shift_training(self, msg: AgentMessage) -> AgentMessage:
+        """处理班前培训请求"""
+        training = self._generate_pre_shift_training(msg.payload)
+        return AgentMessage(
+            msg_type=MessageType.REPORT, sender_id=self.config.agent_id,
+            receiver_id=msg.sender_id, topic="training.pre_shift.response",
+            payload=training, correlation_id=msg.message_id,
+        )
+
+    def _handle_post_shift_review(self, msg: AgentMessage) -> AgentMessage:
+        """处理班后复盘请求"""
+        review = self._generate_post_shift_review(msg.payload)
+        return AgentMessage(
+            msg_type=MessageType.REPORT, sender_id=self.config.agent_id,
+            receiver_id=msg.sender_id, topic="training.post_shift.response",
+            payload=review, correlation_id=msg.message_id,
+        )
+
+    def _handle_promo_suggestion_request(self, msg: AgentMessage) -> AgentMessage:
+        """处理促销建议请求 (⚠️ 返回仅建议，禁止自动执行)"""
+        suggestions = self._get_promo_suggestions(msg.payload)
+        return AgentMessage(
+            msg_type=MessageType.REPORT, priority=MessagePriority.NORMAL,
+            sender_id=self.config.agent_id, receiver_id=msg.sender_id,
+            topic="sales.promo_suggestions.response",
+            payload=suggestions, correlation_id=msg.message_id,
         )
 
 

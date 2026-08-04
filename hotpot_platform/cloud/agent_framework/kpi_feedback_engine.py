@@ -115,6 +115,70 @@ TASK_TYPE_KPI_MAPPING: Dict[str, Dict[str, Any]] = {
         "value_extractor": lambda task: task.get("waste_rate", 0),
         "dimension_extractor": lambda task: {"sku": task.get("sku", "")},
     },
+    # ══════════════════════════════════════════════════════════
+    # P0-D: 销售增长与服务培训闭环 — KPI映射
+    # ══════════════════════════════════════════════════════════
+    # 销售KPI查询任务 → 日销售额
+    "query_sales_kpi": {
+        "metric_id": "daily_revenue",
+        "metric_name": "日销售额",
+        "unit": "¥",
+        "category": "revenue",
+        "target_direction": "higher",
+        "thresholds": {"good": 15000, "warning": 12000, "critical": 8000},
+        "value_extractor": lambda task: (
+            task.get("kpis", {}).get("daily_revenue", {}).get("value", 0)
+        ),
+        "dimension_extractor": lambda task: {"store_id": task.get("store_id", ""), "date": task.get("query_date", "")},
+    },
+    # 销售KPI查询任务 → 客单价
+    "sales_avg_check": {
+        "metric_id": "avg_check_amount",
+        "metric_name": "客单价",
+        "unit": "¥",
+        "category": "revenue",
+        "target_direction": "higher",
+        "thresholds": {"good": 180, "warning": 150, "critical": 120},
+        "value_extractor": lambda task: (
+            task.get("kpis", {}).get("avg_check", {}).get("value", 0)
+        ),
+        "dimension_extractor": lambda task: {"shift": task.get("shift", "")},
+    },
+    # 翻台率计算任务 → 翻台率
+    "calculate_turnover_rate": {
+        "metric_id": "turnover_rate",
+        "metric_name": "翻台率",
+        "unit": "次",
+        "category": "operation",
+        "target_direction": "higher",
+        "thresholds": {"good": 2.5, "warning": 2.0, "critical": 1.5},
+        "value_extractor": lambda task: task.get("daily_avg", 0),
+        "dimension_extractor": lambda task: {"period": task.get("date", "")},
+    },
+    # 服务响应检查任务 → 平均响应时间 (P0-D扩展: 前厅服务)
+    "service_response": {
+        "metric_id": "service_response_time",
+        "metric_name": "服务响应时间",
+        "unit": "seconds",
+        "category": "quality",
+        "target_direction": "lower",
+        "thresholds": {"good": 60, "warning": 90, "critical": 120},
+        "value_extractor": lambda task: task.get("avg_response_sec", 0),
+        "dimension_extractor": lambda task: {"area": "front_hall"},
+    },
+    # 班后复盘任务 → 客诉率
+    "post_shift_review": {
+        "metric_id": "complaint_rate",
+        "metric_name": "客诉率",
+        "unit": "%",
+        "category": "quality",
+        "target_direction": "lower",
+        "thresholds": {"good": 0, "warning": 1, "critical": 3},
+        "value_extractor": lambda task: (
+            (task.get("summary", {}).get("complaints", 0) / max(task.get("summary", {}).get("total_tables", 1), 1)) * 100
+        ),
+        "dimension_extractor": lambda task: {"shift": task.get("shift", "")},
+    },
 }
 
 

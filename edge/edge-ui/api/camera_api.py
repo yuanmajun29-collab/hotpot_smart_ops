@@ -253,21 +253,12 @@ async def get_camera_snapshot(
             camera_id=camera_id,
         )
 
-    # 降级到Mock
-    mock_path = Path(__file__).parent.parent / "mock_snapshot.jpg"
-    if mock_path.exists():
-        with open(mock_path, 'rb') as f:
-            mock_data = f.read()
-        img_b64 = base64.b64encode(mock_data).decode()
-        return SnapshotResponse(
-            image_base64=img_b64,
-            size_bytes=len(mock_data),
-            timestamp=time.strftime('%Y-%m-%d %H:%M:%S'),
-            source_mode="mock_cached",
-            camera_id=camera_id,
-        )
-
-    raise HTTPException(status_code=503, detail="无法获取图像（摄像头离线或无Mock缓存）")
+    # ⚠️ 生产模式: 不再降级到Mock，直接返回错误
+    # 改造方案要求: 移除椒江生产配置中的 demo 图片和 mock 降级
+    raise HTTPException(
+        status_code=503,
+        detail="无法获取图像（摄像头离线或网络不可达）。生产环境已禁用Mock降级。"
+    )
 
 
 @router.post("/cameras/{camera_id}/test", response_model=TestResult)
