@@ -241,6 +241,10 @@ class SupplyChainManager:
 
         logger.info("收货提交成功 %s supplier=%s items=%d",
                      record_id, record.supplier_name, len(record.items))
+
+        # 4. [ADR-003] 写入 Hub PG (S02)
+        cls._save_to_hub_pg("receiving", "create", record.model_dump())
+
         return record
 
     def approve_quality_check(
@@ -696,7 +700,10 @@ class SupplyChainManager:
             if entity_type == "purchase_order":
                 return cls._write_purchase_order_to_pg(cls._pg_db, operation, data)
 
-            # TODO (Phase 2+): 实现 receiving / supplier / task / suggestion 等实体
+            if entity_type == "receiving":
+                return cls._write_receiving_to_pg(cls._pg_db, operation, data)
+
+            # TODO (Phase 2+): 实现 supplier / task / suggestion 等实体
             logger.warning(
                 "[ADR-003] _save_to_hub_pg: entity_type=%s 尚未实现 (桩方法)",
                 entity_type,
@@ -910,6 +917,159 @@ class SupplyChainManager:
             logger.error(
                 "[ADR-003] S03 PG 写入失败: po=%s op=%s error=%s",
                 po_number, operation, exc, exc_info=True,
+            )
+            return False
+
+        finally:
+            pg_db._putconn(conn)
+
+    @classmethod
+    def _write_receiving_to_pg(cls, pg_db, operation: str, data: Dict[str, Any]) -> bool:
+        """S02 收货记录 → receiving_batches 表的 UPSERT 实现。
+
+        将 ReceivingRecord 拆解为多条 receiving_batches 记录（每SKU一条），
+        并同步写入 receiving_signatures 签名表。
+
+        Args:
+            pg_db: PostgresHubDatabase 实例
+            operation: "create" | "update"
+            data: ReceivingRecord.model_dump() 字典
+
+        Returns:
+            True 如果写入成功
+        """
+        import os as _os
+
+        record_id = data.get("record_id", "")
+        if not record_id:
+            # 自动生成 batch_id 前缀
+            record_id = data.get("batch_id", f"RCV-{uuid.uuid4().hex[:8].upper()}")
+
+        store_id = data.get("store_id", "") or _os.environ.get(
+            "HOTPOT_STORE_ID", "store_jiaojiang",
+        )
+        po_number = data.get("po_number", "") or data.get("po_id", "")
+
+        # ── 提取 items 列表 (每SKU一条 batch 记录) ──
+        items_raw = data.get("items", [])
+        if isinstance(items_raw, list):
+            items = items_raw
+        else:
+            items = []
+
+        if not items:
+            logger.warning("[ADR-003] _write_receiving_to_pg: 无 items，跳过")
+            return False
+
+        conn = pg_db._getconn()
+        try:
+            with conn.cursor() as cur:
+                # ── 逐条写入 receiving_batches ──
+                success_count = 0
+                for item in items:
+                    if isinstance(item, dict):
+                        item_dict = item
+                    elif hasattr(item, "model_dump"):
+                        item_dict = item.model_dump()
+                    else:
+                        continue
+
+                    sku = item_dict.get("sku", "")
+                    if not sku:
+                        continue
+
+                    # 构造批次ID: {record_id}-{sku}
+                    batch_id = f"{record_id}-{sku}"
+
+                    # 提取质检结果（如果有）
+                    quality_results = data.get("quality_results", [])
+                    qr = next(
+                        (q for q in quality_results if isinstance(q, dict) and q.get("sku") == sku),
+                        None,
+                    )
+
+                    vlm_grade = "A"
+                    temp_c = None
+                    variance_pct = None
+                    if qr:
+                        vlm_grade = qr.get("grade", "A")
+                        temp_c = item_dict.get("temperature_on_arrival")
+                        # 计算短重率
+                        ordered = item_dict.get("ordered_qty", 0)
+                        received = item_dict.get("received_qty", 0)
+                        if ordered and ordered > 0:
+                            variance_pct = round(
+                                (ordered - received) / ordered * 100, 2,
+                            )
+
+                    # 调用 pg_db 的 upsert_receiving_batch
+                    try:
+                        result = pg_db.upsert_receiving_batch({
+                            "batch_id": batch_id,
+                            "store_id": store_id,
+                            "po_id": po_number,
+                            "sku": sku,
+                            "weight_kg": item_dict.get("received_qty", 0),
+                            "po_weight_kg": item_dict.get("ordered_qty"),
+                            "variance_pct": variance_pct,
+                            "vlm_grade": vlm_grade,
+                            "temp_c": temp_c,
+                            "status": data.get("status", "submitted"),
+                        })
+                        if result:
+                            success_count += 1
+                    except Exception as e:
+                        logger.warning(
+                            "[ADR-003] receiving batch 写入失败: batch=%s error=%s",
+                            batch_id, e,
+                        )
+
+                # ── 写入签名记录 (收货人签名) ──
+                receiver = data.get("receiver", "")
+                if receiver and record_id:
+                    try:
+                        pg_db.upsert_receiving_signature({
+                            "batch_id": f"{record_id}-RECEIVER",
+                            "store_id": store_id,
+                            "role": "receiver",
+                            "signed_by": receiver,
+                            "signed_at": data.get("received_at") or datetime.now().isoformat(),
+                        })
+                    except Exception as e:
+                        logger.warning("[ADR-003] receiver 签名写入失败: %s", e)
+
+                # ── 写入质检员签名 (如果有质检结果) ──
+                if quality_results:
+                    inspector = None
+                    for qr in quality_results:
+                        if isinstance(qr, dict) and qr.get("inspector"):
+                            inspector = qr["inspector"]
+                            break
+
+                    if inspector:
+                        try:
+                            pg_db.upsert_receiving_signature({
+                                "batch_id": f"{record_id}-INSPECTOR",
+                                "store_id": store_id,
+                                "role": "inspector",
+                                "signed_by": inspector,
+                                "signed_at": datetime.now().isoformat(),
+                            })
+                        except Exception as e:
+                            logger.warning("[ADR-003] inspector 签名写入失败: %s", e)
+
+                conn.commit()
+
+            logger.info(
+                "[ADR-003] ✅ S02 收货记录已写入 Hub PG: record=%s batches=%d/%d store=%s",
+                record_id, success_count, len(items), store_id,
+            )
+            return success_count > 0
+
+        except Exception as exc:
+            logger.error(
+                "[ADR-003] S02 PG 写入失败: record=%s op=%s error=%s",
+                record_id, operation, exc, exc_info=True,
             )
             return False
 
@@ -1756,6 +1916,9 @@ class SupplyChainManager:
         except Exception as e:
             logger.debug(f"[D3] 集成引擎未初始化: {e}")
 
+        # [ADR-003] 更新 Hub PG (S02)
+        cls._save_to_hub_pg("receiving", "update", record.model_dump())
+
         return record.model_dump()
 
     @classmethod
@@ -1820,6 +1983,10 @@ class SupplyChainManager:
 
         cls._save_to_json()
         logger.info("收货拒收: %s, 审批人=%s, 原因=%s", record_id, approver, reason)
+
+        # [ADR-003] 更新 Hub PG (S02)
+        cls._save_to_hub_pg("receiving", "update", record.model_dump())
+
         return record.model_dump()
 
     @classmethod

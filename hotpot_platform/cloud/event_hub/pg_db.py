@@ -7,9 +7,12 @@ Activate via: export HOTPOT_DATABASE_URL=postgresql://user:pass@host/db
 from __future__ import annotations
 
 import json
+import logging
 from datetime import datetime, timedelta, timezone, date as date_type
 from typing import Any, Dict, List, Optional, Union
 from urllib.parse import urlparse
+
+logger = logging.getLogger(__name__)
 
 from hotpot_platform.cloud.event_hub.daily_report_store import PG_DAILY_REPORTS_SCHEMA
 from hotpot_platform.cloud.event_hub.iot_readings_store import PG_IOT_READINGS_SCHEMA
@@ -1109,5 +1112,231 @@ class PostgresHubDatabase:
                     "events_today": today_events,
                     "generated_at": datetime.now(timezone.utc).isoformat(),
                 }
+        finally:
+            self._putconn(conn)
+
+    # ═══════════════════════════════════════════════════════════
+    # S02 — 收货质检 (Receiving) 写入/查询方法
+    # ═══════════════════════════════════════════════════════════
+
+    def upsert_receiving_batch(
+        self, batch_data: Dict[str, Any]
+    ) -> Optional[int]:
+        """写入或更新收货批次记录到 receiving_batches 表 (S02).
+
+        Args:
+            batch_data: 收货批次数据字典，必须包含:
+                - batch_id: 批次ID (主键)
+                - store_id: 门店ID
+                - po_id: 采购单号
+                - sku: SKU编码
+                - weight_kg: 实收重量(kg)
+                可选字段:
+                - po_weight_kg: 订单重量
+                - variance_pct: 短重率(%)
+                - vlm_grade: VLM等级(A/B/C/D)
+                - temp_c: 到货温度(°C)
+                - status: 状态(submitted/approved/rejected)
+
+        Returns:
+            新插入或更新的记录ID；失败返回 None
+
+        Raises:
+            RuntimeError: PG未连接时
+        """
+        if not self._pool:
+            raise RuntimeError("PostgreSQL 未连接，无法写入收货记录")
+
+        required_fields = ["batch_id", "store_id", "po_id", "sku", "weight_kg"]
+        for field in required_fields:
+            if field not in batch_data:
+                logger.warning(f"upsert_receiving_batch: 缺少必填字段 {field}")
+                return None
+
+        now = datetime.now(timezone.utc).isoformat()
+        conn = self._getconn()
+        try:
+            with conn.cursor() as cur:
+                cur.execute(
+                    """
+                    INSERT INTO receiving_batches
+                        (batch_id, store_id, po_id, sku, weight_kg,
+                         po_weight_kg, variance_pct, vlm_grade, temp_c,
+                         status, created_at)
+                    VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s)
+                    ON CONFLICT (batch_id) DO UPDATE SET
+                        weight_kg = EXCLUDED.weight_kg,
+                        po_weight_kg = COALESCE(EXCLUDED.po_weight_kg, receiving_batches.po_weight_kg),
+                        variance_pct = COALESCE(EXCLUDED.variance_pct, receiving_batches.variance_pct),
+                        vlm_grade = COALESCE(EXCLUDED.vlm_grade, receiving_batches.vlm_grade),
+                        temp_c = COALESCE(EXCLUDED.temp_c, receiving_batches.temp_c),
+                        status = EXCLUDED.status
+                    RETURNING batch_id
+                    """,
+                    (
+                        batch_data["batch_id"],
+                        batch_data["store_id"],
+                        batch_data["po_id"],
+                        batch_data["sku"],
+                        batch_data["weight_kg"],
+                        batch_data.get("po_weight_kg"),
+                        batch_data.get("variance_pct"),
+                        batch_data.get("vlm_grade"),
+                        batch_data.get("temp_c"),
+                        batch_data.get("status", "submitted"),
+                        now,
+                    ),
+                )
+                result = cur.fetchone()
+                batch_id = result[0] if result else None
+            conn.commit()
+            return batch_id
+        finally:
+            self._putconn(conn)
+
+    def upsert_receiving_signature(
+        self, signature_data: Dict[str, Any],
+    ) -> bool:
+        """写入或更新收货签名记录到 receiving_signatures 表.
+
+        Args:
+            signature_data: 签名数据字典，必须包含:
+                - batch_id: 批次ID
+                - store_id: 门店ID
+                - role: 角色(receiver/inspector/approver)
+                - signed_by: 签名人
+            可选:
+                - signed_at: 签名时间(默认now)
+
+        Returns:
+            True 如果写入成功
+        """
+        if not self._pool:
+            raise RuntimeError("PostgreSQL 未连接，无法写入签名记录")
+
+        required_fields = ["batch_id", "store_id", "role", "signed_by"]
+        for field in required_fields:
+            if field not in signature_data:
+                logger.warning(f"upsert_receiving_signature: 缺少必填字段 {field}")
+                return False
+
+        now = signature_data.get(
+            "signed_at", datetime.now(timezone.utc).isoformat(),
+        )
+        conn = self._getconn()
+        try:
+            with conn.cursor() as cur:
+                cur.execute(
+                    """
+                    INSERT INTO receiving_signatures
+                        (batch_id, store_id, role, signed_by, signed_at)
+                    VALUES (%s, %s, %s, %s, %s)
+                    ON CONFLICT (batch_id, role) DO UPDATE SET
+                        signed_by = EXCLUDED.signed_by,
+                        signed_at = EXCLUDED.signed_at
+                    """,
+                    (
+                        signature_data["batch_id"],
+                        signature_data["store_id"],
+                        signature_data["role"],
+                        signature_data["signed_by"],
+                        now,
+                    ),
+                )
+            conn.commit()
+            return True
+        finally:
+            self._putconn(conn)
+
+    def query_receiving_batches(
+        self, store_id: str, days: int = 30,
+        status: Optional[str] = None,
+    ) -> List[Dict[str, Any]]:
+        """查询门店收货批次列表.
+
+        Args:
+            store_id: 门店ID
+            days: 查询最近N天
+            status: 可选，筛选状态(approved/rejected/submitted)
+
+        Returns:
+            收货批次记录列表
+        """
+        if not self._pool:
+            return []
+
+        cutoff = (datetime.now(timezone.utc) - timedelta(days=days)).isoformat()
+        conn = self._getconn()
+        try:
+            with conn.cursor() as cur:
+                params = [store_id, cutoff]
+                sql = """
+                    SELECT batch_id, store_id, po_id, sku, weight_kg,
+                           po_weight_kg, variance_pct, vlm_grade, temp_c,
+                           status, created_at
+                    FROM receiving_batches
+                    WHERE store_id = %s AND created_at >= %s
+                """
+                if status:
+                    sql += " AND status = %s"
+                    params.append(status)
+
+                sql += " ORDER BY created_at DESC"
+                cur.execute(sql, params)
+                columns = [desc[0] for desc in cur.description]
+                return [dict(zip(columns, row)) for row in cur.fetchall()]
+        finally:
+            self._putconn(conn)
+
+    def query_receiving_stats(
+        self, store_id: str, days: int = 30,
+    ) -> Dict[str, Any]:
+        """查询收货统计概览 (用于Dashboard).
+
+        Args:
+            store_id: 门店ID
+            days: 统计周期(天)
+
+        Returns:
+            包含 total_batches / approved_rate / avg_variance / rejection_count 的字典
+        """
+        if not self._pool:
+            return {}
+
+        cutoff = (datetime.now(timezone.utc) - timedelta(days=days)).isoformat()
+        conn = self._getconn()
+        try:
+            with conn.cursor() as cur:
+                # 总批次数 & 各状态计数
+                cur.execute(
+                    """
+                    SELECT
+                        COUNT(*) AS total_batches,
+                        COUNT(*) FILTER (WHERE status = 'approved') AS approved_count,
+                        COUNT(*) FILTER (WHERE status = 'rejected') AS rejected_count,
+                        COUNT(*) FILTER (WHERE status = 'submitted') AS submitted_count,
+                        AVG(weight_kg) AS avg_weight,
+                        AVG(variance_pct) AS avg_variance
+                    FROM receiving_batches
+                    WHERE store_id = %s AND created_at >= %s
+                    """,
+                    (store_id, cutoff),
+                )
+                row = cur.fetchone()
+                columns = [desc[0] for desc in cur.description]
+                stats = dict(zip(columns, row)) if row else {}
+
+                # 计算通过率
+                total = stats.get("total_batches", 0)
+                approved = stats.get("approved_count", 0)
+                stats["approval_rate"] = round(
+                    approved / total * 100, 1,
+                ) if total > 0 else 0.0
+
+                stats["store_id"] = store_id
+                stats["period_days"] = days
+                stats["generated_at"] = datetime.now(timezone.utc).isoformat()
+
+                return stats
         finally:
             self._putconn(conn)
