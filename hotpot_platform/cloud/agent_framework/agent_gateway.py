@@ -2,6 +2,11 @@
 火瞳 · Agent Gateway 中间件 (核心引擎)
 ========================================
 
+⚠️ 改造方案要求 (P0-C): Fail-Closed 机制
+   - 异常时必须失败拒绝，禁止继续执行高风险动作
+   - 统一 Agent Gateway 的权限校验、订阅匹配、消息推送和回执
+   - 所有高风险行动均由授权人员确认并可审计
+
 本模块实现了统一的Agent行动权限控制和审计追踪中间件。
 
 核心职责:
@@ -462,6 +467,12 @@ audit_logger = AuditLogger()
 class AgentGatewayMiddleware:
     """
     Agent Gateway 中间件 (单例模式)
+
+    ⚠️ 改造方案 P0-C: Fail-Closed 安全机制
+       - 任何未预期的异常 → 拒绝执行 (success=False)
+       - HIGH/CRITICAL 操作 → 必须人工审批，不直接执行
+       - BLOCKED 操作 → 直接拒绝 + 安全告警
+       - 审计日志记录所有尝试 (无论成功/失败)
 
     所有岗位AI助理的行动都必须通过此中间件进行权限控制和审计。
 

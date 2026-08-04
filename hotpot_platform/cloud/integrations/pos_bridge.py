@@ -1,4 +1,10 @@
-"""POS integration bridge — mock/file/API → Event Hub (DEV-304)."""
+"""POS integration bridge — mock/file/API → Event Hub (DEV-304).
+
+⚠️ 改造方案要求 (P0-D):
+   - 默认禁止生产模拟数据
+   - 新增真实 POS API/文件适配、鉴权、checkpoint、重试与死信
+   - 生产环境必须使用 file 或 api 模式，sim 模式仅限开发测试
+"""
 
 from __future__ import annotations
 
@@ -242,7 +248,7 @@ def main() -> None:
     parser.add_argument("--store-id", default="store_yuhuan")
     parser.add_argument("--store-name", default="")
     parser.add_argument("--hub-url", default="http://127.0.0.1:8088")
-    parser.add_argument("--mode", choices=("file", "sim", "api"), default="sim")
+    parser.add_argument("--mode", choices=("file", "sim", "api"), default="file")  # ⚠️ 改造方案: 默认改为file，禁止生产sim
     parser.add_argument("--pos-file", default=str(DEFAULT_POS_FILE))
     parser.add_argument("--api-url", default="", help="POS REST endpoint, supports {store_id}")
     parser.add_argument("--api-key", default="")
@@ -256,6 +262,17 @@ def main() -> None:
     }
     store_name = args.store_name or names.get(args.store_id, args.store_id)
     pos_file = Path(args.pos_file)
+
+    # ⚠️ 生产环境安全检查: sim模式仅限开发测试
+    if args.mode == "sim":
+        import os
+        env = os.environ.get("HOTPOT_ENV", "").lower()
+        if env in ("production", "prod", "uat"):
+            print("[POS Bridge] ⚠️ 警告: 生产环境禁止使用sim模拟模式!")
+            print("[POS Bridge] 请使用 --mode file 或 --mode api 连接真实POS数据源")
+            return
+        else:
+            print("[POS Bridge] ℹ️ 开发/演示模式: 使用sim模拟数据 (非生产环境)")
 
     def _once() -> None:
         stats = sync_pos(

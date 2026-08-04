@@ -115,6 +115,74 @@ CREATE INDEX IF NOT EXISTS idx_kpi_category ON kpi_metrics(category);
 CREATE INDEX IF NOT EXISTS idx_kpi_task ON kpi_metrics(source_task_id);
 """
 
+# ── P0-D: 销售事件表 (Sales Events) — 第四闭环: 销售增长与服务培训 ──
+# 来源: POS Bridge (pos_bridge.py) → 边缘采集 → Hub PG 主写
+PG_SALES_EVENTS_SCHEMA = """
+CREATE TABLE IF NOT EXISTS sales_events (
+    id              BIGSERIAL PRIMARY KEY,
+    event_id        VARCHAR(64)  NOT NULL UNIQUE,         -- 全局唯一事件ID (幂等键)
+    store_id        VARCHAR(64)  NOT NULL DEFAULT 'store_jiaojiang',
+    -- 交易核心字段
+    transaction_id  VARCHAR(64)  NOT NULL,                -- POS原始交易单号
+    table_id        VARCHAR(16),                          -- 桌号 (堂食)
+    order_type      VARCHAR(20)  NOT NULL DEFAULT 'dine_in',
+                    CHECK (order_type IN ('dine_in','takeout','delivery','wechat')),
+    shift           VARCHAR(10)  NOT NULL,                -- lunch / dinner / late_night
+    -- 金额字段
+    subtotal        NUMERIC(12,2) NOT NULL DEFAULT 0,     -- 小计
+    discount_amount NUMERIC(12,2) NOT NULL DEFAULT 0,     -- 折扣金额 (⚠️ 仅记录，Agent禁止自动发起)
+    service_fee     NUMERIC(12,2) NOT NULL DEFAULT 0,     -- 服务费
+    total_amount    NUMERIC(12,2) NOT NULL,               -- 实收总额
+    payment_method  VARCHAR(20),                          -- cash/wechat/alipay/card
+    -- 客单价衍生字段
+    guest_count     INTEGER      NOT NULL DEFAULT 1,      -- 用餐人数
+    avg_check       NUMERIC(10,2) NOT NULL DEFAULT 0,     -- 客单价 = total / guests
+    -- 时间戳
+    occurred_at     TIMESTAMPTZ  NOT NULL,                -- 交易发生时间 (POS时间)
+    received_at     TIMESTAMPTZ  NOT NULL DEFAULT now(),   -- 平台接收时间
+    -- 数据溯源
+    pos_source      VARCHAR(64)  NOT NULL DEFAULT 'pos_bridge_file',  -- 数据来源
+    source_batch_id VARCHAR(64),                          -- 批次ID (用于批量导入去重)
+    -- 状态与审计
+    status          VARCHAR(16)  NOT NULL DEFAULT 'confirmed',
+                    CHECK (status IN ('pending','confirmed','reversed','voided')),
+    payload         JSONB        NOT NULL DEFAULT '{}'::jsonb,  -- 原始POS数据完整副本
+    created_at      TIMESTAMPTZ  NOT NULL DEFAULT now(),
+    updated_at      TIMESTAMPTZ  NOT NULL DEFAULT now()
+);
+CREATE INDEX IF NOT EXISTS idx_sales_store ON sales_events(store_id);
+CREATE INDEX IF NOT EXISTS idx_sales_transaction ON sales_events(transaction_id);
+CREATE INDEX IF NOT EXISTS idx_sales_occurred ON sales_events(occurred_at DESC);
+CREATE INDEX IF NOT EXISTS idx_sales_shift ON sales_events(store_id, shift, occurred_at);
+CREATE INDEX IF NOT EXISTS idx_sales_table ON sales_events(table_id) WHERE table_id IS NOT NULL;
+"""
+
+# ── P0-D: 销售明细表 (Transaction Details) ──
+PG_SALES_TRANSACTION_DETAIL_SCHEMA = """
+CREATE TABLE IF NOT EXISTS sales_transaction_detail (
+    id              BIGSERIAL PRIMARY KEY,
+    detail_id       VARCHAR(64)  NOT NULL UNIQUE,
+    sales_event_id  VARCHAR(64)  NOT NULL REFERENCES sales_events(event_id) ON DELETE CASCADE,
+    -- 菜品信息
+    sku_code        VARCHAR(32)  NOT NULL,                -- SKU编码 (关联 supply_product_master)
+    dish_name       TEXT         NOT NULL,                -- 菜品名称
+    category        VARCHAR(32),                          -- 分类 (荤菜/素菜/海鲜/甜品/饮品)
+    unit_price      NUMERIC(10,2) NOT NULL DEFAULT 0,     -- 单价
+    quantity        REAL         NOT NULL DEFAULT 1,       -- 数量
+    subtotal        NUMERIC(12,2) NOT NULL DEFAULT 0,     -- 小计
+    -- 标记字段
+    is_recommended  BOOLEAN      NOT NULL DEFAULT FALSE,  -- 是否为员工推荐菜品
+    is_promo        BOOLEAN      NOT NULL DEFAULT FALSE,  -- 是否参与促销
+    promo_type      VARCHAR(20),                          -- 促销类型 (如有)
+    -- 审计
+    payload         JSONB        NOT NULL DEFAULT '{}'::jsonb,
+    created_at      TIMESTAMPTZ  NOT NULL DEFAULT now()
+);
+CREATE INDEX IF NOT EXISTS idx_detail_event ON sales_transaction_detail(sales_event_id);
+CREATE INDEX IF NOT EXISTS idx_detail_sku ON sales_transaction_detail(sku_code);
+CREATE INDEX IF NOT EXISTS idx_detail_category ON sales_transaction_detail(category);
+"""
+
 MAX_EVENTS_PER_STORE = 500
 POOL_MIN_CONN = 2
 POOL_MAX_CONN = 10

@@ -1,14 +1,38 @@
 /**
  * 火瞳平台端 — 云端演示 Mock 数据层
- * 
- * 拦截所有 Hub API 调用，返回 Demo 数据
- * 使 Dashboard 在无后端环境下完整运行
- * 
+ *
+ * ⚠️ 改造方案要求 (P0-C):
+ *    - 生产环境必须禁用此 Mock 层
+ *    - Dashboard 应连接真实 Hub API
+ *    - 仅开发/演示环境可启用
+ *
  * 用法：在 login.html 的 <script> 标签前引入此文件
+ *
+ * 生产环境禁用方式 (任选其一):
+ *   1. 不引入此 JS 文件
+ *   2. 设置 window.HOTPOT_PRODUCTION = true
+ *   3. URL 参数 ?mock=false
  */
 
 (function() {
     'use strict';
+
+    // ============================================================
+    // ⚠️ 生产环境安全检查: 自动禁用 Mock
+    // 改造方案要求: Dashboard、前厅、后厨、告警页面全部改接真实 Hub API
+    // ============================================================
+    const _isProduction = (
+        window.HOTPOT_PRODUCTION === true ||
+        (window.location && window.location.search.indexOf('mock=false') > -1) ||
+        (document.documentElement.getAttribute('data-env') || '').toLowerCase() === 'production'
+    );
+
+    if (_isProduction) {
+        console.warn('[cloud_mock] ⚠️ 生产环境已禁用 Mock 数据层，所有请求将发送到真实 Hub API');
+        return;  // 不执行任何 Mock 逻辑
+    }
+
+    console.info('[cloud_mock] ℹ️ 开发/演示模式: Mock 数据层已启用 (非生产环境)');
 
     // ============================================================
     // Mock 数据生成器
