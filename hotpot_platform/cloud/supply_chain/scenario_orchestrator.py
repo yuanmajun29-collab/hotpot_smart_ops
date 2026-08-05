@@ -429,8 +429,9 @@ class SupplyChainScenarioOrchestrator:
         如果 Gateway 不可用，返回默认通过（demo 容错模式）。
         """
         if self.gateway is None:
-            logger.warning(f"[SC01] No AgentGateway configured, auto-approving {action_type}")
-            return {"approved": True, "approver": "auto_fallback", "gateway_unavailable": True}
+            logger.error(f"[SC01] No AgentGateway configured, BLOCKING {action_type} — 需人工确认")
+            return {"approved": False, "need_manual": True, "reason": "gateway_unavailable",
+                    "message": "Gateway 不可用，请人工审批后重试"}
 
         try:
             result = await self.gateway.execute_action(
@@ -442,5 +443,6 @@ class SupplyChainScenarioOrchestrator:
             return result
         except Exception as e:
             logger.error(f"[SC01] Gateway approval failed for {action_type}: {e}")
-            # Demo 容错：Gateway 不可用时默认通过
-            return {"approved": True, "approver": "auto_fallback", "error": str(e)}
+            # P0 整改：Gateway 异常时拒绝放行，要求人工介入
+            return {"approved": False, "need_manual": True, "error": str(e),
+                    "message": "Gateway 审批异常，请人工审核后决定"}

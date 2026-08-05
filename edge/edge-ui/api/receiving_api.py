@@ -272,10 +272,13 @@ async def run_vlm_inspection(
       - 其他 → A级
     """
     _ensure_init()
+    # VLM 可用性由环境变量 HOTPOT_VLM_DISABLED=1 控制
+    import os as _os
+    use_mock = _os.environ.get("HOTPOT_VLM_DISABLED") == "1"
     try:
         result = SupplyChainManager.run_vlm_inspection(
             record_id,
-            use_mock=True,  # MVP阶段始终使用Mock
+            use_mock=use_mock,
         )
         return {"success": True, "data": result}
     except ValueError as e:

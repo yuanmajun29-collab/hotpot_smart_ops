@@ -499,6 +499,79 @@ class SupplyChainDB:
             ).fetchall()
             return [dict(r) for r in rows]
 
+    # ── Product Master ────────────────────────────────────────────────────
+
+    def fetch_products(
+        self, store_id: str = "", active_only: bool = True,
+        limit: int = 50, offset: int = 0,
+    ) -> List[dict]:
+        """查询产品主数据（支持 PG 透明切换）。"""
+        with self._conn() as conn:
+            # 确保 product_master 表存在（首次懒初始化）
+            conn.execute("""
+                CREATE TABLE IF NOT EXISTS product_master (
+                    product_id TEXT PRIMARY KEY,
+                    name TEXT NOT NULL,
+                    category TEXT,
+                    unit TEXT DEFAULT 'kg',
+                    brand TEXT DEFAULT '',
+                    supplier_id TEXT DEFAULT '',
+                    price REAL DEFAULT 0.0,
+                    is_active INTEGER DEFAULT 1,
+                    version INTEGER DEFAULT 1,
+                    created_at TEXT,
+                    updated_at TEXT
+                )
+            """)
+            conn.commit()
+
+            query = "SELECT * FROM product_master WHERE 1=1"
+            params: list = []
+            if active_only:
+                query += " AND is_active = 1"
+            query += " ORDER BY name LIMIT ? OFFSET ?"
+            params.extend([limit, offset])
+            rows = conn.execute(query, params).fetchall()
+            return [dict(r) for r in rows]
+
+    def insert_product(
+        self, product_id: str, name: str, category: str = "",
+        unit: str = "kg", brand: str = "", supplier_id: str = "",
+        price: float = 0.0, is_active: bool = True,
+    ) -> bool:
+        """插入产品主数据。"""
+        try:
+            with self._conn() as conn:
+                conn.execute("""
+                    CREATE TABLE IF NOT EXISTS product_master (
+                        product_id TEXT PRIMARY KEY,
+                        name TEXT NOT NULL,
+                        category TEXT,
+                        unit TEXT DEFAULT 'kg',
+                        brand TEXT DEFAULT '',
+                        supplier_id TEXT DEFAULT '',
+                        price REAL DEFAULT 0.0,
+                        is_active INTEGER DEFAULT 1,
+                        version INTEGER DEFAULT 1,
+                        created_at TEXT,
+                        updated_at TEXT
+                    )
+                """)
+                conn.execute("""
+                    INSERT OR REPLACE INTO product_master
+                    (product_id, name, category, unit, brand, supplier_id,
+                     price, is_active, version, created_at, updated_at)
+                    VALUES (?, ?, ?, ?, ?, ?, ?, ?, 1, ?, ?)
+                """, (
+                    product_id, name, category, unit, brand, supplier_id,
+                    price, int(is_active), _now(), _now(),
+                ))
+                conn.commit()
+            return True
+        except Exception as e:
+            logger.error(f"Failed to insert product: {e}")
+            return False
+
     # ── Inventory Ledger ──────────────────────────────────────────────────
 
     def save_ledger_entry(self, entry: dict) -> bool:

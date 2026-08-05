@@ -77,6 +77,7 @@ class TaskIngestBody(BaseModel):
 
 
 @router.post("/api/v1/tasks/ingest")
+@router.post("/v1/tasks/ingest")  # P0 整改：Edge vision_worker 使用的路径别名
 def ingest_event(body: TaskIngestBody, auth: AuthContext = Depends(get_auth_context)) -> Dict[str, Any]:
     """收口入口：把告警/清台/IoT/SOP 事件经 task_factory 幂等转工单（DEV-522）。"""
     from hotpot_platform.cloud.event_hub import task_factory

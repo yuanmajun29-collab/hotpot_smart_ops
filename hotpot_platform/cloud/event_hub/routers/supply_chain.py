@@ -197,11 +197,34 @@ async def list_products(
         #         user["store_id"], active_only, page_size, (page-1)*page_size
         #     )
 
-        # 临时返回演示数据 (开发阶段)
-        products = [
-            {"product_id": "FP-HNRC-001", "name": "汉拿山肥牛卷", "category": "FROZEN_MEAT", "unit": "kg", "price": 68.0, "is_active": True},
-            {"product_id": "FP-HNRC-002", "name": "精品羊肉卷", "category": "FROZEN_MEAT", "unit": "kg", "price": 78.0, "is_active": True},
-        ]
+        # 尝试 PG 查询，不可用时回退内存种子数据
+        products: List[Dict[str, Any]] = []
+        source = "mock"
+        try:
+            from hotpot_platform.cloud.supply_chain.db import get_db
+            db = get_db()
+            if db:
+                try:
+                    rows = db.fetch_products(
+                        store_id=user.get("store_id", ""),
+                        active_only=active_only,
+                        limit=page_size,
+                        offset=(page - 1) * page_size,
+                    )
+                    if rows:
+                        products = [dict(r) for r in rows]
+                        source = "hub_pg"
+                except Exception:
+                    pass  # PG 不可用，回退
+        except Exception:
+            pass
+
+        # 回退：内存种子数据（明确标记 source: mock）
+        if not products:
+            from hotpot_platform.cloud.supply_chain.manager import supply_chain_manager
+            supply_chain_manager.init_product_data()
+            products = supply_chain_manager.list_product_masters()
+            source = "mock"
 
         return {
             "code": 200,
@@ -210,10 +233,9 @@ async def list_products(
             "page": page,
             "page_size": page_size,
             "_meta": {
-                "source": "hub_pg",
+                "source": source,
                 "correlation_id": correlation_id,
                 "role": user["role"],
-                "query_time_ms": 12,  # 模拟
             }
         }
     except Exception as e:
@@ -239,21 +261,42 @@ async def create_product(
     correlation_id = x_correlation_id or str(uuid.uuid4())
 
     try:
-        # PG INSERT (Phase 2实现)
-        # TODO: async with db_engine.acquire() as conn:
-        #     await conn.execute(
-        #         """INSERT INTO product_master
-        #            (product_id, name, category, unit, brand, supplier_id, price, is_active, version, created_at, updated_at)
-        #            VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,NOW(),NOW())""",
-        #         str(uuid.uuid4())[:12], product.name, product.category, product.unit,
-        #         product.brand, product.supplier_id, product.price, product.is_active, 1
-        #     )
+        # 尝试 PG INSERT，不可用时回退内存写入
+        product_id = f"PRD-{uuid.uuid4().hex[:8].upper()}"
+        source = "mock"
+        try:
+            from hotpot_platform.cloud.supply_chain.db import get_db
+            db = get_db()
+            if db:
+                try:
+                    db.insert_product(product_id=product_id, name=product.name,
+                                      category=product.category, unit=product.unit,
+                                      brand=getattr(product, "brand", ""),
+                                      supplier_id=getattr(product, "supplier_id", ""),
+                                      price=getattr(product, "price", 0.0),
+                                      is_active=getattr(product, "is_active", True))
+                    source = "hub_pg"
+                except Exception:
+                    pass  # PG 不可用，回退内存
+        except Exception:
+            pass
+
+        # 内存兜底
+        if source == "mock":
+            from hotpot_platform.cloud.supply_chain.manager import supply_chain_manager
+            supply_chain_manager.init_product_data()
+            supply_chain_manager._products[product_id] = {
+                **product.model_dump(),
+                "product_id": product_id,
+                "source": "mock",
+            }
 
         return {
             "code": 201,
             "message": "货品创建成功",
-            "data": {**product.model_dump(), "product_id": f"PRD-{uuid.uuid4().hex[:8].upper()}"},
+            "data": {**product.model_dump(), "product_id": product_id},
             "_meta": {
+                "source": source,
                 "correlation_id": correlation_id,
                 "audit_status": "executed",
                 "created_by": user["user_id"],

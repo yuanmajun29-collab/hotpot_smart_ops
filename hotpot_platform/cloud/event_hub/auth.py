@@ -51,8 +51,14 @@ api_key_header = APIKeyHeader(name="X-Api-Key", auto_error=False)
 
 
 def auth_mode() -> str:
-    """Read the auth mode at call time so runtime env changes take effect."""
-    return os.environ.get("HOTPOT_AUTH_MODE", "demo")
+    """Read the auth mode at call time so runtime env changes take effect.
+
+    默认 "token" 模式：需要 JWT 或 API Key 认证。
+    仅当 HOTPOT_DEMO_MODE=true 时启用 "demo" 模式（展会匿名展示用）。
+    """
+    if os.environ.get("HOTPOT_DEMO_MODE", "").lower() in ("1", "true", "yes"):
+        return "demo"
+    return os.environ.get("HOTPOT_AUTH_MODE", "token")
 
 
 def configured_api_keys() -> Dict[str, str]:
