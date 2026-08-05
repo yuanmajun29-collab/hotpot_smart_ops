@@ -126,7 +126,7 @@ class AlertFatigueGuard:
         self._enable_stats = enable_global_stats
 
         # 内部状态
-        self._lock = threading.Lock()
+        self._lock = threading.RLock()  # 可重入锁: get_status()等方法在持锁期间调用get_stats()需重入
 
         # { (event_type, event_key) -> [ (timestamp, ... ), ... ] } 时间窗口
         self._windows: Dict[tuple, List[float]] = defaultdict(list)

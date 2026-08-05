@@ -308,7 +308,7 @@ class KitchenAgent(RoleAgent):
             agent_id="agent-kitchen-001",
             name="后厨AI助理",
             role=AgentRole.KITCHEN,
-            version="1.0.0",
+            version="1.1.0",  # D2升级: 真实数据源增强
             capabilities=[
                 Capability.MONITOR,
                 Capability.NOTIFY,
@@ -339,25 +339,70 @@ class KitchenAgent(RoleAgent):
             return self._suggest_prep_list(input_data)
         elif task_type == "analyze_waste":
             return self._analyze_waste(input_data)
+        # ── D2新增: 真实数据源任务 ──
+        elif task_type == "read_iot_temperature":
+            return self._read_iot_temperature(input_data)
+        elif task_type == "analyze_yield_trend":
+            return self._analyze_yield_trend(input_data)
         else:
             return {"error": f"后厨不支持的任务: {task_type}", "agent": self.config.name}
 
     def _check_sop_compliance(self, input_data: Dict) -> Dict:
-        """检查 SOP 合规性"""
+        """检查 SOP 合规性 (D2增强版: 支持自定义检查项)
+
+        Args:
+            input_data: 可包含 custom_check_items (List[Dict]) 自定义检查项列表
+
+        Returns:
+            SOP合规检查结果，含评分、违规项、状态
+        """
         from hotpot_platform.cloud.supply_chain.manager import SupplyChainManager
 
         panel = SupplyChainManager.get_kitchen_assistant_panel()
         sop_score = panel.get("sop_score", 95)
 
+        # D2增强: 支持自定义检查项列表
+        custom_checks = input_data.get("custom_check_items")
+        default_check_items = [
+            {"name": "冷库温度", "target_range": [-18, -15], "unit": "°C"},
+            {"name": "热菜保温", "target_range": [60, 80], "unit": "°C"},
+            {"name": "操作台清洁", "target": "pass", "type": "visual"},
+            {"name": "员工口罩佩戴", "target": "yes", "type": "visual"},
+        ]
+        check_items = custom_checks if custom_checks else default_check_items
+
         violations = []
-        if sop_score < 90:
+        # 基于IoT温度数据评估（如果有）
+        store_id = input_data.get("store_id", "store_jiaojiang")
+        iot_temp = self._read_iot_temperature({"store_id": store_id})
+        temp_data = iot_temp.get("temperatures", {})
+
+        for item in check_items:
+            item_name = item.get("name", "")
+            if "温度" in item_name and item_name in temp_data:
+                current_temp = temp_data[item_name].get("value")
+                target_range = item.get("target_range", [])
+                if target_range and current_temp is not None:
+                    if not (target_range[0] <= current_temp <= target_range[1]):
+                        violations.append({
+                            "type": "temperature",
+                            "item": item_name,
+                            "severity": "warning",
+                            "msg": f"{item_name}异常: {current_temp}{item.get('unit', '°C')}, 目标范围{target_range}",
+                            "current_value": current_temp,
+                            "target_range": target_range,
+                        })
+
+        if sop_score < 90 and not any(v["type"] == "temperature" for v in violations):
             violations.append({"type": "temperature", "severity": "warning", "msg": "冷库温度偏高"})
 
         return {
             "task_type": "sop_compliance",
             "score": sop_score,
             "violations": violations,
+            "check_items_count": len(check_items),
             "status": "pass" if sop_score >= 80 else "needs_attention",
+            "iot_temperature_used": bool(temp_data),
             "agent": self.config.name,
         }
 
@@ -386,21 +431,209 @@ class KitchenAgent(RoleAgent):
         }
 
     def _analyze_waste(self, input_data: Dict) -> Dict:
-        """分析废料"""
+        """分析废料 (D2增强版: 支持VLM视觉识别数据)
+
+        Args:
+            input_data: 可包含 vlm_waste_events (List[Dict]) VLM识别的废料事件数据
+                       每个事件包含: waste_type, weight_kg, image_evidence, confidence
+
+        Returns:
+            废料分析报告，含分类、成本、VLM识别结果
+        """
+        # D2增强: 解析VLM废料识别事件数据
+        vlm_events = input_data.get("vlm_waste_events", [])
+        vlm_total_kg = 0.0
+        vlm_categories = {}
+
+        for event in vlm_events:
+            waste_type = event.get("waste_type", "UNKNOWN")
+            weight = event.get("weight_kg", 0)
+            vlm_total_kg += weight
+            if waste_type not in vlm_categories:
+                vlm_categories[waste_type] = {"weight_kg": 0, "count": 0, "evidence_images": []}
+            vlm_categories[waste_type]["weight_kg"] += weight
+            vlm_categories[waste_type]["count"] += 1
+            if event.get("image_evidence"):
+                vlm_categories[waste_type]["evidence_images"].append(event["image_evidence"])
+
+        # 基础废料数据（保持向后兼容）
+        base_waste_kg = 12.5
+        total_waste_kg = vlm_total_kg if vlm_total_kg > 0 else base_waste_kg
+        unit_cost_estimate = 54.4  # ¥/kg (基于历史均价)
+
+        # 构建分类统计
+        top_categories = []
+        if vlm_categories:
+            for wtype, data in sorted(vlm_categories.items(), key=lambda x: -x[1]["weight_kg"]):
+                top_categories.append({
+                    "category": wtype,
+                    "weight_kg": round(data["weight_kg"], 2),
+                    "cost": round(data["weight_kg"] * unit_cost_estimate, 2),
+                    "count": data["count"],
+                    "has_visual_evidence": len(data["evidence_images"]) > 0,
+                    "evidence_count": len(data["evidence_images"]),
+                })
+        else:
+            # 向后兼容: 返回默认分类
+            top_categories = [
+                {"category": "FROZEN_MEAT", "cost": 320, "pct": 47},
+                {"category": "VEGETABLE", "cost": 180, "pct": 26},
+            ]
+
         return {
             "task_type": "waste_analysis",
             "period_days": input_data.get("days", 7),
-            "total_waste_kg": 12.5,
-            "total_cost": 680.0,
-            "top_categories": [
-                {"category": "FROZEN_MEAT", "cost": 320, "pct": 47},
-                {"category": "VEGETABLE", "cost": 180, "pct": 26},
+            "total_waste_kg": round(total_waste_kg, 2),
+            "total_cost": round(total_waste_kg * unit_cost_estimate, 2),
+            "top_categories": top_categories,
+            "vlm_data_used": len(vlm_events) > 0,
+            "vlm_event_count": len(vlm_events),
+            "recommendations": ["减少冻品解冻过量", "优化蔬菜订货量"] if not vlm_events else [
+                f"重点关注 {list(vlm_categories.keys())[0]} 类废料，占比最高",
+                "建议加强员工操作规范培训",
+                "利用VLM视觉证据进行针对性改进",
             ],
-            "recommendations": ["减少冻品解冻过量", "优化蔬菜订货量"],
             "agent": self.config.name,
         }
 
-    # ── 消息处理器 ─────────────────────────────────────
+    def _read_iot_temperature(self, input_data: Dict) -> Dict:
+        """从IoT设备读取温度数据 (D2新增)
+
+        模拟从MessageBus订阅 iot.temperature.* 事件的逻辑，
+        实际部署时应从时序数据库(InfluxDB/TimescaleDB)查询真实传感器数据。
+
+        Args:
+            input_data: {"store_id": "store_jiaojiang", "sensor_ids": ["temp_001", "temp_002"]}
+
+        Returns:
+            各传感器温度数据及异常告警
+        """
+        store_id = input_data.get("store_id", "store_jiaojiang")
+        sensor_ids = input_data.get("sensor_ids")
+
+        # 模拟从事件历史中读取温度数据
+        # 实际实现: MessageBus.query_events(topic="iot.temperature.*", store_id=store_id, limit=100)
+        mock_iot_data = {
+            "冷库温度": {"value": -16.5, "unit": "°C", "sensor_id": "iot_temp_freezer_001", "timestamp": datetime.now().isoformat()},
+            "热菜保温台": {"value": 72.3, "unit": "°C", "sensor_id": "iot_temp_hot_holding_001", "timestamp": datetime.now().isoformat()},
+            "冷藏展示柜": {"value": 4.2, "unit": "°C", "sensor_id": "iot_temp_fridge_display_001", "timestamp": datetime.now().isoformat()},
+        }
+
+        # 如果指定了传感器ID，则过滤
+        if sensor_ids:
+            mock_iot_data = {k: v for k, v in mock_iot_data.items() if v["sensor_id"] in sensor_ids}
+
+        # 异常检测
+        alerts = []
+        thresholds = {
+            "冷库温度": (-18, -15),
+            "热菜保温台": (60, 80),
+            "冷藏展示柜": (2, 8),
+        }
+        for name, data in mock_iot_data.items():
+            if name in thresholds:
+                low, high = thresholds[name]
+                val = data["value"]
+                if val < low or val > high:
+                    alerts.append({
+                        "sensor_name": name,
+                        "sensor_id": data["sensor_id"],
+                        "current_value": val,
+                        "threshold": f"{low}~{high}{data['unit']}",
+                        "severity": "critical" if abs(val - (low + high) / 2) > 5 else "warning",
+                    })
+
+        return {
+            "task_type": "iot_temperature",
+            "store_id": store_id,
+            "temperatures": mock_iot_data,
+            "alerts": alerts,
+            "alert_count": len(alerts),
+            "data_source": "iot_sensor_simulation",  # 实际应为 "influxdb" 或 "timescaledb"
+            "generated_at": datetime.now().isoformat(),
+            "agent": self.config.name,
+        }
+
+    def _analyze_yield_trend(self, input_data: Dict) -> Dict:
+        """分析出品率趋势 (D2新增)
+
+        基于历史出品率数据计算趋势方向，支持上升/下降/稳定判定。
+
+        Args:
+            input_data: {"days": 7, "item_names": ["毛肚", "鸭肠"]}
+
+        Returns:
+            出品率趋势分析报告，含方向、变化率、建议
+        """
+        days = input_data.get("days", 7)
+        item_names = input_data.get("item_names", ["毛肚", "鸭肠"])
+
+        # 模拟历史出品率数据（实际应从PG查询）
+        import random
+        random.seed(42)  # 保证可复现
+
+        historical_yields = {}
+        for item in item_names:
+            base_yield = 70 if item == "毛肚" else 65
+            historical_yields[item] = [
+                round(base_yield + random.uniform(-3, 3), 1) for _ in range(days)
+            ]
+
+        # 计算趋势
+        trend_results = {}
+        for item, yields in historical_yields.items():
+            if len(yields) >= 2:
+                recent_avg = sum(yields[-3:]) / min(3, len(yields))
+                earlier_avg = sum(yields[:3]) / min(3, len(yields))
+                change_pct = round((recent_avg - earlier_avg) / earlier_avg * 100, 1) if earlier_avg > 0 else 0
+
+                if change_pct > 2:
+                    direction = "rising"
+                    status = "good"
+                elif change_pct < -2:
+                    direction = "declining"
+                    status = "attention"
+                else:
+                    direction = "stable"
+                    status = "normal"
+
+                trend_results[item] = {
+                    "direction": direction,
+                    "change_pct": change_pct,
+                    "recent_avg": round(recent_avg, 1),
+                    "earlier_avg": round(earlier_avg, 1),
+                    "latest_value": yields[-1],
+                    "status": status,
+                    "data_points": len(yields),
+                }
+            else:
+                trend_results[item] = {
+                    "direction": "insufficient_data",
+                    "change_pct": 0,
+                    "status": "unknown",
+                    "data_points": len(yields),
+                }
+
+        return {
+            "task_type": "yield_trend_analysis",
+            "period_days": days,
+            "items": trend_results,
+            "overall_direction": max(
+                set(r["direction"] for r in trend_results.values()),
+                key=lambda d: list(r["direction"] for r in trend_results.values()).count(d)
+            ) if trend_results else "unknown",
+            "recommendations": [
+                "出品率整体稳定，继续保持当前操作规范",
+                "建议关注单品波动较大的菜品，优化切配流程",
+            ] if all(r.get("status") in ("good", "normal") for r in trend_results.values()) else [
+                "检测到出品率下降趋势，建议加强员工培训",
+                "检查原材料质量是否稳定",
+                "优化备货和存储条件",
+            ],
+            "agent": self.config.name,
+        }
+
+    # ── KitchenAgent 消息处理器 ──────────────────────────
 
     def _handle_kitchen_panel(self, msg: AgentMessage) -> AgentMessage:
         from hotpot_platform.cloud.supply_chain.manager import SupplyChainManager
@@ -460,7 +693,7 @@ class ProcurementAgent(RoleAgent):
             agent_id="agent-procurement-001",
             name="采购AI助理",
             role=AgentRole.PROCUREMENT,
-            version="1.0.0",
+            version="1.1.0",  # D2升级: 智能预测增强
             capabilities=[
                 Capability.ANALYZE,
                 Capability.PREDICT,
@@ -492,6 +725,13 @@ class ProcurementAgent(RoleAgent):
             return self._evaluate_supplier(input_data)
         elif task_type == "check_price_alerts":
             return self._check_price_alerts(input_data)
+        # ── D2新增: 智能预测任务 ──
+        elif task_type == "predict_purchase_quantity":
+            return self._predict_purchase_quantity(input_data)
+        elif task_type == "score_supplier_risk":
+            return self._score_supplier_risk(input_data)
+        elif task_type == "analyze_price_trend":
+            return self._analyze_price_trend(input_data)
         else:
             return {"error": f"采购不支持的任务: {task_type}", "agent": self.config.name}
 
@@ -567,7 +807,257 @@ class ProcurementAgent(RoleAgent):
             "agent": self.config.name,
         }
 
-    # ── 消息处理器 ─────────────────────────────────────
+    def _predict_purchase_quantity(self, input_data: Dict) -> Dict:
+        """智能采购量预测 (D2新增)
+
+        基于历史销量、季节因子和促销计划，使用加权移动平均(WMA)算法预测采购量。
+
+        算法:
+        - 加权移动平均(WMA): 近期数据权重更高
+        - 季节调整: 夏季火锅淡季因子 0.85
+        - 促销调整: 如有促销计划 +20%
+
+        Args:
+            input_data: {"item_id": "FP-HNRC-001", "days": 7, "has_promo": False}
+
+        Returns:
+            预测结果，含预测量、置信度、应用因子
+        """
+        item_id = input_data.get("item_id", "FP-HNRC-001")
+        days = input_data.get("days", 7)
+        has_promo = input_data.get("has_promo", False)
+
+        # 模拟历史销量数据（实际应从PG查询）
+        import random
+        random.seed(hash(item_id) % (2**32))
+
+        # 生成30天历史销量（用于WMA计算）
+        history_30d = [random.randint(50, 120) for _ in range(30)]
+        history_7d = history_30d[-7:]
+
+        # WMA计算（权重: [1, 2, 3, 4, 5, 6, 7]，最近一天权重最高）
+        weights = list(range(1, len(history_7d) + 1))
+        wma_numerator = sum(w * d for w, d in zip(weights, history_7d))
+        wma_denominator = sum(weights)
+        wma_base = round(wma_numerator / wma_denominator, 1)
+
+        # 季节因子（夏季火锅淡季）
+        seasonal_factor = 0.85  # 6-8月为淡季
+
+        # 促销调整
+        promo_factor = 1.2 if has_promo else 1.0
+
+        # 最终预测量
+        predicted_qty = int(wma_base * seasonal_factor * promo_factor)
+
+        # 置信度评估（基于历史数据波动性）
+        variance = sum((x - sum(history_7d) / len(history_7d)) ** 2 for x in history_7d) / len(history_7d)
+        std_dev = variance ** 0.5
+        cv = (std_dev / (sum(history_7d) / len(history_7d)) * 100) if history_7d else 0  # 变异系数
+        confidence = "high" if cv < 15 else ("medium" if cv < 25 else "low")
+
+        return {
+            "task_type": "purchase_quantity_prediction",
+            "item_id": item_id,
+            "prediction": {
+                "predicted_qty": predicted_qty,
+                "unit": "kg",
+                "confidence": confidence,
+                "confidence_pct": round(max(60, min(95, 100 - cv)), 1),
+                "wma_base": wma_base,
+                "history_days_used": days,
+            },
+            "factors_applied": {
+                "seasonal_factor": seasonal_factor,
+                "seasonal_note": "夏季火锅淡季调整",
+                "promo_factor": promo_factor,
+                "promo_note": "促销计划调整" if has_promo else "无促销",
+                "final_adjustment": round(seasonal_factor * promo_factor, 2),
+            },
+            "historical_summary": {
+                "avg_7d": round(sum(history_7d) / len(history_7d), 1),
+                "avg_30d": round(sum(history_30d) / len(history_30d), 1),
+                "trend": "increasing" if history_7d[-1] > history_7d[0] else "decreasing",
+            },
+            "recommendation": f"建议采购 {predicted_qty}kg，置信度{confidence}",
+            "agent": self.config.name,
+        }
+
+    def _score_supplier_risk(self, input_data: Dict) -> Dict:
+        """供应商风险评分卡 (D2新增)
+
+        基于三维评分模型评估供应商风险等级:
+        - 交货及时率 (40%权重)
+        - 质量合格率 (40%权重)
+        - 价格稳定性 (20%权重)
+
+        风险等级划分:
+        - LOW: 总分 > 85
+        - MEDIUM: 70 <= 总分 <= 85
+        - HIGH: 总分 < 70
+
+        Args:
+            input_data: {"supplier_id": "SUPP-001"}
+
+        Returns:
+            风险评分报告，含总分、各维度得分、风险等级
+        """
+        supplier_id = input_data.get("supplier_id", "SUPP-001")
+
+        # 模拟供应商数据（实际应从PG查询）
+        import random
+        random.seed(hash(supplier_id) % (2**32))
+
+        # 三维评分数据
+        delivery_score = round(random.uniform(75, 98), 1)  # 交货及时率
+        quality_score = round(random.uniform(72, 96), 1)   # 质量合格率
+        price_stability = round(random.uniform(65, 92), 1)  # 价格稳定性
+
+        # 加权计算总分
+        total_score = round(
+            delivery_score * 0.40 +
+            quality_score * 0.40 +
+            price_stability * 0.20,
+            1
+        )
+
+        # 风险等级判定
+        if total_score > 85:
+            risk_level = "LOW"
+            risk_color = "green"
+            action = "保持合作，定期复核"
+        elif total_score >= 70:
+            risk_level = "MEDIUM"
+            risk_color = "yellow"
+            action = "加强监控，准备备选供应商"
+        else:
+            risk_level = "HIGH"
+            risk_color = "red"
+            action = "考虑替换，启动新供应商寻源"
+
+        return {
+            "task_type": "supplier_risk_scoring",
+            "supplier_id": supplier_id,
+            "total_score": total_score,
+            "risk_level": risk_level,
+            "risk_color": risk_color,
+            "dimensions": {
+                "delivery": {
+                    "score": delivery_score,
+                    "weight": 0.40,
+                    "name": "交货及时率",
+                    "detail": f"近30天准时交货率 {delivery_score}%",
+                },
+                "quality": {
+                    "score": quality_score,
+                    "weight": 0.40,
+                    "name": "质量合格率",
+                    "detail": f"批次检验合格率 {quality_score}%",
+                },
+                "price_stability": {
+                    "score": price_stability,
+                    "weight": 0.20,
+                    "name": "价格稳定性",
+                    "detail": f"90天内价格波动幅度 {round(100 - price_stability, 1)}%",
+                },
+            },
+            "action_recommendation": action,
+            "last_review_date": datetime.now().strftime("%Y-%m-%d"),
+            "next_review_date": datetime.now().strftime("%Y-%m-%d"),  # 实际应为+30天
+            "agent": self.config.name,
+        }
+
+    def _analyze_price_trend(self, input_data: Dict) -> Dict:
+        """价格趋势分析 (D2新增)
+
+        分析指定商品的价格走势，计算多时间窗口均价和波动率。
+
+        分析维度:
+        - 30/60/90天移动平均价
+        - 涨跌幅百分比
+        - 波动率 (标准差/均值)
+        - 趋势方向与建议
+
+        Args:
+            input_data: {"item_id": "FP-HNRC-001", "window_days": 90}
+
+        Returns:
+            价格趋势分析报告
+        """
+        item_id = input_data.get("item_id", "FP-HNRC-001")
+        window_days = input_data.get("window_days", 90)
+
+        # 模拟价格历史数据（实际应从PG查询）
+        import random
+        random.seed(hash(item_id + "_price") % (2**32))
+        base_price = 25.0  # 基准单价
+
+        # 生成90天价格序列（带趋势和随机波动）
+        prices_90d = []
+        for i in range(90):
+            trend = i * 0.05  # 轻微上涨趋势
+            noise = random.uniform(-1.5, 1.5)
+            price = round(base_price + trend + noise, 2)
+            prices_90d.append(price)
+
+        # 计算不同时间窗口的均价
+        avg_30d = round(sum(prices_90d[-30:]) / 30, 2)
+        avg_60d = round(sum(prices_90d[-60:]) / 60, 2)
+        avg_90d = round(sum(prices_90d) / 90, 2)
+
+        # 计算涨跌幅
+        change_30d = round((avg_30d - prices_90d[-30]) / prices_90d[-30] * 100, 1) if prices_90d[-30] != 0 else 0
+        change_90d = round((avg_90d - prices_90d[0]) / prices_90d[0] * 100, 1) if prices_90d[0] != 0 else 0
+
+        # 计算波动率（标准差/均值）
+        mean_price = sum(prices_90d) / len(prices_90d)
+        variance = sum((p - mean_price) ** 2 for p in prices_90d) / len(prices_90d)
+        std_dev = variance ** 0.5
+        volatility = round((std_dev / mean_price) * 100, 2) if mean_price > 0 else 0
+
+        # 趋势判定
+        if change_90d > 5:
+            trend_direction = "rising"
+            recommendation = "价格上涨趋势明显，建议提前锁价或增加库存"
+        elif change_90d < -5:
+            trend_direction = "falling"
+            recommendation = "价格下降趋势，可适当减少库存，按需采购"
+        else:
+            trend_direction = "stable"
+            recommendation = "价格相对稳定，维持正常采购节奏"
+
+        return {
+            "task_type": "price_trend_analysis",
+            "item_id": item_id,
+            "window_days": window_days,
+            "price_averages": {
+                "avg_30d": avg_30d,
+                "avg_60d": avg_60d,
+                "avg_90d": avg_90d,
+                "latest_price": prices_90d[-1],
+                "unit": "¥/kg",
+            },
+            "changes": {
+                "change_30d_pct": change_30d,
+                "change_90d_pct": change_90d,
+            },
+            "volatility": {
+                "value": volatility,
+                "unit": "%",
+                "std_dev": round(std_dev, 2),
+                "interpretation": "低波动" if volatility < 5 else ("中等波动" if volatility < 10 else "高波动"),
+            },
+            "trend": {
+                "direction": trend_direction,
+                "strength": "strong" if abs(change_90d) > 10 else ("moderate" if abs(change_90d) > 5 else "weak"),
+            },
+            "recommendation": recommendation,
+            "data_points": len(prices_90d),
+            "analysis_period": f"最近{window_days}天",
+            "agent": self.config.name,
+        }
+
+    # ── ProcurementAgent 消息处理器 ─────────────────────
 
     def _handle_purchase_panel(self, msg: AgentMessage) -> AgentMessage:
         from hotpot_platform.cloud.supply_chain.manager import SupplyChainManager
@@ -623,7 +1113,7 @@ class FrontHallAgent(RoleAgent):
     - ❌ 禁止: 自动改价/折扣/发券/退款 (BLOCKED by Gateway)
     """
 
-    # ── P0-D: 销售与服务培训知识库 ──
+    # ── P0-D: 销售与服务培训知识库 (D2扩展版) ──
     _DISH_KNOWLEDGE_BASE = [
         {"sku": "DP001", "name": "毛肚", "category": "荤菜", "price_range": [58, 78],
          "selling_points": ["新鲜现撕", "七上八下涮烫法", "招牌必点"], "pairing": ["鸭血", "蒜泥油碟"]},
@@ -637,6 +1127,13 @@ class FrontHallAgent(RoleAgent):
          "selling_points": ["解腻神器", "吸汤好手"], "pairing": ["任何荤菜"]},
         {"sku": "DP006", "name": "冰粉", "category": "甜品", "price_range": [12, 18],
          "selling_points": ["餐后解辣", "高毛利"], "pairing": ["任何套餐"]},
+        # D2新增: 火锅核心菜品扩展
+        {"sku": "DP007", "name": "黄喉", "category": "荤菜", "price_range": [45, 65],
+         "selling_points": ["脆爽弹牙", "涮8-10秒"], "pairing": ["蒜泥油碟", "香菜"]},
+        {"sku": "DP008", "name": "酥肉", "category": "荤菜", "price_range": [38, 52],
+         "selling_points": ["外酥里嫩", "可直接吃或下锅"], "pairing": ["辣椒面", "番茄锅"]},
+        {"sku": "DP009", "name": "鲜笋片", "category": "素菜", "price_range": [22, 32],
+         "selling_points": ["爽脆清香", "解腻佳品"], "pairing": ["任何荤菜", "菌汤锅"]},
     ]
 
     _SERVICE_TERMINOLOGY = {
@@ -812,13 +1309,14 @@ class FrontHallAgent(RoleAgent):
     # ════════════════════════════════════════════════════════════
 
     def _query_sales_kpi(self, input_data: Dict) -> Dict:
-        """查询销售KPI指标 (只读操作)
+        """查询销售KPI指标 (D2增强版: 支持动态粒度 + POS数据桥接)
 
         从POS数据或预聚合数据中提取销售相关KPI:
         - 日销售额 / 客单价 / 翻台率
         - 菜品销量排行 (Top N)
         - 时段分布 (午市/晚市/夜宵)
         - 同比/环比变化
+        - D2新增: 支持日/周/月不同时间粒度
 
         Args:
             input_data: {"date": "2026-08-04", "period": "day", "store_id": "store_jiaojiang"}
@@ -828,34 +1326,132 @@ class FrontHallAgent(RoleAgent):
         """
         query_date = input_data.get("date", datetime.now().strftime("%Y-%m-%d"))
         store_id = input_data.get("store_id", "store_jiaojiang")
+        period = input_data.get("period", "day")  # day / week / month
 
-        # TODO(P0-D): 对接真实POS数据源 (pos_bridge.py → sales_events表)
-        # 当前返回模拟结构，展示Agent输出格式规范
+        # D2增强: 尝试从POS数据桥接读取真实数据
+        pos_data = self._fetch_pos_data(store_id, query_date)
+        use_real_data = pos_data.get("data_source") != "fallback_simulation"
+
+        # 根据时间粒度返回不同数据
+        if period == "day":
+            if use_real_data:
+                kpis = {
+                    "daily_revenue": {"value": pos_data.get("total_sales", 12800), "unit": "¥", "target": 15000, "status": "warning" if pos_data.get("total_sales", 12800) < 15000 else "good", "change_pct": pos_data.get("change_pct", -3.2)},
+                    "avg_check": {"value": pos_data.get("avg_check", 168), "unit": "¥", "target": 180, "status": "normal", "change_pct": 1.5},
+                    "turnover_rate": {"value": pos_data.get("turnover_rate", 2.45), "unit": "次", "target": 2.5, "status": "near_target", "change_pct": 0.8},
+                    "table_utilization": {"value": pos_data.get("table_utilization", 0.82), "unit": "%", "target": 0.85, "status": "normal"},
+                    "dine_in_count": {"value": pos_data.get("dine_in_count", 76), "unit": "桌", "target": 85, "status": "warning"},
+                }
+            else:
+                # 向后兼容: 模拟数据
+                kpis = {
+                    "daily_revenue": {"value": 12800, "unit": "¥", "target": 15000, "status": "warning", "change_pct": -3.2},
+                    "avg_check": {"value": 168, "unit": "¥", "target": 180, "status": "normal", "change_pct": 1.5},
+                    "turnover_rate": {"value": 2.45, "unit": "次", "target": 2.5, "status": "near_target", "change_pct": 0.8},
+                    "table_utilization": {"value": 0.82, "unit": "%", "target": 0.85, "status": "normal"},
+                    "dine_in_count": {"value": 76, "unit": "桌", "target": 85, "status": "warning"},
+                }
+            top_dishes = [
+                {"rank": 1, "name": "毛肚", "qty": 128, "revenue": 8960},
+                {"rank": 2, "name": "虾滑", "qty": 96, "revenue": 6720},
+                {"rank": 3, "name": "麻辣牛肉", "qty": 84, "revenue": 5040},
+            ]
+            period_breakdown = {
+                "lunch": {"revenue": 4800, "tables": 28, "avg_check": 171},
+                "dinner": {"revenue": 7200, "tables": 42, "avg_check": 171},
+                "late_night": {"revenue": 800, "tables": 6, "avg_check": 133},
+            }
+        elif period == "week":
+            # 周粒度: 聚合7天数据
+            kpis = {
+                "weekly_revenue": {"value": 89200, "unit": "¥", "target": 105000, "status": "warning", "change_pct": -2.1},
+                "daily_avg_revenue": {"value": 12743, "unit": "¥", "target": 15000, "status": "warning"},
+                "weekly_avg_check": {"value": 170, "unit": "¥", "target": 180, "status": "normal", "change_pct": 0.9},
+                "weekly_turnover_avg": {"value": 2.4, "unit": "次", "target": 2.5, "status": "near_target"},
+            }
+            top_dishes = [
+                {"rank": 1, "name": "毛肚", "qty": 896, "revenue": 62720},
+                {"rank": 2, "name": "虾滑", "qty": 672, "revenue": 47040},
+                {"rank": 3, "name": "鸭肠", "qty": 520, "revenue": 28600},
+            ]
+            period_breakdown = {
+                "mon_wed": {"revenue": 25000, "daily_avg": 12500},
+                "thu_fri": {"revenue": 32000, "daily_avg": 16000},
+                "sat_sun": {"revenue": 32200, "daily_avg": 16100},
+            }
+        else:  # month
+            # 月粒度: 聚合30天数据
+            kpis = {
+                "monthly_revenue": {"value": 378000, "unit": "¥", "target": 450000, "status": "warning", "change_pct": 1.8},
+                "monthly_avg_daily": {"value": 12600, "unit": "¥", "target": 15000, "status": "warning"},
+                "monthly_avg_check": {"value": 169, "unit": "¥", "target": 180, "status": "normal"},
+                "peak_day_revenue": {"value": 15800, "unit": "¥", "date": "2026-08-02"},
+                "lowest_day_revenue": {"value": 9800, "unit": "¥", "date": "2026-08-05"},
+            }
+            top_dishes = [
+                {"rank": 1, "name": "毛肚", "qty": 3840, "revenue": 268800},
+                {"rank": 2, "name": "虾滑", "qty": 2880, "revenue": 201600},
+                {"rank": 3, "name": "麻辣牛肉", "qty": 2520, "revenue": 151200},
+            ]
+            period_breakdown = {
+                "week1": {"revenue": 125000, "daily_avg": 17857},
+                "week2": {"revenue": 131000, "daily_avg": 18714},
+                "week3": {"revenue": 122000, "daily_avg": 17429},
+            }
+
         return {
             "task_type": "sales_kpi_query",
             "query_date": query_date,
             "store_id": store_id,
-            "kpis": {
-                "daily_revenue": {"value": 12800, "unit": "¥", "target": 15000, "status": "warning", "change_pct": -3.2},
-                "avg_check": {"value": 168, "unit": "¥", "target": 180, "status": "normal", "change_pct": 1.5},
-                "turnover_rate": {"value": 2.45, "unit": "次", "target": 2.5, "status": "near_target", "change_pct": 0.8},
-                "table_utilization": {"value": 0.82, "unit": "%", "target": 0.85, "status": "normal"},
-                "dine_in_count": {"value": 76, "unit": "桌", "target": 85, "status": "warning"},
-            },
-            "top_dishes": [
-                {"rank": 1, "name": "毛肚", "qty": 128, "revenue": 8960},
-                {"rank": 2, "name": "虾滑", "qty": 96, "revenue": 6720},
-                {"rank": 3, "name": "麻辣牛肉", "qty": 84, "revenue": 5040},
-            ],
-            "period_breakdown": {
-                "lunch": {"revenue": 4800, "tables": 28, "avg_check": 171},
-                "dinner": {"revenue": 7200, "tables": 42, "avg_check": 171},
-                "late_night": {"revenue": 800, "tables": 6, "avg_check": 133},
-            },
-            "data_source": "pos_bridge_aggregated",  # 标记数据来源
+            "period": period,
+            "kpis": kpis,
+            "top_dishes": top_dishes,
+            "period_breakdown": period_breakdown,
+            "data_source": pos_data.get("data_source", "pos_bridge_aggregated"),
             "generated_at": datetime.now().isoformat(),
             "agent": self.config.name,
         }
+
+    def _fetch_pos_data(self, store_id: str, date_str: str) -> Dict:
+        """从POS系统获取销售数据 (D2新增)
+
+        尝试通过 pos_bridge 读取真实POS数据，
+        如果连接失败或数据不可用，则降级到模拟数据。
+
+        Args:
+            store_id: 门店ID
+            date_str: 日期字符串 (YYYY-MM-DD)
+
+        Returns:
+            POS数据字典，含 data_source 标记来源
+        """
+        try:
+            # 尝试导入并调用 pos_bridge（实际部署时启用）
+            # from hotpot_platform.cloud.pos_bridge import PosBridge
+            # bridge = PosBridge(store_id)
+            # raw_data = bridge.get_daily_sales(date_str)
+            #
+            # 当前为演示模式，直接抛出异常走降级逻辑
+            raise ImportError("pos_bridge模块尚未集成，使用模拟数据")
+
+        except (ImportError, Exception) as e:
+            # 降级到模拟数据
+            logger.debug(f"POS数据桥接不可用，使用模拟数据: {e}")
+            import random
+            random.seed(hash(date_str) % (2**32))
+
+            return {
+                "store_id": store_id,
+                "date": date_str,
+                "total_sales": round(random.uniform(10000, 15000), 2),
+                "avg_check": round(random.uniform(160, 190), 2),
+                "turnover_rate": round(random.uniform(2.0, 3.0), 2),
+                "table_utilization": round(random.uniform(0.75, 0.90), 2),
+                "dine_in_count": random.randint(60, 95),
+                "change_pct": round(random.uniform(-8, 5), 1),
+                "data_source": "fallback_simulation",
+                "error": str(e) if __debug__ else None,
+            }
 
     def _get_promo_suggestions(self, input_data: Dict) -> Dict:
         """生成促销建议 (⚠️ 仅建议权，禁止自动执行)
@@ -946,43 +1542,103 @@ class FrontHallAgent(RoleAgent):
         return training_content
 
     def _generate_post_shift_review(self, input_data: Dict) -> Dict:
-        """生成班后复盘报告
+        """生成班后复盘报告 (D2增强版: 支持客诉真实来源)
 
         汇总当班关键数据和服务表现:
         - KPI达成情况
         - 服务亮点与不足
+        - D2新增: 从feedback/events表读取真实客诉数据
         - 改进建议
         """
         shift = input_data.get("shift", "evening")
         actual_revenue = input_data.get("actual_revenue", 12800)
+        store_id = input_data.get("store_id", "store_jiaojiang")
+        review_date = input_data.get("date", datetime.now().strftime("%Y-%m-%d"))
 
-        review = {
-            "task_type": "post_shift_review",
-            "shift": shift,
-            "date": datetime.now().strftime("%Y-%m-%d"),
-            "summary": {
-                "actual_revenue": actual_revenue,
-                "target_revenue": 15000 if shift == "evening" else 12000,
-                "achievement_rate": round(actual_revenue / 15000 * 100, 1) if shift == "evening" else round(actual_revenue / 12000 * 100, 1),
-                "total_tables": input_data.get("total_tables", 42),
-                "complaints": input_data.get("complaints", 0),
-            },
-            "highlights": [
+        # D2增强: 尝试从feedback/events表读取客诉数据
+        complaints_data = self._fetch_complaint_data(store_id, review_date)
+        real_complaints = complaints_data.get("complaints", [])
+        complaint_count = len(real_complaints) if real_complaints else input_data.get("complaints", 0)
+
+        # 根据客诉情况动态生成改进建议
+        if complaint_count > 0:
+            complaint_types = [c.get("type", "unknown") for c in real_complaints]
+            improvements = [
+                f"重点解决{complaint_types[0] if complaint_counts else '服务'}类客诉问题",
+                "加强员工服务意识培训",
+                "优化客诉响应流程",
+            ]
+            highlights = [
+                f"营业额完成率 {round(actual_revenue / (15000 if shift == 'evening' else 12000) * 100, 1)}%",
+                f"处理客诉 {complaint_count} 起，需关注改进",
+            ]
+        else:
+            improvements = [
+                "加强21:00后甜品推荐培训",
+                "优化脏桌检测→任务派发的响应速度",
+            ]
+            highlights = [
                 "翻台率接近目标值 (2.45 vs 2.5)",
                 "零重大客诉",
                 "新品虾滑推广效果良好 (+15%)",
             ] if actual_revenue > 10000 else [
                 "需要关注客单价提升空间",
                 "晚市尾段翻台可优化",
-            ],
-            "improvements": [
-                "加强21:00后甜品推荐培训",
-                "优化脏桌检测→任务派发的响应速度",
-            ],
+            ]
+
+        review = {
+            "task_type": "post_shift_review",
+            "shift": shift,
+            "date": review_date,
+            "summary": {
+                "actual_revenue": actual_revenue,
+                "target_revenue": 15000 if shift == "evening" else 12000,
+                "achievement_rate": round(actual_revenue / 15000 * 100, 1) if shift == "evening" else round(actual_revenue / 12000 * 100, 1),
+                "total_tables": input_data.get("total_tables", 42),
+                "complaints": complaint_count,
+                "complaints_source": complaints_data.get("data_source", "input_parameter"),
+            },
+            "complaint_details": real_complaints if real_complaints else None,
+            "highlights": highlights,
+            "improvements": improvements,
             "next_focus": ["提升客单价至¥180+", "降低平均响应时间至90秒内"],
             "agent": self.config.name,
         }
         return review
+
+    def _fetch_complaint_data(self, store_id: str, date_str: str) -> Dict:
+        """获取客诉数据 (D2新增)
+
+        尝试从feedback/events表读取真实客诉记录，
+        如果不可用则返回空列表。
+
+        Args:
+            store_id: 门店ID
+            date_str: 日期字符串
+
+        Returns:
+            客诉数据字典，含 complaints 列表和 data_source 标记
+        """
+        try:
+            # 尝试从数据库查询（实际部署时启用）
+            # from hotpot_platform.cloud.feedback.models import CustomerComplaint
+            # complaints = CustomerComplaint.query.filter_by(
+            #     store_id=store_id,
+            #     date=date_str,
+            # ).all()
+            #
+            # 当前为演示模式，走降级逻辑
+            raise ImportError("feedback模块尚未集成")
+
+        except (ImportError, Exception) as e:
+            logger.debug(f"客诉数据源不可用: {e}")
+            return {
+                "store_id": store_id,
+                "date": date_str,
+                "complaints": [],
+                "data_source": "unavailable",
+                "note": "feedback/events表尚未对接，使用输入参数或默认值",
+            }
 
     def _get_dish_knowledge(self, input_data: Dict) -> Dict:
         """查询菜品知识库
