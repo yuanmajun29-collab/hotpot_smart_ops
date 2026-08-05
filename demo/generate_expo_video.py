@@ -106,6 +106,183 @@ def add_shadow_text(img, text, position, font_scale, color, thickness, shadow_co
     cv2.putText(img, text, (x, y), FONT, font_scale, color, thickness, cv2.LINE_AA)
 
 
+# ──────────────────────────────────────────────────────────────
+# 新增: 展会彩排优化工具函数
+# ──────────────────────────────────────────────────────────────
+
+def add_fade_transition(frames_in, fade_frames=15):
+    """为场景帧列表添加淡入淡出效果
+    
+    Args:
+        frames_in: 原始场景帧列表
+        fade_frames: 淡入/淡出各使用的帧数 (默认15帧=0.5秒@30fps)
+    
+    Returns:
+        添加了淡入淡出的新帧列表
+    """
+    if not frames_in:
+        return frames_in
+    
+    result = []
+    total = len(frames_in)
+    
+    # 淡入（前 fade_frames 帧）
+    for i in range(min(fade_frames, total)):
+        alpha = (i + 1) / fade_frames
+        frame = frames_in[i].copy()
+        result.append(cv2.convertScaleAbs(frame, alpha=alpha, beta=0))
+    
+    # 中间正常帧
+    for i in range(fade_frames, total - fade_frames):
+        result.append(frames_in[i].copy())
+    
+    # 淡出（后 fade_frames 帧）
+    for i in range(max(fade_frames, total - fade_frames), total):
+        alpha = (total - i) / fade_frames
+        frame = frames_in[i].copy()
+        result.append(cv2.convertScaleAbs(frame, alpha=alpha, beta=0))
+    
+    return result if len(result) > 0 else frames_in
+
+
+def draw_styled_camera(frame, camera_img, x, y, w, h, label="LIVE", color=None,
+                        corner_radius=12, shadow=True, pulse=False, frame_count=0):
+    """绘制带样式的摄像头画面（圆角+阴影+LIVE标签+脉冲动画）
+    
+    Args:
+        frame: 目标画布
+        camera_img: 摄像头图像
+        x, y, w, h: 位置和尺寸
+        label: LIVE标签文字
+        color: 边框颜色（默认primary蓝）
+        corner_radius: 圆角半径
+        shadow: 是否绘制阴影
+        pulse: 是否启用LIVE指示器脉冲动画
+        frame_count: 当前帧号（用于计算脉冲相位）
+    """
+    if color is None:
+        color = COLORS['primary']
+    
+    # 阴影层
+    if shadow:
+        shadow_offset = 6
+        cv2.rectangle(frame, (x+shadow_offset, y+shadow_offset),
+                     (x+w+shadow_offset, y+h+shadow_offset),
+                     (180, 180, 180), -1)
+    
+    # 缩放摄像头图像
+    cam_resized = cv2.resize(camera_img, (w, h))
+    
+    # 创建圆角蒙版
+    mask = np.zeros((h, w), dtype=np.uint8)
+    cv2.rectangle(mask, (corner_radius, 0), (w-corner_radius, h), 255, -1)
+    cv2.rectangle(mask, (0, corner_radius), (w, h-corner_radius), 255, -1)
+    cv2.ellipse(mask, (corner_radius, corner_radius), (corner_radius, corner_radius), 180, 0, 90, 255, -1)
+    cv2.ellipse(mask, (w-corner_radius, corner_radius), (corner_radius, corner_radius), 270, 90, 180, 255, -1)
+    cv2.ellipse(mask, (w-corner_radius, h-corner_radius), (corner_radius, corner_radius), 0, 180, 270, 255, -1)
+    cv2.ellipse(mask, (corner_radius, h-corner_radius), (corner_radius, corner_radius), 90, 270, 360, 255, -1)
+    
+    # 应用圆角
+    cam_rounded = cam_resized.copy()
+    cam_rounded[mask == 0] = (245, 245, 245)  # 圆角外用背景色填充
+    
+    # 贴图到画布
+    frame[y:y+h, x:x+w] = cam_rounded
+    
+    # 边框
+    cv2.rectangle(frame, (x-2, y-2), (x+w+2, y+h+2), color, 3)
+    
+    # LIVE 标签栏
+    label_bg_h = 26
+    cv2.rectangle(frame, (x, y-label_bg_h-4), (x+180, y-4), color, -1)
+    
+    # LIVE 脉冲红点
+    if pulse:
+        pulse_phase = (frame_count % 30) / 30.0  # 1秒周期
+        pulse_r = int(4 + pulse_phase * 3)
+        pulse_alpha = int(200 + pulse_phase * 55)
+        dot_color = (0, min(255, 50 + int(pulse_phase * 200)), 0)  # 绿色脉冲
+        cv2.circle(frame, (x+14, y-label_bg_h//2-2), pulse_r, dot_color, -1)
+    else:
+        cv2.circle(frame, (x+14, y-label_bg_h//2-2), 5, (0, 220, 0), -1)
+    
+    # LIVE 文字
+    cv2.putText(frame, label, (x+26, y-label_bg_h//2+4), FONT, 0.55, COLORS['text_light'], 1, cv2.LINE_AA)
+
+
+def draw_progress_bar(frame, progress, scene_name="", total_scenes=7, current_scene=1):
+    """绘制底部全局进度条
+    
+    Args:
+        progress: 当前场景内部进度 (0.0-1.0)
+        scene_name: 当前场景名称
+        total_scenes: 总场景数
+        current_scene: 当前场景编号(1-based)
+    """
+    bar_y = VIDEO_HEIGHT - 28
+    bar_h = 6
+    margin_x = 120
+    
+    # 背景轨道
+    cv2.rectangle(frame, (margin_x, bar_y), (VIDEO_WIDTH - margin_x, bar_y + bar_h),
+                 (220, 220, 220), -1)
+    
+    # 全局进度（已完成的场景 + 当前场景进度）
+    global_progress = ((current_scene - 1) + progress) / total_scenes
+    fill_w = int((VIDEO_WIDTH - 2*margin_x) * global_progress)
+    
+    # 渐变填充
+    if fill_w > 0:
+        cv2.rectangle(frame, (margin_x, bar_y), (margin_x + fill_w, bar_y + bar_h),
+                     COLORS['primary'], -1)
+    
+    # 场景节点标记
+    node_y = bar_y + bar_h // 2
+    for si in range(total_scenes + 1):  # +1 包含终点
+        nx = margin_x + int((VIDEO_WIDTH - 2*margin_x) * si / total_scenes)
+        
+        if si < current_scene or (si == current_scene and progress > 0.5):
+            node_color = COLORS['primary']
+            cv2.circle(frame, (nx, node_y), 8, node_color, -1)
+            cv2.circle(frame, (nx, node_y), 8, COLORS['text_light'], 1)
+        elif si == current_scene:
+            node_color = COLORS['primary']
+            cv2.circle(frame, (nx, node_y), 8, (255, 255, 255), -1)
+            cv2.circle(frame, (nx, node_y), 8, node_color, 2)
+        else:
+            cv2.circle(frame, (nx, node_y), 6, (200, 200, 200), -1)
+
+
+def animate_counter(value, target, frames_total, current_frame, prefix="", suffix=""):
+    """生成计数动画的当前值（用于总结场景数字滚动效果）
+    
+    Args:
+        value: 起始值
+        target: 目标值
+        frames_total: 动画总帧数
+        current_frame: 当前帧
+        prefix: 前缀（如 "¥"）
+        suffix: 后缀（如 "%"）
+    
+    Returns:
+        格式化后的字符串
+    """
+    if current_frame >= frames_total:
+        return f"{prefix}{target}{suffix}"
+    
+    # easeOutCubic 缓动
+    t = current_frame / frames_total
+    eased = 1 - pow(1 - t, 3)
+    
+    if isinstance(target, float):
+        current = value + (target - value) * eased
+        decimals = len(str(target).split('.')[-1]) if '.' in str(target) else 0
+        return f"{prefix}{current:.{decimals}f}{suffix}"
+    else:
+        current = int(value + (target - value) * eased)
+        return f"{prefix}{current}{suffix}"
+
+
 def create_title_scene(duration_sec=5.0):
     """场景0: 开场标题"""
     frames = []
@@ -363,16 +540,16 @@ def create_waste_to_purchase_scene(duration_sec=12.0):
         for i in range(frames_per_step):
             frame = create_solid_frame(COLORS['bg'])
             progress = i / frames_per_step
+            global_frame = step_idx * frames_per_step + i
 
-            # 左侧：摄像头画面（缩放）
-            cam_resized = cv2.resize(camera_img, (900, 500))
-            cam_x, cam_y = 60, 120
-            frame[cam_y:cam_y+500, cam_x:cam_x+900] = cam_resized
-
-            # 摄像头边框
-            cv2.rectangle(frame, (cam_x-3, cam_y-3), (cam_x+903, cam_y+503), COLORS['primary'], 4)
-            cv2.putText(frame, "LIVE: Jiaojiang Store Camera 01", (cam_x, cam_y-15),
-                       FONT, 0.8, COLORS['primary'], 2, cv2.LINE_AA)
+            # 左侧：摄像头画面（使用美化版）
+            draw_styled_camera(
+                frame, camera_img,
+                x=60, y=120, w=900, h=500,
+                label="LIVE: Camera 01 (Jiaojiang Store)",
+                color=COLORS['primary'],
+                pulse=True, frame_count=global_frame
+            )
 
             # 右侧：步骤面板
             panel_x = 1010
@@ -477,8 +654,11 @@ def create_waste_to_purchase_scene(duration_sec=12.0):
 
             # 时间戳
             timestamp = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
-            cv2.putText(frame, timestamp, (VIDEO_WIDTH-350, VIDEO_HEIGHT-30),
+            cv2.putText(frame, timestamp, (VIDEO_WIDTH-350, VIDEO_HEIGHT-45),
                        FONT, 0.7, (150, 150, 150), 2, cv2.LINE_AA)
+
+            # 全局进度条
+            draw_progress_bar(frame, progress, "Waste-to-Purchase", 7, 1)
 
             frames.append(frame)
 
@@ -512,14 +692,16 @@ def create_table_service_scene(duration_sec=10.0):
         for i in range(frames_per_step):
             frame = create_solid_frame(COLORS['bg'])
             progress = i / frames_per_step
+            global_frame = step_idx * frames_per_step + i
 
-            # 右侧：摄像头画面
-            cam_resized = cv2.resize(camera_img, (900, 550))
-            cam_x, cam_y = 960, 100
-            frame[cam_y:cam_y+550, cam_x:cam_x+900] = cam_resized
-            cv2.rectangle(frame, (cam_x-3, cam_y-3), (cam_x+903, cam_y+553), COLORS['success'], 4)
-            cv2.putText(frame, "LIVE: Dining Area Monitor", (cam_x, cam_y-15),
-                       FONT, 0.8, COLORS['success'], 2, cv2.LINE_AA)
+            # 右侧：摄像头画面（使用美化版）
+            draw_styled_camera(
+                frame, camera_img,
+                x=960, y=100, w=900, h=550,
+                label="LIVE: Dining Area Monitor",
+                color=COLORS['success'],
+                pulse=True, frame_count=global_frame
+            )
 
             # 左侧：流程面板
             panel_x = 60
@@ -600,8 +782,11 @@ def create_table_service_scene(duration_sec=10.0):
 
             # 时间戳
             timestamp = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
-            cv2.putText(frame, timestamp, (VIDEO_WIDTH-350, VIDEO_HEIGHT-30),
+            cv2.putText(frame, timestamp, (VIDEO_WIDTH-350, VIDEO_HEIGHT-45),
                        FONT, 0.7, (150, 150, 150), 2, cv2.LINE_AA)
+
+            # 全局进度条
+            draw_progress_bar(frame, progress, "Table Service", 7, 2)
 
             frames.append(frame)
 
@@ -635,19 +820,21 @@ def create_sop_violation_scene(duration_sec=10.0):
         for i in range(frames_per_step):
             frame = create_solid_frame(COLORS['bg'])
             progress = i / frames_per_step
+            global_frame = step_idx * frames_per_step + i
 
-            # 上方：摄像头画面（宽幅）
-            cam_resized = cv2.resize(camera_img, (1400, 450))
-            cam_x, cam_y = 260, 80
-            frame[cam_y:cam_y+450, cam_x:cam_x+1400] = cam_resized
-            cv2.rectangle(frame, (cam_x-3, cam_y-3), (cam_x+1403, cam_y+453), COLORS['accent'], 4)
-            cv2.putText(frame, "LIVE: Kitchen SOP Monitor (AI Analysis Active)", (cam_x, cam_y-15),
-                       FONT, 0.8, COLORS['accent'], 2, cv2.LINE_AA)
+            # 上方：摄像头画面（宽幅，使用美化版）
+            draw_styled_camera(
+                frame, camera_img,
+                x=260, y=80, w=1400, h=450,
+                label="LIVE: Kitchen SOP Monitor (AI Active)",
+                color=COLORS['accent'],
+                pulse=True, frame_count=global_frame
+            )
 
             # 违规标记（叠加在画面上）
             if step_idx < 2:
-                # 模拟违规框
-                vx, vy = cam_x + 300, cam_y + 150
+                # 模拟违规框（使用摄像头实际位置坐标）
+                vx, vy = 260 + 300, 80 + 150
                 cv2.rectangle(frame, (vx, vy), (vx+200, vy+200), (0, 0, 255), 3)
                 cv2.putText(frame, "VIOLATION", (vx, vy-10), FONT, 0.7, (0, 0, 255), 2, cv2.LINE_AA)
 
@@ -708,8 +895,11 @@ def create_sop_violation_scene(duration_sec=10.0):
 
             # 时间戳
             timestamp = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
-            cv2.putText(frame, timestamp, (VIDEO_WIDTH-350, VIDEO_HEIGHT-30),
+            cv2.putText(frame, timestamp, (VIDEO_WIDTH-350, VIDEO_HEIGHT-45),
                        FONT, 0.7, (150, 150, 150), 2, cv2.LINE_AA)
+
+            # 全局进度条
+            draw_progress_bar(frame, progress, "SOP Training", 7, 3)
 
             frames.append(frame)
 
@@ -926,7 +1116,7 @@ def create_approval_ui_scene(duration_sec=10.0):
             if current_phase == 4 and phase_local_progress > 0.5:
                 btn_color = (192, 57, 43) if phase_local_progress <= 0.8 else (231, 76, 60)
                 cv2.rectangle(frame, (screen_x+240, btn_y), (screen_x+screen_w-30, btn_y+55), btn_color, -1)
-                cv2.putText(frame, "✗ REJECT", (screen_x+275, btn_y+37), Font, 0.6, COLORS['text_light'], 2, cv2.LINE_AA)
+                cv2.putText(frame, "✗ REJECT", (screen_x+275, btn_y+37), FONT, 0.6, COLORS['text_light'], 2, cv2.LINE_AA)
 
                 if phase_local_progress > 0.8:
                     cv2.putText(frame, "Rejected!", (screen_x+270, btn_y+90), FONT, 0.55, COLORS['danger'], 2, cv2.LINE_AA)
@@ -960,8 +1150,11 @@ def create_approval_ui_scene(duration_sec=10.0):
 
         # 时间戳
         timestamp = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
-        cv2.putText(frame, timestamp, (VIDEO_WIDTH-350, VIDEO_HEIGHT-30),
+        cv2.putText(frame, timestamp, (VIDEO_WIDTH-350, VIDEO_HEIGHT-45),
                    FONT, 0.7, (150, 150, 150), 2, cv2.LINE_AA)
+
+        # 全局进度条
+        draw_progress_bar(frame, phase_progress, "Mobile Approval UI", 7, 4)
 
         frames.append(frame)
 
@@ -1067,6 +1260,9 @@ def create_summary_scene(duration_sec=8.0):
                 cx = (VIDEO_WIDTH - cline_size[0]) // 2
                 cv2.putText(frame, cline, (cx, cy), FONT, 0.8, COLORS['text_light'], 2, cv2.LINE_AA)
 
+        # 全局进度条（总结场景）
+        draw_progress_bar(frame, progress, "Summary", 7, 5)
+
         frames.append(frame)
 
     return frames
@@ -1108,6 +1304,10 @@ def generate_demo_video(output_path=None, fps=FPS):
 
         try:
             scene_frames = scene_func()
+            # 应用淡入淡出转场（跳过标题场景，它自带渐入效果）
+            if idx > 0 and len(scene_frames) > 30:  # 至少1秒才加转场
+                print(f"  🎬 Applying fade transition...")
+                scene_frames = add_fade_transition(scene_frames, fade_frames=15)
             all_frames.extend(scene_frames)
             scene_duration = len(scene_frames) / fps
             scene_durations.append((scene_name, scene_duration))
