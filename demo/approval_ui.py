@@ -246,11 +246,29 @@ body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif; b
 
 /* Actions */
 .actions { display: flex; gap: 10px; }
-.btn { flex: 1; padding: 12px; border-radius: 8px; font-size: 15px; font-weight: 600; text-align: center; cursor: pointer; border: none; transition: all 0.2s; }
-.btn:active { transform: scale(0.97); }
+.btn { flex: 1; padding: 14px; border-radius: 10px; font-size: 16px; font-weight: 600; text-align: center; cursor: pointer; border: none; transition: all 0.2s; min-height: 48px; display: flex; align-items: center; justify-content: center; gap: 6px; user-select: none; -webkit-user-select: none; }
+.btn:active { transform: scale(0.96); }
+.btn:disabled { opacity: 0.6; cursor: not-allowed; transform: none; }
 .btn-approve { background: var(--success); color: white; }
 .btn-reject { background: var(--danger); color: white; }
 .btn-disabled { background: #ccc; color: #666; cursor: not-allowed; }
+
+/* Loading spinner */
+.spinner { display: inline-block; width: 18px; height: 18px; border: 2px solid rgba(255,255,255,.3); border-top-color: white; border-radius: 50%; animation: spin 0.6s linear infinite; }
+@keyframes spin { to { transform: rotate(360deg); } }
+
+/* Approve Confirm Modal */
+.approve-overlay { position: fixed; inset: 0; background: rgba(0,0,0,0.5); z-index: 200; display: none; align-items: center; justify-content: center; padding: 20px; }
+.approve-overlay.show { display: flex; }
+.approve-modal { background: white; border-radius: var(--radius); width: 100%; max-width: 360px; padding: 24px; text-align: center; }
+.approve-modal .approve-icon { font-size: 48px; margin-bottom: 12px; }
+.approve-modal h3 { font-size: 18px; margin-bottom: 8px; color: var(--text); }
+.approve-modal p { font-size: 14px; color: var(--text-secondary); margin-bottom: 6px; line-height: 1.5; }
+.approve-modal .approve-detail { background: #f0fff4; border-radius: 8px; padding: 12px; margin: 16px 0; text-align: left; font-size: 13px; }
+.approve-modal .approve-detail row { display: flex; justify-content: space-between; padding: 4px 0; }
+.approve-modal .approve-detail .label { color: var(--text-secondary); }
+.approve-modal .approve-detail .value { font-weight: 600; color: var(--success); }
+.approve-actions { display: flex; gap: 10px; margin-top: 20px; }
 
 /* History */
 .history-item { display: flex; gap: 10px; padding: 10px 0; border-bottom: 1px solid var(--border); }
@@ -331,6 +349,22 @@ body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif; b
   </div>
 </div>
 
+<!-- Approve Confirm Modal -->
+<div class="approve-overlay" id="approve-modal">
+  <div class="approve-modal">
+    <div class="approve-icon">✅</div>
+    <h3>确认批准采购？</h3>
+    <p>此操作将生成正式采购订单，请确认以下信息：</p>
+    <div class="approve-detail" id="approve-detail">
+      <!-- 动态填充 -->
+    </div>
+    <div class="approve-actions">
+      <button class="btn btn-disabled" style="flex:1;padding:12px;font-size:15px;" onclick="closeApproveModal()" id="approve-cancel">取消</button>
+      <button class="btn btn-approve" style="flex:1;padding:12px;font-size:15px;" onclick="confirmApprove()" id="approve-confirm-btn">确认批准</button>
+    </div>
+  </div>
+</div>
+
 <!-- Tab Bar -->
 <div class="tab-bar">
   <div class="tab-item active" onclick="switchTab('pending')">
@@ -346,9 +380,23 @@ body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif; b
 <script>
 let currentTab = 'pending';
 let currentRejectId = null;
+let currentApproveId = null;
+let approveDataCache = {}; // 缓存批准数据
 
 // API 基础路径
 const API_BASE = '';
+
+// ── Loading 工具 ──
+function setButtonLoading(btn, loading) {
+  if (loading) {
+    btn.dataset.originalText = btn.innerHTML;
+    btn.innerHTML = '<span class="spinner"></span> 处理中...';
+    btn.disabled = true;
+  } else {
+    btn.innerHTML = btn.dataset.originalText || btn.innerHTML;
+    btn.disabled = false;
+  }
+}
 
 // 加载待审批列表
 async function loadPending() {
@@ -376,19 +424,22 @@ async function loadHistory() {
 // 渲染建议卡片
 function renderSuggestions(suggestions) {
   const container = document.getElementById('content');
-  
+
   if (!suggestions.length) {
     container.innerHTML = '<div class="empty-state"><div class="empty-icon">✅</div><p>暂无待审批事项</p><p style="font-size:12px;margin-top:8px;color:#999;">AI建议会自动推送到这里</p></div>';
     return;
   }
-  
+
+  // 缓存数据
+  suggestions.forEach(s => { approveDataCache[s.id] = s; });
+
   container.innerHTML = suggestions.map(s => `
     <div class="card" id="card-${s.id}">
       <div class="card-header">
         <span class="card-title">${s.sku_name}</span>
         <span class="badge badge-pending">待审批</span>
       </div>
-      
+
       <div class="product-info">
         <div class="product-icon">🥩</div>
         <div class="product-details">
@@ -396,15 +447,15 @@ function renderSuggestions(suggestions) {
           <div class="product-meta">SKU: ${s.sku} | 数量: ${s.qty} ${s.unit} | 供应商: ${s.supplier}</div>
         </div>
       </div>
-      
+
       ${s.waste_kg > 0 ? `<div class="reason-box">📊 废料分析: 检测到 ${s.waste_kg}kg 损耗，建议补货 ${s.qty}${s.unit}</div>` : ''}
       ${s.reason ? `<div class="reason-box">💡 ${s.reason}</div>` : ''}
-      
+
       <div class="amount-row">
         <span class="amount-label">预估金额</span>
         <span class="amount-value">¥${s.estimated_amount.toLocaleString()}</span>
       </div>
-      
+
       <div class="actions">
         <button class="btn btn-approve" onclick="approve('${s.id}')">✅ 批准</button>
         <button class="btn btn-reject" onclick="showRejectModal('${s.id}')">❌ 驳回</button>
@@ -446,27 +497,54 @@ function updateStats(stats) {
   document.getElementById('total-amount').textContent = '¥' + (stats.total_amount || 0).toLocaleString();
 }
 
-// 批准
-async function approve(id) {
+// 批准 - 显示确认弹窗
+function approve(id) {
+  // 从缓存获取数据
+  const s = approveDataCache[id];
+  if (!s) return;
+
+  currentApproveId = id;
+
+  // 填充详情
+  document.getElementById('approve-detail').innerHTML = `
+    <row><span class="label">商品</span><span class="value">${s.sku_name}</span></row>
+    <row><span class="label">数量</span><span class="value">${s.qty} ${s.unit}</span></row>
+    <row><span class="label">供应商</span><span class="value">${s.supplier}</span></row>
+    <row><span class="label">金额</span><span class="value" style="font-size:16px;">¥${s.estimated_amount.toLocaleString()}</span></row>
+    <row><span class="label">AI置信度</span><span class="value">${(s.confidence * 100).toFixed(0)}%</span></row>
+  `;
+
+  document.getElementById('approve-modal').classList.add('show');
+}
+
+// 关闭批准弹窗
+function closeApproveModal() {
+  document.getElementById('approve-modal').classList.remove('show');
+  currentApproveId = null;
+}
+
+// 确认批准（真正执行）
+async function confirmApprove() {
+  if (!currentApproveId) return;
+
+  const btn = document.getElementById('approve-confirm-btn');
+  setButtonLoading(btn, true);
+
   try {
-    const res = await fetch(API_BASE + '/api/approval/' + id + '/approve', { method: 'POST' });
+    const res = await fetch(API_BASE + '/api/approval/' + currentApproveId + '/approve', { method: 'POST' });
     const data = await res.json();
-    
+
     if (data.success) {
-      showToast('✅ 已批准!');
-      // 更新卡片状态
-      const card = document.getElementById('card-' + id);
-      if (card) {
-        card.querySelector('.badge').className = 'badge badge-approved';
-        card.querySelector('.badge').textContent = '已批准';
-        card.querySelector('.actions').innerHTML = '<button class="btn btn-disabled" disabled>已处理</button>';
-      }
+      showToast('✅ 已批准! 采购订单已生成');
+      closeApproveModal();
       setTimeout(loadPending, 1500);
     } else {
       showToast('❌ 操作失败: ' + (data.error || '未知错误'));
+      setButtonLoading(btn, false);
     }
   } catch(e) {
     showToast('❌ 网络错误');
+    setButtonLoading(btn, false);
   }
 }
 
@@ -486,14 +564,17 @@ function closeModal() {
 // 确认驳回
 document.getElementById('confirm-reject').addEventListener('click', async () => {
   const reason = document.getElementById('reject-reason').value.trim();
-  
+
   if (!reason) {
-    alert('请输入驳回原因');
+    showToast('⚠️ 请输入驳回原因');
     return;
   }
-  
+
   if (!currentRejectId) return;
-  
+
+  const btn = document.getElementById('confirm-reject');
+  setButtonLoading(btn, true);
+
   try {
     const res = await fetch(API_BASE + '/api/approval/' + currentRejectId + '/reject', {
       method: 'POST',
@@ -501,16 +582,18 @@ document.getElementById('confirm-reject').addEventListener('click', async () => 
       body: JSON.stringify({reason})
     });
     const data = await res.json();
-    
+
     if (data.success) {
       showToast('❌ 已驳回');
       closeModal();
       setTimeout(loadPending, 1500);
     } else {
       showToast('❌ 操作失败');
+      setButtonLoading(btn, false);
     }
   } catch(e) {
     showToast('❌ 网络错误');
+    setButtonLoading(btn, false);
   }
 });
 
