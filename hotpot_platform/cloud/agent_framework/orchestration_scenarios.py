@@ -18,6 +18,7 @@
 from __future__ import annotations
 
 import logging
+import traceback
 from datetime import datetime
 from enum import Enum
 from typing import Any, Dict, List, Optional
@@ -63,6 +64,43 @@ class WasteToPurchaseOrchestration:
         self._errors: List[str] = []
         self._started_at: Optional[datetime] = None
         self._completed_at: Optional[datetime] = None
+
+        # Agent 实例缓存（避免重复创建）
+        self._agent_cache: Dict[str, Any] = {}
+
+    def _get_agent(self, agent_class_name: str):
+        """获取或创建 Agent 实例（带缓存）
+
+        Args:
+            agent_class_name: Agent 类名（如 'KitchenAgent'）
+
+        Returns:
+            Agent 实例
+        """
+        if agent_class_name not in self._agent_cache:
+            from .agents import KitchenAgent, ProcurementAgent, StoreManagerAgent, FrontHallAgent
+
+            agent_map = {
+                'KitchenAgent': KitchenAgent,
+                'ProcurementAgent': ProcurementAgent,
+                'StoreManagerAgent': StoreManagerAgent,
+                'FrontHallAgent': FrontHallAgent,
+            }
+
+            if agent_class_name not in agent_map:
+                raise ValueError(f"未知 Agent 类型: {agent_class_name}")
+
+            self._agent_cache[agent_class_name] = agent_map[agent_class_name]()
+            logger.debug("创建 Agent 实例: %s (缓存大小: %d)",
+                        agent_class_name, len(self._agent_cache))
+
+        return self._agent_cache[agent_class_name]
+
+    def clear_agent_cache(self):
+        """清除 Agent 缓存（用于资源释放或测试重置）"""
+        count = len(self._agent_cache)
+        self._agent_cache.clear()
+        logger.info("Agent 缓存已清除 (释放了 %d 个实例)", count)
 
     def get_pipeline_steps(self) -> List[Dict[str, str]]:
         """返回管道步骤描述（用于UI展示）"""
@@ -191,14 +229,48 @@ class WasteToPurchaseOrchestration:
                 "generated_at": datetime.now().isoformat(),
             }
 
-        except Exception as e:
+        except (ValueError, KeyError) as e:
+            # 业务逻辑错误（参数缺失、配置错误等）
             self._status = OrchestrationStatus.FAILED
-            self._errors.append(str(e))
-            logger.error(f"[WasteToPurchase] 流程失败: {e}")
+            error_detail = f"业务逻辑错误 (Step {self._current_step + 1}): {str(e)}"
+            self._errors.append(error_detail)
+            logger.error("[WasteToPurchase] %s\n%s", error_detail, traceback.format_exc())
             return {
                 "orchestration_type": "waste_to_purchase",
                 "status": self._status.value,
-                "error": str(e),
+                "error_type": "business_error",
+                "error": error_detail,
+                "steps_completed": self._current_step,
+                "errors": self._errors,
+                "generated_at": datetime.now().isoformat(),
+            }
+        except (ConnectionError, TimeoutError, OSError) as e:
+            # 外部服务调用错误（网络、超时等）
+            self._status = OrchestrationStatus.PARTIAL_SUCCESS
+            error_detail = f"外部服务调用失败 (Step {self._current_step + 1}): {str(e)}"
+            self._errors.append(error_detail)
+            logger.warning("[WasteToPurchase] %s\n%s", error_detail, traceback.format_exc())
+            return {
+                "orchestration_type": "waste_to_purchase",
+                "status": self._status.value,
+                "error_type": "service_error",
+                "error": error_detail,
+                "steps_completed": self._current_step,
+                "partial_results": self._results,  # 返回已完成步骤的结果
+                "errors": self._errors,
+                "generated_at": datetime.now().isoformat(),
+            }
+        except Exception as e:
+            # 未预期的其他错误（记录完整 traceback 用于调试）
+            self._status = OrchestrationStatus.FAILED
+            error_detail = f"未预期错误 (Step {self._current_step + 1}): {str(e)}"
+            self._errors.append(error_detail)
+            logger.error("[WasteToPurchase] %s\n%s", error_detail, traceback.format_exc(), exc_info=True)
+            return {
+                "orchestration_type": "waste_to_purchase",
+                "status": self._status.value,
+                "error_type": "unexpected_error",
+                "error": error_detail,
                 "steps_completed": self._current_step,
                 "errors": self._errors,
                 "generated_at": datetime.now().isoformat(),
@@ -206,9 +278,7 @@ class WasteToPurchaseOrchestration:
 
     def _step1_analyze_waste(self, input_data: Dict) -> Dict:
         """Step 1: 调用KitchenAgent分析废料"""
-        from .agents import KitchenAgent
-
-        kitchen = KitchenAgent()
+        kitchen = self._get_agent('KitchenAgent')
         waste_input = {
             "store_id": input_data.get("store_id", "store_jiaojiang"),
             "days": input_data.get("days", 7),
@@ -218,9 +288,7 @@ class WasteToPurchaseOrchestration:
 
     def _step2_predict_quantity(self, input_data: Dict, waste_result: Dict) -> Dict:
         """Step 2: 基于废料分析结果预测采购量"""
-        from .agents import ProcurementAgent
-
-        procurement = ProcurementAgent()
+        procurement = self._get_agent('ProcurementAgent')
         item_id = input_data.get("item_id", "FP-HNRC-001")
 
         # 根据废料情况调整预测参数
@@ -239,7 +307,7 @@ class WasteToPurchaseOrchestration:
         """Step 3: 生成正式采购建议"""
         from .agents import ProcurementAgent
 
-        procurement = ProcurementAgent()
+        procurement = self._get_agent('ProcurementAgent')
         predicted_qty = qty_result.get("prediction", {}).get("predicted_qty", 10)
 
         suggestion_input = {
@@ -251,9 +319,7 @@ class WasteToPurchaseOrchestration:
 
     def _step4_approve(self, input_data: Dict, suggestion_result: Dict) -> Dict:
         """Step 4: 提交店长审批"""
-        from .agents import StoreManagerAgent
-
-        manager = StoreManagerAgent()
+        manager = self._get_agent('StoreManagerAgent')
         auto_approve = input_data.get("auto_approve", False)
 
         if auto_approve:

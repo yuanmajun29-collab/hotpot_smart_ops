@@ -34,11 +34,39 @@ from .models import (
     MessageType,
     MessagePriority,
     OrchestrationResult,
+    SimulationMode,
     Subscription,
 )
 from .orchestrator import RoleAgent, MessageBus
 
 logger = logging.getLogger(__name__)
+
+
+# ── 模拟数据标记辅助 ────────────────────────────────────────
+
+def _mark_simulation_data(data: Dict, agent_config: AgentConfig) -> Dict:
+    """为模拟数据添加标记（仅在 DEMO 模式下）
+
+    Args:
+        data: 原始返回数据
+        agent_config: Agent 配置（包含 simulation_mode）
+
+    Returns:
+        添加了 _simulation 标记的数据副本
+    """
+    if agent_config.simulation_mode == SimulationMode.DEMO:
+        data = dict(data)  # 避免修改原数据
+        data["_simulation"] = True
+        data["_source"] = "mock_data_for_demo"
+        logger.debug("[SIMULATION] 数据来源: 模拟数据 (演示模式)")
+    return data
+
+
+# 延迟导入 MockDataService（避免循环依赖）
+def _get_mock_service():
+    """获取 MockDataService 单例"""
+    from .mock_data_service import get_mock_service
+    return get_mock_service()
 
 
 # ──────────────────────────────────────────────────────────────
@@ -105,7 +133,19 @@ class StoreManagerAgent(RoleAgent):
             return self._optimize_staffing(input_data)
         else:
             # 尝试通过 Gateway 执行
-            return self._execute_via_gateway(task_type, input_data)
+            import asyncio
+            try:
+                loop = asyncio.get_event_loop()
+                if loop.is_running():
+                    # 如果已在异步上下文中，创建任务
+                    import asyncio
+                    return asyncio.create_task(self._execute_via_gateway(task_type, input_data))
+                else:
+                    return loop.run_until_complete(self._execute_via_gateway(task_type, input_data))
+            except RuntimeError:
+                # 没有事件循环时，同步包装调用
+                import asyncio
+                return asyncio.run(self._execute_via_gateway(task_type, input_data))
 
     # ── 任务实现 ────────────────────────────────────────
 
@@ -511,48 +551,19 @@ class KitchenAgent(RoleAgent):
         store_id = input_data.get("store_id", "store_jiaojiang")
         sensor_ids = input_data.get("sensor_ids")
 
-        # 模拟从事件历史中读取温度数据
-        # 实际实现: MessageBus.query_events(topic="iot.temperature.*", store_id=store_id, limit=100)
-        mock_iot_data = {
-            "冷库温度": {"value": -16.5, "unit": "°C", "sensor_id": "iot_temp_freezer_001", "timestamp": datetime.now().isoformat()},
-            "热菜保温台": {"value": 72.3, "unit": "°C", "sensor_id": "iot_temp_hot_holding_001", "timestamp": datetime.now().isoformat()},
-            "冷藏展示柜": {"value": 4.2, "unit": "°C", "sensor_id": "iot_temp_fridge_display_001", "timestamp": datetime.now().isoformat()},
-        }
+        # 使用 MockDataService 生成模拟IoT数据（替代硬编码）
+        mock_svc = _get_mock_service()
+        result = mock_svc.generate_iot_temperature(store_id)
 
         # 如果指定了传感器ID，则过滤
         if sensor_ids:
-            mock_iot_data = {k: v for k, v in mock_iot_data.items() if v["sensor_id"] in sensor_ids}
+            result["temperatures"] = [
+                t for t in result["temperatures"]
+                if t["sensor_id"] in sensor_ids
+            ]
 
-        # 异常检测
-        alerts = []
-        thresholds = {
-            "冷库温度": (-18, -15),
-            "热菜保温台": (60, 80),
-            "冷藏展示柜": (2, 8),
-        }
-        for name, data in mock_iot_data.items():
-            if name in thresholds:
-                low, high = thresholds[name]
-                val = data["value"]
-                if val < low or val > high:
-                    alerts.append({
-                        "sensor_name": name,
-                        "sensor_id": data["sensor_id"],
-                        "current_value": val,
-                        "threshold": f"{low}~{high}{data['unit']}",
-                        "severity": "critical" if abs(val - (low + high) / 2) > 5 else "warning",
-                    })
-
-        return {
-            "task_type": "iot_temperature",
-            "store_id": store_id,
-            "temperatures": mock_iot_data,
-            "alerts": alerts,
-            "alert_count": len(alerts),
-            "data_source": "iot_sensor_simulation",  # 实际应为 "influxdb" 或 "timescaledb"
-            "generated_at": datetime.now().isoformat(),
-            "agent": self.config.name,
-        }
+        result["agent"] = self.config.name
+        return _mark_simulation_data(result, self.config)
 
     def _analyze_yield_trend(self, input_data: Dict) -> Dict:
         """分析出品率趋势 (D2新增)
@@ -832,61 +843,16 @@ class ProcurementAgent(RoleAgent):
         days = input_data.get("days", 7)
         has_promo = input_data.get("has_promo", False)
 
-        # 模拟历史销量数据（实际应从PG查询）
-        import random
-        random.seed(hash(item_id) % (2**32))
-
-        # 生成30天历史销量（用于WMA计算）
-        history_30d = [random.randint(50, 120) for _ in range(30)]
-        history_7d = history_30d[-7:]
-
-        # WMA计算（权重: [1, 2, 3, 4, 5, 6, 7]，最近一天权重最高）
-        weights = list(range(1, len(history_7d) + 1))
-        wma_numerator = sum(w * d for w, d in zip(weights, history_7d))
-        wma_denominator = sum(weights)
-        wma_base = round(wma_numerator / wma_denominator, 1)
-
-        # 季节因子（夏季火锅淡季）
-        seasonal_factor = 0.85  # 6-8月为淡季
-
-        # 促销调整
-        promo_factor = 1.2 if has_promo else 1.0
-
-        # 最终预测量
-        predicted_qty = int(wma_base * seasonal_factor * promo_factor)
-
-        # 置信度评估（基于历史数据波动性）
-        variance = sum((x - sum(history_7d) / len(history_7d)) ** 2 for x in history_7d) / len(history_7d)
-        std_dev = variance ** 0.5
-        cv = (std_dev / (sum(history_7d) / len(history_7d)) * 100) if history_7d else 0  # 变异系数
-        confidence = "high" if cv < 15 else ("medium" if cv < 25 else "low")
-
-        return {
-            "task_type": "purchase_quantity_prediction",
-            "item_id": item_id,
-            "prediction": {
-                "predicted_qty": predicted_qty,
-                "unit": "kg",
-                "confidence": confidence,
-                "confidence_pct": round(max(60, min(95, 100 - cv)), 1),
-                "wma_base": wma_base,
-                "history_days_used": days,
-            },
-            "factors_applied": {
-                "seasonal_factor": seasonal_factor,
-                "seasonal_note": "夏季火锅淡季调整",
-                "promo_factor": promo_factor,
-                "promo_note": "促销计划调整" if has_promo else "无促销",
-                "final_adjustment": round(seasonal_factor * promo_factor, 2),
-            },
-            "historical_summary": {
-                "avg_7d": round(sum(history_7d) / len(history_7d), 1),
-                "avg_30d": round(sum(history_30d) / len(history_30d), 1),
-                "trend": "increasing" if history_7d[-1] > history_7d[0] else "decreasing",
-            },
-            "recommendation": f"建议采购 {predicted_qty}kg，置信度{confidence}",
-            "agent": self.config.name,
-        }
+        # 使用 MockDataService 生成预测数据（替代全局 random.seed）
+        mock_svc = _get_mock_service()
+        result = mock_svc.predict_purchase_quantity(
+            item_id=item_id,
+            days=days,
+            has_promo=has_promo,
+            seasonal_factor=0.85,  # 夏季火锅淡季
+        )
+        result["agent"] = self.config.name
+        return _mark_simulation_data(result, self.config)
 
     def _score_supplier_risk(self, input_data: Dict) -> Dict:
         """供应商风险评分卡 (D2新增)
@@ -1157,7 +1123,7 @@ class FrontHallAgent(RoleAgent):
         config = AgentConfig(
             agent_id="agent-front-hall-001",
             name="前厅领班",
-            role=AgentRole.STORE_MANAGER,
+            role=AgentRole.FRONT_HALL,  # 修复: 原为 STORE_MANAGER，应使用前厅角色
             version="1.1.0",  # P0-D 版本升级
             capabilities=[
                 Capability.MONITOR,
@@ -1215,19 +1181,12 @@ class FrontHallAgent(RoleAgent):
 
     def _detect_dirty_tables(self, input_data: Dict) -> Dict:
         """检测脏桌 (对接视觉引擎)"""
-        # 模拟视觉检测结果，实际应从 edge/front_hall/inference/ 获取
-        return {
-            "task_type": "dirty_table_detection",
-            "detected_at": datetime.now().isoformat(),
-            "source": "camera_jiaojiang_hikvision_nvr",
-            "tables": [
-                {"table_id": "T05", "status": "need_clean", "dirty_since_min": 8, "confidence": 0.92},
-                {"table_id": "T08", "status": "need_clean", "dirty_since_min": 3, "confidence": 0.87},
-            ],
-            "total_dirty": 2,
-            "action": "auto_create_tasks",
-            "agent": self.config.name,
-        }
+        # [SIMULATION] 使用 MockDataService 生成模拟数据，实际应从 edge/front_hall/inference/ 获取
+        store_id = input_data.get("store_id", "store_jiaojiang")
+        mock_svc = _get_mock_service()
+        result = mock_svc.detect_dirty_tables(store_id)
+        result["agent"] = self.config.name
+        return _mark_simulation_data(result, self.config)
 
     def _create_cleaning_task(self, input_data: Dict) -> Dict:
         """创建清台任务"""
@@ -1266,16 +1225,13 @@ class FrontHallAgent(RoleAgent):
 
     def _calculate_turnover_rate(self, input_data: Dict) -> Dict:
         """计算翻台率"""
-        return {
-            "task_type": "turnover_rate",
-            "date": input_data.get("date", datetime.now().strftime("%Y-%m-%d")),
-            "lunch": {"tables": 8, "turns": 2.1, "revenue": 4800},
-            "dinner": {"tables": 8, "turns": 2.8, "revenue": 7200},
-            "daily_avg": 2.45,
-            "target": 2.5,
-            "status": "near_target",
-            "agent": self.config.name,
-        }
+        # [SIMULATION] 使用 MockDataService 生成模拟数据，实际应从 POS 系统获取
+        store_id = input_data.get("store_id", "store_jiaojiang")
+        date = input_data.get("date", datetime.now().strftime("%Y-%m-%d"))
+        mock_svc = _get_mock_service()
+        result = mock_svc.calculate_turnover_rate(store_id, date)
+        result["agent"] = self.config.name
+        return _mark_simulation_data(result, self.config)
 
     # ── 消息处理器 ─────────────────────────────────────
 
@@ -1569,7 +1525,7 @@ class FrontHallAgent(RoleAgent):
         if complaint_count > 0:
             complaint_types = [c.get("type", "unknown") for c in real_complaints]
             improvements = [
-                f"重点解决{complaint_types[0] if complaint_counts else '服务'}类客诉问题",
+                f"重点解决{complaint_types[0] if len(complaint_types) > 0 else '服务'}类客诉问题",
                 "加强员工服务意识培训",
                 "优化客诉响应流程",
             ]

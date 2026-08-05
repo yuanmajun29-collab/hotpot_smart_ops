@@ -81,6 +81,13 @@ class Capability(str, Enum):
 # ──────────────────────────────────────────────────────────────
 
 
+class SimulationMode(str, Enum):
+    """模拟模式枚举 - 用于区分演示/生产环境"""
+    OFF = "off"           # 生产模式：使用真实数据源
+    DEMO = "demo"         # 演示模式：使用模拟数据，带 [SIMULATION] 标记
+    EXPO = "expo"         # 展会模式：高度逼真的模拟数据，无标记
+
+
 class AgentConfig(BaseModel):
     """Agent配置."""
 
@@ -95,6 +102,10 @@ class AgentConfig(BaseModel):
     subscriptions: List[Any] = Field(default_factory=list, description="消息订阅列表")
     description: str = ""
     author: str = "system"
+    simulation_mode: SimulationMode = Field(
+        default=SimulationMode.DEMO,
+        description="模拟模式: off=生产, demo=演示(有标记), expo=展会(无标记)"
+    )
     created_at: datetime = Field(default_factory=datetime.now)
     updated_at: datetime = Field(default_factory=datetime.now)
 

@@ -1,0 +1,152 @@
+# 火瞳智能运营系统 - Agent 配置文件
+# 用于存储菜品知识库、门店阈值、服务术语等可配置项
+#
+# 使用方式:
+#   from hotpot_platform.cloud.agent_framework.config_loader import load_agent_config
+#   config = load_agent_config()
+#
+# 作者: 火瞳AI团队
+# 日期: 2026-08-05
+
+# ── 门店配置 ──────────────────────────────────────────────
+stores:
+  store_jiaojiang:
+    name: "椒江店"
+    tables_count: 8
+    target_turnover_lunch: 2.0
+    target_turnover_dinner: 2.5
+    target_revenue_lunch: 5000
+    target_revenue_dinner: 8000
+    camera_ids:
+      - "camera_jiaojiang_hikvision_nvr"
+    iot_sensors:
+      - "sensor_kitchen_temp_01"
+      - "sensor_fridge_01"
+
+# ── 菜品知识库 ────────────────────────────────────────────
+dish_menu:
+  - sku: "DP001"
+    name: "毛肚"
+    category: "荤菜"
+    price: 68
+    avg_daily_sales: 45
+    description: "新鲜毛肚，七上八涮口感最佳"
+    cooking_tips: "涮15秒，微卷即可食用"
+
+  - sku: "DP002"
+    name: "鸭肠"
+    category: "荤菜"
+    price: 58
+    avg_daily_sales: 38
+    description: "精选鸭肠，脆嫩爽口"
+    cooking_tips: "涮10-12秒，变色即食"
+
+  - sku: "DP003"
+    name: "黄喉"
+    category: "荤菜"
+    price: 52
+    avg_daily_sales: 32
+    description: "猪黄喉，Q弹有嚼劲"
+    cooking_tips: "涮20-30秒至浮起"
+
+  - sku: "DP004"
+    name: "肥牛"
+    category: "荤菜"
+    price: 78
+    avg_daily_sales: 50
+    description: "澳洲肥牛，纹理清晰"
+    cooking_tips: "涮10-15秒，变色即食"
+
+  - sku: "DP005"
+    name: "羊肉卷"
+    category: "荤菜"
+    price: 72
+    avg_daily_sales: 42
+    description: "内蒙羊肉卷，鲜嫩不膻"
+    cooking_tips: "涮12-18秒，避免过老"
+
+  - sku: "DP006"
+    name: "土豆片"
+    category: "素菜"
+    price: 18
+    avg_daily_sales: 65
+    description: "薄切土豆片，软糯入味"
+    cooking_tips: "煮3-5分钟至透明"
+
+  - sku: "DP007"
+    name: "藕片"
+    category: "素菜"
+    price: 18
+    avg_daily_sales: 58
+    description: "脆藕切片，清甜爽口"
+    cooking_tips: "煮2-3分钟保持脆感"
+
+  - sku: "DP008"
+    name: "冰粉"
+    category: "甜品"
+    price: 12
+    avg_daily_sales: 70
+    description: "手工冰粉，解辣神器"
+    cooking_tips: "无需烹饪，直接食用"
+
+  - sku: "DP009"
+    name: "酸梅汤"
+    category: "饮品"
+    price: 15
+    avg_daily_sales: 55
+    description: "古法酸梅汤，消暑解腻"
+    cooking_tips: "冰镇后饮用更佳"
+
+# ── 服务术语库 ────────────────────────────────────────────
+service_terminology:
+  greeting: "欢迎光临火瞳火锅！请问几位用餐？"
+  seating: "这边请，您的位置在靠窗的位置，视野很好。"
+  ordering: "推荐您试试我们的招牌毛肚和精品鸭肠，都是今日新鲜到货的。"
+  upsell: "餐后来份冰粉吧？解辣又清爽，今天还有活动价。"
+  handling_complaint: "非常抱歉给您带来不好的体验，我马上叫经理来处理，请您稍等。"
+  farewell: "谢谢光临，慢走！下次再来记得提前预约留位哦。"
+
+# ── 业务阈值 ──────────────────────────────────────────────
+thresholds:
+  # 废料管理
+  waste_warning_kg: 15        # 废料预警阈值（kg）
+  waste_critical_kg: 25       # 废料严重阈值（kg）
+
+  # 温度监控
+  freezer_temp_min_c: -18     # 冷库温度下限
+  freezer_temp_max_c: -15     # 冷库温度上限
+  fridge_temp_min_c: 2        # 冷藏柜温度下限
+  fridge_temp_max_c: 8        # 冷藏柜温度上限
+  kitchen_temp_min_c: 20      # 厨房环境温度下限
+  kitchen_temp_max_c: 30      # 厨房环境温度上限
+
+  # 服务质量
+  response_time_target_sec: 180   # 响应时间目标（秒）
+  table_cleaning_timeout_sec: 180 # 清台超时时间（秒）
+  table_cleaning_urgent_sec: 60   # 紧急清台时间（秒）
+
+  # 销售目标
+  daily_revenue_target: 13000     # 日营业额目标（元）
+  turnover_rate_target: 2.5       # 翻台率目标
+
+# ── Agent 模拟模式配置 ─────────────────────────────────────
+simulation:
+  mode: "demo"                   # off=生产, demo=演示(有标记), expo=展会(无标记)
+  seed: 42                       # 随机种子（None=不固定）
+  auto_refresh_interval_sec: 300 # 数据刷新间隔（秒）
+
+# ── 协作场景配置 ──────────────────────────────────────────
+orchestration:
+  waste_to_purchase:
+    name: "废料转采购建议"
+    timeout_sec: 30
+    steps:
+      - name: "analyze_waste"
+        agent_type: "KitchenAgent"
+        timeout_sec: 10
+      - name: "generate_purchase_suggestion"
+        agent_type: "ProcurementAgent"
+        timeout_sec: 10
+      - name: "notify_store_manager"
+        agent_type: "StoreManagerAgent"
+        timeout_sec: 10
