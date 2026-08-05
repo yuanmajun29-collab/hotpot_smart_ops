@@ -201,12 +201,14 @@ class ExpoDemoRunner:
     基于 D2 的 3 个 Orchestration 协作场景，构建完整的展会演示流程。
     """
 
-    def __init__(self, fast_mode: bool = False, output_format: str = "terminal"):
+    def __init__(self, fast_mode: bool = False, output_format: str = "terminal", live_mode: bool = False):
         self.fast_mode = fast_mode
         self.output_format = output_format
+        self.live_mode = live_mode
         self.results: Dict[str, Any] = {}
         self.start_time: Optional[datetime] = None
         self.end_time: Optional[datetime] = None
+        self.camera_data: Optional[Dict] = None  # 真实摄像头数据缓存
 
         # 根据模式调整延迟
         if fast_mode:
@@ -214,9 +216,35 @@ class ExpoDemoRunner:
         else:
             self.delays = DEMO_CONFIG["delays"].copy()
 
+        # Live模式：预加载摄像头数据
+        if live_mode:
+            self._load_camera_data()
+
     def _delay(self, key: str = "step"):
         """执行延迟"""
         time.sleep(self.delays.get(key, 0.5))
+
+    def _load_camera_data(self):
+        """Live模式：从真实摄像头加载数据"""
+        try:
+            from demo.camera_bridge import get_demo_inputs
+            print(f"\n{C.CYAN}📷 正在连接椒江店摄像头...{C.END}")
+            self.camera_data = get_demo_inputs()
+            meta = self.camera_data.get("_meta", {})
+            
+            if meta.get("source") == "fallback_simulated":
+                print(f"{C.YELLOW}⚠️ 摄像头不可用，使用模拟数据{C.END}")
+            else:
+                analysis = meta.get("analysis", {})
+                print(f"{C.GREEN}✅ 摄像头连接成功!{C.END}")
+                print(f"   抓拍时间: {meta.get('capture_time', 'N/A')}")
+                print(f"   帧大小: {meta.get('frame_size', 0):,} bytes")
+                print(f"   废料检测: {'Yes' if analysis.get('has_waste') else 'No'}")
+                print(f"   脏桌: {analysis.get('dirty_tables', 0)}张")
+                
+        except Exception as e:
+            print(f"{C.RED}❌ 摄像头加载失败: {e}{C.END}")
+            self.camera_data = None
 
     # ── 开场 ────────────────────────────────────────────────
 
@@ -285,8 +313,12 @@ class ExpoDemoRunner:
 
             self._delay("step")
 
-            # 执行场景
-            input_data = SCENE_DATA["waste_to_purchase"]
+            # 执行场景 (Live模式使用真实摄像头数据)
+            if self.live_mode and self.camera_data:
+                input_data = self.camera_data.get("waste_to_purchase", SCENE_DATA["waste_to_purchase"])
+                print(f"\n{C.CYAN}📷 使用真实摄像头数据{C.END}")
+            else:
+                input_data = SCENE_DATA["waste_to_purchase"]
             print(f"\n{C.BOLD}🚀 开始执行...{C.END}")
             self._delay("step")
 
@@ -425,9 +457,16 @@ class ExpoDemoRunner:
 
             self._delay("step")
 
-            input_data = SCENE_DATA["table_service_loop"]
-            print(f"\n{C.BOLD}🚀 开始执行...{C.END}")
-            print(f"{C.DIM}模拟输入: {len(input_data.get('tables_override', []))} 张脏桌 detected{C.END}")
+            # Live模式使用真实摄像头数据
+            if self.live_mode and self.camera_data:
+                input_data = self.camera_data.get("table_service_loop", SCENE_DATA["table_service_loop"])
+                print(f"\n{C.CYAN}📷 使用真实摄像头数据{C.END}")
+                dirty_count = len(input_data.get('dirty_table_events', []))
+                print(f"{C.DIM}真实检测: {dirty_count} 张脏桌 detected{C.END}")
+            else:
+                input_data = SCENE_DATA["table_service_loop"]
+                print(f"\n{C.BOLD}🚀 开始执行...{C.END}")
+                print(f"{C.DIM}模拟输入: {len(input_data.get('tables_override', []))} 张脏桌 detected{C.END}")
             self._delay("step")
 
             result = orch.orchestrate(input_data)
@@ -519,11 +558,22 @@ class ExpoDemoRunner:
 
             self._delay("step")
 
-            input_data = SCENE_DATA["sop_violation_training"]
+            # Live模式使用真实摄像头数据
+            if self.live_mode and self.camera_data:
+                input_data = self.camera_data.get("sop_violation_training", SCENE_DATA["sop_violation_training"])
+                print(f"\n{C.CYAN}📷 使用真实摄像头数据{C.END}")
+            else:
+                input_data = SCENE_DATA["sop_violation_training"]
+            
             violation_event = input_data.get("violation_event", {})
+            iot_alerts = input_data.get("iot_alerts", [])
             print(f"\n{C.BOLD}🚀 开始执行...{C.END}")
-            print(f"{C.DIM}模拟输入: IoT温度告警 | 当前: {violation_event.get('details', {}).get('current_temp', 'N/A')}°C "
-                  f"(阈值: {violation_event.get('details', {}).get('threshold', 'N/A')}°C){C.END}")
+            if iot_alerts:
+                alert = iot_alerts[0]
+                print(f"{C.DIM}IoT告警: {alert.get('sensor_id')} | 当前: {alert.get('value')}{alert.get('unit')} "
+                      f"(阈值: {alert.get('threshold_min')}~{alert.get('threshold_max')}{alert.get('unit')}){C.END}")
+            elif violation_event:
+                print(f"{C.DIM}模拟输入: SOP违规 | 类型: {violation_event.get('type', 'N/A')}{C.END}")
             self._delay("step")
 
             result = orch.orchestrate(input_data)
@@ -813,10 +863,15 @@ def main():
         default="terminal",
         help="输出格式 (default: terminal)",
     )
+    parser.add_argument(
+        "--live", "-l",
+        action="store_true",
+        help="使用真实摄像头数据（椒江店海康NVR实时抓拍）",
+    )
 
     args = parser.parse_args()
 
-    runner = ExpoDemoRunner(fast_mode=args.fast, output_format=args.format)
+    runner = ExpoDemoRunner(fast_mode=args.fast, output_format=args.format, live_mode=args.live)
 
     if args.scene:
         result = runner.run_single_scene(args.scene)
