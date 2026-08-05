@@ -755,18 +755,23 @@ class ProcurementAgent(RoleAgent):
     def _generate_purchase_suggestion(self, input_data: Dict) -> Dict:
         """生成采购建议 (IP-5 入口)"""
         from hotpot_platform.cloud.supply_chain.manager import SupplyChainManager
+        import uuid
 
         items = input_data.get("items", [{"sku": "FP-HNRC-001", "qty": 10}])
         supplier = input_data.get("supplier", "王总")
 
+        # 生成建议ID（作为 create_purchase_approval_task 的必填参数）
+        gen_suggestion_id = f"SUGG-{uuid.uuid4().hex[:8].upper()}"
+
         suggestion = SupplyChainManager.create_purchase_approval_task(
+            suggestion_id=gen_suggestion_id,  # 必填：来源AI建议ID
             sku=items[0]["sku"] if items else "UNKNOWN",
             qty=items[0].get("qty", 10) if items else 10,
             supplier_id=None,
             target_role="purchaser",
             priority="normal",
             title=f"采购建议: {items[0]['sku'] if items else '?'} x{items[0].get('qty', '?') if items else '?'}",
-            description=f"AI建议向{supplier}采购，原因: 库存低于安全线",
+            description=f"AI建议向{supplier}采购，原因: 基于废料分析与智能预测",
         )
 
         return {
