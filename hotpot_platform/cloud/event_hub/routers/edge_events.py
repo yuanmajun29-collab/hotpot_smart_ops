@@ -209,7 +209,7 @@ async def submit_edge_events(
     event_ids = []
     errors = []
 
-    for idx, event in request.events:
+    for idx, event in enumerate(request.events):
         try:
             # 1. 验证必填字段
             if not event.event_type or not event.store_id or not event.device_id or not event.timestamp:

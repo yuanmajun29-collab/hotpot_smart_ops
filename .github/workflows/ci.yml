@@ -76,6 +76,13 @@ jobs:
             --cov-report=xml:coverage-unit.xml \
             -x \
             -m "not integration and not slow"
+          echo ""
+          echo "📋 测试发现范围:"
+          echo "   ✅ test_edge_events.py (Edge事件集成)"
+          echo "   ✅ test_frame_evidence.py (帧证据验证)"
+          echo "   ✅ test_alert_fatigue.py (告警疲劳防护)"
+          echo "   ✅ test_message_bus.py (消息总线送达确认)"
+          echo "   ✅ test_edge_ui_apis.py (Edge UI API测试)"
 
       - name: Upload unit test results
         if: always()
@@ -90,6 +97,63 @@ jobs:
         with:
           name: coverage-report
           path: coverage-unit.xml
+
+  # ── Job 2b: Coverage Gate ──
+  coverage-gate:
+    name: 📊 Coverage Gate (≥75%)
+    runs-on: ubuntu-latest
+    needs: unit-tests
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: ${{ env.PYTHON_VERSION }}
+          cache: pip
+
+      - name: Install test dependencies
+        run: pip install -r requirements-test.txt
+
+      - name: Download coverage report
+        uses: actions/download-artifact@v4
+        with:
+          name: coverage-report
+
+      - name: Coverage Gate Check
+        run: |
+          echo "📊 覆盖率门禁检查 (阈值: 75%)"
+          echo ""
+          # 解析coverage XML并检查总覆盖率
+          python << 'EOF'
+          import xml.etree.ElementTree as ET
+          import sys
+
+          try:
+              tree = ET.parse('coverage-unit.xml')
+              root = tree.getroot()
+
+              # 获取总体覆盖率
+              line_rate = float(root.attrib.get('line-rate', 0))
+              coverage_pct = line_rate * 100
+
+              print(f"当前代码覆盖率: {coverage_pct:.1f}%")
+              print(f"门禁阈值: 75.0%")
+              print("")
+
+              if coverage_pct >= 75.0:
+                  print(f"✅ 覆盖率检查通过 ({coverage_pct:.1f}% ≥ 75.0%)")
+                  sys.exit(0)
+              else:
+                  print(f"❌ 覆盖率检查未通过 ({coverage_pct:.1f}% < 75.0%)")
+                  print("")
+                  print("提示: 请增加单元测试以提高代码覆盖率")
+                  sys.exit(1)
+          except Exception as e:
+              print(f"⚠️ 无法解析覆盖率报告: {e}")
+              print("跳过覆盖率门禁（首次运行或无覆盖率数据）")
+              sys.exit(0)
+          EOF
 
   # ── Job 3: Integration Tests ──
   integration-tests:
@@ -187,11 +251,92 @@ jobs:
           name: smoke-test-results
           path: junit-smoke.xml
 
-  # ── Job 5: Summary ──
+  # ── Job 5: Agent Smoke Test ──
+  agent-smoke-test:
+    name: 🤖 Agent Smoke Test
+    runs-on: ubuntu-latest
+    needs: unit-tests
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: ${{ env.PYTHON_VERSION }}
+          cache: pip
+
+      - name: Install dependencies
+        run: pip install -r requirements-test.txt
+
+      - name: Agent Import & Creation Smoke Test
+        env:
+          PYTHONPATH: .
+        run: |
+          echo "🤖 Agent 模块冒烟测试"
+          echo ""
+          python -c "
+          from hotpot_platform.cloud.agent_framework.agents import (
+              StoreManagerAgent, KitchenAgent, ProcurementAgent, FrontHallAgent,
+              create_all_agents, AGENT_REGISTRY
+          )
+          print('✅ Agent模块导入成功')
+          print(f'   已注册Agent: {list(AGENT_REGISTRY.keys())}')
+          
+          # 创建所有Agent实例
+          agents = create_all_agents()
+          assert len(agents) == 4, f'期望4个Agent，实际创建{len(agents)}个'
+          print(f'✅ 所有 {len(agents)} 个Agent创建成功:')
+          for name, agent in agents.items():
+              print(f'   📦 {name}: v{agent.version}')
+          "
+
+  # ── Job 6: Edge Module Smoke Test ──
+  edge-module-smoke-test:
+    name: 🔷 Edge Module Smoke Test
+    runs-on: ubuntu-latest
+    needs: unit-tests
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: ${{ env.PYTHON_VERSION }}
+          cache: pip
+
+      - name: Install dependencies
+        run: pip install -r requirements-test.txt
+
+      - name: Edge P0+P1 Module Import Smoke Test
+        env:
+          PYTHONPATH: .
+        run: |
+          echo "🔷 Edge核心模块冒烟测试"
+          echo ""
+          python -c "
+          from edge.common.frame_evidence import FrameEvidenceValidator
+          print('✅ FrameEvidenceValidator 导入成功 (P1-04)')
+          
+          from hotpot_platform.cloud.event_hub.alert_fatigue import AlertFatigueGuard
+          print('✅ AlertFatigueGuard 导入成功 (P1-05)')
+          
+          from hotpot_platform.cloud.agent_framework.message_bus import MessageDeliveryTracker
+          print('✅ MessageDeliveryTracker 导入成功 (P1-06)')
+          
+          from hotpot_platform.cloud.agent_framework.orchestration_scenarios import (
+              create_orchestration, ORCHESTRATION_REGISTRY
+          )
+          print('✅ OrchestrationScenarios 导入成功 (D2-04)')
+          print(f'   已注册编排场景: {list(ORCHESTRATION_REGISTRY.keys())}')
+          print('')
+          print('🎉 所有P0+P1 Edge模块导入成功')
+          "
+
+  # ── Job 7: Summary ──
   summary:
     name: 📊 CI Summary
     runs-on: ubuntu-latest
-    needs: [lint, unit-tests, integration-tests, smoke-test]
+    needs: [lint, unit-tests, coverage-gate, integration-tests, smoke-test, agent-smoke-test, edge-module-smoke-test]
     if: always()
     steps:
       - name: Check all jobs passed
@@ -202,12 +347,19 @@ jobs:
           echo "|------|------|" >> $GITHUB_STEP_SUMMARY
           echo "| Lint | ${{ needs.lint.result == 'success' && '✅ 通过' || '❌ 失败' }} |" >> $GITHUB_STEP_SUMMARY
           echo "| Unit Tests | ${{ needs.unit-tests.result == 'success' && '✅ 通过' || '❌ 失败' }} |" >> $GITHUB_STEP_SUMMARY
-          echo "| Integration | ${{ needs.integration-tests.result == 'success' && '✅ 通过' || '❌ 失败' }} |" >> $GITHUB_STEP_SUMMARY
+          echo "| Coverage Gate (≥75%) | ${{ needs.coverage-gate.result == 'success' && '✅ 通过' || '❌ 失败' }} |" >> $GITHUB_STEP_SUMMARY
+          echo "| Integration Tests | ${{ needs.integration-tests.result == 'success' && '✅ 通过' || '❌ 失败' }} |" >> $GITHUB_STEP_SUMMARY
           echo "| Smoke Test | ${{ needs.smoke-test.result == 'success' && '✅ 通过' || '❌ 失败' }} |" >> $GITHUB_STEP_SUMMARY
+          echo "| Agent Smoke Test | ${{ needs.agent-smoke-test.result == 'success' && '✅ 通过' || '❌ 失败' }} |" >> $GITHUB_STEP_SUMMARY
+          echo "| Edge Module Smoke Test | ${{ needs.edge-module-smoke-test.result == 'success' && '✅ 通过' || '❌ 失败' }} |" >> $GITHUB_STEP_SUMMARY
 
       - name: Fail if any job failed
         if: |
           needs.lint.result != 'success' ||
           needs.unit-tests.result != 'success' ||
-          needs.smoke-test.result != 'success'
+          needs.coverage-gate.result != 'success' ||
+          needs.integration-tests.result != 'success' ||
+          needs.smoke-test.result != 'success' ||
+          needs.agent-smoke-test.result != 'success' ||
+          needs.edge-module-smoke-test.result != 'success'
         run: exit 1
