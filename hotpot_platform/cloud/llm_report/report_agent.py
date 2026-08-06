@@ -207,7 +207,7 @@ def create_agent(backend: str):
 
 def main() -> None:
     parser = argparse.ArgumentParser(description="Hotpot LLM report agent")
-    parser.add_argument("--hub-url", default="http://127.0.0.1:8088")
+    parser.add_argument("--hub-url", default="http://127.0.0.1:8098")
     parser.add_argument("--store-id", default="store_yuhuan")
     parser.add_argument("--store-name", default="冯校长火锅·玉环店")
     parser.add_argument("--backend", choices=("rule", "openai"), default="rule")

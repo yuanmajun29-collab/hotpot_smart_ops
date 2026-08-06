@@ -230,7 +230,7 @@ class IotStubBridge:
 def main() -> None:
     parser = argparse.ArgumentParser(description="IoT stub bridge (no MQTT/devices)")
     parser.add_argument("--store-id", default="store_yuhuan")
-    parser.add_argument("--hub-url", default="http://127.0.0.1:8088")
+    parser.add_argument("--hub-url", default="http://127.0.0.1:8098")
     parser.add_argument("--uat-root", default=str(DEFAULT_UAT_ROOT))
     parser.add_argument("--interval", type=float, default=30.0)
     parser.add_argument("--cycles", type=int, default=0, help="0 = forever")

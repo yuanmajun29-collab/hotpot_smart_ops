@@ -247,7 +247,7 @@ def main() -> None:
     parser = argparse.ArgumentParser(description="POS → Event Hub sync")
     parser.add_argument("--store-id", default="store_yuhuan")
     parser.add_argument("--store-name", default="")
-    parser.add_argument("--hub-url", default="http://127.0.0.1:8088")
+    parser.add_argument("--hub-url", default="http://127.0.0.1:8098")
     parser.add_argument("--mode", choices=("file", "sim", "api"), default="file")  # ⚠️ 改造方案: 默认改为file，禁止生产sim
     parser.add_argument("--pos-file", default=str(DEFAULT_POS_FILE))
     parser.add_argument("--api-url", default="", help="POS REST endpoint, supports {store_id}")

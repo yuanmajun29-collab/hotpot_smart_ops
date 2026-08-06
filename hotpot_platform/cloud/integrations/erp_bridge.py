@@ -135,7 +135,7 @@ def sync_erp(
 def main() -> None:
     parser = argparse.ArgumentParser(description="ERP PO → Event Hub sync")
     parser.add_argument("--store-id", default="store_yuhuan")
-    parser.add_argument("--hub-url", default="http://127.0.0.1:8088")
+    parser.add_argument("--hub-url", default="http://127.0.0.1:8098")
     parser.add_argument("--mode", choices=("file", "api"), default="file")
     parser.add_argument("--erp-file", default=str(DEFAULT_ERP_FILE))
     parser.add_argument("--receiving-file", default=str(DEFAULT_RECEIVING))

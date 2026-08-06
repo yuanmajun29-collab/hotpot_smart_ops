@@ -228,7 +228,7 @@ class TestRunStoreVisionLiveMode:
         """run_store_vision passes live_mode=True to process_camera."""
         mock_cfg.return_value = {"cameras": [_make_camera()], "edge_api_key": ""}
         mock_proc.return_value = {"events": [], "table_states": []}
-        run_store_vision("store_jiaojiang", "http://localhost:8088", "mock",
+        run_store_vision("store_jiaojiang", "http://localhost:8098", "mock",
                          Path("/tmp/uat"), None, cycle=1, live_mode=True)
         args, kwargs = mock_proc.call_args
         assert kwargs.get("live_mode") is True
@@ -241,7 +241,7 @@ class TestRunStoreVisionLiveMode:
         mock_proc.return_value = {
             "events": [], "table_states": [], "auto_tasks_spawned": 2
         }
-        summary = run_store_vision("store_jiaojiang", "http://localhost:8088",
+        summary = run_store_vision("store_jiaojiang", "http://localhost:8098",
                                     "mock", Path("/tmp/uat"), None, live_mode=True)
         assert summary["mode"] == "live"
         assert summary["cameras"][0]["auto_tasks"] == 2
@@ -252,7 +252,7 @@ class TestRunStoreVisionLiveMode:
         """Mock mode shows 'mode': 'mock' in summary."""
         mock_cfg.return_value = {"cameras": [_make_camera()], "edge_api_key": ""}
         mock_proc.return_value = {"events": [], "table_states": []}
-        summary = run_store_vision("store_jiaojiang", "http://localhost:8088",
+        summary = run_store_vision("store_jiaojiang", "http://localhost:8098",
                                     "mock", Path("/tmp/uat"), None, live_mode=False)
         assert summary["mode"] == "mock"
 

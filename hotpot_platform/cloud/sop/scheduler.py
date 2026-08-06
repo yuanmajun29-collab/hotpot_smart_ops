@@ -70,7 +70,7 @@ def run_evaluation(
 def main() -> None:
     parser = argparse.ArgumentParser(description="SOP periodic scheduler")
     parser.add_argument("--store-id", default="store_yuhuan")
-    parser.add_argument("--hub-url", default="http://127.0.0.1:8088")
+    parser.add_argument("--hub-url", default="http://127.0.0.1:8098")
     parser.add_argument(
         "--signals-file",
         default="",

@@ -16,7 +16,7 @@ if str(PROJECT_ROOT) not in sys.path:
 def main() -> None:
     parser = argparse.ArgumentParser(description="Hotpot multi-tenant event hub")
     parser.add_argument("--host", default="0.0.0.0")
-    parser.add_argument("--port", type=int, default=8088)
+    parser.add_argument("--port", type=int, default=8098)
     parser.add_argument("--seed-dir", default="", help="Seed stores on startup if DB empty")
     parser.add_argument("--db", default="", help="SQLite path (default demo/data/hub.db)")
     parser.add_argument("--legacy", action="store_true", help="Use legacy http.server")

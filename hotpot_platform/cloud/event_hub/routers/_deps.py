@@ -195,4 +195,4 @@ class PipelineTickBody(BaseModel):
     store_id: Optional[str] = None
     mode: str = "inprocess"  # inprocess | subprocess
     inject_anomaly: bool = False
-    hub_url: str = "http://127.0.0.1:8088"
+    hub_url: str = "http://127.0.0.1:8098"

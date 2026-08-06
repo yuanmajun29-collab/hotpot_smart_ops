@@ -156,7 +156,7 @@ def run_direct(hub_url: str, store_id: str, cycles: int, inject_anomaly: bool) -
 def main() -> None:
     parser = argparse.ArgumentParser(description="Hotpot IoT sensor simulator")
     parser.add_argument("--store-id", default="store_yuhuan")
-    parser.add_argument("--hub-url", default="http://127.0.0.1:8088")
+    parser.add_argument("--hub-url", default="http://127.0.0.1:8098")
     parser.add_argument("--mqtt-broker", default="", help="MQTT broker host; empty = direct HTTP mode")
     parser.add_argument("--mqtt-port", type=int, default=1883)
     parser.add_argument("--interval", type=float, default=2.0)

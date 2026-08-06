@@ -3,8 +3,8 @@
 > 品牌: **火瞳** 🔥👁️ · 冯校长火锅连锁AI运营中台
 > 产品: 视觉+数据双引擎 · 边缘AI + 视觉检测 + 数据引擎 + 运营看板
 > 定位: 自有连锁内部运营系统（先服务自己，再对外输出）
-> 状态: **🔧 架构整改进行中** (基于 `feature/arch-design`) · 见下方「成熟度」
-> 分支: `feature/arch-design` (合入 d1-expo-sprint 全量内容)
+> 状态: **🔧 D1 展会冲刺** (基于 `feature/d1-expo-sprint`) · 见下方「成熟度」
+> 分支: `feature/d1-expo-sprint` (已融合 arch-design 架构整改)
 > 最后整理: 2026-08-06
 
 ---
@@ -207,7 +207,7 @@ hotpot_smart_ops/
 
 ### Git版本信息
 ```
-分支: feature/arch-design (合入 d1-expo-sprint 全量内容)
+分支: feature/d1-expo-sprint (已融合 arch-design 架构整改)
 
 关键Commit (D1-D4 冲刺期):
 ├─ 33fc620  P0-1 IP-5逻辑修正 (符合最终方案第六章)
@@ -262,6 +262,6 @@ http://43.139.143.12:8098/login.html
 - **项目Owner**: 冯校长火锅连锁浙江总代
 - **技术支持**: 火瞳开发团队
 - **展会时间**: 2026年10月 · 重庆市政府展会（Demo展示）
-- **当前分支**: `feature/arch-design` (架构整改中)
+- **当前分支**: `feature/d1-expo-sprint` (展会冲刺)
 - **权威整改方案**: `docs/01-核心权威/火瞳_整改方案_v1.0_20260804.md`
 - **文档版本**: v1.1-maturity-fix (2026-08-06) — 引入成熟度体系，统一口径

@@ -14,7 +14,7 @@ Jetson VLM Bridge — 边缘推理 → Hub 对接脚本 (方案A: 离线模式)
   python3 bridge_waste_vision.py test.jpg --quiet
 
 环境变量:
-  HOTPOT_HUB_URL    Hub 地址 (默认 http://192.168.2.85:8088)
+  HOTPOT_HUB_URL    Hub 地址 (默认 http://192.168.2.85:8098)
   HOTPOT_HUB_TOKEN  JWT Token (默认自动获取)
   HOTPOT_HUB_USER   用户名 (默认 zhangdian)
   HOTPOT_HUB_PASS   密码 (默认 demo)
