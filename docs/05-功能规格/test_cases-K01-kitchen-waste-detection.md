@@ -61,7 +61,7 @@
 | **TC-W20** | waste/stats 指定天数 | DB 有数据 | `GET /api/kitchen/waste/stats?days=3` | 返回最近 3 天数据 |
 | **TC-W21** | waste/stats 无数据 | 空 DB | `GET /api/kitchen/waste/stats` | 返回 `trend=[]`, `daily=[]`, 不报错 |
 | **TC-W22** | waste/stats days 超限 | — | `GET /api/kitchen/waste/stats?days=100` | 返回 422，`days` 范围校验失败 |
-| **TC-W23** | waste/stats 跨门店越权 | auth 绑定 store_yuhuan | `GET /api/kitchen/waste/stats?store_id=store_jiaojiang` | 返回 403 |
+| **TC-W23** | waste/stats 跨门店越权 | auth 绑定 store_demo | `GET /api/kitchen/waste/stats?store_id=store_demo` | 返回 403 |
 | **TC-W24** | live_count 补充 | 内存事件中有 vlm_waste_estimate | 查询 stats | `live_count > 0`，统计内存中未落 DB 的最新计数 |
 
 ---

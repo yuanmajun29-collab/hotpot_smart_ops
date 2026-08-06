@@ -145,7 +145,7 @@ Authorization: Bearer <jwt_token>
 **请求体 (完整边缘路径)**:
 ```json
 {
-  "store_id": "store_yuhuan",
+  "store_id": "store_demo",
   "items": [
     {
       "waste_type": "备餐废弃",
@@ -186,7 +186,7 @@ Authorization: Bearer <jwt_token>
 {
   "ok": true,
   "event_id": "evt_k01_20260716_001",
-  "store_id": "store_yuhuan",
+  "store_id": "store_demo",
   "source": "vlm-shadow",
   "items": [...],
   "generated_at": "2026-07-16T12:00:01Z"
@@ -211,7 +211,7 @@ Authorization: Bearer <jwt_token>
 
 **请求**:
 ```
-GET /api/kitchen/waste/stats?store_id=store_yuhuan&days=7 HTTP/1.1
+GET /api/kitchen/waste/stats?store_id=store_demo&days=7 HTTP/1.1
 Authorization: Bearer <jwt_token>
 ```
 
@@ -224,7 +224,7 @@ Authorization: Bearer <jwt_token>
 **成功响应 (200)**:
 ```json
 {
-  "store_id": "store_yuhuan",
+  "store_id": "store_demo",
   "days": 7,
   "trend": [153, 128, 172, 0, 145, 168, 190],
   "dates": ["2026-07-10", "2026-07-11", "2026-07-12", "2026-07-13", "2026-07-14", "2026-07-15", "2026-07-16"],
@@ -344,7 +344,7 @@ Jetson `/count` 首次调用时模型下载可能耗时 30-120s。Pipeline 需�
 |--------|---------|--------|
 | Count API URL | `HOTPOT_COUNT_API_URL` | `http://127.0.0.1:8100` |
 | Hub URL | `HOTPOT_HUB_URL` | `http://192.168.2.85:8098` |
-| 门店 ID | `HOTPOT_STORE_ID` | `store_yuhuan` |
+| 门店 ID | `HOTPOT_STORE_ID` | `store_demo` |
 | 检测区域 | `HOTPOT_ZONE` | `备餐废弃区` |
 | Count 超时 | — | 10s (首次 120s) |
 

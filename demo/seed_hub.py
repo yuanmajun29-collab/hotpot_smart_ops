@@ -44,7 +44,7 @@ def load_seed_files(stores_dir: Path, store_id: str | None = None) -> list[Path]
 
 def main() -> None:
     parser = argparse.ArgumentParser(description="Seed Hotpot Event Hub tenants")
-    parser.add_argument("--hub-url", default="http://127.0.0.1:8088")
+    parser.add_argument("--hub-url", default="http://127.0.0.1:8098")
     parser.add_argument("--stores-dir", default=str(DEFAULT_STORES_DIR))
     parser.add_argument("--store-id", default="", help="Seed single store")
     parser.add_argument("--all", action="store_true", help="Seed all stores in stores-dir")

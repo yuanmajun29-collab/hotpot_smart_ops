@@ -31,6 +31,7 @@ from typing import Optional
 
 from .stages import STAGES
 from .rules import DEGRADATION_MATRIX, CLIP_DEFAULT_CLASSES, ENABLE_KALMAN, YOLO_MODEL_VERSION
+from ...common.scoreboard import Scoreboard, Verdict
 
 # ── 路径 / Hub 配置 ──
 HUB_URL = os.environ.get("HOTPOT_HUB_URL", "http://192.168.2.85:8098")
@@ -95,6 +96,17 @@ def run_pipeline(frame_path: str, skip_vlm: bool = False, clip_classes: Optional
     clip_results = ctx.get("clip_results", [])
     vlm_results = ctx.get("vlm_results", [])
     count_results = ctx.get("count_results", {})
+
+    # ── 记分牌：确定性交叉验证 ──
+    yolo_dets = ctx.get("yolo_result", {}).get("detections", [])
+    scoreboard = Scoreboard(scene="kitchen", frame_id=frame_path)
+    scoreboard.record_yolo(yolo_dets)
+    scoreboard.record_vlm([item for vlm in vlm_results for item in vlm.get("items", [])])
+    scoreboard.cross_verify()
+    verdict = scoreboard.verdict()
+
+    pipeline_result["scoreboard"] = scoreboard.summary()
+    pipeline_result["needs_review"] = verdict != Verdict.PASS
 
     # 从 count_results 构建 det_index → count 映射
     count_map = {}

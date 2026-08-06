@@ -9,7 +9,7 @@
 - **验证**: 查询 `sqlite_master` 确认两表存在，包含 UNIQUE(store_id, date) 约束
 
 ### T-02: 时序数据写入
-- **输入**: 插入一条 `store_yuhuan / 2026-07-16 / total_count=153`
+- **输入**: 插入一条 `store_demo / 2026-07-16 / total_count=153`
 - **预期**: 写入成功，重复插入同 (store_id, date) 自动 `UPSERT` 更新
 - **验证**: 查询返回最新 total_count
 

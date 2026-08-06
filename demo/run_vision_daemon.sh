@@ -24,7 +24,7 @@ if [[ "${1:-}" == "--stop" ]]; then
   exit 0
 fi
 
-HUB_URL="${1:-http://127.0.0.1:8088}"
+HUB_URL="${1:-http://127.0.0.1:8098}"
 INTERVAL="${2:-${VISION_INTERVAL:-5}}"
 STORES="${STORES:-store_yuhuan,store_jiaojiang}"
 BACKEND="${VISION_BACKEND:-${HOTPOT_DETECTOR_BACKEND:-mock}}"

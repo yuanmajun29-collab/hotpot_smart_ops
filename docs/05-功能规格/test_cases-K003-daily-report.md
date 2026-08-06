@@ -5,25 +5,25 @@
 ## 一、API 测试
 
 ### T-01: 正常查询 (有数据)
-- **请求**: `GET /api/daily-report?store_id=store_yuhuan&date=2026-07-16`
+- **请求**: `GET /api/daily-report?store_id=store_demo&date=2026-07-16`
 - **前置**: waste_timeseries 表有 2026-07-16 的数据 (total_count=153, event_count=8)
 - **预期**: 200，hero.total_waste_count=153，hero.event_count=8，trend_30d 含 30 天数据
 
 ### T-02: 正常查询 (无数据日期)
-- **请求**: `GET /api/daily-report?store_id=store_yuhuan&date=2026-07-01`
+- **请求**: `GET /api/daily-report?store_id=store_demo&date=2026-07-01`
 - **前置**: waste_timeseries 表无 2026-07-01 数据
 - **预期**: 200，hero.total_waste_count=0，hero.top_5_skus=[]，trend_30d 中该日为零填充
 
 ### T-03: 缺参数 (使用默认)
 - **请求**: `GET /api/daily-report` (无 store_id, 无 date)
-- **预期**: 200，store_id = auth.store_id 或默认 store_yuhuan，date = 今日
+- **预期**: 200，store_id = auth.store_id 或默认 store_demo，date = 今日
 
 ### T-04: 未来日期
-- **请求**: `GET /api/daily-report?store_id=store_yuhuan&date=2099-01-01`
+- **请求**: `GET /api/daily-report?store_id=store_demo&date=2099-01-01`
 - **预期**: 400，错误信息 "date cannot be in the future"
 
 ### T-05: 无效日期格式
-- **请求**: `GET /api/daily-report?store_id=store_yuhuan&date=not-a-date`
+- **请求**: `GET /api/daily-report?store_id=store_demo&date=not-a-date`
 - **预期**: 422 或 400
 
 ### T-06: 不存在门店
@@ -35,7 +35,7 @@
 - **预期**: 401
 
 ### T-08: 告警数据
-- **请求**: `GET /api/daily-report?store_id=store_yuhuan&date=2026-07-16`
+- **请求**: `GET /api/daily-report?store_id=store_demo&date=2026-07-16`
 - **前置**: waste_alerts 表有一条未确认告警
 - **预期**: 200，alerts 数组包含该告警，包含 id/message/acknowledged
 
@@ -56,7 +56,7 @@
 - **预期**: top_5_skus 返回前 5 个，每个包含 pct (占总数的百分比)
 
 ### T-13: 性能
-- **请求**: `GET /api/daily-report?store_id=store_yuhuan`
+- **请求**: `GET /api/daily-report?store_id=store_demo`
 - **预期**: 响应时间 < 200ms
 
 ## 二、Dashboard 测试

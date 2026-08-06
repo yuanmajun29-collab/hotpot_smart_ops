@@ -21,7 +21,7 @@
 **请求参数**:
 | 参数 | 类型 | 必填 | 默认 | 说明 |
 |------|------|------|------|------|
-| store_id | string | 否 | auth.store_id / store_yuhuan | 门店 ID |
+| store_id | string | 否 | auth.store_id / store_demo | 门店 ID |
 | date | string | 否 | 今日日期 | 日期 YYYY-MM-DD |
 
 **认证**: 需要有效的 AuthContext (与现有 kitchen waste API 一致)
@@ -29,7 +29,7 @@
 **响应 (200)**:
 ```json
 {
-  "store_id": "store_yuhuan",
+  "store_id": "store_demo",
   "date": "2026-07-16",
   "hero": {
     "total_waste_count": 153,

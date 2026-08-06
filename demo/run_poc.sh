@@ -5,7 +5,7 @@ set -euo pipefail
 ROOT="$(cd "$(dirname "$0")/.." && pwd)"
 cd "$ROOT"
 
-HUB_PORT="${HUB_PORT:-8088}"
+HUB_PORT="${HUB_PORT:-8098}"
 DASH_PORT="${DASH_PORT:-3000}"
 STORE_ID="${STORE_ID:-store_yuhuan}"
 case "$STORE_ID" in
