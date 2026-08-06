@@ -765,26 +765,26 @@ roles:
 
 **协议统一**：北向注册、心跳、配置拉取、事件上报、离线补传统一为一套版本化协议，并统一使用 `/api/v1` 前缀。
 
-**业务事件必携字段**（**16项**：14项通用必填 + 2项扩展字段）：
+**业务事件必携字段（** **16项，全部必填** **）**：
 
-| 字段 | 类型 | 说明 | 分类 |
-|------|------|------|------|
-| `tenant_id` | string | 租户标识 | 通用必填 |
-| `brand_id` | string | 品牌标识 | 通用必填 |
-| `region_id` | string | 区域标识 | 通用必填 |
-| `store_id` | string | 门店标识 | 通用必填 |
-| `edge_device_id` | string | 边缘盒子标识 | 通用必填 |
-| `camera_id` | string | 摄像机标识（视觉事件必填） | 通用必填 |
-| `zone_id` | string | 业务区域标识 | 通用必填 |
-| `event_id` | string | 事件唯一ID（UUID） | 通用必填 |
-| `correlation_id` | string | 关联事件ID（用于事件链追踪） | 通用必填 |
-| `event_type` | string | 事件类型枚举 | 通用必填 |
-| `occurred_at` | datetime | 事件发生时间（ISO 8601） | 通用必填 |
-| `model_name` | string | 产生此事件的AI模型名 | 通用必填 |
-| `model_version` | string | 模型版本号 | 通用必填 |
-| `confidence` | float | 模型置信度 (0~1) | 通用必填 |
-| `evidence_ref` | string | 证据文件引用路径 | 扩展字段 |
-| `source_status` | string | 数据源状态（real/simulated/stub） | 扩展字段 |
+| 字段 | 类型 | 说明 |
+|------|------|------|
+| `tenant_id` | string | 租户标识 |
+| `brand_id` | string | 品牌标识 |
+| `region_id` | string | 区域标识 |
+| `store_id` | string | 门店标识 |
+| `edge_device_id` | string | 边缘盒子标识 |
+| `camera_id` | string | 摄像机标识（视觉事件必填） |
+| `zone_id` | string | 业务区域标识 |
+| `event_id` | string | 事件唯一ID（UUID） |
+| `correlation_id` | string | 关联事件ID（用于事件链追踪） |
+| `event_type` | string | 事件类型枚举 |
+| `occurred_at` | datetime | 事件发生时间（ISO 8601） |
+| `model_name` | string | 产生此事件的AI模型名 |
+| `model_version` | string | 模型版本号 |
+| `confidence` | float | 模型置信度 (0~1) |
+| `evidence_ref` | string | 证据文件引用路径 |
+| `source_status` | string | 数据源状态（real/simulated/stub） |
 
 **通信保障**：
 - 设备采用可轮换凭证和首次注册令牌；配置采用版本号 + ACK + 失败回滚 + 审计
@@ -805,6 +805,17 @@ roles:
 
 **审计要求**：Agent 的查询、建议、推送、工具调用和人工处理结果均应携带完整上下文（tenant_id/store_id/agent_id/timestamp）并记录至 `agent_gateway.audit_log`。
 
+**Agent 配置四维最小字段清单**（落配置时必须包含）：
+
+| 维度 | 最小字段 | 类型 | 说明 |
+|------|----------|------|------|
+| **权限** `permissions` | `can_query`, `can_advise`, `can_push`, `can_create_todo`, `can_approve` | `bool[]` | 该Agent允许的操作白名单 |
+| **订阅** `subscription` | `event_types[]`, `kpi_metrics[]`, `time_window`, `thresholds` | `object` | 关注的事件类型、KPI指标、时间窗口与触发阈值 |
+| **推送** `push_config` | `channels[]` (websocket/sms/app), `priority_rules`, `escalation_min`, `ack_timeout_sec` | `object` | 推送渠道、优先级规则、升级最短时间(秒)、确认超时(秒) |
+| **审批** `approval_config` | `require_approval_for[]`, `auto_approve_threshold`, `escalate_to_role` | `object` | 需审批的操作列表、自动通过阈值、超时升级目标角色 |
+
+> ⚠️ 以上四维为**配置落地的最小字段集**，代码侧不得在逻辑中硬编码任何岗位的权限/订阅/推送/审批规则。新增岗位 Agent 时必须先完成此四维配置方可上线。
+
 **红线**：员工行为相关能力（如SOP违规检测）只可生成"**疑似事件**"，**不得基于视觉结论自动处罚**。处罚决定必须由人工确认。（符合《最终方案》第六章、§1.7 RL-2）
 
 #### 1.11.6 Demo/Mock/桩接口隔离规范
@@ -817,14 +828,20 @@ roles:
 | 试点环境 `pilot`（椒江店） | ❌ **禁止**Mock进入真实事件/看板/报表 | 真实数据唯一来源 |
 | 生产环境 `prod` | ❌ **严格禁止** | 违反即视为P0安全事件 |
 
-**桩接口返回码约定**：
+**桩接口返回码约定**（**固定枚举，各模块不得自造字段**）：
 
 | 返回值 | 含义 | 使用场景 |
 |--------|------|----------|
-| `not_connected` | 设备未接入 | IoT传感器等尚未部署的能力 |
-| `disabled` | 功能已禁用 | 租户未购买的功能模块 |
-| `simulated` | 模拟数据 | 仅限dev/test/demo环境 |
-| `pending_integration` | 待集成 | 已规划但尚未对接的外部系统 |
+| `not_connected` | 设备/系统未接入 | IoT传感器等尚未部署的南向能力；外部系统未联通 |
+| `disabled` | 功能已禁用 | 租户未购买的功能模块；管理员手动关闭的能力 |
+| `simulated` | 模拟/桩数据 | 仅限 dev/test/demo 环境；生产环境出现此值视为 P0 异常 |
+| `pending_integration` | 待集成 | 已规划但尚未对接的外部系统（如电子秤、RFID） |
+| `error` | 通用错误 | 接口调用失败（需附带 error_code + error_message） |
+
+> **强制规则**：
+> - 所有桩接口、Mock 服务、设备适配器的状态返回**必须**从上述5个枚举值中选取
+> - 禁止使用 `mock`、`fake`、`test_data`、`dev_only` 等自造字段名
+> - `source_status` 字段在事件/任务/KPI 中也沿用此枚举体系（增加 `real` 表示真实数据）
 
 **文档成熟度表述规范**（必须明确区分）：
 
@@ -835,16 +852,23 @@ roles:
 | ✅ L3 | 真实门店连续运行≥7天+KPI回写+业务闭环 | 三条件同时满足 |
 | ⭐ L4 | 生产可用（多店复用+ROI） | ≥2家门店稳定运行 |
 
-#### 1.11.7 文档整改清单（已执行）
+#### 1.11.7 文档整改清单（分层状态）
 
-基于通用化修改方案§八，以下整改已在本文档中完成：
+基于通用化修改方案§八 + Ch10 复评补充，以下整改项按**文档层**和**代码层**分别标注状态：
 
-- [x] 删除/改写将 `store_jiaojiang`、固定IP、固定摄像机ID作为系统默认事实的描述 → 改为对象模型实例数据
-- [x] 椒江店保留为样板实例，使用"实例配置"章节（§1.8）呈现，不放在通用架构/权限/核心规则中
-- [x] 统一Hub地址、端口、`/api/v1`接口前缀、注册路径、门店ID命名和环境变量命名
-- [x] NVR凭据从文档移除 → `{NVR_PASSWORD}` 环境变量（§1.8.2.1）
-- [x] IoT描述改为"待接入的可插拔能力"，不称椒江店当前已实际接入
-- [x] 新增多租户对象层级（§1.11.1）、默认门店规范（§1.11.2）、配置中心（§1.11.3）
+| # | 整改项 | 文档层状态 | 代码层状态 | 证据 / 待办 |
+|---|--------|:----------:|:----------:|-------------|
+| 1 | 删除 `store_jiaojiang`/`store_yuhuan`/固定IP作为系统默认事实 | ✅ 已改写 | ⚠️ **待代码实施** | 文档已改为对象模型实例；**测试文件仍有25+处硬编码**（tests/test_*.py, scripts/train_table_classifier.py） |
+| 2 | 椒江店保留为样板实例，不放在通用架构/权限/核心规则中 | ✅ 已收敛至§1.8 | ⚠️ **待代码实施** | PRD已完成；**pipeline_config_jiaojiang.yml仍引用demo图片** (`demo/data/real_hotpot_waste.jpg`) |
+| 3 | 统一Hub地址/端口/`/api/v1`前缀/注册路径/环境变量命名 | ✅ 规范已写入§1.11.3-4 | ⚠️ **待代码实施** | 文档规范明确；**测试脚本直接写死URL和store_id** |
+| 4 | NVR凭据从文档移除 → 环境变量 | ✅ §1.8.2.1已用`{NVR_PASSWORD}` | ✅ 配置文件已使用env引用 | ipc_config_jiaojiang.yml 使用 env 引用 |
+| 5 | IoT描述改为"待接入的可插拔能力" | ✅ 已改写 | N/A（IoT本期不接入） | — |
+| 6 | 新增多租户对象层级/默认门店规范/配置中心 | ✅ §1.11.1-3已新增 | ⚠️ **待代码实施** | 文档基线完成；**代码侧无多租户中间件** |
+
+> **判定结论**：
+> - **文档层**：6/6 项已完成（PRD、总体架构、详细架构均已同步）
+> - **代码层**：**1/6 完成**（仅凭据环境变量化），其余 **5 项需在配置化改造Sprint中实施**
+> - ⚠️ **严禁将"文档层完成"等同于"系统已实现"**。上轮验收中将全部标为 `[x]` 属于表述不准确，本版已修正为分层状态。
 
 #### 1.11.8 通用化验收标准
 

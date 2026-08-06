@@ -56,7 +56,7 @@ CREATE TABLE IF NOT EXISTS waste_alerts (
 **响应 (200)**:
 ```json
 {
-  "store_id": "store_yuhuan",
+  "store_id": "store_demo",
   "days": 30,
   "daily": [
     {
@@ -104,7 +104,7 @@ CREATE TABLE IF NOT EXISTS waste_alerts (
 **响应 (200)**:
 ```json
 {
-  "store_id": "store_yuhuan",
+  "store_id": "store_demo",
   "alerts": [
     {
       "id": 1,
@@ -141,7 +141,7 @@ CREATE TABLE IF NOT EXISTS waste_alerts (
 **响应 (200)**:
 ```json
 {
-  "store_id": "store_yuhuan",
+  "store_id": "store_demo",
   "date": "2026-07-16",
   "alert_triggered": true,
   "current_count": 153,

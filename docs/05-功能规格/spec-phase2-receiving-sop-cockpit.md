@@ -23,7 +23,7 @@ Phase 2 扩展 hotpot_smart_ops 三个模块：食材监管（进货口检测）
   - `mock`: 定时发送随机重量（模拟秤盘波动→稳定）
   - `replay`: 从 CSV 文件回放
 - **健康检查**: MQTT broker 连通性检测
-- **启动**: `PYTHONPATH=. python3 -m edge.receiving.mqtt_scale_sim --store-id store_yuhuan --mode mock`
+- **启动**: `PYTHONPATH=. python3 -m edge.receiving.mqtt_scale_sim --store-id store_demo --mode mock`
 
 ### Hub: POST /v1/receiving/checkin
 
@@ -34,7 +34,7 @@ Content-Type: application/json
 X-Api-Key: <key>
 
 {
-  "store_id": "store_yuhuan",
+  "store_id": "store_demo",
   "batch_ref": "PO-2026-0716-001",   // optional PO ref
   "ingredients": [
     {"class": "肉类", "count": 5, "confidence": 0.92},
@@ -43,7 +43,7 @@ X-Api-Key: <key>
   "weight_kg": 23.5,                  // from MQTT scale (latest)
   "po_weight_kg": 25.0,               // expected weight
   "temp_c": 4.2,                      // cold chain temp
-  "image_ref": "receiving/2026/0716/store_yuhuan_001.jpg",
+  "image_ref": "receiving/2026/0716/store_demo_001.jpg",
   "source": "edge_yolo_v2"
 }
 
@@ -109,7 +109,7 @@ Errors:
 ```
 POST /v1/sop/compliance
 {
-  "store_id": "store_yuhuan",
+  "store_id": "store_demo",
   "device_id": "jetson-kitchen-01",
   "timestamp": "2026-07-16T10:30:00Z",
   "stations": [
@@ -121,7 +121,7 @@ POST /v1/sop/compliance
 Response 200:
 {
   "ok": true,
-  "store_id": "store_yuhuan",
+  "store_id": "store_demo",
   "compliance_rate": 85.7,           // 6/7 running
   "violations": ["sop_cutting"],
   "warnings": [],
