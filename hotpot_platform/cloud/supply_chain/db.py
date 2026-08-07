@@ -21,6 +21,14 @@ from contextlib import contextmanager
 from datetime import datetime, timezone
 from typing import Any, Dict, Generator, List, Optional, Tuple, Union
 
+# PostgreSQL 可选依赖（生产迁移时启用）
+try:
+    import psycopg2  # type: ignore
+    _psycopg2_available = True
+except ImportError:  # pragma: no cover
+    psycopg2 = None  # type: ignore
+    _psycopg2_available = False
+
 logger = logging.getLogger(__name__)
 
 # ── Connection Factory ───────────────────────────────────────────────────────
@@ -83,12 +91,30 @@ class SupplyChainDB:
             self._db_path = os.path.abspath(self._db_path)
             os.makedirs(os.path.dirname(self._db_path) or ".", exist_ok=True)
             self._ensure_tables()
+        elif self._db_type == "postgres":
+            if not _psycopg2_available:
+                logger.warning("psycopg2 未安装，PostgreSQL 模式回退 SQLite")
+                self._db_type = "sqlite"
+                default_path = os.environ.get("SUPPLY_CHAIN_DB", "data/supply_chain.db")
+                self._db_path = os.path.abspath(default_path)
+                os.makedirs(os.path.dirname(self._db_path) or ".", exist_ok=True)
+                self._ensure_tables()
+            else:
+                try:
+                    self._ensure_tables_pg()
+                except Exception as e:
+                    logger.warning(f"PG 建表失败 ({e})，回退 SQLite")
+                    self._db_type = "sqlite"
+                    default_path = os.environ.get("SUPPLY_CHAIN_DB", "data/supply_chain.db")
+                    self._db_path = os.path.abspath(default_path)
+                    os.makedirs(os.path.dirname(self._db_path) or ".", exist_ok=True)
+                    self._ensure_tables()
 
     # ── Connection Management ─────────────────────────────────────────────
 
     @contextmanager
-    def _conn(self) -> Generator[sqlite3.Connection, None, None]:
-        """获取数据库连接（上下文管理器）。"""
+    def _conn(self) -> Generator[Any, None, None]:
+        """获取数据库连接（上下文管理器），SQLite/PG 透明切换。"""
         if self._db_type == "sqlite":
             conn = _connect_sqlite(self._db_path)
             try:
@@ -96,8 +122,37 @@ class SupplyChainDB:
             finally:
                 conn.close()
         else:
-            # PostgreSQL 模式占位（生产迁移时启用）
-            raise NotImplementedError("PostgreSQL support not yet implemented")
+            # PostgreSQL 模式
+            pg_uri = getattr(self, '_db_uri', '')
+            if not _psycopg2_available or not pg_uri:
+                logger.warning("PostgreSQL 不可用（缺少 psycopg2 或未配置 URI），回退 SQLite")
+                self._db_type = "sqlite"
+                self._db_path = os.environ.get("SUPPLY_CHAIN_DB", "data/supply_chain.db")
+                self._ensure_tables()
+                conn = _connect_sqlite(self._db_path)
+                try:
+                    yield conn
+                finally:
+                    conn.close()
+                return
+            try:
+                conn = psycopg2.connect(pg_uri)  # type: ignore
+                conn.autocommit = False
+                try:
+                    yield conn
+                finally:
+                    conn.rollback()
+                    conn.close()
+            except Exception as e:
+                logger.warning(f"PostgreSQL 连接失败 ({e})，回退 SQLite")
+                self._db_type = "sqlite"
+                self._db_path = os.environ.get("SUPPLY_CHAIN_DB", "data/supply_chain.db")
+                self._ensure_tables()
+                conn = _connect_sqlite(self._db_path)
+                try:
+                    yield conn
+                finally:
+                    conn.close()
 
     def _ensure_tables(self) -> None:
         """创建所有必要的表（首次启动时自动执行）。"""
@@ -245,6 +300,160 @@ class SupplyChainDB:
                 CREATE INDEX IF NOT EXISTS idx_il_store_sku ON inventory_ledger(store_id, sku);
             """)
             conn.commit()
+
+    @property
+    def engine(self) -> bool:
+        """兼容 router 中的 engine 存在性检查。PG 模式返回 True，SQLite 也返回 True（总是可用）。"""
+        return True
+
+    def _ensure_tables_pg(self) -> None:
+        """PostgreSQL DDL — 创建所有必要的表（与 SQLite 表结构保持一致）。"""
+        pg_ddl = """
+            CREATE TABLE IF NOT EXISTS receiving_records (
+                batch_id TEXT PRIMARY KEY,
+                store_id TEXT NOT NULL,
+                po_id TEXT,
+                supplier_id TEXT,
+                supplier_name TEXT,
+                sku TEXT,
+                sku_name TEXT,
+                sku_category TEXT,
+                quantity DOUBLE PRECISION,
+                unit TEXT,
+                order_weight_kg DOUBLE PRECISION,
+                actual_weight_kg DOUBLE PRECISION,
+                variance_pct DOUBLE PRECISION,
+                temp_c DOUBLE PRECISION,
+                temp_ok INTEGER,
+                photo_urls TEXT,
+                notes TEXT,
+                receiver TEXT,
+                status TEXT DEFAULT 'submitted',
+                created_at TIMESTAMP WITH TIME ZONE,
+                updated_at TIMESTAMP WITH TIME ZONE
+            );
+
+            CREATE TABLE IF NOT EXISTS quality_check_results (
+                check_id TEXT PRIMARY KEY,
+                batch_id TEXT NOT NULL,
+                store_id TEXT NOT NULL,
+                weight_deviation_pct DOUBLE PRECISION,
+                weight_ok INTEGER,
+                temp_value_c DOUBLE PRECISION,
+                temp_ok INTEGER,
+                vlm_passed INTEGER,
+                vlm_grade TEXT,
+                vlm_confidence DOUBLE PRECISION,
+                color_ok INTEGER,
+                freshness_ok INTEGER,
+                final_grade TEXT,
+                final_action TEXT,
+                notes TEXT,
+                inspector TEXT,
+                created_at TIMESTAMP WITH TIME ZONE
+            );
+
+            CREATE TABLE IF NOT EXISTS purchase_orders (
+                po_id TEXT PRIMARY KEY,
+                store_id TEXT NOT NULL,
+                supplier_id TEXT,
+                supplier_name TEXT,
+                items_json TEXT,
+                total_amount DOUBLE PRECISION,
+                status TEXT DEFAULT 'draft',
+                expected_delivery_date TEXT,
+                approved_by TEXT,
+                cancelled_reason TEXT,
+                created_by TEXT,
+                created_at TIMESTAMP WITH TIME ZONE,
+                updated_at TIMESTAMP WITH TIME ZONE
+            );
+
+            CREATE TABLE IF NOT EXISTS approval_workflows (
+                workflow_id TEXT PRIMARY KEY,
+                entity_type TEXT,
+                entity_id TEXT,
+                store_id TEXT,
+                approver TEXT,
+                status TEXT DEFAULT 'pending',
+                decision TEXT,
+                comments TEXT,
+                created_at TIMESTAMP WITH TIME ZONE,
+                resolved_at TIMESTAMP WITH TIME ZONE
+            );
+
+            CREATE TABLE IF NOT EXISTS supplier_scores (
+                supplier_id TEXT,
+                store_id TEXT,
+                score DOUBLE PRECISION,
+                grade TEXT,
+                delivery_on_time_rate DOUBLE PRECISION,
+                quality_pass_rate DOUBLE PRECISION,
+                price_competitiveness DOUBLE PRECISION,
+                response_speed DOUBLE PRECISION,
+                updated_at TIMESTAMP WITH TIME ZONE,
+                PRIMARY KEY (supplier_id, store_id)
+            );
+
+            CREATE TABLE IF NOT EXISTS kpi_feedback (
+                feedback_id TEXT PRIMARY KEY,
+                store_id TEXT NOT NULL,
+                kpi_name TEXT,
+                event_type TEXT,
+                source TEXT,
+                action_taken TEXT,
+                result DOUBLE PRECISION,
+                verified_by TEXT,
+                verified_at TIMESTAMP WITH TIME ZONE,
+                metadata TEXT,
+                created_at TIMESTAMP WITH TIME ZONE
+            );
+
+            CREATE TABLE IF NOT EXISTS inventory_ledger (
+                ledger_id TEXT PRIMARY KEY,
+                store_id TEXT NOT NULL,
+                sku TEXT,
+                sku_name TEXT,
+                sku_category TEXT,
+                change_type TEXT,
+                change_qty DOUBLE PRECISION,
+                balance_qty DOUBLE PRECISION,
+                unit TEXT,
+                related_po_id TEXT,
+                related_batch_id TEXT,
+                operator TEXT,
+                notes TEXT,
+                created_at TIMESTAMP WITH TIME ZONE
+            );
+
+            CREATE TABLE IF NOT EXISTS product_master (
+                product_id TEXT PRIMARY KEY,
+                name TEXT NOT NULL,
+                category TEXT,
+                unit TEXT DEFAULT 'kg',
+                brand TEXT DEFAULT '',
+                supplier_id TEXT DEFAULT '',
+                price DOUBLE PRECISION DEFAULT 0.0,
+                is_active INTEGER DEFAULT 1,
+                version INTEGER DEFAULT 1,
+                created_at TIMESTAMP WITH TIME ZONE,
+                updated_at TIMESTAMP WITH TIME ZONE
+            );
+
+            CREATE INDEX IF NOT EXISTS idx_rr_store_pg ON receiving_records(store_id);
+            CREATE INDEX IF NOT EXISTS idx_qc_batch_pg ON quality_check_results(batch_id);
+            CREATE INDEX IF NOT EXISTS idx_po_store_pg ON purchase_orders(store_id);
+            CREATE INDEX IF NOT EXISTS idx_aw_entity_pg ON approval_workflows(entity_id);
+            CREATE INDEX IF NOT EXISTS idx_il_store_sku_pg ON inventory_ledger(store_id, sku);
+        """
+        with self._conn() as conn:
+            try:
+                cur = conn.cursor()
+                cur.execute(pg_ddl)
+                conn.commit()
+            except Exception as e:
+                logger.warning(f"PG table creation failed: {e}")
+                conn.rollback()
 
     # ── Receiving Records ─────────────────────────────────────────────────
 

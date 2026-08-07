@@ -16,7 +16,7 @@ from hotpot_platform.cloud.event_hub.domain.waste_timeseries import (
     compute_trend_comparison,
     format_alert_message,
 )
-from hotpot_platform.cloud.event_hub.data_engine_schema import SQLITE_DATA_ENGINE_SCHEMA
+from hotpot_platform.cloud.event_hub.data_engine_schema import SQLITE_DATA_ENGINE_SCHEMA, get_data_engine_schema
 from hotpot_platform.cloud.event_hub.iot_readings_store import SQLITE_IOT_READINGS_SCHEMA
 from hotpot_platform.cloud.event_hub.receiving_store import SQLITE_RECEIVING_SCHEMA
 from hotpot_platform.cloud.event_hub.sop_assign_store import SQLITE_SOP_ASSIGN_SCHEMA
