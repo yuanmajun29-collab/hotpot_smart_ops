@@ -59,7 +59,7 @@ def _pmo_token(client: TestClient) -> str:
 def test_auth_me(client):
     c, _ = client
     headers = {"Authorization": f"Bearer {_pmo_token(c)}"}
-    r = c.get("/v1/auth/me", headers=headers)
+    r = c.get("/api/v1/auth/me", headers=headers)
     assert r.status_code == 200
     assert r.json()["can_admin"] is True
     assert r.json()["data_scope"] == "national"
