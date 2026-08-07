@@ -91,7 +91,7 @@ def _get_ip_address() -> str:
         ip = s.getsockname()[0]
         s.close()
         return ip
-    except:
+    except Exception:
         return "127.0.0.1"
 
 
@@ -114,7 +114,7 @@ def _get_gpu_info() -> GpuInfo:
                 memory_total_mb=float(parts[3].strip()) / 1024,
                 temperature_celsius=float(parts[4].strip()),
             )
-    except:
+    except Exception:
         pass
     return GpuInfo()
 
@@ -127,7 +127,7 @@ def _get_cpu_temp() -> Optional[float]:
             for name, entries in temps.items():
                 if entries:
                     return entries[0].current
-    except:
+    except Exception:
         pass
     return None
 

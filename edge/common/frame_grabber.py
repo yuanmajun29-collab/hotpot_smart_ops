@@ -158,7 +158,7 @@ class FrameGrabber:
         if self._cap:
             try:
                 self._cap.release()
-            except:
+            except Exception:  # 帧抓取失败，继续下一路
                 pass
             self._cap = None
             logger.info("RTSP connection closed")

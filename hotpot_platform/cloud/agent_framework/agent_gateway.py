@@ -884,8 +884,8 @@ class AgentGatewayMiddleware:
                     params=params,
                     result=error_result,
                 )
-            except:
-                pass  # 审计失败不影响主流程
+            except Exception:  # 审计失败不影响主流程
+                pass
 
             return error_result
 

@@ -659,7 +659,7 @@ def get_dataflow_manager() -> BidirectionalDataFlowManager:
             try:
                 cfg = json.loads(hub_conf.read_text())
                 hub_url = cfg.get("hub_url", hub_url)
-            except:
+            except Exception:
                 pass
 
         _dataflow_manager = BidirectionalDataFlowManager(

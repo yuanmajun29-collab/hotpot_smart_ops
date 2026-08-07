@@ -29,7 +29,7 @@ def _read_agent_state() -> dict:
         import json
         try:
             return json.loads(STATE_FILE.read_text(encoding="utf-8"))
-        except:
+        except Exception:
             pass
     # 返回默认值（Agent未启动或无状态文件）
     return {
@@ -65,7 +65,7 @@ async def get_platform_status(_=Depends(get_current_session)):
     try:
         from api.config_api import _load_json
         hub_cfg = _load_json("hub_connection.json")
-    except:
+    except Exception:  # hub连接配置文件读取失败
         pass
 
     return {

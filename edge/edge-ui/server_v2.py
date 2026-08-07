@@ -349,7 +349,7 @@ def _get_cpu_percent():
         d_idle = idle2 - idle1
         d_total = sum(fields[i] - fields[i] for i in range(7))
         return round((1 - d_idle / d_total) * 100, 1)
-    except:
+    except Exception:
         return 0.0
 
 
@@ -363,7 +363,7 @@ def _get_memory_info():
         return {"total_mb": round(mem['MemTotal'] / 1024),
                 "used_mb": round((mem['MemTotal'] - mem['MemAvailable']) / 1024),
                 "free_mb": round(mem['MemAvailable'] / 1024)}
-    except:
+    except Exception:
         return {"total_mb": 0, "used_mb": 0, "free_mb": 0}
 
 
@@ -376,7 +376,7 @@ def _get_disk_info():
         return {"total_gb": round(total / (1024**3), 1),
                 "used_gb": round(used / (1024**3), 1),
                 "free_gb": round(free / (1024**3), 1)}
-    except:
+    except Exception:
         return {"total_gb": 0, "used_gb": 0, "free_gb": 0}
 
 
@@ -384,7 +384,7 @@ def _get_uptime_seconds():
     try:
         with open('/proc/uptime') as f:
             return int(float(f.readline().split()[0]))
-    except:
+    except Exception:
         return 0
 
 

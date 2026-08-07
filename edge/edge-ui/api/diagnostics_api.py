@@ -173,7 +173,7 @@ async def run_diagnostics(background_tasks: BackgroundTasks, _=Depends(get_curre
             cameras = _load_cameras()
             for cam in cameras:
                 results.append(_test_camera(cam))
-        except:
+        except Exception:
             results.append(DiagnosticResult(
                 category="camera", name="摄像头配置", target=None,
                 status="skip", detail="无法加载摄像头配置",

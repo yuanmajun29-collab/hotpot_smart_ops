@@ -124,9 +124,9 @@ def main():
     try:
         # 创建远程目录
         try: sftp.mkdir(f"{REMOTE_BASE}/edge")
-        except: pass
+        except Exception: pass  # 部署操作失败不阻塞
         try: sftp.mkdir(EDGE_DIR)
-        except: pass
+        except Exception: pass  # 部署操作失败不阻塞
         
         # 上传压缩包
         remote_pkg = "/tmp/hotpot-edge-ui.tar.gz"
