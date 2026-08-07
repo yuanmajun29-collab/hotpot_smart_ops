@@ -28,8 +28,10 @@ from datetime import datetime, timezone
 from enum import Enum
 from typing import Any, Dict, List, Optional
 
-from fastapi import APIRouter, Header, HTTPException, Request
+from fastapi import APIRouter, Depends, Header, HTTPException, Request
 from pydantic import BaseModel, Field
+
+from hotpot_platform.cloud.event_hub.auth import AuthContext, enforce_store_write, get_auth_context
 
 router = APIRouter()
 
@@ -174,6 +176,7 @@ async def submit_edge_events(
     x_store_id: Optional[str] = Header(None, alias="X-Store-Id"),
     x_device_id: Optional[str] = Header(None, alias="X-Device-Id"),
     x_edge_version: Optional[str] = Header(None, alias="X-Edge-Version"),
+    auth: AuthContext = Depends(get_auth_context),
 ):
     """
     统一边缘事件上报 (P0-B 核心端点)
@@ -209,7 +212,16 @@ async def submit_edge_events(
     event_ids = []
     errors = []
 
+    # 请求头、认证门店与每一条事件必须一致，禁止用一个设备凭证跨店写入。
+    for event in request.events:
+        if x_store_id and event.store_id != x_store_id:
+            raise HTTPException(status_code=400, detail="X-Store-Id 与事件 store_id 不一致")
+        if x_device_id and event.device_id != x_device_id:
+            raise HTTPException(status_code=400, detail="X-Device-Id 与事件 device_id 不一致")
+        enforce_store_write(auth, event.store_id)
+
     for idx, event in enumerate(request.events):
+        idemp_key = ""
         try:
             # 1. 验证必填字段
             if not event.event_type or not event.store_id or not event.device_id or not event.timestamp:
@@ -223,17 +235,52 @@ async def submit_edge_events(
 
             # 3. 分配事件ID
             evt_id = event.event_id or _generate_event_id()
-            event_ids.append(evt_id)
+            canonical_event = {
+                "event_id": evt_id,
+                "event_type": event.event_type.value,
+                "store_id": event.store_id,
+                "device_id": event.device_id,
+                "timestamp": event.timestamp,
+                "level": event.severity.value,
+                "source": "edge",
+                "confidence": event.confidence,
+                "payload": event.payload,
+                "metadata": {
+                    "idempotency_key": idemp_key,
+                    "trace_id": event.trace_id,
+                    "source_event_id": event.source_event_id,
+                    "offline_buffer": event.is_offline_buffer,
+                    "buffered_at": event.buffered_at,
+                    "edge_version": x_edge_version,
+                    "evidence_ref": event.evidence_ref.model_dump() if event.evidence_ref else None,
+                },
+            }
+            # 任务工厂、桌态等既有领域逻辑读取顶层字段；仅将允许的
+            # 业务字段投影出来，不让任意 payload 覆盖身份/审计字段。
+            for key in ("message", "table_id", "zone", "camera_id"):
+                if key in event.payload:
+                    canonical_event[key] = event.payload[key]
 
-            # 4. 写入 Hub PostgreSQL (主写)
-            # TODO: 集成 runtime.hub.get_store(store_id).add_unified_event()
-            # 当前先做内存验证，后续接入PG主写
+            # 4. 单一 Hub 主写：EventStore 的持久化钩子写 SQLite/PG。
+            from hotpot_platform.cloud.event_hub import runtime
+            from hotpot_platform.cloud.event_hub.task_factory import spawn_task_for_event
+
+            if runtime.hub is None or runtime.db is None:
+                raise RuntimeError("Event Hub runtime is not initialized")
+            runtime.hub.get_store(event.store_id).add_event(canonical_event)
+            spawn_task_for_event(runtime.db, event.store_id, canonical_event)
+            event_ids.append(evt_id)
             accepted += 1
 
         except ValueError as ve:
+            if idemp_key:
+                _idempotency_store.pop(idemp_key, None)
             rejected += 1
             errors.append({"event_index": str(idx), "reason": str(ve)})
         except Exception as ex:
+            # 仅在成功写入 Hub 后保留幂等键；失败请求必须可由 Edge 重试。
+            if idemp_key:
+                _idempotency_store.pop(idemp_key, None)
             rejected += 1
             errors.append({"event_index": str(idx), "reason": f"内部错误: {str(ex)}"})
 
@@ -249,7 +296,7 @@ async def submit_edge_events(
 
 
 @router.get("/api/v1/edge/events/schema")
-async def get_event_schema():
+async def get_event_schema(auth: AuthContext = Depends(get_auth_context)):
     """
     获取统一事件契约 Schema (供边缘设备校验使用)
 
@@ -275,7 +322,7 @@ async def get_event_schema():
 
 
 @router.get("/api/v1/edge/events/idempotency/stats")
-async def get_idempotency_stats():
+async def get_idempotency_stats(auth: AuthContext = Depends(get_auth_context)):
     """幂等去重统计 (运维用)"""
     now = time.time()
     active_keys = sum(1 for t in _idempotency_store.values() if now - t < _IDEMPOTENCY_TTL_SECONDS)
@@ -289,7 +336,10 @@ async def get_idempotency_stats():
 # ── 兼容性: 旧版 /v1/events 映射到新契约 ──
 
 @router.post("/v1/events", response_model=BatchEventsResponse, deprecated=True)
-async def post_events_legacy(request: Request):
+async def post_events_legacy(
+    request: Request,
+    auth: AuthContext = Depends(get_auth_context),
+):
     """
     [已废弃] 旧版事件接口
 
@@ -320,4 +370,4 @@ async def post_events_legacy(request: Request):
         ))
 
     batch_request = BatchEventsRequest(events=unified_events)
-    return await submit_edge_events(batch_request)
+    return await submit_edge_events(batch_request, auth=auth)

@@ -86,7 +86,7 @@ class SOPChecker:
             ComplianceReport 含 compliance_score + violations[]
         """
         signals = signals or {}
-        rules = self._load_rules(zone, template_id)
+        rules = self._load_rules(store_id, zone, template_id)
 
         if not rules:
             return ComplianceReport(
@@ -493,12 +493,13 @@ class SOPChecker:
 
     # ── 内部辅助 ──────────────────────────────────────────
 
-    def _load_rules(self, zone: Zone, template_id: Optional[str]) -> List[SOPRule]:
+    def _load_rules(self, store_id: str, zone: Zone, template_id: Optional[str]) -> List[SOPRule]:
         """加载指定区域的活跃规则.
 
         优先从DB加载，降级为预置规则.
         """
-        cache_key = f"{_enum_val(zone)}:{template_id or 'default'}"
+        # 门店可以发布不同版本的规则；缓存不得跨门店共享。
+        cache_key = f"{store_id}:{_enum_val(zone)}:{template_id or 'default'}"
         if cache_key in self._rule_cache:
             return self._rule_cache[cache_key]
 

@@ -22,6 +22,13 @@ from typing import Any, Dict, List, Optional
 from fastapi import APIRouter, HTTPException, Depends
 from pydantic import BaseModel, Field
 
+from hotpot_platform.cloud.event_hub.auth import (
+    AuthContext,
+    can_admin,
+    enforce_store_read,
+    get_auth_context,
+)
+
 logger = logging.getLogger(__name__)
 
 router = APIRouter(tags=["Agent Chat"])
@@ -53,6 +60,7 @@ class ChatSession(BaseModel):
     """对话会话信息。"""
     session_id: str
     store_id: str
+    user_id: str
     messages: List[Dict[str, str]] = Field(default_factory=list)
     created_at: str
     updated_at: str
@@ -251,11 +259,13 @@ def _generate_actions(intent: str, message: str) -> list:
 _sessions: Dict[str, ChatSession] = {}
 
 
-def _get_or_create_session(store_id: str, session_id: Optional[str] = None) -> ChatSession:
+def _get_or_create_session(store_id: str, user_id: str, session_id: Optional[str] = None) -> ChatSession:
     """获取或创建会话。"""
     ts = _now()
     if session_id and session_id in _sessions:
         session = _sessions[session_id]
+        if session.store_id != store_id or session.user_id != user_id:
+            raise HTTPException(status_code=403, detail="会话不属于当前用户或门店")
         session.updated_at = ts
         return session
 
@@ -263,6 +273,7 @@ def _get_or_create_session(store_id: str, session_id: Optional[str] = None) -> C
     session = ChatSession(
         session_id=sid,
         store_id=store_id,
+        user_id=user_id,
         messages=[],
         created_at=ts,
         updated_at=ts,
@@ -281,7 +292,10 @@ def _now() -> str:
 @router.post("/api/v1/agent/chat", response_model=ChatResponse,
              summary="Agent 自然语言对话",
              description="接收用户自然语言消息，自动路由到对应岗位 Agent 并返回回复。")
-async def agent_chat(request: ChatRequest) -> ChatResponse:
+async def agent_chat(
+    request: ChatRequest,
+    auth: AuthContext = Depends(get_auth_context),
+) -> ChatResponse:
     """Agent 对话入口。
 
     流程：
@@ -291,6 +305,7 @@ async def agent_chat(request: ChatRequest) -> ChatResponse:
     """
     if not request.message or not request.message.strip():
         raise HTTPException(status_code=400, detail="message 不能为空")
+    enforce_store_read(auth, request.store_id)
 
     intent = classify_intent(request.message)
     agent_name_map = {
@@ -302,7 +317,7 @@ async def agent_chat(request: ChatRequest) -> ChatResponse:
     agent = agent_name_map.get(intent, "store_manager_agent")
 
     # Session management
-    session = _get_or_create_session(request.store_id, request.session_id)
+    session = _get_or_create_session(request.store_id, auth.sub, request.session_id)
 
     # Generate response
     reply = _pick_template(intent, request.message)
@@ -329,28 +344,46 @@ async def agent_chat(request: ChatRequest) -> ChatResponse:
 @router.get("/api/v1/agent/sessions/{store_id}",
             summary="获取门店对话历史",
             response_model=List[ChatSession])
-async def list_sessions(store_id: str):
+async def list_sessions(
+    store_id: str,
+    auth: AuthContext = Depends(get_auth_context),
+):
     """获取指定门店的所有对话会话。"""
-    return [s for s in _sessions.values() if s.store_id == store_id]
+    enforce_store_read(auth, store_id)
+    return [s for s in _sessions.values() if s.store_id == store_id and (can_admin(auth) or s.user_id == auth.sub)]
 
 
 @router.get("/api/v1/agent/sessions/{store_id}/{session_id}",
             summary="获取指定会话详情",
             response_model=ChatSession)
-async def get_session(store_id: str, session_id: str):
+async def get_session(
+    store_id: str,
+    session_id: str,
+    auth: AuthContext = Depends(get_auth_context),
+):
     """获取指定会话详情。"""
     session = _sessions.get(session_id)
     if not session or session.store_id != store_id:
         raise HTTPException(status_code=404, detail="会话不存在")
+    enforce_store_read(auth, store_id)
+    if not can_admin(auth) and session.user_id != auth.sub:
+        raise HTTPException(status_code=403, detail="会话不属于当前用户")
     return session
 
 
 @router.delete("/api/v1/agent/sessions/{store_id}/{session_id}",
                summary="删除对话会话")
-async def delete_session(store_id: str, session_id: str):
+async def delete_session(
+    store_id: str,
+    session_id: str,
+    auth: AuthContext = Depends(get_auth_context),
+):
     """删除指定会话。"""
     session = _sessions.get(session_id)
     if not session or session.store_id != store_id:
         raise HTTPException(status_code=404, detail="会话不存在")
+    enforce_store_read(auth, store_id)
+    if not can_admin(auth) and session.user_id != auth.sub:
+        raise HTTPException(status_code=403, detail="会话不属于当前用户")
     del _sessions[session_id]
     return {"ok": True, "deleted": session_id}

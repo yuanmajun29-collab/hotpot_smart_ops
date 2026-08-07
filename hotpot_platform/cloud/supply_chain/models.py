@@ -38,6 +38,8 @@ class ReceivingRecord:
 class QualityCheckResult:
     check_id: str=""; batch_id: str=""; store_id: str=""
     vlm_passed: Optional[bool]=None; vlm_grade: Optional[str]=None; vlm_confidence: float=0.0
+    # 置信度必须说明来源；未接真实 VLM 时不可被展示为视觉推理结果。
+    confidence_source: str="unknown"
     vlm_issues: List[str]=field(default_factory=list)
     color_ok: Optional[bool]=None; freshness_ok: Optional[bool]=None; texture_ok: Optional[bool]=None
     damage_detected: bool=False; foreign_object: bool=False

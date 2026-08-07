@@ -689,14 +689,14 @@ class EdgeGatewayHandler(SimpleHTTPRequestHandler):
 
         # 手动刷新离线队列
         elif path == '/api/platform/flush-queue':
-            try:
-                from .api.hub_proxy import HubClient
-                client = HubClient()
-                flushed = client.flush_queue() if hasattr(client, 'flush_queue') else 0
-            except Exception:
-                flushed = 0
-            _platform_state["queue_flushed_total"] += flushed
-            return self._send_json({"code": 0, "data": {"flushed": flushed}})
+            # server_v2 是同步 HTTPServer；HubProxyClient 是异步代理且没有
+            # flush_queue API。此前错误导入后仍返回 0，造成“假成功”。
+            # 在接入统一 DataFlow 队列前显式失败，前端可提示用户稍后重试。
+            return self._send_json({
+                "code": -1,
+                "message": "离线队列刷新尚未接入当前 Edge Gateway；请使用 DataFlow 队列接口",
+                "data": {"flushed": None},
+            })
 
         # ──── 其他原有API ────
         elif path == '/api/network/config':

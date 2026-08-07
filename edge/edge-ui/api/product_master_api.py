@@ -33,7 +33,7 @@ from middleware import get_current_session
 
 # 数据层
 from hotpot_platform.cloud.supply_chain.manager import SupplyChainManager
-from hotpot_platform.cloud.supply_chain.models import (
+from hotpot_platform.cloud.supply_chain.legacy_models import (
     ProductMaster,
     ProductCategory,
     ChangeRequest,

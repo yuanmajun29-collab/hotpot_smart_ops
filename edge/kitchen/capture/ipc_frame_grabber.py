@@ -142,7 +142,8 @@ def run_inference(image_path: str, config: dict):
 
     hub_url = config.get("hub_url", DEFAULT_CONFIG["hub_url"])
     store_id = config.get("store_id", DEFAULT_CONFIG["store_id"])
-    zone = config.get("zone", DEFAULT_CONFIG["zone"])
+    cameras = config.get("cameras") or DEFAULT_CONFIG["cameras"]
+    zone = config.get("zone") or cameras[0].get("zone", "unknown")
 
     env = os.environ.copy()
     env["HOTPOT_HUB_URL"] = hub_url
@@ -173,12 +174,16 @@ def run_inference(image_path: str, config: dict):
 
 def run_continuous(config: dict):
     """持续抽帧循环。"""
-    url = config["stream_url"]
+    cameras = config.get("cameras") or DEFAULT_CONFIG["cameras"]
+    if not cameras:
+        raise ValueError("配置中至少需要一个 camera")
+    camera = cameras[0]
+    url = camera["stream_url"]
     interval = config["interval_seconds"]
     save_latest = config["save_latest_only"]
     timeout = config["stream_timeout"]
     auto_infer = config["auto_infer"]
-    infer_every = config.get("infer_on_frame_count", 1)
+    infer_every = camera.get("infer_on_frame_count", 1)
 
     os.makedirs(FRAME_DIR, exist_ok=True)
 
@@ -215,7 +220,10 @@ def run_continuous(config: dict):
 
 def run_once(config: dict):
     """单次抽帧（用于测试）。"""
-    url = config["stream_url"]
+    cameras = config.get("cameras") or DEFAULT_CONFIG["cameras"]
+    if not cameras:
+        raise ValueError("配置中至少需要一个 camera")
+    url = cameras[0]["stream_url"]
     timeout = config["stream_timeout"]
     auto_infer = config.get("auto_infer", True)
 

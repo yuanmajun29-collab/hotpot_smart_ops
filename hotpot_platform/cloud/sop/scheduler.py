@@ -8,6 +8,7 @@ from __future__ import annotations
 
 import argparse
 import json
+import logging
 import os
 import signal
 import sys
@@ -21,6 +22,7 @@ if str(PROJECT_ROOT) not in sys.path:
     sys.path.insert(0, str(PROJECT_ROOT))
 
 from hotpot_platform.cloud.sop_engine.checker import SOPChecker
+from hotpot_platform.cloud.sop_engine.models import Zone
 from common.hub_client import EdgeHubClient
 from common.schemas import utc_now_iso
 
@@ -32,6 +34,22 @@ SHIFT_SCHEDULE = [
 ]
 
 _stop = False
+logger = logging.getLogger(__name__)
+
+_ZONE_ALIASES = {
+    "back_kitchen": Zone.KITCHEN,
+    "kitchen": Zone.KITCHEN,
+    "warehouse": Zone.WAREHOUSE,
+    "front_hall": Zone.FRONT,
+    "front": Zone.FRONT,
+    "dining": Zone.DINING,
+}
+
+
+def _resolve_zone(signal: Dict[str, Any]) -> Zone:
+    """将边缘信号中的区域规范化为 SOP 引擎枚举。"""
+    raw = str(signal.get("zone", signal.get("area", "kitchen"))).lower()
+    return _ZONE_ALIASES.get(raw, Zone.KITCHEN)
 
 
 def _handle_stop(signum: int, frame: object) -> None:
@@ -67,6 +85,7 @@ def run_evaluation(
     all_events: list[dict] = []
     total_checks = 0
     passed_checks = 0
+    evaluation_errors: list[str] = []
 
     # 逐信号检查
     signal_items = (signals if isinstance(signals, list)
@@ -82,35 +101,46 @@ def run_evaluation(
         sig.setdefault("shift", shift)
 
         try:
-            check_result = checker.check_compliance(store_id, sig)
+            check_result = checker.check(store_id, _resolve_zone(sig), sig)
         except Exception as exc:
-            print(f"[sop_scheduler] check_compliance error: {exc}", file=sys.stderr)
+            # 不能吞异常后伪造 100% 合规；错误明确传给平台和监控。
+            logger.exception("SOP evaluation failed for store=%s", store_id)
+            evaluation_errors.append(str(exc))
             continue
 
-        total_checks += 1
-        violations = check_result.get("violations", [])
-        if not violations:
-            passed_checks += 1
+        total_checks += check_result.total_rules
+        passed_checks += check_result.passed_count
+        violations = check_result.violations
 
         # 将违规项转为 Hub 事件
         for v in violations:
             all_events.append({
                 "event_type": "sop_violation",
                 "source": "sop",
-                "level": v.get("severity", "warn"),
+                "level": v.severity.value,
                 "store_id": store_id,
-                "message": v.get("description", str(v)),
+                "message": v.rule_name,
                 "timestamp": utc_now_iso(),
-                "zone": "back_kitchen",
+                "zone": v.zone.value,
                 "metadata": {
-                    "rule_id": v.get("rule_id", ""),
-                    "category": v.get("category", ""),
+                    "rule_id": v.rule_id,
+                    "category": "sop",
                     "shift": shift,
-                    "evidence": v.get("evidence", {}),
+                    "evidence_ref": v.evidence_ref,
+                    "suggested_action": v.suggested_action,
                 },
             })
 
-    compliance_rate = round((passed_checks / total_checks * 100) if total_checks else 100, 1)
+    # 没有可评估规则/信号不是“100% 合规”。显式暴露 no_data 或 error。
+    if evaluation_errors:
+        evaluation_status = "error"
+        compliance_rate = None
+    elif total_checks == 0:
+        evaluation_status = "no_data"
+        compliance_rate = None
+    else:
+        evaluation_status = "evaluated"
+        compliance_rate = round(passed_checks / total_checks * 100, 1)
 
     result = {
         "store_id": store_id,
@@ -118,6 +148,8 @@ def run_evaluation(
         "compliance_rate": compliance_rate,
         "passed": passed_checks,
         "total": total_checks,
+        "evaluation_status": evaluation_status,
+        "evaluation_errors": evaluation_errors,
         "events": all_events,
         "checked_at": utc_now_iso(),
     }

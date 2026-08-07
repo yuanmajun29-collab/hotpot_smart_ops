@@ -3,17 +3,27 @@ Agent NL Webhook — 微信消息入口
 POST /webhook/nl → 规则引擎 → 回复
 """
 
-from fastapi import APIRouter, Request, HTTPException
+from fastapi import APIRouter, Depends, Header, HTTPException
 from pydantic import BaseModel
 from typing import Optional
-import hashlib
+import hmac
 import os
 
 from ..nl_router import process_message
 
 router = APIRouter(prefix="/webhook", tags=["NL Webhook"])
 
-WECHAT_TOKEN = os.environ.get("WECHAT_CALLBACK_TOKEN", "hotpot-nl-mvp")
+WECHAT_TOKEN = os.environ.get("WECHAT_CALLBACK_TOKEN", "")
+
+
+def _verify_webhook_token(
+    x_hotpot_webhook_token: Optional[str] = Header(None, alias="X-Hotpot-Webhook-Token"),
+) -> None:
+    """验证外部消息网关的共享密钥，避免匿名触发 Agent 查询。"""
+    if not WECHAT_TOKEN:
+        raise HTTPException(status_code=503, detail="Webhook token is not configured")
+    if not x_hotpot_webhook_token or not hmac.compare_digest(x_hotpot_webhook_token, WECHAT_TOKEN):
+        raise HTTPException(status_code=401, detail="Invalid webhook token")
 
 
 class NLRequest(BaseModel):
@@ -32,7 +42,7 @@ class NLResponse(BaseModel):
 
 
 @router.post("/nl", response_model=NLResponse)
-async def nl_webhook(req: NLRequest):
+async def nl_webhook(req: NLRequest, _: None = Depends(_verify_webhook_token)):
     """接收微信文本消息，规则匹配后返回回复"""
     if not req.text or not req.text.strip():
         raise HTTPException(status_code=400, detail="text is required")
@@ -42,5 +52,5 @@ async def nl_webhook(req: NLRequest):
 
 
 @router.get("/nl/health")
-async def nl_health():
+async def nl_health(_: None = Depends(_verify_webhook_token)):
     return {"status": "ok", "engine": "keyword-rule", "version": "mvp-v0.1"}

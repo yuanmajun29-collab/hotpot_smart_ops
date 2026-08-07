@@ -26,6 +26,8 @@ import uuid
 from datetime import datetime, date, timedelta
 from typing import List, Optional, Dict, Any
 
+logger = logging.getLogger(__name__)
+
 # ── P0-2 Agent Gateway 集成 ──────────────────────────────
 # 导入统一的行动类型和权限控制中间件
 try:
@@ -48,7 +50,7 @@ except ImportError:
     logger.warning("⚠️ [P0-2] Agent Gateway 未安装，权限控制降级为基础模式")
 # ── End Gateway Integration ───────────────────────────────
 
-from hotpot_platform.cloud.supply_chain.models import (
+from hotpot_platform.cloud.supply_chain.legacy_models import (
     SupplierInfo,
     SupplierCollabData,
     ReceivingRecord,
@@ -68,8 +70,7 @@ from hotpot_platform.cloud.supply_chain.models import (
     ProductStatsResponse,
 )
 
-logger = logging.getLogger(__name__)
-
+from common.schemas import utc_now_iso
 
 class SupplyChainManager:
     """冻品供应链管理器 — 对接 PRD S01-S04
@@ -77,7 +78,9 @@ class SupplyChainManager:
     统一管理供应商、收货、采购订单和协同评分。
     """
 
-    def __init__(self, db_session) -> None:
+    def __init__(self, db_session=None) -> None:
+        # 旧 S01--S04 方法仍可注入数据库连接；W2 的收货流水线不依赖
+        # 该连接。保留 ``None`` 是为了避免公开构造器在测试和编排器中崩溃。
         self._db = db_session
         self._rfid_tracker = None   # type: Optional[RFIDTracker]
         self._iot_monitor = None     # type: Optional[IoTMonitor]
@@ -234,7 +237,7 @@ class SupplyChainManager:
 
         if temp_issues:
             record.notes = (
-                f"⚠️ 温度异常: {'; '.join(tempissues)} | "
+                f"⚠️ 温度异常: {'; '.join(temp_issues)} | "
                 f"{record.notes or ''}"
             )
             logger.warning("收货温度异常 %s: %s", record_id, temp_issues)
@@ -451,8 +454,8 @@ class SupplyChainManager:
         if store_id and items:
             po = PurchaseOrder(
                 store_id=store_id,
-                items=[PurchaseItem(**item) for item in items],
-                created_by=creator,
+                items=[PurchaseOrderItem(**item) for item in items],
+                ordered_by=creator,
                 status="draft",
             )
 
@@ -476,10 +479,11 @@ class SupplyChainManager:
         """
         batch_id = f"BTH-{uuid.uuid4().hex[:8].upper()}"
         record = ReceivingRecord(
-            batch_id=batch_id,
-            po_id=po_id,
             store_id=store_id,
-            zone=zone,
+            supplier_name="",
+            po_number=po_id,
+            received_at=datetime.utcnow(),
+            notes=f"收货区域: {zone}",
         )
         try:
             self._write_receiving_record(record)
@@ -5157,3 +5161,130 @@ class SupplyChainManager:
         except Exception as e:
             logger.error(f"[D3] 事件触发失败: {e}", exc_info=True)
             return 0
+
+
+# ── W2 收货流程服务 ────────────────────────────────────────────────────────
+# 这些服务使用 models.py 的 dataclass。旧 S01--S04 管理器仍使用
+# legacy_models.py，二者不再因同名模型产生隐式耦合。
+class ReceivingManager:
+    """创建 W2 收货批次；持久化由上层 Hub 业务服务负责。"""
+
+    @staticmethod
+    def create_record(**payload):
+        from hotpot_platform.cloud.supply_chain.models import ReceivingRecord
+
+        record = ReceivingRecord(**payload)
+        if record.temp_c is not None:
+            # 冻品本轮默认验收阈值；品类规则可由上层配置覆盖。
+            record.temp_ok = record.temp_c <= -12.0
+        return record
+
+
+class QualityManager:
+    """收货质量判定的可重复基础规则。
+
+    真正 VLM 结果由桥接服务填入；本类绝不将模拟结果标记为真实 VLM。
+    """
+
+    @staticmethod
+    def inspect_batch(record):
+        from hotpot_platform.cloud.supply_chain.models import QualityCheckResult
+
+        deviation = record.variance_pct
+        needs_review = bool(
+            (deviation is not None and abs(deviation) > 10)
+            or record.temp_ok is False
+        )
+        if record.temp_ok is False or (deviation is not None and abs(deviation) > 20):
+            grade = "D"
+        elif needs_review:
+            grade = "C"
+        elif deviation is not None and abs(deviation) > 3:
+            grade = "B"
+        else:
+            grade = "A"
+
+        result = QualityCheckResult(
+            batch_id=record.batch_id,
+            store_id=record.store_id,
+            weight_deviation_pct=deviation,
+            weight_ok=not (deviation is not None and abs(deviation) > 10),
+            temp_value_c=record.temp_c,
+            temp_ok=record.temp_ok,
+            # 规则结果与 VLM 结果分开，避免把本地规则伪装成视觉模型。
+            vlm_passed=None,
+            # W2 兼容字段保留确定性规则的判定信心，但显式标注来源，
+            # 前端/审计不得将其解释为 VLM 推理置信度。
+            vlm_confidence=0.95 if not needs_review else 0.60,
+            confidence_source="rule",
+            manual_review_needed=needs_review,
+            final_grade=grade,
+        )
+        result.determine_action()
+        return result
+
+
+class PurchaseOrderManager:
+    """W2 采购单状态机的轻量服务。"""
+
+    def __init__(self) -> None:
+        self._orders = {}
+
+    def create_order(self, **payload):
+        from hotpot_platform.cloud.supply_chain.models import PurchaseOrder
+
+        order = PurchaseOrder(**payload)
+        self._orders[order.po_id] = order
+        return order
+
+    def transition(self, po_id, status) -> bool:
+        from hotpot_platform.cloud.supply_chain.models import POStatus
+
+        order = self._orders.get(po_id)
+        return bool(order and order.transition(POStatus(status)))
+
+
+class ApprovalWorkflowManager:
+    """W2 审批流内存实现；生产持久化须由 Hub 审批表接管。"""
+
+    def __init__(self) -> None:
+        self._workflows = {}
+
+    def start_receiving_approval(self, *, batch_id, store_id, chef_name, created_by, **kwargs):
+        from hotpot_platform.cloud.supply_chain.models import ApprovalWorkflow
+
+        workflow = ApprovalWorkflow.create_receiving_workflow(
+            document_type="receiving",
+            document_id=batch_id,
+            created_by=created_by,
+            chef_name=chef_name,
+            store_manager=kwargs.get("store_manager", ""),
+            area_manager=kwargs.get("area_manager", ""),
+            is_reject_scenario=bool(kwargs.get("is_reject_scenario", False)),
+        )
+        self._workflows[workflow.workflow_id] = workflow
+        return workflow
+
+    def approve_node(self, workflow_id, approver_id, comments=""):
+        workflow = self._workflows.get(workflow_id)
+        if workflow is None:
+            return False, "workflow_not_found"
+        if not workflow.approve(approver_id, comments):
+            return False, "workflow_not_pending"
+        node = workflow.current_node
+        return True, node.role if node else "approved"
+
+
+def _w2_full_receiving_pipeline(self, **payload):
+    record = ReceivingManager().create_record(**payload)
+    quality_check = QualityManager().inspect_batch(record)
+    return {
+        "record": record.to_dict(),
+        "quality_check": quality_check.to_dict(),
+        "needs_approval": quality_check.manual_review_needed,
+    }
+
+
+# 对外保留一键流程，但其模型语义严格属于 W2 dataclass 领域。
+SupplyChainManager.full_receiving_pipeline = _w2_full_receiving_pipeline
+supply_chain_manager = SupplyChainManager()

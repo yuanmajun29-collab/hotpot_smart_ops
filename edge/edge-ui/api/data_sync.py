@@ -39,6 +39,11 @@ from enum import Enum
 from pathlib import Path
 from typing import Any, Callable, Dict, List, Optional, Set
 
+try:
+    import httpx
+except ImportError:  # 由运行环境显式报离线，不能伪造同步成功
+    httpx = None  # type: ignore
+
 logger = logging.getLogger(__name__)
 
 
@@ -147,13 +152,20 @@ class DataSyncEngine:
         # 内部状态
         self._running = False
         self._task: Optional[asyncio.Task] = None
-        _offline_queue: List[SyncRecord] = []
-        _sync_lock = asyncio.Lock()
+        self._offline_queue: List[SyncRecord] = []
+        self._sync_lock = asyncio.Lock()
 
         # 回调函数列表
-        _on_sync_complete: List[Callable] = []
-        _on_conflict: List[Callable] = []
-        _on_error: List[Callable] = []
+        self._on_sync_complete: List[Callable] = []
+        self._on_conflict: List[Callable] = []
+        self._on_error: List[Callable] = []
+
+    def _headers(self) -> Dict[str, str]:
+        """仅使用显式配置的设备凭证；空凭证不得伪装成已登录。"""
+        return {"X-Api-Key": self.config.hub_api_key} if self.config.hub_api_key else {}
+
+    def _log_warning(self, message: str) -> None:
+        logger.warning(message)
 
     async def start(self):
         """启动后台同步任务"""
@@ -269,7 +281,7 @@ class DataSyncEngine:
         pushed_count = 0
 
         # 从离线队列取记录
-        pending_records = [r for r in _offline_queue if r.status == "pending"]
+        pending_records = [r for r in self._offline_queue if r.status == "pending"]
 
         for record in pending_records[:self.config.batch_size]:
             try:
@@ -305,11 +317,13 @@ class DataSyncEngine:
 
         # 实际调用 Hub API 获取产品主数据
         try:
-            response = httpx.get(
+            if httpx is None:
+                raise RuntimeError("httpx 未安装，无法执行 Hub 同步")
+            async with httpx.AsyncClient(timeout=self.config.timeout) as client:
+                response = await client.get(
                 f"{self.config.hub_url}/api/v1/products",
-                headers={"Authorization": f"Bearer {self._get_jwt_token()}"},
-                timeout=self.config.timeout
-            )
+                headers=self._headers(),
+                )
             if response.status_code == 200:
                 products = response.json()
                 self._update_local_cache("product_master", products)
@@ -345,21 +359,28 @@ class DataSyncEngine:
         Returns:
             是否成功
         """
-        # TODO: 实际HTTP调用
-        # 示例:
-        # response = httpx.post(
-        #     f"{self.config.hub_url}/api/v1/{record.entity_type}",
-        #     json=record.data,
-        #     headers={
-        #         "Authorization": f"Bearer {self._get_jwt_token()}",
-        #         "X-Correlation-ID": record.correlation_id,
-        #     },
-        #     timeout=self.config.timeout
-        # )
-        # return response.status_code in (200, 201)
-
-        # Mock: 模拟成功
-        return True
+        if httpx is None:
+            self._log_warning("httpx 未安装，记录保留在离线队列")
+            return False
+        endpoint = f"{self.config.hub_url.rstrip('/')}/api/v1/{record.entity_type}"
+        headers = self._headers()
+        if record.correlation_id:
+            headers["X-Correlation-ID"] = record.correlation_id
+        try:
+            async with httpx.AsyncClient(timeout=self.config.timeout) as client:
+                response = await client.request(
+                    "DELETE" if record.action == "delete" else "POST",
+                    endpoint,
+                    json=record.data,
+                    headers=headers,
+                )
+            if response.status_code not in (200, 201, 202, 204):
+                self._log_warning(f"Hub 同步失败 {record.entity_type}/{record.entity_id}: HTTP {response.status_code}")
+                return False
+            return True
+        except Exception as exc:
+            self._log_warning(f"Hub 同步异常 {record.entity_type}/{record.entity_id}: {exc}")
+            return False
 
     async def _enter_offline_mode(self):
         """进入离线模式"""
@@ -377,9 +398,9 @@ class DataSyncEngine:
                 for line in lines:
                     if line.strip():
                         record = SyncRecord(**json.loads(line))
-                        _offline_queue.append(record)
+                        self._offline_queue.append(record)
 
-                logger.info(f"加载离线队列: {len(_offline_queue)} 条记录")
+                logger.info(f"加载离线队列: {len(self._offline_queue)} 条记录")
             except Exception as e:
                 logger.error(f"加载离线队列失败: {e}")
 
@@ -388,7 +409,7 @@ class DataSyncEngine:
         queue_file = Path(self.config.offline_queue_file)
         queue_file.parent.mkdir(parents=True, exist_ok=True)
 
-        pending = [r for r in _offline_queue if r.status == "pending"]
+        pending = [r for r in self._offline_queue if r.status == "pending"]
 
         with open(queue_file, 'w', encoding='utf-8') as f:
             for record in pending:
@@ -421,9 +442,9 @@ class DataSyncEngine:
     async def _trigger_callbacks(self, event: str, data: Dict):
         """触发回调"""
         callbacks = {
-            'on_sync_complete': _on_sync_complete,
-            'on_conflict': _on_conflict,
-            'on_error': _on_error,
+            'on_sync_complete': self._on_sync_complete,
+            'on_conflict': self._on_conflict,
+            'on_error': self._on_error,
         }
 
         for cb in callbacks.get(event, []):
@@ -437,7 +458,7 @@ class DataSyncEngine:
 
     # ============================================================
     # 公共API
-    ============================================================#
+    # ============================================================
 
     async def queue_change(self, entity_type: str, entity_id: str,
                           action: str, data: Dict, correlation_id: str = "") -> str:
@@ -465,7 +486,7 @@ class DataSyncEngine:
             correlation_id=correlation_id,
         )
 
-        _offline_queue.append(record)
+        self._offline_queue.append(record)
 
         logger.debug(f"排队变更: {entity_type}/{entity_id} ({action})")
 
@@ -483,7 +504,7 @@ class DataSyncEngine:
                 'last_sync_time': self.stats.last_sync_time,
                 'uptime_seconds': self.stats.uptime_seconds,
             },
-            'queue_size': len([r for r in _offline_queue if r.status == "pending"]),
+            'queue_size': len([r for r in self._offline_queue if r.status == "pending"]),
         }
 
     def register_callback(self, event: str, callback: Callable):
@@ -493,11 +514,11 @@ class DataSyncEngine:
             raise ValueError(f"无效事件类型: {event}, 有效值: {valid_events}")
 
         if event == 'on_sync_complete':
-            _on_sync_complete.append(callback)
+            self._on_sync_complete.append(callback)
         elif event == 'on_conflict':
-            _on_conflict.append(callback)
+            self._on_conflict.append(callback)
         elif event == 'on_error':
-            _on_error.append(callback)
+            self._on_error.append(callback)
 
 
 # ============================================================
