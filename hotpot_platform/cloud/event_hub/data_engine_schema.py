@@ -19,6 +19,7 @@ SQLITE_DATA_ENGINE_SCHEMA = """
 -- 表1: sales_daily — per-SKU 日销量时序
 CREATE TABLE IF NOT EXISTS sales_daily (
     id          INTEGER PRIMARY KEY AUTOINCREMENT,
+    tenant_id   TEXT    NOT NULL DEFAULT '',
     store_id    TEXT    NOT NULL,
     business_date TEXT NOT NULL,
     sku         TEXT    NOT NULL,
@@ -39,6 +40,7 @@ CREATE INDEX IF NOT EXISTS idx_sales_sku ON sales_daily(sku);
 -- 表2: inventory_ledger — 库存台账 (流水)
 CREATE TABLE IF NOT EXISTS inventory_ledger (
     id              INTEGER PRIMARY KEY AUTOINCREMENT,
+    tenant_id       TEXT    NOT NULL DEFAULT '',
     store_id        TEXT    NOT NULL,
     sku             TEXT    NOT NULL,
     batch_id        TEXT,
@@ -58,6 +60,7 @@ CREATE INDEX IF NOT EXISTS idx_inv_store_sku ON inventory_ledger(store_id, sku);
 
 -- 表3: inventory_snapshot — 库存快照
 CREATE TABLE IF NOT EXISTS inventory_snapshot (
+    tenant_id   TEXT    NOT NULL DEFAULT '',
     store_id    TEXT    NOT NULL,
     sku         TEXT    NOT NULL,
     on_hand_qty REAL    NOT NULL DEFAULT 0,
@@ -75,6 +78,7 @@ CREATE TABLE IF NOT EXISTS inventory_snapshot (
 -- 表4: sales_forecast — 预测结果
 CREATE TABLE IF NOT EXISTS sales_forecast (
     id          INTEGER PRIMARY KEY AUTOINCREMENT,
+    tenant_id   TEXT    NOT NULL DEFAULT '',
     store_id    TEXT    NOT NULL,
     sku         TEXT    NOT NULL,
     forecast_date TEXT NOT NULL,
@@ -92,6 +96,7 @@ CREATE INDEX IF NOT EXISTS idx_forecast_store_date ON sales_forecast(store_id, f
 -- 表5: order_suggestion — 订货建议
 CREATE TABLE IF NOT EXISTS order_suggestion (
     id              INTEGER PRIMARY KEY AUTOINCREMENT,
+    tenant_id       TEXT    NOT NULL DEFAULT '',
     store_id        TEXT    NOT NULL,
     sku             TEXT    NOT NULL,
     suggested_qty   REAL    NOT NULL,
@@ -113,6 +118,7 @@ CREATE TABLE IF NOT EXISTS order_suggestion (
 -- 表6: supplier_scorecard — 供应商评分卡
 CREATE TABLE IF NOT EXISTS supplier_scorecard (
     id              INTEGER PRIMARY KEY AUTOINCREMENT,
+    tenant_id       TEXT    NOT NULL DEFAULT '',
     store_id        TEXT,
     supplier_name   TEXT    NOT NULL,
     sku             TEXT,
@@ -136,6 +142,7 @@ POSTGRES_DATA_ENGINE_SCHEMA = """
 -- 表1: sales_daily — per-SKU 日销量时序
 CREATE TABLE IF NOT EXISTS sales_daily (
     id          SERIAL PRIMARY KEY,
+    tenant_id   VARCHAR(64)  NOT NULL DEFAULT '',
     store_id    TEXT    NOT NULL,
     business_date DATE NOT NULL,
     sku         TEXT    NOT NULL,
@@ -156,6 +163,7 @@ CREATE INDEX IF NOT EXISTS idx_sales_sku ON sales_daily(sku);
 -- 表2: inventory_ledger — 库存台账 (流水)
 CREATE TABLE IF NOT EXISTS inventory_ledger (
     id              SERIAL PRIMARY KEY,
+    tenant_id       VARCHAR(64)  NOT NULL DEFAULT '',
     store_id        TEXT    NOT NULL,
     sku             TEXT    NOT NULL,
     batch_id        TEXT,
@@ -175,6 +183,7 @@ CREATE INDEX IF NOT EXISTS idx_inv_store_sku ON inventory_ledger(store_id, sku);
 
 -- 表3: inventory_snapshot — 库存快照
 CREATE TABLE IF NOT EXISTS inventory_snapshot (
+    tenant_id   VARCHAR(64)  NOT NULL DEFAULT '',
     store_id    TEXT    NOT NULL,
     sku         TEXT    NOT NULL,
     on_hand_qty DOUBLE PRECISION NOT NULL DEFAULT 0,
@@ -192,6 +201,7 @@ CREATE TABLE IF NOT EXISTS inventory_snapshot (
 -- 表4: sales_forecast — 预测结果
 CREATE TABLE IF NOT EXISTS sales_forecast (
     id          SERIAL PRIMARY KEY,
+    tenant_id   VARCHAR(64)  NOT NULL DEFAULT '',
     store_id    TEXT    NOT NULL,
     sku         TEXT    NOT NULL,
     forecast_date DATE NOT NULL,
@@ -209,6 +219,7 @@ CREATE INDEX IF NOT EXISTS idx_forecast_store_date ON sales_forecast(store_id, f
 -- 表5: order_suggestion — 订货建议
 CREATE TABLE IF NOT EXISTS order_suggestion (
     id              SERIAL PRIMARY KEY,
+    tenant_id       VARCHAR(64)  NOT NULL DEFAULT '',
     store_id        TEXT    NOT NULL,
     sku             TEXT    NOT NULL,
     suggested_qty   DOUBLE PRECISION NOT NULL,
@@ -230,6 +241,7 @@ CREATE TABLE IF NOT EXISTS order_suggestion (
 -- 表6: supplier_scorecard — 供应商评分卡
 CREATE TABLE IF NOT EXISTS supplier_scorecard (
     id              SERIAL PRIMARY KEY,
+    tenant_id       VARCHAR(64)  NOT NULL DEFAULT '',
     store_id        TEXT,
     supplier_name   TEXT    NOT NULL,
     sku             TEXT,

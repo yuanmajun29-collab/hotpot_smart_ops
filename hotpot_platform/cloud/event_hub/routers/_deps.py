@@ -4,10 +4,31 @@ from __future__ import annotations
 
 from typing import Any, Dict, List, Optional
 
+from fastapi import HTTPException
 from pydantic import BaseModel
 
 from hotpot_platform.cloud.event_hub.auth import AuthContext, can_read_store, enforce_store_read, enforce_action
-from hotpot_platform.cloud.event_hub.hub_core import DEFAULT_STORE_ID
+
+# DEFAULT_STORE_ID 仅用于单店模式安全回退，多店模式下拒绝静默回退以避免串店风险
+_DEFAULT_STORE_ID_FALLBACK = __import__("os").environ.get("HOTPOT_STORE_ID", "")
+
+
+def _resolve_default_store_id() -> str:
+    """单店模式安全回退；多店模式拒绝静默使用默认值。"""
+    sid = _DEFAULT_STORE_ID_FALLBACK
+    if not sid:
+        return ""
+    try:
+        from hotpot_platform.cloud.event_hub import runtime
+        hub = getattr(runtime, "hub", None)
+        if hub is not None:
+            stores = hub.list_stores()
+            if len(stores) > 1:
+                # 多店模式：不允许静默回退
+                return ""
+    except Exception:
+        pass
+    return sid
 
 
 def resolve_store_id(
@@ -21,7 +42,10 @@ def resolve_store_id(
         sid = body.get("store_id")
     if not sid and isinstance(body, list) and body and isinstance(body[0], dict):
         sid = body[0].get("store_id")
-    sid = sid or DEFAULT_STORE_ID
+    if not sid:
+        sid = _resolve_default_store_id()
+    if not sid:
+        raise HTTPException(status_code=400, detail="store_id is required in multi-store mode")
     enforce_store_read(auth, sid)
     return sid
 

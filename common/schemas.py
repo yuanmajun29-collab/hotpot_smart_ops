@@ -51,6 +51,14 @@ class OpsEvent:
     table_id: str = ""
     confidence: float = 1.0
     source_status: str = SourceStatus.REAL.value
+    tenant_id: str = ""
+    brand_id: str = ""
+    region_id: str = ""
+    device_id: str = ""
+    operator_id: str = ""
+    session_id: str = ""
+    trace_id: str = ""
+    parent_event_id: str = ""
     metadata: Dict[str, Any] = field(default_factory=dict)
 
     def to_dict(self) -> Dict[str, Any]:

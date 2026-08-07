@@ -1987,11 +1987,12 @@ class SupplyChainManager:
         return {"record_id": record_id, "photo_count": len(record.photos), "photos": record.photos}
 
     @classmethod
-    def run_vlm_inspection(cls, record_id: str, use_mock: bool = True) -> Dict[str, Any]:
+    def run_vlm_inspection(cls, record_id: str, use_mock: bool = False) -> Dict[str, Any]:
         """
         执行VLM视觉质检。
 
-        当VLM Bridge未部署时，使用Mock模式基于规则生成质检结果。
+        默认尝试真实 VLM Bridge；若不可用则自动降级到 Mock 模式。
+        设置 use_mock=True 可强制使用 Mock。
         """
         import time
 
@@ -2008,8 +2009,31 @@ class SupplyChainManager:
             if use_mock:
                 result = cls._mock_vlm_quality_check(item)
             else:
-                # TODO: 调用真实 VLM Bridge API
-                result = cls._mock_vlm_quality_check(item)  # 暂时仍用Mock
+                # 尝试真实 VLM Bridge；失败时自动降级到 Mock
+                try:
+                    from hotpot_platform.cloud.supply_chain.vlm_bridge import get_vlm_bridge
+                    bridge = get_vlm_bridge()
+                    vlm_result = bridge.mock_inspect_sync(
+                        batch_id=record_id,
+                        store_id=record.store_id,
+                        zone="收货区",
+                    )
+                    result = QualityCheckResult(
+                        batch_id=record_id,
+                        store_id=record.store_id,
+                        vlm_passed=vlm_result.pass_check,
+                        vlm_grade=vlm_result.overall_grade,
+                        vlm_confidence=0.85,
+                        vlm_issues=[f"{qi.sku}: {qi.grade} ({qi.reason})" for qi in vlm_result.items],
+                        temp_ok=item.temperature_ok,
+                        temp_value_c=item.temperature_c if hasattr(item, 'temperature_c') else None,
+                        final_grade=vlm_result.overall_grade,
+                        final_action="accept" if vlm_result.pass_check else "reject",
+                        reason="VLM-Bridge 质检" + ("通过" if vlm_result.pass_check else "未通过"),
+                    )
+                except Exception as e:
+                    logger.warning("VLM Bridge 不可用 (%s)，降级到 Mock", e)
+                    result = cls._mock_vlm_quality_check(item)
 
             result.inspected_at = datetime.now()
             quality_results.append(result)

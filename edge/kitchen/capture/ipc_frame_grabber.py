@@ -29,17 +29,24 @@ FRAME_DIR = "/tmp/ipc_frames"
 INFERENCE_SCRIPT = "/root/bridge_waste_vision.sh"
 
 # 默认 IPC 参数（可在 ipc_config.yml 中覆盖）
+# cameras: 多路摄像头配置，每路可独立配置 stream_url/roi/zone/infer
 DEFAULT_CONFIG = {
-    "stream_url": "rtsp://admin:password@192.168.1.64:554/Streaming/Channels/101",
-    "interval_seconds": 10,      # 抽帧间隔（秒）
-    "save_latest_only": True,    # 仅保留最新一帧
-    "skip_if_stale": True,       # 跳过超时流
-    "stream_timeout": 10,        # 流连接超时（秒）
-    "auto_infer": False,         # 抽帧后是否自动触发推理
+    "cameras": [
+        {
+            "camera_id": "cam01",
+            "stream_url": "rtsp://admin:password@192.168.1.64:554/Streaming/Channels/101",
+            "roi": None,              # ROI区域 {"x":0,"y":0,"w":0,"h":0}，None=全帧
+            "zone": "备餐废弃区",
+            "infer_on_frame_count": 1,
+        }
+    ],
+    "interval_seconds": 10,           # 每路抽帧间隔（秒）
+    "save_latest_only": True,         # 仅保留最新一帧
+    "skip_if_stale": True,            # 跳过超时流
+    "stream_timeout": 10,             # 流连接超时（秒）
+    "auto_infer": False,              # 抽帧后是否自动触发推理
     "hub_url": "http://192.168.2.85:8098",
     "store_id": "store_yuhuan",
-    "zone": "备餐废弃区",
-    "infer_on_frame_count": 1,   # 每 N 帧触发一次推理（仅在 auto_infer=true 时有效）
 }
 
 
