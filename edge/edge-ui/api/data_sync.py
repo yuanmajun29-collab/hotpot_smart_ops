@@ -303,17 +303,19 @@ class DataSyncEngine:
 
         pulled_count = 0
 
-        # TODO: 实现实际的API调用
-        # 示例:
-        # response = httpx.get(
-        #     f"{self.config.hub_url}/api/v1/products",
-        #     headers={"Authorization": f"Bearer {self._get_jwt_token()}"},
-        #     timeout=self.config.timeout
-        # )
-        # if response.status_code == 200:
-        #     products = response.json()
-        #     self._update_local_cache("product_master", products)
-        #     pulled_count = len(products)
+        # 实际调用 Hub API 获取产品主数据
+        try:
+            response = httpx.get(
+                f"{self.config.hub_url}/api/v1/products",
+                headers={"Authorization": f"Bearer {self._get_jwt_token()}"},
+                timeout=self.config.timeout
+            )
+            if response.status_code == 200:
+                products = response.json()
+                self._update_local_cache("product_master", products)
+                pulled_count = len(products)
+        except Exception as e:
+            self._log_warning(f"产品主数据拉取失败: {e}")
 
         return pulled_count
 

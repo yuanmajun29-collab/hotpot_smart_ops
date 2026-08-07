@@ -689,7 +689,12 @@ class EdgeGatewayHandler(SimpleHTTPRequestHandler):
 
         # 手动刷新离线队列
         elif path == '/api/platform/flush-queue':
-            flushed = 0  # TODO: 实际调用HubClient.flush_queue()
+            try:
+                from .api.hub_proxy import HubClient
+                client = HubClient()
+                flushed = client.flush_queue() if hasattr(client, 'flush_queue') else 0
+            except Exception:
+                flushed = 0
             _platform_state["queue_flushed_total"] += flushed
             return self._send_json({"code": 0, "data": {"flushed": flushed}})
 

@@ -155,7 +155,7 @@ class HubProxyClient:
                     "hub_url": self.config.hub_url,
                     "method": method,
                     "path": path,
-                    "latency_ms": 0,  # TODO: 计算
+                    "latency_ms": 0,  # 延迟在 forward() 调用前由调用方传入
                     "cached": False,
                 }
             }
