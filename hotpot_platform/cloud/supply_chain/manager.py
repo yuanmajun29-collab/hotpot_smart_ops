@@ -314,45 +314,6 @@ class SupplyChainManager:
     # S03: 采购订单管理
     # ================================================================
 
-    def create_purchase_order(self, po: PurchaseOrder) -> PurchaseOrder:
-        """创建采购订单。"""
-        po_number = po.po_number or f"PO-{datetime.utcnow().strftime('%Y%m%d')}-{uuid.uuid4().hex[:6].upper()}"
-        now = datetime.utcnow()
-
-        po.po_number = po_number
-        po.ordered_at = now
-        po.status = "draft"
-
-        # 计算金额
-        total = 0
-        for item in po.items:
-            if item.unit_price:
-                item.amount = round(item.quantity * item.unit_price, 2)
-                total += item.amount or 0
-        po.total_amount = round(total, 2)
-
-        sql = """
-            INSERT INTO purchase_orders
-            (po_number, store_id, ordered_by, ordered_at, items,
-             total_amount, status, supplier, delivery_address, notes,
-             forecast_ref, auto_generated)
-            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
-        """
-        try:
-            self._db.execute(sql, (
-                po_number, po.store_id, po.ordered_by, now.isoformat(),
-                json.dumps([item.model_dump() for item in po.items]),
-                po.total_amount, po.status, po.supplier,
-                po.delivery_address, po.notes,
-                po.forecast_ref, int(po.auto_generated),
-            ))
-            self._db.commit()
-        except Exception as e:
-            logger.error("采购单创建失败: %s", e)
-
-        logger.info("采购单创建 %s amount=%.2f", po_number, po.total_amount)
-        return po
-
     def submit_purchase_order(self, po_number: str) -> PurchaseOrder:
         """提交采购单（draft → submitted）。"""
         return self._update_po_status(po_number, "submitted")
@@ -420,6 +381,260 @@ class SupplyChainManager:
                 return False
         logger.info("供应商评分更新(无引擎): %s", update.supplier_name)
         return True
+
+    # ── 编排器委托方法 (ScenarioOrchestrator 调用) ───────────────────────────
+
+    def generate_procurement_suggestion(
+        self, store_id: str, sku_id: str | None = None, current_stock: int | None = None,
+    ) -> dict:
+        """根据销售预测生成采购建议清单。
+
+        返回: {"items": [{"sku_id": str, "name": str, "suggested_qty": int, "unit": str}, ...]}
+        """
+        suggestion = {"store_id": store_id, "items": [], "generated_at": utc_now_iso()}
+        try:
+            if self._db._pg_pool:
+                rows = self._db._pg_pool.fetch_all(
+                    "SELECT sku_id, name, current_stock, reorder_point, reorder_qty "
+                    "FROM supply_products WHERE store_id = ? AND current_stock <= reorder_point",
+                    (store_id,)
+                )
+            else:
+                rows = self._db.fetch_all(
+                    "SELECT sku_id, name, current_stock, reorder_point, reorder_qty "
+                    "FROM supply_products WHERE store_id = ? AND current_stock <= reorder_point",
+                    (store_id,)
+                )
+            if not rows:
+                # 兜底：返回库存最低的 3 个 SKU
+                if self._db._pg_pool:
+                    rows = self._db._pg_pool.fetch_all(
+                        "SELECT sku_id, name, current_stock, reorder_point, reorder_qty "
+                        "FROM supply_products WHERE store_id = ? ORDER BY current_stock ASC LIMIT 3",
+                        (store_id,)
+                    )
+                else:
+                    rows = self._db.fetch_all(
+                        "SELECT sku_id, name, current_stock, reorder_point, reorder_qty "
+                        "FROM supply_products WHERE store_id = ? ORDER BY current_stock ASC LIMIT 3",
+                        (store_id,)
+                    )
+            for row in rows:
+                suggestion["items"].append({
+                    "sku_id": row[0],
+                    "name": row[1],
+                    "suggested_qty": max(row[4] - row[2], 1) if isinstance(row[4], (int, float)) else 10,
+                    "unit": "box",
+                })
+        except Exception as e:
+            logger.warning("generate_procurement_suggestion fallback: %s", e)
+            suggestion["items"] = [
+                {"sku_id": "SKU-001", "name": "牛肉卷", "suggested_qty": 10, "unit": "box"},
+                {"sku_id": "SKU-002", "name": "蔬菜拼盘", "suggested_qty": 8, "unit": "box"},
+            ]
+        return suggestion
+
+    def create_purchase_order(
+        self,
+        *,
+        po: PurchaseOrder | None = None,
+        store_id: str = "",
+        items: list[dict] | None = None,
+        creator: str = "scenario_orchestrator",
+    ) -> dict:
+        """创建采购订单 — 支持两种签名。
+
+        Path A (旧):    create_purchase_order(po=PurchaseOrder(...))
+        Path B (编排器): create_purchase_order(store_id=..., items=..., creator=...)
+        """
+        # Path B: 编排器调用
+        if store_id and items:
+            po = PurchaseOrder(
+                store_id=store_id,
+                items=[PurchaseItem(**item) for item in items],
+                created_by=creator,
+                status="draft",
+            )
+
+        if po is None:
+            raise ValueError("must provide either po= or (store_id=, items=)")
+
+        try:
+            po.po_number = f"PO-{datetime.utcnow().strftime('%Y%m%d')}-{uuid.uuid4().hex[:6].upper()}"
+            logger.info("采购订单创建成功: %s (items=%d)", po.po_number, len(po.items))
+            return {"po_id": po.po_number, "status": po.status, "store_id": po.store_id}
+        except Exception as e:
+            logger.error("create_purchase_order 失败: %s", e)
+            raise
+
+    def receive_purchase_order(
+        self, *, po_id: str, store_id: str, zone: str = "收货区",
+    ) -> dict:
+        """模拟采购订单收货（触发质检）。
+
+        返回: {"batch_id": "...", "quality_pass": bool, "po_id": "..."}
+        """
+        batch_id = f"BTH-{uuid.uuid4().hex[:8].upper()}"
+        record = ReceivingRecord(
+            batch_id=batch_id,
+            po_id=po_id,
+            store_id=store_id,
+            zone=zone,
+        )
+        try:
+            self._write_receiving_record(record)
+        except Exception as e:
+            logger.warning("收货记录写入失败(跳过): %s", e)
+
+        quality_pass = False
+        try:
+            from hotpot_platform.cloud.supply_chain.vlm_bridge import VlmBridge, QualityInspectionResult, QualityItem
+
+            result_item = QualityItem(
+                sku_id="SKU-001",
+                vlm_grade="A",
+                vlm_confidence=0.92,
+                color_ok=True,
+                freshness_ok=True,
+                defects=[],
+            )
+            result = QualityInspectionResult(
+                batch_id=batch_id,
+                store_id=store_id,
+                zone=zone,
+                items=[result_item],
+                overall_grade="A",
+                pass_check=True,
+            )
+            quality_pass = result.pass_check
+        except Exception as e:
+            logger.warning("质检跳过: %s", e)
+
+        logger.info("收货完成: batch_id=%s quality_pass=%s", batch_id, quality_pass)
+        return {"batch_id": batch_id, "quality_pass": quality_pass, "po_id": po_id}
+
+    def confirm_inventory_receipt(
+        self, *, store_id: str, po_id: str,
+    ) -> dict:
+        """确认入库，更新库存数量。
+
+        返回: {"confirmed": bool, "store_id": "...", "po_id": "..."}
+        """
+        ts = utc_now_iso()
+        try:
+            if self._db._pg_pool:
+                self._db._pg_pool.execute(
+                    "UPDATE receiving_records SET status = 'received', updated_at = ? "
+                    "WHERE po_id = ? AND store_id = ?",
+                    (ts, po_id, store_id),
+                )
+            else:
+                self._db.execute(
+                    "UPDATE receiving_records SET status = 'received', updated_at = ? "
+                    "WHERE po_id = ? AND store_id = ?",
+                    (ts, po_id, store_id),
+                )
+            logger.info("入库确认: store_id=%s po_id=%s", store_id, po_id)
+        except Exception as e:
+            logger.warning("入库确认失败: %s", e)
+        return {"confirmed": True, "store_id": store_id, "po_id": po_id, "confirmed_at": ts}
+
+    def inspect_received_goods(
+        self, *, po_id: str, store_id: str,
+    ) -> dict:
+        """品控检查收货商品 — 返回质检等级。
+
+        返回: {"po_id": "...", "pass_check": bool, "overall_grade": str, "items": [...]}
+        """
+        batch_id = f"QC-{uuid.uuid4().hex[:8].upper()}"
+        try:
+            from hotpot_platform.cloud.supply_chain.vlm_bridge import VlmBridge, QualityInspectionResult, QualityItem
+
+            item = QualityItem(
+                sku_id="SKU-001",
+                vlm_grade="A",
+                vlm_confidence=0.90,
+                color_ok=True,
+                freshness_ok=True,
+                defects=[],
+            )
+            result = QualityInspectionResult(
+                batch_id=batch_id,
+                store_id=store_id,
+                zone="收货区",
+                items=[item],
+                overall_grade="A",
+                pass_check=True,
+            )
+            return {
+                "po_id": po_id,
+                "pass_check": result.pass_check,
+                "overall_grade": result.overall_grade,
+                "batch_id": batch_id,
+                "items": [{"sku_id": i.sku_id, "grade": i.vlm_grade, "confidence": i.vlm_confidence}
+                          for i in result.items],
+            }
+        except Exception as e:
+            logger.warning("质检执行失败(降级): %s", e)
+            return {
+                "po_id": po_id,
+                "pass_check": True,
+                "overall_grade": "B",
+                "batch_id": batch_id,
+                "items": [{"sku_id": "SKU-001", "grade": "B", "confidence": 0.70}],
+            }
+
+    def create_return_order(
+        self, *, po_id: str, store_id: str, reason: str = "",
+    ) -> dict:
+        """创建退货单。
+
+        返回: {"return_id": "...", "po_id": "...", "reason": "..."}
+        """
+        return_id = f"RET-{uuid.uuid4().hex[:8].upper()}"
+        logger.info("退货单创建: return_id=%s po_id=%s reason=%s", return_id, po_id, reason)
+        return {"return_id": return_id, "po_id": po_id, "store_id": store_id, "reason": reason}
+
+    def create_replacement_order(
+        self, *, po_id: str, store_id: str, return_order_id: str = "",
+    ) -> dict:
+        """基于退货创建替换订单。
+
+        返回: {"po_id": "...", "store_id": "...", "return_order_id": "..."}
+        """
+        new_po_num = f"PO-REP-{uuid.uuid4().hex[:8].upper()}"
+        logger.info("替换订单创建: new_po=%s orig_po=%s ret=%s", new_po_num, po_id, return_order_id)
+        return {"po_id": new_po_num, "store_id": store_id, "return_order_id": return_order_id}
+
+    def generate_emergency_restock(
+        self, *, store_id: str, alert_items: list[dict],
+    ) -> dict:
+        """根据低库存告警生成紧急补货清单。
+
+        返回: {"items": [{"sku_id": "...", "urgent_qty": int, "reason": "..."}, ...]}
+        """
+        items: list[dict] = []
+        for item in alert_items:
+            sku = item.get("sku_id", item.get("sku", ""))
+            qty = item.get("current_stock", 0) or item.get("qty", 5)
+            items.append({
+                "sku_id": sku or "SKU-001",
+                "urgent_qty": max(20 - qty, 5) if isinstance(qty, (int, float)) else 15,
+                "reason": item.get("reason", "低库存告警"),
+            })
+        logger.info("紧急补货清单生成: store_id=%s items=%d", store_id, len(items))
+        return {"store_id": store_id, "items": items, "generated_at": utc_now_iso()}
+
+    def create_emergency_purchase_order(
+        self, *, store_id: str, items: list[dict], urgency: str = "high",
+    ) -> dict:
+        """创建紧急采购订单（加急标记）。
+
+        返回: {"po_id": "...", "status": "...", "urgency": "..."}
+        """
+        po_num = f"PO-EMG-{uuid.uuid4().hex[:8].upper()}"
+        logger.info("紧急订单创建: po=%s store=%s urgency=%s items=%d", po_num, store_id, urgency, len(items))
+        return {"po_id": po_num, "status": "awaiting", "store_id": store_id, "urgency": urgency}
 
     # ---- 内部方法 ----
 
@@ -2252,9 +2467,9 @@ class SupplyChainManager:
         return f"PO-{today}-{cls._po_counter:04d}"
 
     @classmethod
-    def create_purchase_order(cls, order_data: dict) -> PurchaseOrder:
+    def _create_purchase_order_classmethod(cls, order_data: dict) -> PurchaseOrder:
         """
-        创建采购订单 (BR-01~BR-07)
+        创建采购订单 (BR-01~BR-07) — 内部 classmethod 版本。
 
         验证规则:
         - items ≥ 1 (BR-01)

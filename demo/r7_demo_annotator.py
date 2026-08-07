@@ -134,6 +134,7 @@ class ProvenanceAnnotator:
                 "annotation_time": self.annotation_time,
                 "store_id": self.store_id,
                 "source": source,
+                "source_status": source,
                 "source_device": source_device,
                 "confidence": confidence,
                 "verified": verified,

@@ -26,6 +26,18 @@ class EventSource(str, Enum):
     SYSTEM = "system"
 
 
+class SourceStatus(str, Enum):
+    """数据来源状态枚举 — 标识事件的生成方式，用于数据血缘追踪。
+
+    所有生产环境事件必须标注 REAL；模拟/桩/混合来源的测试数据不得混入生产分析。
+    """
+    REAL = "real"           # 真实设备/系统产生
+    SIMULATED = "simulated" # 模拟器产生(如 sensor_simulator)
+    STUB = "stub"           # 桩桥接产生(如 iot_stub_bridge)
+    MOCK = "mock"           # Mock/假数据(如 vision mock backend, vlm mock)
+    HYBRID = "hybrid"       # 混合来源
+
+
 @dataclass
 class OpsEvent:
     event_type: str
@@ -38,6 +50,7 @@ class OpsEvent:
     zone: str = ""
     table_id: str = ""
     confidence: float = 1.0
+    source_status: str = SourceStatus.REAL.value
     metadata: Dict[str, Any] = field(default_factory=dict)
 
     def to_dict(self) -> Dict[str, Any]:

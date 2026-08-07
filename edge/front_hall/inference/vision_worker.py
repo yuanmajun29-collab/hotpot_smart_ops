@@ -62,6 +62,7 @@ def _spawn_cleaning_tasks(
             "message": f"{table_id} 待清台（视觉自动检测）",
             "table_id": table_id,
             "source": "vision",
+            "source_status": "mock",
             "metadata": {
                 "confidence": ts.get("confidence", 0),
                 "store_id": store_id,
@@ -273,8 +274,8 @@ def run_periodic(
 
 def main() -> None:
     parser = argparse.ArgumentParser(description="Edge vision worker (file mode, UAT ROI)")
-    parser.add_argument("--store-id", default="store_yuhuan")
-    parser.add_argument("--hub-url", default="http://127.0.0.1:8098")
+    parser.add_argument("--store-id", default=os.environ.get("HOTPOT_STORE_ID", "store_yuhuan"))
+    parser.add_argument("--hub-url", default=os.environ.get("HOTPOT_HUB_URL", "http://127.0.0.1:8098"))
     parser.add_argument("--backend", choices=("mock", "onnx", "yolo", "rknn"), default="mock")
     parser.add_argument("--uat-root", default=str(DEFAULT_UAT_ROOT))
     parser.add_argument("--output-dir", default="", help="Write results under store live dir")

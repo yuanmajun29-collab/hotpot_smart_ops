@@ -43,6 +43,7 @@ def reading_to_event(store_id: str, sensor_id: str, value: float, anomaly: bool)
                 store_id=store_id,
                 zone="kitchen",
                 message=f"{sensor_id} 温度异常: {value:.1f}°C (正常 {lo}~{hi}°C)",
+                source_status="simulated",
                 metadata={"sensor_id": sensor_id, "value": value, "unit": "C"},
             )
         if value < lo:
@@ -53,6 +54,7 @@ def reading_to_event(store_id: str, sensor_id: str, value: float, anomaly: bool)
                 store_id=store_id,
                 zone="kitchen",
                 message=f"{sensor_id} 温度过低: {value:.1f}°C",
+                source_status="simulated",
                 metadata={"sensor_id": sensor_id, "value": value, "unit": "C"},
             )
     elif cfg["type"] == "gas" and (anomaly or value > cfg["normal_range"][1]):
@@ -63,6 +65,7 @@ def reading_to_event(store_id: str, sensor_id: str, value: float, anomaly: bool)
             store_id=store_id,
             zone="kitchen",
             message=f"燃气浓度异常: {value:.0f} ppm",
+            source_status="simulated",
             metadata={"sensor_id": sensor_id, "value": value, "unit": "ppm"},
         )
     return None
@@ -155,8 +158,8 @@ def run_direct(hub_url: str, store_id: str, cycles: int, inject_anomaly: bool) -
 
 def main() -> None:
     parser = argparse.ArgumentParser(description="Hotpot IoT sensor simulator")
-    parser.add_argument("--store-id", default="store_yuhuan")
-    parser.add_argument("--hub-url", default="http://127.0.0.1:8098")
+    parser.add_argument("--store-id", default=os.environ.get("HOTPOT_STORE_ID", "store_yuhuan"))
+    parser.add_argument("--hub-url", default=os.environ.get("HOTPOT_HUB_URL", "http://127.0.0.1:8098"))
     parser.add_argument("--mqtt-broker", default="", help="MQTT broker host; empty = direct HTTP mode")
     parser.add_argument("--mqtt-port", type=int, default=1883)
     parser.add_argument("--interval", type=float, default=2.0)

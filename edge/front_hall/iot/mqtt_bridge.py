@@ -136,6 +136,7 @@ class MqttHubBridge:
             "zone": "kitchen",
             "message": f"IoT {sid}: {parsed['value']}{parsed['unit']}",
             "timestamp": utc_now_iso(),
+            "source_status": "simulated",
             "metadata": parsed,
         }
         self._forward(event)
@@ -228,8 +229,8 @@ def run_mock_publish(store_id: str, broker_url: str, uat_root: Path, cycles: int
 
 def main() -> None:
     parser = argparse.ArgumentParser(description="MQTT IoT bridge → Event Hub")
-    parser.add_argument("--store-id", default="store_yuhuan")
-    parser.add_argument("--hub-url", default="http://127.0.0.1:8098")
+    parser.add_argument("--store-id", default=os.environ.get("HOTPOT_STORE_ID", "store_yuhuan"))
+    parser.add_argument("--hub-url", default=os.environ.get("HOTPOT_HUB_URL", "http://127.0.0.1:8098"))
     parser.add_argument("--broker", default="mqtt://127.0.0.1:1883")
     parser.add_argument("--uat-root", default=str(DEFAULT_UAT_ROOT))
     parser.add_argument("--cycles", type=int, default=0, help="0 = run forever")

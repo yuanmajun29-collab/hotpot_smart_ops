@@ -14,6 +14,7 @@ from __future__ import annotations
 
 import json
 import logging
+import os
 import re
 import time
 from typing import Any, Dict, List, Optional
@@ -31,7 +32,7 @@ ROUTER_TAG = "agent-chat"
 class ChatRequest(BaseModel):
     """Agent 对话请求。"""
     message: str = Field(..., description="用户自然语言消息")
-    store_id: str = Field(default="store_yuhuan", description="门店 ID")
+    store_id: str = Field(default=os.environ.get("HOTPOT_STORE_ID", "store_yuhuan"), description="门店 ID")
     session_id: Optional[str] = Field(default=None, description="会话 ID，不传则新建会话")
     context: Optional[Dict[str, Any]] = Field(default=None, description="附加上下文（当前页面、选中数据等）")
     stream: bool = Field(default=False, description="是否启用流式响应")
@@ -100,10 +101,7 @@ def classify_intent(message: str) -> str:
 
 # ── Agent Handlers (stub implementations) ────────────────────────────────────
 
-_STORE_CONTEXT = {
-    "store_yuhuan": {"name": "玉环店", "daily_revenue": 28400, "tables": 42, "chefs": 6},
-    "store_jiaojiang": {"name": "椒江店", "daily_revenue": 31200, "tables": 48, "chefs": 8},
-}
+_STORE_CONTEXT = {}  # 延迟加载，见 _get_store_context()
 
 # 简易对话模板（展会 Demo 用真数据、简易模板）
 _TEMPLATES: Dict[str, Dict[str, str]] = {
@@ -158,6 +156,29 @@ _TEMPLATES: Dict[str, Dict[str, str]] = {
                     "未处理投诉：0 笔。",
     },
 }
+
+
+def _get_store_context() -> dict:
+    """延迟加载门店上下文，优先从 common/env.py 获取，兜底使用 Demo 数据。"""
+    global _STORE_CONTEXT
+    if _STORE_CONTEXT:
+        return _STORE_CONTEXT
+
+    # 兜底 Demo 数据
+    _STORE_CONTEXT = {
+        "store_yuhuan": {"name": "玉环店", "daily_revenue": 28400, "tables": 42, "chefs": 6},
+        "store_jiaojiang": {"name": "椒江店", "daily_revenue": 31200, "tables": 48, "chefs": 8},
+    }
+
+    # 尝试从 env.py 合并门店显示名
+    try:
+        from common.env import get_store_display
+        for sid in list(_STORE_CONTEXT.keys()):
+            _STORE_CONTEXT[sid]["name"] = get_store_display(sid)
+    except ImportError:
+        pass
+
+    return _STORE_CONTEXT
 
 
 def _pick_template(intent: str, message: str) -> str:
@@ -292,7 +313,7 @@ async def agent_chat(request: ChatRequest) -> ChatResponse:
     session.messages.append({"role": "assistant", "content": reply, "time": _now(), "agent": agent})
 
     # Contextual data
-    data = {"intent": intent, "store": _STORE_CONTEXT.get(request.store_id, {})}
+    data = {"intent": intent, "store": _get_store_context().get(request.store_id, {})}
 
     return ChatResponse(
         session_id=session.session_id,

@@ -1,10 +1,16 @@
 #!/usr/bin/env python3
-"""Back-of-kitchen SOP compliance engine."""
+"""Back-of-kitchen SOP compliance engine.
+
+⚠️ DEPRECATED — 已废弃，请迁移到 sop_engine/checker.SOPChecker。
+   旧入口: from sop_engine import SOPComplianceEngine
+   新入口: from sop_engine.checker import SOPChecker
+"""
 
 from __future__ import annotations
 
 import json
 import sys
+import warnings
 from pathlib import Path
 from typing import Any, Dict, List, Optional
 
@@ -21,6 +27,11 @@ class SOPComplianceEngine:
     """Evaluate kitchen SOP checklist against vision/IoT/manual inputs."""
 
     def __init__(self, sop_config: Optional[Dict[str, Any]] = None) -> None:
+        warnings.warn(
+            "SOPComplianceEngine is deprecated; use 'from sop_engine.checker import SOPChecker' instead.",
+            DeprecationWarning,
+            stacklevel=2,
+        )
         self.config = sop_config or self.load_default()
         self.sops: List[Dict[str, Any]] = self.config.get("sops", [])
 

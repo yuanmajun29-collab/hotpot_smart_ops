@@ -630,7 +630,9 @@ class MultiTenantHub:
         if seed.get("erp_stats"):
             store.set_erp_stats(seed["erp_stats"])
         for ev in seed.get("sample_events", []):
-            store.add_event(dict(ev))
+            ev_copy = dict(ev)
+            ev_copy.setdefault("source_status", "real")
+            store.add_event(ev_copy)
 
 
 def seed_from_directory(hub: MultiTenantHub, stores_dir: Path) -> int:

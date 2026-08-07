@@ -346,10 +346,15 @@ class SupplyChainDB:
                 vlm_confidence DOUBLE PRECISION,
                 color_ok INTEGER,
                 freshness_ok INTEGER,
+                texture_ok INTEGER,
+                damage_detected INTEGER,
                 final_grade TEXT,
-                final_action TEXT,
-                notes TEXT,
-                inspector TEXT,
+                action TEXT,
+                manual_review_needed INTEGER,
+                manual_grade TEXT,
+                reviewer_id TEXT,
+                manual_notes TEXT,
+                reviewed_at TIMESTAMP WITH TIME ZONE,
                 created_at TIMESTAMP WITH TIME ZONE
             );
 
@@ -374,10 +379,18 @@ class SupplyChainDB:
                 entity_type TEXT,
                 entity_id TEXT,
                 store_id TEXT,
+                action_type TEXT,
+                requested_by TEXT,
                 approver TEXT,
                 status TEXT DEFAULT 'pending',
+                risk_level TEXT DEFAULT 'medium',
                 decision TEXT,
                 comments TEXT,
+                approved_by TEXT,
+                approved_at TIMESTAMP WITH TIME ZONE,
+                approval_note TEXT,
+                rejection_reason TEXT,
+                metadata TEXT,
                 created_at TIMESTAMP WITH TIME ZONE,
                 resolved_at TIMESTAMP WITH TIME ZONE
             );

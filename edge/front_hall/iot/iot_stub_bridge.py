@@ -195,7 +195,7 @@ class IotStubBridge:
                 "iot_alert_count": alerts,
                 "door_open": door_open,
                 "stub_scenario": self.scenario,
-                "stub_mode": True,
+                "source_status": "stub",
             },
         }
         self.hub.post("/iot", stats)
@@ -229,8 +229,8 @@ class IotStubBridge:
 
 def main() -> None:
     parser = argparse.ArgumentParser(description="IoT stub bridge (no MQTT/devices)")
-    parser.add_argument("--store-id", default="store_yuhuan")
-    parser.add_argument("--hub-url", default="http://127.0.0.1:8098")
+    parser.add_argument("--store-id", default=os.environ.get("HOTPOT_STORE_ID", "store_yuhuan"))
+    parser.add_argument("--hub-url", default=os.environ.get("HOTPOT_HUB_URL", "http://127.0.0.1:8098"))
     parser.add_argument("--uat-root", default=str(DEFAULT_UAT_ROOT))
     parser.add_argument("--interval", type=float, default=30.0)
     parser.add_argument("--cycles", type=int, default=0, help="0 = forever")

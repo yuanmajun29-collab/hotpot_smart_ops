@@ -24,6 +24,13 @@ from typing import Optional
 
 logger = logging.getLogger(__name__)
 
+# 延迟导入避免循环依赖
+try:
+    from common.env import require_not_production, get_store_id, get_hub_url, get_default_api_key
+    _ENV_AVAILABLE = True
+except ImportError:
+    _ENV_AVAILABLE = False
+
 
 # ── Data models ──────────────────────────────────────────────────────────────
 
@@ -48,6 +55,7 @@ class QualityInspectionResult:
     pass_check: bool = False
     model: str = "ostrakon-vl-8b-iq4xs"
     source: str = "vlm-bridge"
+    source_status: str = "real"
     ts: str = field(default_factory=lambda: datetime.now(timezone.utc).isoformat())
     raw_response: Optional[dict] = None
     error: Optional[str] = None
@@ -67,13 +75,21 @@ class VlmBridgeClient:
         self,
         hub_url: str = "",
         api_key: str = "",
-        store_id: str = "store_yuhuan",
+        store_id: str = "",
         timeout: int = 15,
         use_mock: bool = False,
     ) -> None:
-        self.hub_url = (hub_url or os.environ.get("HOTPOT_HUB_URL", "http://127.0.0.1:8098")).rstrip("/")
-        self.api_key = api_key or os.environ.get("HOTPOT_API_KEY", "edge_yuhuan_dev_key")
-        self.store_id = store_id
+        # ── 生产环境防护：Mock 模式不允许在 production 环境下运行 ──
+        if use_mock and _ENV_AVAILABLE:
+            require_not_production("VLM Bridge 不允许在生产环境使用 Mock 模式(use_mock=True)")
+
+        self.hub_url = (hub_url or os.environ.get("HOTPOT_HUB_URL", "") or
+                        (_ENV_AVAILABLE and get_hub_url() or "http://127.0.0.1:8098")).rstrip("/")
+        self.api_key = (api_key or os.environ.get("HOTPOT_API_KEY", "") or
+                        (_ENV_AVAILABLE and get_default_api_key() or "edge_yuhuan_dev_key"))
+        self.store_id = (store_id or
+                         os.environ.get("HOTPOT_STORE_ID", "") or
+                         (_ENV_AVAILABLE and get_store_id() or "store_yuhuan"))
         self.timeout = timeout
         self._use_mock = use_mock
 
@@ -288,6 +304,7 @@ class VlmBridgeClient:
         result.items = items
         result.overall_grade = self._compute_overall_grade(items)
         result.pass_check = result.overall_grade in ("A", "B")
+        result.source_status = "mock"
         result.mock_fallback = True
         return result
 
