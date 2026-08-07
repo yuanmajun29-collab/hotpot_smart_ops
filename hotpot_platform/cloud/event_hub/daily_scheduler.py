@@ -17,12 +17,11 @@ PROJECT_ROOT = Path(__file__).resolve().parents[2]
 DEFAULT_TZ = os.environ.get("HOTPOT_STORE_TZ", "Asia/Shanghai")
 DEFAULT_HOUR = int(os.environ.get("HOTPOT_DAILY_REPORT_HOUR", "22"))
 DEFAULT_MINUTE = int(os.environ.get("HOTPOT_DAILY_REPORT_MINUTE", "0"))
-PILOT_STORES = ("store_yuhuan", "store_jiaojiang")
+PILOT_STORES = tuple(
+    s.strip() for s in os.environ.get("HOTPOT_PILOT_STORES", "").split(",") if s.strip()
+) or ()  # 空列表时依赖调度器外部注入
 
-STORE_NAMES = {
-    "store_yuhuan": "冯校长火锅·玉环店",
-    "store_jiaojiang": "冯校长火锅·椒江店",
-}
+STORE_NAMES = {}  # 由外部配置/DB动态注入，不再硬编码
 
 
 def local_today(tz_name: str = DEFAULT_TZ) -> str:

@@ -113,7 +113,7 @@ class StoreManagerAgent(RoleAgent):
         """生成每日经营报告"""
         from hotpot_platform.cloud.supply_chain.manager import SupplyChainManager
 
-        store_id = input_data.get("store_id", "store_jiaojiang")
+        store_id = input_data.get("store_id", os.environ.get("HOTPOT_STORE_ID", ""))
         date_str = input_data.get("date", datetime.now().strftime("%Y-%m-%d"))
 
         dashboard = SupplyChainManager.get_dashboard_full(
@@ -373,7 +373,7 @@ class KitchenAgent(RoleAgent):
 
         violations = []
         # 基于IoT温度数据评估（如果有）
-        store_id = input_data.get("store_id", "store_jiaojiang")
+        store_id = input_data.get("store_id", os.environ.get("HOTPOT_STORE_ID", ""))
         iot_temp = self._read_iot_temperature({"store_id": store_id})
         temp_data = iot_temp.get("temperatures", {})
 
@@ -508,7 +508,7 @@ class KitchenAgent(RoleAgent):
         Returns:
             各传感器温度数据及异常告警
         """
-        store_id = input_data.get("store_id", "store_jiaojiang")
+        store_id = input_data.get("store_id", os.environ.get("HOTPOT_STORE_ID", ""))
         sensor_ids = input_data.get("sensor_ids")
 
         # 模拟从事件历史中读取温度数据
@@ -1330,7 +1330,7 @@ class FrontHallAgent(RoleAgent):
             销售KPI字典，含各项指标和状态判定
         """
         query_date = input_data.get("date", datetime.now().strftime("%Y-%m-%d"))
-        store_id = input_data.get("store_id", "store_jiaojiang")
+        store_id = input_data.get("store_id", os.environ.get("HOTPOT_STORE_ID", ""))
         period = input_data.get("period", "day")  # day / week / month
 
         # D2增强: 尝试从POS数据桥接读取真实数据
@@ -1557,7 +1557,7 @@ class FrontHallAgent(RoleAgent):
         """
         shift = input_data.get("shift", "evening")
         actual_revenue = input_data.get("actual_revenue", 12800)
-        store_id = input_data.get("store_id", "store_jiaojiang")
+        store_id = input_data.get("store_id", os.environ.get("HOTPOT_STORE_ID", ""))
         review_date = input_data.get("date", datetime.now().strftime("%Y-%m-%d"))
 
         # D2增强: 尝试从feedback/events表读取客诉数据

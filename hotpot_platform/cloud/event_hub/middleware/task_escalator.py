@@ -20,7 +20,7 @@ from typing import Any, Dict, List, Optional
 logger = logging.getLogger("火瞳.task_escalator")
 
 # ---- Store configuration (multi-store ready) ------------------------------
-_DEFAULT_STORE_ID = os.environ.get("HOTPOT_STORE_ID", "store_jiaojiang")
+_DEFAULT_STORE_ID = os.environ.get("HOTPOT_STORE_ID", "")
 
 # ---- Escalation policy constants -------------------------------------------
 

@@ -47,7 +47,7 @@ def _init_auth():
     global _auth_adapter
     _auth_adapter = init_auth_adapter(
         auth_mode="dual",  # 双模式: PIN + JWT
-        store_id=_config_manager.get("store_id", "store_jiaojiang") if _config_manager else "store_jiaojiang",
+        store_id=_config_manager.get("store_id", os.environ.get("HOTPOT_STORE_ID", "")) if _config_manager else os.environ.get("HOTPOT_STORE_ID", ""),
     )
     print("[Auth] ✅ 统一认证模块已初始化 (PIN+JWT双模式)")
 

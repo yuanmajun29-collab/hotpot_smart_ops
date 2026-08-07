@@ -15,7 +15,9 @@ if str(PROJECT_ROOT) not in sys.path:
 
 from common.store_config import DEFAULT_UAT_ROOT, uat_dir
 
-PILOT_STORES = ("store_yuhuan", "store_jiaojiang")
+PILOT_STORES = tuple(
+    s.strip() for s in __import__("os").environ.get("HOTPOT_PILOT_STORES", "").split(",") if s.strip()
+) or ()  # 空列表时依赖外部注入
 BACKENDS = ("mock", "yolo", "rknn", "onnx")
 
 

@@ -235,7 +235,7 @@ class KPIFeedbackEngine:
       gateway.set_task_completed_callback(engine.on_task_completed)
     """
 
-    def __init__(self, pg_db=None, store_id: str = "store_jiaojiang"):
+    def __init__(self, pg_db=None, store_id: str = ""):
         """初始化引擎.
 
         Args:

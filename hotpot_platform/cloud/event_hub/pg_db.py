@@ -47,6 +47,9 @@ CREATE TABLE IF NOT EXISTS supply_product_master (
     status TEXT DEFAULT 'draft',
     locked BOOLEAN DEFAULT FALSE,
     version INTEGER DEFAULT 1,
+    tenant_id       VARCHAR(64)  NOT NULL DEFAULT '',
+    brand_id        VARCHAR(64)  NOT NULL DEFAULT '',
+    region_id       VARCHAR(64)  NOT NULL DEFAULT '',
     store_id TEXT NOT NULL DEFAULT '',
     created_by TEXT,
     created_at TIMESTAMPTZ,
@@ -63,7 +66,10 @@ CREATE INDEX IF NOT EXISTS idx_spm_status ON supply_product_master(status);
 PG_SUPPLY_PURCHASE_ORDER_SCHEMA = """
 CREATE TABLE IF NOT EXISTS supply_purchase_order (
     po_number       VARCHAR(32)  PRIMARY KEY,
-    store_id        VARCHAR(64)  NOT NULL DEFAULT 'store_jiaojiang',
+    tenant_id       VARCHAR(64)  NOT NULL DEFAULT '',
+    brand_id        VARCHAR(64)  NOT NULL DEFAULT '',
+    region_id       VARCHAR(64)  NOT NULL DEFAULT '',
+    store_id        VARCHAR(64)  NOT NULL,
     ordered_by      VARCHAR(64),
     ordered_at      TIMESTAMPTZ  NOT NULL DEFAULT now(),
     items           JSONB        NOT NULL DEFAULT '[]'::jsonb,
@@ -90,6 +96,9 @@ CREATE INDEX IF NOT EXISTS idx_spo_ordered_at ON supply_purchase_order(ordered_a
 PG_KPI_METRICS_SCHEMA = """
 CREATE TABLE IF NOT EXISTS kpi_metrics (
     id              SERIAL PRIMARY KEY,
+    tenant_id       VARCHAR(64)  NOT NULL DEFAULT '',
+    brand_id        VARCHAR(64)  NOT NULL DEFAULT '',
+    region_id       VARCHAR(64)  NOT NULL DEFAULT '',
     store_id        TEXT NOT NULL,
     metric_id       TEXT NOT NULL,               -- 指标ID (如 cleaning_response_time, waste_rate)
     metric_name     TEXT NOT NULL,               -- 中文名称 (如 "清台响应时间", "损耗率")
@@ -121,7 +130,10 @@ PG_SALES_EVENTS_SCHEMA = """
 CREATE TABLE IF NOT EXISTS sales_events (
     id              BIGSERIAL PRIMARY KEY,
     event_id        VARCHAR(64)  NOT NULL UNIQUE,         -- 全局唯一事件ID (幂等键)
-    store_id        VARCHAR(64)  NOT NULL DEFAULT 'store_jiaojiang',
+    tenant_id       VARCHAR(64)  NOT NULL DEFAULT '',
+    brand_id        VARCHAR(64)  NOT NULL DEFAULT '',
+    region_id       VARCHAR(64)  NOT NULL DEFAULT '',
+    store_id        VARCHAR(64)  NOT NULL,
     -- 交易核心字段
     transaction_id  VARCHAR(64)  NOT NULL,                -- POS原始交易单号
     table_id        VARCHAR(16),                          -- 桌号 (堂食)
@@ -248,6 +260,9 @@ class PostgresHubDatabase:
                     """
                     CREATE TABLE IF NOT EXISTS events (
                         event_id TEXT PRIMARY KEY,
+                        tenant_id TEXT NOT NULL DEFAULT '',
+                        brand_id TEXT NOT NULL DEFAULT '',
+                        region_id TEXT NOT NULL DEFAULT '',
                         store_id TEXT NOT NULL,
                         level TEXT,
                         source TEXT,
@@ -258,6 +273,9 @@ class PostgresHubDatabase:
                         ON events(store_id, created_at DESC);
 
                     CREATE TABLE IF NOT EXISTS store_snapshots (
+                        tenant_id TEXT NOT NULL DEFAULT '',
+                        brand_id TEXT NOT NULL DEFAULT '',
+                        region_id TEXT NOT NULL DEFAULT '',
                         store_id TEXT NOT NULL,
                         kind TEXT NOT NULL,
                         payload JSONB NOT NULL,
@@ -266,6 +284,9 @@ class PostgresHubDatabase:
                     );
 
                     CREATE TABLE IF NOT EXISTS device_registry (
+                        tenant_id TEXT NOT NULL DEFAULT '',
+                        brand_id TEXT NOT NULL DEFAULT '',
+                        region_id TEXT NOT NULL DEFAULT '',
                         device_id TEXT PRIMARY KEY,
                         payload JSONB NOT NULL,
                         updated_at TIMESTAMPTZ NOT NULL
@@ -282,6 +303,9 @@ class PostgresHubDatabase:
                     + """
                     CREATE TABLE IF NOT EXISTS waste_timeseries (
                         id SERIAL PRIMARY KEY,
+                        tenant_id TEXT NOT NULL DEFAULT '',
+                        brand_id TEXT NOT NULL DEFAULT '',
+                        region_id TEXT NOT NULL DEFAULT '',
                         store_id TEXT NOT NULL,
                         date TEXT NOT NULL,
                         total_count INTEGER NOT NULL DEFAULT 0,
@@ -295,6 +319,9 @@ class PostgresHubDatabase:
 
                     CREATE TABLE IF NOT EXISTS waste_alerts (
                         id SERIAL PRIMARY KEY,
+                        tenant_id TEXT NOT NULL DEFAULT '',
+                        brand_id TEXT NOT NULL DEFAULT '',
+                        region_id TEXT NOT NULL DEFAULT '',
                         store_id TEXT NOT NULL,
                         date TEXT NOT NULL,
                         alert_type TEXT NOT NULL DEFAULT 'spike',

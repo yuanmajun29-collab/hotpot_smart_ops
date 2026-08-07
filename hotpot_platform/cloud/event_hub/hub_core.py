@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import json
+import os
 import threading
 import uuid
 from collections import deque
@@ -13,7 +14,7 @@ from typing import Any, Callable, Deque, Dict, List, Optional
 PROJECT_ROOT = Path(__file__).resolve().parents[2]
 STORES_REGISTRY = PROJECT_ROOT / "demo" / "data" / "stores.json"
 MAX_EVENTS = 500
-DEFAULT_STORE_ID = "store_yuhuan"
+DEFAULT_STORE_ID = os.environ.get("HOTPOT_STORE_ID", "store_yuhuan")
 
 PersistHook = Optional[Callable[[str, str, Any], None]]
 

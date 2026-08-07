@@ -1,6 +1,7 @@
 """Alerts routes."""
 from __future__ import annotations
 
+import os
 from typing import Any, Dict, Optional
 
 from fastapi import APIRouter, Depends, HTTPException, Query, Request
@@ -53,7 +54,8 @@ def alerts_routes(
         return {"routes": [runtime.alert_gateway.route_status(sid)]}
     store_ids = sorted(set(runtime.hub._registry) | set(runtime.hub._stores))
     if not store_ids:
-        store_ids = ["store_yuhuan", "store_jiaojiang"]
+        fallback = os.environ.get("HOTPOT_PILOT_STORES", "store_yuhuan")
+        store_ids = [s.strip() for s in fallback.split(",") if s.strip()]
     store_ids = _readable_store_ids(store_ids, auth)
     return {"routes": [runtime.alert_gateway.route_status(sid) for sid in store_ids]}
 

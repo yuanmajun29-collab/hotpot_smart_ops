@@ -515,11 +515,15 @@ class StoreComparison:
 
     @staticmethod
     def _store_name(store_id: str) -> str:
-        """获取门店名称."""
-        names = {
-            "store_jiaojiang": "椒江店",
-            "store_yuhuan": "玉环店",
-        }
+        """获取门店名称 — 从环境变量/DB动态加载."""
+        import os as _os
+        names = {}
+        pilot = _os.environ.get('HOTPOT_PILOT_STORES', '')
+        if pilot:
+            for s in pilot.split(','):
+                s = s.strip()
+                if s:
+                    names[s] = _os.environ.get(f'HOTPOT_STORE_NAME_{s}', s)
         return names.get(store_id, store_id)
 
 

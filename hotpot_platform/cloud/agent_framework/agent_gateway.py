@@ -540,7 +540,7 @@ class AgentGatewayMiddleware:
                 suggestion_id=kw.get("suggestion_id"),
                 items=kw.get("items", []),
                 supplier=kw.get("supplier", ""),
-                store_id=kw.get("store_id", "store_jiaojiang"),
+                store_id=kw.get("store_id", os.environ.get("HOTPOT_STORE_ID", "")),
                 requested_by=kw.get("requested_by", "gateway"),
             )
 

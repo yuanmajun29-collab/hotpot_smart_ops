@@ -64,7 +64,7 @@ JWT_ISSUER = "hotpot-platform"
 DEFAULT_PIN = os.getenv("HOTPOT_DEFAULT_PIN", "123456")
 DEFAULT_USER = os.getenv("HOTPOT_DEFAULT_USER", "zhangdian")
 DEFAULT_ROLE = os.getenv("HOTPOT_DEFAULT_ROLE", "店长")
-DEFAULT_STORE_ID = os.getenv("HOTPOT_STORE_ID", "store_jiaojiang")
+DEFAULT_STORE_ID = os.getenv("HOTPOT_STORE_ID", "")
 
 # 安全配置
 MAX_LOGIN_ATTEMPTS = 5  # 最大登录尝试次数
@@ -164,25 +164,25 @@ DEMO_USERS: Dict[str, Dict[str, Any]] = {
         "password": "demo",
         "role": "店长",
         "name": "张店",
-        "data_scope": ["store_jiaojiang"],
+        "data_scope": ["store_yuhuan"],
     },
     "chushi": {
         "password": "demo",
         "role": "厨师长",
         "name": "潘厨",
-        "data_scope": ["store_jiaojiang"],
+        "data_scope": ["store_yuhuan"],
     },
     "lingban": {
         "password": "demo",
         "role": "前厅领班",
         "name": "李领",
-        "data_scope": ["store_jiaojiang"],
+        "data_scope": ["store_yuhuan"],
     },
     "shouhuo": {
         "password": "demo",
         "role": "收货员",
         "name": "王货",
-        "data_scope": ["store_jiaojiang"],
+        "data_scope": ["store_yuhuan"],
     },
     "quyududao": {
         "password": "demo",

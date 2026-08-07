@@ -14,6 +14,7 @@ import json
 import random
 import sys
 import time
+import os
 import urllib.error
 import urllib.request
 from datetime import datetime, timezone
@@ -256,11 +257,8 @@ def main() -> None:
     parser.add_argument("--cycles", type=int, default=0, help="0=forever when interval>0")
     args = parser.parse_args()
 
-    names = {
-        "store_yuhuan": "冯校长火锅·玉环店",
-        "store_jiaojiang": "冯校长火锅·椒江店",
-    }
-    store_name = args.store_name or names.get(args.store_id, args.store_id)
+    names = {}  # 从环境变量/DB动态加载，不再硬编码
+    store_name = args.store_name or os.environ.get("HOTPOT_STORE_NAME") or names.get(args.store_id, args.store_id)
     pos_file = Path(args.pos_file)
 
     # ⚠️ 生产环境安全检查: sim模式仅限开发测试

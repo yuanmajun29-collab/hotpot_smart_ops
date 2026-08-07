@@ -27,7 +27,7 @@ JWT_EXPIRE_HOURS = int(os.environ.get("HOTPOT_JWT_HOURS", "24"))
 # Edge API keys (store-scoped writes)
 DEFAULT_API_KEYS: Dict[str, str] = {
     "edge_yuhuan_dev_key": "store_yuhuan",
-    "edge_jiaojiang_dev_key": "store_jiaojiang",
+    "edge_jiaojiang_dev_key": os.environ.get("HOTPOT_STORE_ID", ""),
     "admin_seed_key": "*",
 }
 

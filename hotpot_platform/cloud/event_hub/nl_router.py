@@ -28,8 +28,10 @@ def match_intent(text: str) -> tuple[Optional[str], Optional[str], Optional[str]
     return None, None, None
 
 
-def query_data(intent: str, store_id: str = "store_jiaojiang") -> dict:
+def query_data(intent: str, store_id: str = "") -> dict:
     """根据意图查询数据（MVP阶段返回模拟数据，展后接真实DB）"""
+    import os as _os
+    sid = store_id or _os.environ.get("HOTPOT_STORE_ID", "")
     now = datetime.now().strftime("%Y-%m-%d %H:%M")
 
     queries = {
@@ -68,7 +70,8 @@ def query_data(intent: str, store_id: str = "store_jiaojiang") -> dict:
     }
 
     data = queries.get(intent, {})
-    data["store_name"] = "椒江冯校长"
+    store_name = _os.environ.get("HOTPOT_STORE_NAME", data.get("store_name", ""))
+    data["store_name"] = store_name or "门店"
     data["timestamp"] = now
     return data
 
@@ -125,8 +128,10 @@ def render_template(intent: str, data: dict) -> str:
     return template.format(**data)
 
 
-def process_message(text: str, store_id: str = "store_jiaojiang") -> dict:
+def process_message(text: str, store_id: str = "") -> dict:
     """完整处理流程：匹配→查询→渲染"""
+    import os as _os
+    sid = store_id or _os.environ.get("HOTPOT_STORE_ID", "")
     intent, target, keyword = match_intent(text)
 
     if intent is None:
@@ -138,7 +143,7 @@ def process_message(text: str, store_id: str = "store_jiaojiang") -> dict:
             "data": {},
         }
 
-    data = query_data(intent, store_id)
+    data = query_data(intent, sid)
     reply = render_template(intent, data)
 
     return {

@@ -20,7 +20,7 @@ class NLRequest(BaseModel):
     from_user: str
     text: str
     timestamp: Optional[int] = None
-    store_id: Optional[str] = "store_jiaojiang"
+    store_id: Optional[str] = None
 
 
 class NLResponse(BaseModel):
@@ -37,7 +37,7 @@ async def nl_webhook(req: NLRequest):
     if not req.text or not req.text.strip():
         raise HTTPException(status_code=400, detail="text is required")
 
-    result = process_message(req.text, req.store_id or "store_jiaojiang")
+    result = process_message(req.text, req.store_id or os.environ.get("HOTPOT_STORE_ID", ""))
     return NLResponse(**result)
 
 
